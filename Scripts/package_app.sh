@@ -7,8 +7,6 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 GIT_ROOT="$ROOT"
 cd "$ROOT"
 
-"$ROOT/Scripts/build_core.sh" "$CONF"
-
 APP_NAME=${APP_NAME:-MyApp}
 BUNDLE_ID=${BUNDLE_ID:-com.example.myapp}
 MACOS_MIN_VERSION=${MACOS_MIN_VERSION:-14.0}
@@ -30,7 +28,16 @@ if [[ ${#ARCH_LIST[@]} -eq 0 ]]; then
 fi
 
 for ARCH in "${ARCH_LIST[@]}"; do
+  case "$ARCH" in
+    arm64) RUST_TARGET="aarch64-apple-darwin" ;;
+    x86_64) RUST_TARGET="x86_64-apple-darwin" ;;
+    *) echo "ERROR: unsupported architecture $ARCH" >&2; exit 1 ;;
+  esac
+  rustup target add "$RUST_TARGET"
+  "$ROOT/Scripts/build_core.sh" "$CONF" "$RUST_TARGET"
   swift build -c "$CONF" --arch "$ARCH"
+  mkdir -p "$ROOT/.build/opul-core-$ARCH"
+  cp -L "$ROOT/build/lib/libopul_core.dylib" "$ROOT/.build/opul-core-$ARCH/libopul_core.dylib"
 done
 
 APP="$ROOT/${APP_NAME}.app"
@@ -206,13 +213,22 @@ if [[ ! -f "$APP_ENTITLEMENTS" ]]; then
 PLIST
 fi
 
-DYLIB_SRC="$ROOT/build/lib/libopul_core.dylib"
-if [[ ! -f "$DYLIB_SRC" ]]; then
-  echo "ERROR: missing $DYLIB_SRC" >&2
-  exit 1
+DYLIBS=()
+for ARCH in "${ARCH_LIST[@]}"; do
+  DYLIB_SRC="$ROOT/.build/opul-core-$ARCH/libopul_core.dylib"
+  if [[ ! -f "$DYLIB_SRC" ]]; then
+    echo "ERROR: missing $DYLIB_SRC" >&2
+    exit 1
+  fi
+  DYLIBS+=("$DYLIB_SRC")
+done
+if [[ ${#DYLIBS[@]} -gt 1 ]]; then
+  lipo -create "${DYLIBS[@]}" -output "$APP/Contents/Frameworks/libopul_core.dylib"
+else
+  cp -L "${DYLIBS[0]}" "$APP/Contents/Frameworks/libopul_core.dylib"
 fi
-cp -L "$DYLIB_SRC" "$APP/Contents/Frameworks/libopul_core.dylib"
-OLD_ID=$(otool -D "$DYLIB_SRC" | awk 'NR==2 { print }')
+verify_binary_arches "$APP/Contents/Frameworks/libopul_core.dylib" "${ARCH_LIST[@]}"
+OLD_ID=$(otool -D "${DYLIBS[0]}" | awk 'NR==2 { print }')
 install_name_tool -id @rpath/libopul_core.dylib "$APP/Contents/Frameworks/libopul_core.dylib"
 install_name_tool -change "$OLD_ID" @rpath/libopul_core.dylib "$APP/Contents/MacOS/$APP_NAME"
 install_name_tool -add_rpath @executable_path/../Frameworks "$APP/Contents/MacOS/$APP_NAME"

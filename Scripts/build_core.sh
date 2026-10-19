@@ -3,15 +3,23 @@
 set -euo pipefail
 
 CONF=${1:-debug}
+TARGET=${2:-}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 
+TARGET_ARGS=()
+TARGET_DIR="$ROOT/target"
+if [[ -n "$TARGET" ]]; then
+  TARGET_ARGS=(--target "$TARGET")
+  TARGET_DIR="$ROOT/target/$TARGET"
+fi
+
 if [[ "$CONF" == "release" ]]; then
-  cargo build --release
-  LIB_DIR="$ROOT/target/release"
+  cargo build --release "${TARGET_ARGS[@]}"
+  LIB_DIR="$TARGET_DIR/release"
 else
-  cargo build
-  LIB_DIR="$ROOT/target/debug"
+  cargo build "${TARGET_ARGS[@]}"
+  LIB_DIR="$TARGET_DIR/debug"
 fi
 
 DYLIB="$LIB_DIR/libopul_core.dylib"

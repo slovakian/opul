@@ -13,6 +13,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
       - name: Verify version
         run: |
           source version.env
@@ -25,6 +27,7 @@ jobs:
         run: |
           codesign --verify --deep --strict Opul.app
           test "$(lipo -archs Opul.app/Contents/MacOS/Opul | tr ' ' '\n' | sort | tr '\n' ' ')" = "arm64 x86_64 "
+          test "$(lipo -archs Opul.app/Contents/Frameworks/libopul_core.dylib | tr ' ' '\n' | sort | tr '\n' ' ')" = "arm64 x86_64 "
       - name: Archive and checksum
         run: |
           ditto -c -k --sequesterRsrc --keepParent Opul.app "Opul-${GITHUB_REF_NAME}-macOS.zip"
