@@ -7,18 +7,24 @@ TARGET=${2:-}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 
-TARGET_ARGS=()
 TARGET_DIR="$ROOT/target"
 if [[ -n "$TARGET" ]]; then
-  TARGET_ARGS=(--target "$TARGET")
   TARGET_DIR="$ROOT/target/$TARGET"
 fi
 
 if [[ "$CONF" == "release" ]]; then
-  cargo build --release "${TARGET_ARGS[@]}"
+  if [[ -n "$TARGET" ]]; then
+    cargo build --release --target "$TARGET"
+  else
+    cargo build --release
+  fi
   LIB_DIR="$TARGET_DIR/release"
 else
-  cargo build "${TARGET_ARGS[@]}"
+  if [[ -n "$TARGET" ]]; then
+    cargo build --target "$TARGET"
+  else
+    cargo build
+  fi
   LIB_DIR="$TARGET_DIR/debug"
 fi
 
