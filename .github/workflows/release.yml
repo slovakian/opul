@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Verify version
+        run: |
+          source version.env
+          test "v${MARKETING_VERSION}" = "${GITHUB_REF_NAME}"
+      - name: Test
+        run: Scripts/test.sh
+      - name: Package universal app
+        run: SIGNING_MODE=adhoc ARCHES="arm64 x86_64" Scripts/package_app.sh release
+      - name: Verify signature and architectures
+        run: |
+          codesign --verify --deep --strict Opul.app
+          test "$(lipo -archs Opul.app/Contents/MacOS/Opul | tr ' ' '\n' | sort | tr '\n' ' ')" = "arm64 x86_64 "
+      - name: Archive and checksum
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent Opul.app "Opul-${GITHUB_REF_NAME}-macOS.zip"
+          shasum -a 256 "Opul-${GITHUB_REF_NAME}-macOS.zip" > "Opul-${GITHUB_REF_NAME}-macOS.zip.sha256"
+      - uses: softprops/action-gh-release@v2
+        with:
+          body: |
+            Opul is free and open source.
+
+            This build is ad-hoc signed and is not notarized. On first launch, Control-click Opul, choose Open, and confirm. Verify the SHA-256 checksum before opening it.
+          files: |
+            Opul-*-macOS.zip
+            Opul-*-macOS.zip.sha256

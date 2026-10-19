@@ -1,0 +1,7 @@
+[advisories]
+ignore = [
+    # librqbit-utp 0.7 calls ringbuf::Consumer::skip only on a RingBuf<u8>.
+    # RUSTSEC-2026-0293 requires the buffered element's Drop implementation to panic;
+    # u8 has no Drop implementation. Re-evaluate when librqbit-utp updates ringbuf.
+    "RUSTSEC-2026-0293",
+]

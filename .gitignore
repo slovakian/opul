@@ -1,0 +1,7 @@
+/target
+/.build
+/build
+/*.app
+/*.zip
+/*.sha256
+.DS_Store
