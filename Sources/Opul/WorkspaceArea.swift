@@ -941,7 +941,7 @@ private enum DownloadArtworkAssets {
 
     private static let images: [String: NSImage] = Dictionary(
         uniqueKeysWithValues: names.compactMap { name in
-            guard let url = Bundle.module.url(
+            guard let url = Bundle.opulResources.url(
                 forResource: name,
                 withExtension: "png",
                 subdirectory: "FallbackArtwork"

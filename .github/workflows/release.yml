@@ -29,7 +29,7 @@ jobs:
       NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
       NOTARY_PASSWORD: ${{ secrets.NOTARY_PASSWORD }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -49,6 +49,7 @@ jobs:
           version="$major.$minor.$patch"
           echo "Releasing $version (previous: ${latest:-none})"
           echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "PREVIOUS_TAG=$latest" >> "$GITHUB_ENV"
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -78,6 +79,7 @@ jobs:
           ARCHES="arm64 x86_64" MARKETING_VERSION="$VERSION" Scripts/package_app.sh release
           test "$(lipo -archs Opul.app/Contents/MacOS/Opul | tr ' ' '\n' | sort | xargs)" = "arm64 x86_64"
           test "$(lipo -archs Opul.app/Contents/Frameworks/libopul_core.dylib | tr ' ' '\n' | sort | xargs)" = "arm64 x86_64"
+          Scripts/smoke_test.sh
           Scripts/package_dmg.sh
 
       - name: Notarize
@@ -91,8 +93,16 @@ jobs:
         run: |
           mkdir dist
           mv Opul.dmg dist/
-          gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
-            -f tag_name="v$VERSION" -f target_commitish="$GITHUB_SHA" --jq .body > dist/Opul.md
+          {
+            echo "## Changes"
+            echo
+            git log --no-merges --format='- %s' ${PREVIOUS_TAG:+"$PREVIOUS_TAG..HEAD"}
+            if [[ -n "$PREVIOUS_TAG" ]]; then
+              echo
+              echo "**Full changelog:** https://github.com/$GITHUB_REPOSITORY/compare/$PREVIOUS_TAG...v$VERSION"
+            fi
+          } > dist/Opul.md
+          cat dist/Opul.md
           echo "$SPARKLE_PRIVATE_KEY" | .build/artifacts/sparkle/Sparkle/bin/generate_appcast \
             --ed-key-file - \
             --embed-release-notes \

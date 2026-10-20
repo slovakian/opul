@@ -1386,3 +1386,4 @@ uint32_t ffi_opul_core_uniffi_contract_version(void
 
 );
 #endif
+

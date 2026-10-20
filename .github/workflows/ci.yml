@@ -12,7 +12,7 @@ jobs:
   check:
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - name: Test Rust and Swift
         run: Scripts/test.sh
@@ -20,3 +20,5 @@ jobs:
         run: |
           Scripts/package_app.sh debug
           Scripts/package_dmg.sh
+      - name: Launch the packaged app
+        run: Scripts/smoke_test.sh

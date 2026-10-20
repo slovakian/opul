@@ -170,7 +170,7 @@ final class InteractionSoundEngine {
     }
 
     private static func bundledSounds(for category: InteractionSoundCategory) -> [URL] {
-        let roots = [Bundle.module.resourceURL, Bundle.main.resourceURL].compactMap { $0 }
+        let roots = [Bundle.opulResources.resourceURL, Bundle.main.resourceURL].compactMap { $0 }
         for root in roots {
             let folder = root
                 .appending(path: "Sounds", directoryHint: .isDirectory)
@@ -193,7 +193,7 @@ final class InteractionSoundEngine {
     }
 
     private static func bundledSound(named filename: String, for category: InteractionSoundCategory) -> URL? {
-        let roots = [Bundle.module.resourceURL, Bundle.main.resourceURL].compactMap { $0 }
+        let roots = [Bundle.opulResources.resourceURL, Bundle.main.resourceURL].compactMap { $0 }
         for root in roots {
             let sound = root
                 .appending(path: "Sounds", directoryHint: .isDirectory)

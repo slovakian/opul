@@ -11,9 +11,9 @@ gh workflow run release.yml -R slovakian/opul -f bump=patch
 The workflow takes the newest `v*` tag, increases the part you chose, and then:
 
 1. runs the test suite;
-2. builds a universal (Apple silicon and Intel) `Opul.app` and wraps it in `Opul.dmg`;
+2. builds a universal (Apple silicon and Intel) `Opul.app`, launches it once with the build folder moved away, and wraps it in `Opul.dmg`;
 3. signs and notarizes it when a Developer ID certificate is configured (see below);
-4. writes release notes from merged pull requests and commits, and an `appcast.xml` signed with the Sparkle key;
+4. writes release notes listing the commit subjects since the previous release, and an `appcast.xml` signed with the Sparkle key;
 5. tags the commit and publishes a GitHub release with `Opul.dmg` and `appcast.xml`;
 6. downloads both files back through the public "latest" links and checks the version, checksum, update signature, and code signature.
 
