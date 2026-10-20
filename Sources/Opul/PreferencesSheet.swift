@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PreferencesSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var updater: AppUpdater
     let library: DownloadLibrary
 
     @State private var selectedTab: PrefTab = .general
@@ -69,6 +70,12 @@ struct PreferencesSheet: View {
 
             Section(footer: Text("Workspaces use this default unless they have their own File Organization setting.")) {
                 EmptyView()
+            }
+
+            Section("Updates") {
+                Toggle("Automatically install updates", isOn: $updater.automaticallyInstallsUpdates)
+                Button("Check for Updates…", action: updater.checkForUpdates)
+                    .disabled(!updater.canCheckForUpdates)
             }
         }
         .formStyle(.grouped)

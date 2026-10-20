@@ -3,11 +3,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# version.env lives at the repository root.
 GIT_ROOT="$ROOT_DIR"
-if [[ -f "$GIT_ROOT/version.env" ]]; then
+if [[ -f "$GIT_ROOT/app.env" ]]; then
   # shellcheck disable=SC1091
-  source "$GIT_ROOT/version.env"
+  source "$GIT_ROOT/app.env"
 fi
 APP_NAME=${APP_NAME:-MyApp}
 APP_BUNDLE="${ROOT_DIR}/${APP_NAME}.app"
@@ -67,7 +66,7 @@ if [[ -n "${RELEASE_ARCHES}" ]]; then
 fi
 
 log "==> Package app (${BUILD_CONF})"
-SIGNING_MODE=adhoc ARCHES="${ARCHES_VALUE}" "${ROOT_DIR}/Scripts/package_app.sh" "${BUILD_CONF}"
+ARCHES="${ARCHES_VALUE}" "${ROOT_DIR}/Scripts/package_app.sh" "${BUILD_CONF}"
 
 log "==> Launch app"
 if ! open "${APP_BUNDLE}"; then

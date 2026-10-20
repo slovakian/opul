@@ -5,6 +5,7 @@ import SwiftUI
 struct OpulApp: App {
     @NSApplicationDelegateAdaptor(OpulDelegate.self) private var delegate
     @State private var library: DownloadLibrary
+    @StateObject private var updater = AppUpdater()
 
     init() {
         if CommandLine.arguments.contains("--check-storage") {
@@ -23,9 +24,13 @@ struct OpulApp: App {
     var body: some Scene {
         WindowGroup {
             LibraryWindow(library: library)
+                .environmentObject(updater)
         }
         .defaultSize(width: 1100, height: 720)
         .windowToolbarStyle(.unified(showsTitle: false))
+        .commands {
+            CheckForUpdatesCommand(updater: updater)
+        }
     }
 }
 

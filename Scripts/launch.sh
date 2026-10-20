@@ -3,11 +3,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-# version.env lives at the repository root.
 GIT_ROOT="$PROJECT_ROOT"
-if [[ -f "$GIT_ROOT/version.env" ]]; then
+if [[ -f "$GIT_ROOT/app.env" ]]; then
   # shellcheck disable=SC1091
-  source "$GIT_ROOT/version.env"
+  source "$GIT_ROOT/app.env"
 fi
 APP_NAME=${APP_NAME:-MyApp}
 APP_PATH="$PROJECT_ROOT/${APP_NAME}.app"

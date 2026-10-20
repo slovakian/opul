@@ -6,6 +6,9 @@ let package = Package(
     platforms: [
         .macOS(.v14),
     ],
+    dependencies: [
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.10.0"),
+    ],
     targets: [
         .target(
             name: "opul_coreFFI",
@@ -27,7 +30,11 @@ let package = Package(
         ),
         .executableTarget(
             name: "Opul",
-            dependencies: ["OpulClipboard", "OpulCore"],
+            dependencies: [
+                "OpulClipboard",
+                "OpulCore",
+                .product(name: "Sparkle", package: "Sparkle"),
+            ],
             path: "Sources/Opul",
             resources: [
                 .copy("Resources/FallbackArtwork"),

@@ -16,7 +16,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Test Rust and Swift
         run: Scripts/test.sh
-      - name: Package an ad-hoc signed app
-        run: SIGNING_MODE=adhoc Scripts/package_app.sh debug
-      - name: Verify signature
-        run: codesign --verify --deep --strict Opul.app
+      - name: Package the app and disk image
+        run: |
+          Scripts/package_app.sh debug
+          Scripts/package_dmg.sh

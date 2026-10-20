@@ -1,25 +1,20 @@
 #!/usr/bin/env bash
+# Build Opul.app. Signs ad-hoc unless APP_IDENTITY names a Developer ID certificate.
 set -euo pipefail
 
 CONF=${1:-release}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-# version.env lives at the repository root.
-GIT_ROOT="$ROOT"
 cd "$ROOT"
 
-APP_NAME=${APP_NAME:-MyApp}
-BUNDLE_ID=${BUNDLE_ID:-com.example.myapp}
-MACOS_MIN_VERSION=${MACOS_MIN_VERSION:-14.0}
-MENU_BAR_APP=${MENU_BAR_APP:-0}
-SIGNING_MODE=${SIGNING_MODE:-}
+source "$ROOT/app.env"
 APP_IDENTITY=${APP_IDENTITY:-}
 
-if [[ -f "$GIT_ROOT/version.env" ]]; then
-  source "$GIT_ROOT/version.env"
-else
-  MARKETING_VERSION=${MARKETING_VERSION:-0.1.0}
-  BUILD_NUMBER=${BUILD_NUMBER:-1}
+# Releases pass MARKETING_VERSION; local builds report the most recent release tag.
+if [[ -z "${MARKETING_VERSION:-}" ]]; then
+  LATEST_TAG=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || echo v0.0.0)
+  MARKETING_VERSION=${LATEST_TAG#v}
 fi
+BUILD_NUMBER=${BUILD_NUMBER:-$MARKETING_VERSION}
 
 ARCH_LIST=( ${ARCHES:-} )
 if [[ ${#ARCH_LIST[@]} -eq 0 ]]; then
@@ -51,11 +46,6 @@ if [[ -f "$ROOT/assets/AppIcon.png" ]]; then
   "$ROOT/Scripts/build_icon.sh" "$ROOT/assets/AppIcon.png" "$ICON_TARGET"
 fi
 
-LSUI_VALUE="false"
-if [[ "$MENU_BAR_APP" == "1" ]]; then
-  LSUI_VALUE="true"
-fi
-
 BUILD_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
@@ -73,7 +63,6 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleVersion</key><string>${BUILD_NUMBER}</string>
     <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
     <key>LSMinimumSystemVersion</key><string>${MACOS_MIN_VERSION}</string>
-    <key>LSUIElement</key><${LSUI_VALUE}/>
     <key>CFBundleIconFile</key><string>Icon</string>
     <key>CFBundleURLTypes</key>
     <array>
@@ -93,6 +82,10 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     </array>
     <key>NSCameraUsageDescription</key><string>Guided extraction may open sites that use the camera.</string>
     <key>NSMicrophoneUsageDescription</key><string>Guided extraction may open sites that use the microphone.</string>
+    <key>SUFeedURL</key><string>${SPARKLE_FEED_URL}</string>
+    <key>SUPublicEDKey</key><string>${SPARKLE_PUBLIC_KEY}</string>
+    <key>SUEnableAutomaticChecks</key><true/>
+    <key>SUAutomaticallyUpdate</key><true/>
     <key>BuildTimestamp</key><string>${BUILD_TIMESTAMP}</string>
     <key>GitCommit</key><string>${GIT_COMMIT}</string>
 </dict>
@@ -102,10 +95,7 @@ PLIST
 build_product_path() {
   local name="$1"
   local arch="$2"
-  case "$arch" in
-    arm64|x86_64) echo ".build/${arch}-apple-macosx/$CONF/$name" ;;
-    *) echo ".build/$CONF/$name" ;;
-  esac
+  echo ".build/${arch}-apple-macosx/$CONF/$name"
 }
 
 verify_binary_arches() {
@@ -168,49 +158,17 @@ PREFERRED_BUILD_DIR="$(dirname "$(build_product_path "$APP_NAME" "${ARCH_LIST[0]
 shopt -s nullglob
 SWIFTPM_BUNDLES=("${PREFERRED_BUILD_DIR}/"*.bundle)
 shopt -u nullglob
-if [[ ${#SWIFTPM_BUNDLES[@]} -gt 0 ]]; then
-  for bundle in "${SWIFTPM_BUNDLES[@]}"; do
-    cp -R "$bundle" "$APP/Contents/Resources/"
-  done
-fi
-
-# Embed frameworks if any exist in the build folder.
-FRAMEWORK_DIRS=(".build/$CONF" ".build/${ARCH_LIST[0]}-apple-macosx/$CONF")
-for dir in "${FRAMEWORK_DIRS[@]}"; do
-  if compgen -G "${dir}/*.framework" >/dev/null; then
-    cp -R "${dir}/"*.framework "$APP/Contents/Frameworks/"
-    chmod -R a+rX "$APP/Contents/Frameworks"
-    install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/$APP_NAME"
-    break
-  fi
+for bundle in "${SWIFTPM_BUNDLES[@]+"${SWIFTPM_BUNDLES[@]}"}"; do
+  cp -R "$bundle" "$APP/Contents/Resources/"
 done
+
+# Sparkle ships as a universal framework. Its XPC services exist only for sandboxed apps.
+SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
+ditto "$PREFERRED_BUILD_DIR/Sparkle.framework" "$SPARKLE"
+rm -rf "$SPARKLE/Versions/B/XPCServices" "$SPARKLE/XPCServices"
 
 if [[ -n "$ICON_TARGET" && -f "$ICON_TARGET" ]]; then
   cp "$ICON_TARGET" "$APP/Contents/Resources/Icon.icns"
-fi
-
-# Ensure contents are writable before stripping attributes and signing.
-chmod -R u+w "$APP"
-
-# Strip extended attributes to prevent AppleDouble files that break code sealing.
-xattr -cr "$APP"
-find "$APP" -name '._*' -delete
-
-ENTITLEMENTS_DIR="$ROOT/.build/entitlements"
-DEFAULT_ENTITLEMENTS="$ENTITLEMENTS_DIR/${APP_NAME}.entitlements"
-mkdir -p "$ENTITLEMENTS_DIR"
-
-APP_ENTITLEMENTS=${APP_ENTITLEMENTS:-$DEFAULT_ENTITLEMENTS}
-if [[ ! -f "$APP_ENTITLEMENTS" ]]; then
-  cat > "$APP_ENTITLEMENTS" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <!-- Add entitlements here if needed. -->
-</dict>
-</plist>
-PLIST
 fi
 
 DYLIBS=()
@@ -233,31 +191,25 @@ install_name_tool -id @rpath/libopul_core.dylib "$APP/Contents/Frameworks/libopu
 install_name_tool -change "$OLD_ID" @rpath/libopul_core.dylib "$APP/Contents/MacOS/$APP_NAME"
 install_name_tool -add_rpath @executable_path/../Frameworks "$APP/Contents/MacOS/$APP_NAME"
 
-if [[ "$SIGNING_MODE" == "adhoc" || -z "$APP_IDENTITY" ]]; then
-  CODESIGN_ARGS=(--force --sign "-")
-else
+# Ensure contents are writable before stripping attributes and signing.
+chmod -R u+w "$APP"
+
+# Strip extended attributes to prevent AppleDouble files that break code sealing.
+xattr -cr "$APP"
+find "$APP" -name '._*' -delete
+
+if [[ -n "$APP_IDENTITY" ]]; then
   CODESIGN_ARGS=(--force --timestamp --options runtime --sign "$APP_IDENTITY")
+else
+  CODESIGN_ARGS=(--force --sign "-")
 fi
 
-# Sign embedded frameworks and their nested binaries before the app bundle.
-sign_frameworks() {
-  local fw
-  for fw in "$APP/Contents/Frameworks/"*.framework; do
-    if [[ ! -d "$fw" ]]; then
-      continue
-    fi
-    while IFS= read -r -d '' bin; do
-      codesign "${CODESIGN_ARGS[@]}" "$bin"
-    done < <(find "$fw" -type f -perm -111 -print0)
-    codesign "${CODESIGN_ARGS[@]}" "$fw"
-  done
-}
-sign_frameworks
-
+# Sign from the inside out: nested helpers, then frameworks, then the app.
+codesign "${CODESIGN_ARGS[@]}" "$SPARKLE/Versions/B/Autoupdate"
+codesign "${CODESIGN_ARGS[@]}" "$SPARKLE/Versions/B/Updater.app"
+codesign "${CODESIGN_ARGS[@]}" "$SPARKLE"
 codesign "${CODESIGN_ARGS[@]}" "$APP/Contents/Frameworks/libopul_core.dylib"
+codesign "${CODESIGN_ARGS[@]}" --entitlements "$ROOT/Opul.entitlements" "$APP"
 
-codesign "${CODESIGN_ARGS[@]}" \
-  --entitlements "$APP_ENTITLEMENTS" \
-  "$APP"
-
-echo "Created $APP"
+codesign --verify --deep --strict "$APP"
+echo "Created $APP ($MARKETING_VERSION)"

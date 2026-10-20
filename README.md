@@ -6,11 +6,15 @@ Opul is free and open source under the MIT License. If it makes your day better,
 
 ## Download
 
-Download the latest build from [GitHub Releases](https://github.com/slovakian/opul/releases/latest).
+[Download Opul](https://github.com/slovakian/opul/releases/latest/download/Opul.dmg) (the newest release, always), or visit [opul.procka.org](https://opul.procka.org). Requires macOS 14 Sonoma or newer on Apple silicon or Intel.
 
-Current releases are ad-hoc signed, not notarized, because the project does not yet participate in Apple's paid Developer Program. On first launch, macOS may require you to Control-click Opul, choose **Open**, and confirm. Only download builds from this repository and verify the published SHA-256 checksum.
+Open `Opul.dmg` and drag Opul to Applications. Opul is not notarized by Apple yet, so macOS asks you to approve it the first time:
 
-Requires macOS 14 Sonoma or newer.
+1. Open Opul from Applications. macOS says it can't verify the app. Close the warning; don't choose **Move to Trash**.
+2. Open **System Settings → Privacy & Security**, scroll down to **Security**, and click **Open Anyway** next to the message about Opul.
+3. Confirm when macOS asks again. It may ask for your password or Touch ID.
+
+You only do this once. Opul then checks for updates and installs them by itself; you can change that in Preferences.
 
 ## Build
 
@@ -21,13 +25,14 @@ Scripts/test.sh
 Scripts/compile_and_run.sh
 ```
 
-Build a release app without launching it:
+Build a release app and disk image without launching it:
 
 ```bash
-SIGNING_MODE=adhoc Scripts/package_app.sh release
+Scripts/package_app.sh release
+Scripts/package_dmg.sh
 ```
 
-The app bundle is written to `Opul.app`.
+These write `Opul.app` and `Opul.dmg`. Releases are published by the Release workflow; see [docs/releasing.md](docs/releasing.md).
 
 ## Project structure
 
