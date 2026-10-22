@@ -89,6 +89,12 @@ pub(crate) enum Command {
         download: DownloadId,
         files: Vec<TorrentFileSelection>,
     },
+    MoveDownload {
+        download: DownloadId,
+        folder: FolderId,
+        output_path: String,
+        content_folder: Option<String>,
+    },
     AcknowledgeRecovery,
     MarkReconciled,
     BeginShutdown {
@@ -251,6 +257,12 @@ pub(crate) enum Event {
         download: DownloadId,
         files: Vec<TorrentFileSelection>,
         control_generation: u64,
+    },
+    DownloadMoved {
+        download: DownloadId,
+        folder: FolderId,
+        output_path: String,
+        content_folder: Option<String>,
     },
     TorrentResolved {
         download: DownloadId,
@@ -566,6 +578,18 @@ pub(crate) fn decide(state: &AppState, envelope: &CommandEnvelope) -> Result<Dec
                 created_downloads: Vec::new(),
             })
         }
+        Command::MoveDownload {
+            download,
+            folder,
+            output_path,
+            content_folder,
+        } => decide_move_download(
+            state,
+            *download,
+            *folder,
+            output_path,
+            content_folder.as_deref(),
+        ),
         Command::AcknowledgeRecovery => {
             if !matches!(state.session, SessionPhase::RecoveryRequired) {
                 return Err(Rejection::InvalidInput(
@@ -1071,6 +1095,22 @@ pub(crate) fn apply(state: &mut AppState, event: &Event) {
                 workspace.downloads.retain(|item| item.id != *download);
             }
             finalize_structural_changes(state);
+        }
+        Event::DownloadMoved {
+            download,
+            folder,
+            output_path,
+            content_folder,
+        } => {
+            if let Some((_, item)) = state.locate_download_mut(*download) {
+                item.folder = *folder;
+                if let Some(output) = &mut item.output {
+                    output.path = output_path.clone();
+                    output.content_folder = content_folder.clone();
+                    // Moving the artifact invalidates the previous filesystem identity.
+                    output.identity = None;
+                }
+            }
         }
         Event::SeedRatioChanged {
             download,
@@ -1929,6 +1969,48 @@ fn lifecycle_name(lifecycle: &DownloadLifecycle) -> &'static str {
     }
 }
 
+/// The shell moves the files first; this records where they now live. Only a finished
+/// download qualifies, because no writer or engine still holds its paths.
+fn decide_move_download(
+    state: &AppState,
+    id: DownloadId,
+    folder: FolderId,
+    output_path: &str,
+    content_folder: Option<&str>,
+) -> Result<Decision, Rejection> {
+    let (workspace, item) = state
+        .locate_download(id)
+        .ok_or(Rejection::UnknownDownload(id))?;
+    require_folder(state, workspace, folder)?;
+    if !matches!(item.lifecycle, DownloadLifecycle::Finished) || item.output.is_none() {
+        return Err(invalid("move", &item.lifecycle));
+    }
+    if item.folder == folder {
+        return Ok(Decision::none());
+    }
+    let target = state
+        .workspace(workspace)
+        .and_then(|workspace| workspace.folders.iter().find(|saved| saved.id == folder))
+        .map(|saved| std::path::Path::new(&saved.path))
+        .ok_or(Rejection::FolderNotInWorkspace { workspace, folder })?;
+    let inside_target = |path: &str| {
+        let path = std::path::Path::new(path);
+        path != target && path.starts_with(target)
+    };
+    if !inside_target(output_path) || content_folder.is_some_and(|content| !inside_target(content))
+    {
+        return Err(Rejection::InvalidInput(
+            "a moved download must live inside its new saved folder".to_string(),
+        ));
+    }
+    Ok(simple(Event::DownloadMoved {
+        download: id,
+        folder,
+        output_path: output_path.to_string(),
+        content_folder: content_folder.map(str::to_string),
+    }))
+}
+
 fn invalid(action: &'static str, lifecycle: &DownloadLifecycle) -> Rejection {
     Rejection::InvalidTransition {
         action,
@@ -2193,6 +2275,54 @@ mod tests {
             }),
         );
         assert_eq!(result.unwrap_err(), Rejection::DuplicateTorrent(first.id));
+    }
+
+    #[test]
+    fn finished_download_moves_into_another_saved_folder() {
+        let mut state = running_state();
+        let workspace = state.workspaces[0].id;
+        let target = SavedFolder {
+            id: FolderId::new(),
+            name: "Films".to_string(),
+            path: "/tmp/Films".to_string(),
+        };
+        state = run(
+            &state,
+            Command::AddFolder {
+                workspace,
+                folder: target.clone(),
+                make_default: false,
+            },
+        );
+        let mut download = media_download(&state);
+        download.output = Some(OutputArtifact {
+            path: "/tmp/Downloads/film.mp4".to_string(),
+            content_folder: None,
+            identity: None,
+        });
+        state.workspaces[0].downloads.push(download.clone());
+
+        let move_to = |output_path: &str| Command::MoveDownload {
+            download: download.id,
+            folder: target.id,
+            output_path: output_path.to_string(),
+            content_folder: None,
+        };
+        assert!(matches!(
+            decide(&state, &command(move_to("/tmp/Films/film.mp4"))),
+            Err(Rejection::InvalidTransition { action: "move", .. })
+        ));
+
+        state.workspaces[0].downloads[0].lifecycle = DownloadLifecycle::Finished;
+        assert!(matches!(
+            decide(&state, &command(move_to("/tmp/Elsewhere/film.mp4"))),
+            Err(Rejection::InvalidInput(_))
+        ));
+
+        let moved = run(&state, move_to("/tmp/Films/film.mp4"));
+        let (_, item) = moved.locate_download(download.id).unwrap();
+        assert_eq!(item.folder, target.id);
+        assert_eq!(item.output.as_ref().unwrap().path, "/tmp/Films/film.mp4");
     }
 
     #[test]

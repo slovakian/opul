@@ -144,6 +144,7 @@ pub struct MachineCapabilities {
     pub can_change_file_selection: bool,
     pub can_remove: bool,
     pub can_reveal_output: bool,
+    pub can_move: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
@@ -836,6 +837,27 @@ impl OpulStateMachine {
             Command::SetTorrentFiles {
                 download,
                 files: files.into_iter().map(file_from_view).collect(),
+            },
+        )
+    }
+
+    /// Records a finished download whose files the shell already moved into `folder_id`.
+    pub fn move_download(
+        &self,
+        request: MachineDownloadCommand,
+        folder_id_value: String,
+        output_path: String,
+        content_folder: Option<String>,
+    ) -> Result<MachineCommandReceipt, StateMachineError> {
+        let download = download_id(&request.download_id)?;
+        self.dispatch_request(
+            request.request_id,
+            request.expected_revision,
+            Command::MoveDownload {
+                download,
+                folder: folder_id(&folder_id_value)?,
+                output_path,
+                content_folder,
             },
         )
     }
@@ -1687,6 +1709,7 @@ fn download_view(download: DownloadProjection) -> MachineDownload {
             can_change_file_selection: download.capabilities.can_change_file_selection,
             can_remove: download.capabilities.can_remove,
             can_reveal_output: download.capabilities.can_reveal_output,
+            can_move: download.capabilities.can_move,
         },
     }
 }
