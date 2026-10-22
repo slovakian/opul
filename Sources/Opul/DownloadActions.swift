@@ -6,15 +6,63 @@ import SwiftUI
 ///
 /// A context menu hides what does not apply. The menu bar keeps every item in place and
 /// disables what does not apply, so its layout stays the same as the selection changes.
-struct DownloadActionMenu: View {
-    enum Placement {
+struct DownloadActionMenu: View, Equatable {
+    enum Placement: Equatable {
         case contextMenu
         case menuBar
     }
 
     let library: DownloadLibrary
     let downloads: [Download]
+    let workspaceID: Workspace.ID?
+    let savedFolders: [SavedFolder]
+    let isMovingDownloads: Bool
+    let hasQuickLook: Bool
     let placement: Placement
+
+    init(
+        library: DownloadLibrary,
+        downloads: [Download],
+        workspaceID: Workspace.ID? = nil,
+        savedFolders: [SavedFolder]? = nil,
+        isMovingDownloads: Bool? = nil,
+        hasQuickLook: Bool? = nil,
+        placement: Placement
+    ) {
+        self.library = library
+        self.downloads = downloads
+        let currentWorkspace = (workspaceID == nil || savedFolders == nil) ? library.selectedWorkspace : nil
+        self.workspaceID = workspaceID ?? currentWorkspace?.id
+        self.savedFolders = savedFolders ?? currentWorkspace?.savedFolders ?? []
+        self.isMovingDownloads = isMovingDownloads ?? library.isMovingDownloads
+        self.hasQuickLook = hasQuickLook ?? (library.quickLookURL != nil)
+        self.placement = placement
+    }
+
+    static func == (lhs: DownloadActionMenu, rhs: DownloadActionMenu) -> Bool {
+        lhs.placement == rhs.placement
+            && lhs.workspaceID == rhs.workspaceID
+            && lhs.savedFolders == rhs.savedFolders
+            && lhs.isMovingDownloads == rhs.isMovingDownloads
+            && lhs.hasQuickLook == rhs.hasQuickLook
+            && lhs.downloads.elementsEqual(rhs.downloads, by: actionEquals)
+    }
+
+    private static func actionEquals(_ lhs: Download, _ rhs: Download) -> Bool {
+        lhs.id == rhs.id
+            && lhs.name == rhs.name
+            && lhs.state == rhs.state
+            && lhs.source == rhs.source
+            && lhs.capabilities == rhs.capabilities
+            && lhs.folderID == rhs.folderID
+            && lhs.seedRatioLimit == rhs.seedRatioLimit
+            && lhs.openableURL == rhs.openableURL
+            && lhs.webPageURL == rhs.webPageURL
+            && lhs.shareableLink == rhs.shareableLink
+            && lhs.distinctPageLink == rhs.distinctPageLink
+            && lhs.errorMessage == rhs.errorMessage
+            && lhs.magnetLink == rhs.magnetLink
+    }
 
     private var ids: [Download.ID] { downloads.map(\.id) }
     private var single: Download? { downloads.count == 1 ? downloads.first : nil }
@@ -119,7 +167,7 @@ struct DownloadActionMenu: View {
             quickLookTitle,
             systemImage: "eye",
             shortcut: KeyboardShortcut("y", modifiers: .command),
-            isAvailable: finishedFiles || library.quickLookURL != nil
+            isAvailable: finishedFiles || hasQuickLook
         ) {
             library.toggleQuickLook(ids.filter { id in downloads.first { $0.id == id }?.state == .finished })
         }
@@ -150,7 +198,7 @@ struct DownloadActionMenu: View {
     }
 
     private var quickLookTitle: String {
-        if library.quickLookURL != nil, isMenuBar { return "Close Quick Look" }
+        if hasQuickLook, isMenuBar { return "Close Quick Look" }
         if let single { return "Quick Look “\(single.name)”" }
         return "Quick Look"
     }
@@ -214,19 +262,18 @@ struct DownloadActionMenu: View {
 
     @ViewBuilder
     private var moveMenu: some View {
-        let workspace = library.selectedWorkspace
         let movable = downloads.filter(\.capabilities.canMove)
-        if movable.isEmpty || workspace == nil || library.isMovingDownloads {
+        if movable.isEmpty || workspaceID == nil || savedFolders.isEmpty || isMovingDownloads {
             unavailableSubmenu("Move to", systemImage: "folder.badge.gearshape")
         } else {
-            moveMenu(movable, in: workspace)
+            moveMenu(movable)
         }
     }
 
-    private func moveMenu(_ movable: [Download], in workspace: Workspace?) -> some View {
+    private func moveMenu(_ movable: [Download]) -> some View {
         Menu {
-            if let workspace {
-                ForEach(workspace.savedFolders) { folder in
+            if let workspaceID {
+                ForEach(savedFolders) { folder in
                     let isCurrent = movable.allSatisfy { $0.folderID == folder.id }
                     Button {
                         library.moveDownloads(movable.map(\.id), to: folder.id)
@@ -242,7 +289,7 @@ struct DownloadActionMenu: View {
                 }
                 Divider()
                 Button("New Saved Folder…") {
-                    library.beginMoveToNewFolder(movable.map(\.id), in: workspace.id)
+                    library.beginMoveToNewFolder(movable.map(\.id), in: workspaceID)
                 }
             }
         } label: {
@@ -385,8 +432,13 @@ struct DownloadCommands: Commands {
             DownloadActionMenu(
                 library: library,
                 downloads: library.selectedDownloads,
+                workspaceID: library.selectedWorkspace?.id,
+                savedFolders: library.selectedWorkspace?.savedFolders ?? [],
+                isMovingDownloads: library.isMovingDownloads,
+                hasQuickLook: library.quickLookURL != nil,
                 placement: .menuBar
             )
+            .equatable()
         }
     }
 }

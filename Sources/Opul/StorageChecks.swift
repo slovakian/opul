@@ -24,6 +24,7 @@ enum StorageChecks {
         testDownloadSelection()
         testDownloadLinks()
         testDownloadMovePaths()
+        testDownloadActionMenuStability()
         print("✓ All storage and resilience checks passed!")
     }
 
@@ -511,5 +512,168 @@ enum StorageChecks {
             "a sibling that only shares a name prefix is not inside the moved folder"
         )
         print("  ✓ Download move path check passed")
+    }
+
+    static func testDownloadActionMenuStability() {
+        let folderID = UUID()
+        let downloadID = UUID()
+        var download = Download(
+            id: downloadID,
+            name: "Debian ISO",
+            address: "magnet:?xt=urn:btih:0123456789abcdef",
+            state: .processing,
+            source: .torrent,
+            folderID: folderID,
+            totalSize: 4_000_000_000,
+            bytesDownloaded: 500_000_000,
+            bytesUploaded: 100_000_000,
+            downloadRate: 15_000_000,
+            uploadRate: 1_000_000,
+            seedRatio: 0.2,
+            seedRatioLimit: 1.0,
+            etaSeconds: 230,
+            progress: 0.125
+        )
+        download.capabilities = DownloadCapabilities.none
+        download.capabilities.canPause = true
+        download.capabilities.canCancel = true
+        download.capabilities.canRemove = true
+
+        var telemetryUpdate = download
+        telemetryUpdate.bytesDownloaded = 550_000_000
+        telemetryUpdate.bytesUploaded = 110_000_000
+        telemetryUpdate.downloadRate = 18_000_000
+        telemetryUpdate.uploadRate = 1_200_000
+        telemetryUpdate.seedRatio = 0.22
+        telemetryUpdate.etaSeconds = 190
+        telemetryUpdate.progress = 0.1375
+        expect(download != telemetryUpdate, "raw Download structs differ on progress ticks")
+
+        let folder = SavedFolder(id: folderID, name: "Downloads", path: "/tmp/downloads", isDefault: true)
+        let workspaceID = UUID()
+        let library = DownloadLibrary()
+
+        let baseMenu = DownloadActionMenu(
+            library: library,
+            downloads: [download],
+            workspaceID: workspaceID,
+            savedFolders: [folder],
+            isMovingDownloads: false,
+            hasQuickLook: false,
+            placement: .contextMenu
+        )
+
+        let telemetryMenu = DownloadActionMenu(
+            library: library,
+            downloads: [telemetryUpdate],
+            workspaceID: workspaceID,
+            savedFolders: [folder],
+            isMovingDownloads: false,
+            hasQuickLook: false,
+            placement: .contextMenu
+        )
+        expect(baseMenu == telemetryMenu, "telemetry updates must not change DownloadActionMenu equality")
+
+        // Seeding torrent telemetry update must also stay equal
+        var seeding = download
+        seeding.state = .seeding
+        seeding.capabilities = DownloadCapabilities.none
+        seeding.capabilities.canPause = true
+        seeding.capabilities.canCancel = true
+        seeding.capabilities.canStopSeeding = true
+        seeding.capabilities.canRemove = true
+        var seedingUpdate = seeding
+        seedingUpdate.bytesUploaded = 200_000_000
+        seedingUpdate.uploadRate = 2_500_000
+        seedingUpdate.seedRatio = 0.4
+        let seedingMenu = DownloadActionMenu(
+            library: library,
+            downloads: [seeding],
+            workspaceID: workspaceID,
+            savedFolders: [folder],
+            isMovingDownloads: false,
+            hasQuickLook: false,
+            placement: .contextMenu
+        )
+        let seedingTelemetryMenu = DownloadActionMenu(
+            library: library,
+            downloads: [seedingUpdate],
+            workspaceID: workspaceID,
+            savedFolders: [folder],
+            isMovingDownloads: false,
+            hasQuickLook: false,
+            placement: .contextMenu
+        )
+        expect(seedingMenu == seedingTelemetryMenu, "seeding telemetry updates must not change DownloadActionMenu equality")
+
+        // Ratio limit change must invalidate
+        var changedRatio = download
+        changedRatio.seedRatioLimit = 2.0
+        let ratioMenu = DownloadActionMenu(
+            library: library,
+            downloads: [changedRatio],
+            workspaceID: workspaceID,
+            savedFolders: [folder],
+            isMovingDownloads: false,
+            hasQuickLook: false,
+            placement: .contextMenu
+        )
+        expect(baseMenu != ratioMenu, "seed ratio limit change must invalidate DownloadActionMenu")
+
+        // State change must invalidate
+        var finished = download
+        finished.state = .finished
+        finished.capabilities = DownloadCapabilities.none
+        finished.capabilities.canRemove = true
+        finished.capabilities.canMove = true
+        let finishedMenu = DownloadActionMenu(
+            library: library,
+            downloads: [finished],
+            workspaceID: workspaceID,
+            savedFolders: [folder],
+            isMovingDownloads: false,
+            hasQuickLook: false,
+            placement: .contextMenu
+        )
+        expect(baseMenu != finishedMenu, "state transition must invalidate DownloadActionMenu")
+
+        // Saved folders change must invalidate
+        let anotherFolder = SavedFolder(name: "Movies", path: "/tmp/movies")
+        let foldersMenu = DownloadActionMenu(
+            library: library,
+            downloads: [download],
+            workspaceID: workspaceID,
+            savedFolders: [folder, anotherFolder],
+            isMovingDownloads: false,
+            hasQuickLook: false,
+            placement: .contextMenu
+        )
+        expect(baseMenu != foldersMenu, "saved folders change must invalidate DownloadActionMenu")
+
+        // Moving state change must invalidate
+        let movingMenu = DownloadActionMenu(
+            library: library,
+            downloads: [download],
+            workspaceID: workspaceID,
+            savedFolders: [folder],
+            isMovingDownloads: true,
+            hasQuickLook: false,
+            placement: .contextMenu
+        )
+        expect(baseMenu != movingMenu, "moving state change must invalidate DownloadActionMenu")
+
+        // QuickLook state change must invalidate
+        let qlMenu = DownloadActionMenu(
+            library: library,
+            downloads: [download],
+            workspaceID: workspaceID,
+            savedFolders: [folder],
+            isMovingDownloads: false,
+            hasQuickLook: true,
+            placement: .contextMenu
+        )
+        expect(baseMenu != qlMenu, "quick look state change must invalidate DownloadActionMenu")
+
+        print("  ✓ Download action menu stability check passed")
     }
 }

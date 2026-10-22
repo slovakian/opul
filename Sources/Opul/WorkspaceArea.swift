@@ -74,6 +74,7 @@ private struct WorkspaceDetail: View {
             DownloadBrowser(
                 library: library,
                 downloads: filteredDownloads,
+                workspaceID: workspace.id,
                 folders: workspace.savedFolders,
                 settings: workspace.view,
                 isFolderFilter: workspace.savedFolders.count > 1 && library.selection?.folderID != nil,
@@ -597,6 +598,7 @@ private struct GlassCircleFill: ViewModifier {
 private struct DownloadBrowser: View {
     let library: DownloadLibrary
     let downloads: [Download]
+    let workspaceID: Workspace.ID
     let folders: [SavedFolder]
     let settings: WorkspaceViewSettings
     let isFolderFilter: Bool
@@ -619,6 +621,8 @@ private struct DownloadBrowser: View {
                 DownloadTable(
                     library: library,
                     lines: arrangement.lines,
+                    workspaceID: workspaceID,
+                    savedFolders: folders,
                     showsGroup: arrangement.showsHeaders,
                     onInspect: onInspect
                 )
@@ -626,6 +630,8 @@ private struct DownloadBrowser: View {
                 DownloadList(
                     library: library,
                     arrangement: arrangement,
+                    workspaceID: workspaceID,
+                    savedFolders: folders,
                     grouping: settings.grouping,
                     onInspect: onInspect
                 )
@@ -648,6 +654,8 @@ private struct DownloadBrowser: View {
 private struct DownloadList: View {
     let library: DownloadLibrary
     let arrangement: DownloadArrangement
+    let workspaceID: Workspace.ID
+    let savedFolders: [SavedFolder]
     let grouping: DownloadGrouping
     let onInspect: (Download.ID) -> Void
 
@@ -659,6 +667,8 @@ private struct DownloadList: View {
                         DownloadSection(
                             library: library,
                             section: section,
+                            workspaceID: workspaceID,
+                            savedFolders: savedFolders,
                             grouping: grouping,
                             showsHeader: arrangement.showsHeaders,
                             order: order,
@@ -689,6 +699,8 @@ private struct DownloadList: View {
 private struct DownloadSection: View {
     let library: DownloadLibrary
     let section: DownloadArrangement.Section
+    let workspaceID: Workspace.ID
+    let savedFolders: [SavedFolder]
     let grouping: DownloadGrouping
     let showsHeader: Bool
     let order: [Download.ID]
@@ -700,7 +712,14 @@ private struct DownloadSection: View {
                 DownloadGroupHeader(section: section, grouping: grouping)
             }
             ForEach(section.lines) { line in
-                DownloadRow(library: library, line: line, order: order, onInspect: onInspect)
+                DownloadRow(
+                    library: library,
+                    line: line,
+                    order: order,
+                    workspaceID: workspaceID,
+                    savedFolders: savedFolders,
+                    onInspect: onInspect
+                )
             }
         }
     }
@@ -750,6 +769,8 @@ private struct DownloadRow: View {
     let library: DownloadLibrary
     let line: DownloadArrangement.Line
     let order: [Download.ID]
+    let workspaceID: Workspace.ID
+    let savedFolders: [SavedFolder]
     let onInspect: (Download.ID) -> Void
     @State private var isHovered = false
 
@@ -863,7 +884,16 @@ private struct DownloadRow: View {
         .animation(.easeOut(duration: 0.14), value: isHovered)
         .animation(.easeOut(duration: 0.1), value: isSelected)
         .contextMenu {
-            DownloadActionMenu(library: library, downloads: menuTargets, placement: .contextMenu)
+            DownloadActionMenu(
+                library: library,
+                downloads: menuTargets,
+                workspaceID: workspaceID,
+                savedFolders: savedFolders,
+                isMovingDownloads: library.isMovingDownloads,
+                hasQuickLook: library.quickLookURL != nil,
+                placement: .contextMenu
+            )
+            .equatable()
         }
     }
 
@@ -1149,6 +1179,8 @@ private extension Download {
 private struct DownloadTable: View {
     let library: DownloadLibrary
     let lines: [DownloadArrangement.Line]
+    let workspaceID: Workspace.ID
+    let savedFolders: [SavedFolder]
     let showsGroup: Bool
     let onInspect: (Download.ID) -> Void
 
@@ -1166,7 +1198,16 @@ private struct DownloadTable: View {
         .contextMenu(forSelectionType: Download.ID.self) { ids in
             let downloads = lines.map(\.download).filter { ids.contains($0.id) }
             if !downloads.isEmpty {
-                DownloadActionMenu(library: library, downloads: downloads, placement: .contextMenu)
+                DownloadActionMenu(
+                    library: library,
+                    downloads: downloads,
+                    workspaceID: workspaceID,
+                    savedFolders: savedFolders,
+                    isMovingDownloads: library.isMovingDownloads,
+                    hasQuickLook: library.quickLookURL != nil,
+                    placement: .contextMenu
+                )
+                .equatable()
             }
         } primaryAction: { ids in
             guard ids.count == 1, let download = lines.first(where: { ids.contains($0.id) })?.download else {
