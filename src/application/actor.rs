@@ -93,7 +93,8 @@ impl ApplicationActor {
                             let mut fresh = AppState::fresh(downloads_path);
                             fresh.recovery.push(RecoveryItem {
                                 key: "legacy-library-invalid".to_string(),
-                                summary: "Legacy download library could not be imported.".to_string(),
+                                summary: "Legacy download library could not be imported."
+                                    .to_string(),
                                 detail: match corrupt {
                                     Some(path) => {
                                         format!("{import_error}. Preserved as {}.", path.display())
@@ -830,7 +831,9 @@ mod tests {
         assert!(!actor.snapshot().recovery.is_empty());
 
         // Acknowledging recovery must succeed, transition to Reconciling, and clear recovery items
-        let receipt = actor.dispatch(envelope(Command::AcknowledgeRecovery)).unwrap();
+        let receipt = actor
+            .dispatch(envelope(Command::AcknowledgeRecovery))
+            .unwrap();
         assert_eq!(receipt.revision, first.revision + 1);
         assert_eq!(actor.snapshot().session, SessionPhase::Reconciling);
         assert!(actor.snapshot().recovery.is_empty());
@@ -850,7 +853,9 @@ mod tests {
         assert!(!actor.snapshot().recovery.is_empty());
 
         // Must not be locked into read-only mode; acknowledging recovery must transition to Reconciling
-        actor.dispatch(envelope(Command::AcknowledgeRecovery)).unwrap();
+        actor
+            .dispatch(envelope(Command::AcknowledgeRecovery))
+            .unwrap();
         assert_eq!(actor.snapshot().session, SessionPhase::Reconciling);
         assert!(actor.snapshot().recovery.is_empty());
 
@@ -868,7 +873,12 @@ mod tests {
         let snapshot = actor.snapshot();
         assert_eq!(snapshot.workspaces.len(), 1);
         assert_eq!(snapshot.workspaces[0].name, "Downloads");
-        assert!(snapshot.recovery.iter().any(|r| r.key == "legacy-library-invalid"));
+        assert!(
+            snapshot
+                .recovery
+                .iter()
+                .any(|r| r.key == "legacy-library-invalid")
+        );
 
         drop(actor);
         fs::remove_dir_all(folder).unwrap();
