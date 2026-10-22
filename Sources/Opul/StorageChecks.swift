@@ -21,6 +21,10 @@ enum StorageChecks {
         testInteractionSoundCues()
         testInteractionSoundTransitions()
         testDefaultDownloadArrangement()
+        testDownloadSelection()
+        testDownloadLinks()
+        testDownloadMovePaths()
+        testDownloadActionMenuStability()
         print("✓ All storage and resilience checks passed!")
     }
 
@@ -422,5 +426,254 @@ enum StorageChecks {
         expect(!arrangement.showsHeaders, "the default download view should not show group headers")
         expect(arrangement.lines.map(\.id) == [newest.id, first.id], "newest downloads should appear first")
         print("  ✓ Default download arrangement check passed")
+    }
+
+    static func testDownloadSelection() {
+        let ids = (0..<5).map { _ in UUID() }
+        var selection = DownloadSelection()
+
+        selection.click(ids[1], extending: false, toggling: false, in: ids)
+        expect(selection.ids == [ids[1]], "a click should select only that download")
+
+        selection.click(ids[3], extending: true, toggling: false, in: ids)
+        expect(selection.ids == Set(ids[1...3]), "Shift-click should select the range from the anchor")
+
+        selection.click(ids[0], extending: true, toggling: false, in: ids)
+        expect(selection.ids == Set(ids[0...1]), "Shift-click should re-range from the same anchor, upward too")
+
+        selection.click(ids[4], extending: false, toggling: true, in: ids)
+        expect(selection.ids == Set([ids[0], ids[1], ids[4]]), "Command-click should add a download")
+
+        selection.click(ids[0], extending: false, toggling: true, in: ids)
+        expect(selection.ids == Set([ids[1], ids[4]]), "Command-click should remove a selected download")
+
+        selection.click(ids[2], extending: true, toggling: true, in: ids)
+        expect(
+            selection.ids == Set([ids[0], ids[1], ids[2], ids[4]]),
+            "Command-Shift-click should add the range to the selection"
+        )
+
+        let missing = UUID()
+        selection.click(missing, extending: true, toggling: false, in: ids)
+        expect(selection.ids == [missing], "a range to a download not in the list should fall back to a click")
+        print("  ✓ Download selection check passed")
+    }
+
+    static func testDownloadLinks() {
+        let folder = UUID()
+        let video = Download(
+            name: "Talk",
+            address: "https://video.example/watch?v=1",
+            pageURL: "https://video.example/playlist?list=2",
+            source: .videoPage,
+            folderID: folder
+        )
+        expect(video.shareableLink == video.address, "a video page should copy its own link")
+        expect(video.distinctPageLink == video.pageURL, "a playlist item should offer its playlist page")
+        expect(video.webPageURL?.absoluteString == video.address, "a video page should open itself in a browser")
+
+        let guided = Download(
+            name: "clip.mp4",
+            address: "https://cdn.example/clip.mp4",
+            pageURL: "https://site.example/article",
+            source: .guided,
+            folderID: folder
+        )
+        expect(guided.webPageURL?.absoluteString == guided.pageURL, "guided media should open the page it was found on")
+
+        let direct = Download(name: "file.zip", address: "https://files.example/file.zip", folderID: folder)
+        expect(direct.webPageURL == nil, "a file URL has no page to open")
+        expect(direct.distinctPageLink == nil, "a file URL has no separate page link")
+
+        let magnet = "magnet:?xt=urn:btih:abcdef"
+        let torrent = Download(name: "Linux", address: magnet, source: .torrent, folderID: folder)
+        expect(torrent.shareableLink == magnet, "a magnet torrent should copy its magnet link")
+        let fileTorrent = Download(name: "Local", address: "/Users/test/local.torrent", source: .torrent, folderID: folder)
+        expect(fileTorrent.shareableLink == nil, "a torrent file without an info hash has no link to copy")
+        print("  ✓ Download link check passed")
+    }
+
+    static func testDownloadMovePaths() {
+        let source = URL(fileURLWithPath: "/Volumes/A/Downloads/Show")
+        let destination = URL(fileURLWithPath: "/Volumes/B/Films/Show")
+        expect(
+            DownloadMove.rebasedPath("/Volumes/A/Downloads/Show/S01/e1.mkv", from: source, to: destination)
+                == "/Volumes/B/Films/Show/S01/e1.mkv",
+            "a file inside a moved folder should keep its place within it"
+        )
+        let file = URL(fileURLWithPath: "/Volumes/A/Downloads/film.mp4")
+        expect(
+            DownloadMove.rebasedPath(file.path, from: file, to: URL(fileURLWithPath: "/Volumes/B/Films/film.mp4"))
+                == "/Volumes/B/Films/film.mp4",
+            "a moved single file should land at the destination"
+        )
+        expect(
+            DownloadMove.rebasedPath("/Volumes/A/Downloads/Showcase.mp4", from: source, to: destination) == nil,
+            "a sibling that only shares a name prefix is not inside the moved folder"
+        )
+        print("  ✓ Download move path check passed")
+    }
+
+    static func testDownloadActionMenuStability() {
+        let folderID = UUID()
+        let downloadID = UUID()
+        var download = Download(
+            id: downloadID,
+            name: "Debian ISO",
+            address: "magnet:?xt=urn:btih:0123456789abcdef",
+            state: .processing,
+            source: .torrent,
+            folderID: folderID,
+            totalSize: 4_000_000_000,
+            bytesDownloaded: 500_000_000,
+            bytesUploaded: 100_000_000,
+            downloadRate: 15_000_000,
+            uploadRate: 1_000_000,
+            seedRatio: 0.2,
+            seedRatioLimit: 1.0,
+            etaSeconds: 230,
+            progress: 0.125
+        )
+        download.capabilities = DownloadCapabilities.none
+        download.capabilities.canPause = true
+        download.capabilities.canCancel = true
+        download.capabilities.canRemove = true
+
+        var telemetryUpdate = download
+        telemetryUpdate.bytesDownloaded = 550_000_000
+        telemetryUpdate.bytesUploaded = 110_000_000
+        telemetryUpdate.downloadRate = 18_000_000
+        telemetryUpdate.uploadRate = 1_200_000
+        telemetryUpdate.seedRatio = 0.22
+        telemetryUpdate.etaSeconds = 190
+        telemetryUpdate.progress = 0.1375
+        expect(download != telemetryUpdate, "raw Download structs differ on progress ticks")
+
+        let folder = SavedFolder(id: folderID, name: "Downloads", path: "/tmp/downloads", isDefault: true)
+        let workspaceID = UUID()
+        let library = DownloadLibrary()
+
+        let baseMenu = DownloadActionMenu(
+            library: library,
+            downloads: [download],
+            workspaceID: workspaceID,
+            savedFolders: [folder],
+            isMovingDownloads: false,
+            hasQuickLook: false,
+            placement: .contextMenu
+        )
+
+        let telemetryMenu = DownloadActionMenu(
+            library: library,
+            downloads: [telemetryUpdate],
+            workspaceID: workspaceID,
+            savedFolders: [folder],
+            isMovingDownloads: false,
+            hasQuickLook: false,
+            placement: .contextMenu
+        )
+        expect(baseMenu == telemetryMenu, "telemetry updates must not change DownloadActionMenu equality")
+
+        // Seeding torrent telemetry update must also stay equal
+        var seeding = download
+        seeding.state = .seeding
+        seeding.capabilities = DownloadCapabilities.none
+        seeding.capabilities.canPause = true
+        seeding.capabilities.canCancel = true
+        seeding.capabilities.canStopSeeding = true
+        seeding.capabilities.canRemove = true
+        var seedingUpdate = seeding
+        seedingUpdate.bytesUploaded = 200_000_000
+        seedingUpdate.uploadRate = 2_500_000
+        seedingUpdate.seedRatio = 0.4
+        let seedingMenu = DownloadActionMenu(
+            library: library,
+            downloads: [seeding],
+            workspaceID: workspaceID,
+            savedFolders: [folder],
+            isMovingDownloads: false,
+            hasQuickLook: false,
+            placement: .contextMenu
+        )
+        let seedingTelemetryMenu = DownloadActionMenu(
+            library: library,
+            downloads: [seedingUpdate],
+            workspaceID: workspaceID,
+            savedFolders: [folder],
+            isMovingDownloads: false,
+            hasQuickLook: false,
+            placement: .contextMenu
+        )
+        expect(seedingMenu == seedingTelemetryMenu, "seeding telemetry updates must not change DownloadActionMenu equality")
+
+        // Ratio limit change must invalidate
+        var changedRatio = download
+        changedRatio.seedRatioLimit = 2.0
+        let ratioMenu = DownloadActionMenu(
+            library: library,
+            downloads: [changedRatio],
+            workspaceID: workspaceID,
+            savedFolders: [folder],
+            isMovingDownloads: false,
+            hasQuickLook: false,
+            placement: .contextMenu
+        )
+        expect(baseMenu != ratioMenu, "seed ratio limit change must invalidate DownloadActionMenu")
+
+        // State change must invalidate
+        var finished = download
+        finished.state = .finished
+        finished.capabilities = DownloadCapabilities.none
+        finished.capabilities.canRemove = true
+        finished.capabilities.canMove = true
+        let finishedMenu = DownloadActionMenu(
+            library: library,
+            downloads: [finished],
+            workspaceID: workspaceID,
+            savedFolders: [folder],
+            isMovingDownloads: false,
+            hasQuickLook: false,
+            placement: .contextMenu
+        )
+        expect(baseMenu != finishedMenu, "state transition must invalidate DownloadActionMenu")
+
+        // Saved folders change must invalidate
+        let anotherFolder = SavedFolder(name: "Movies", path: "/tmp/movies")
+        let foldersMenu = DownloadActionMenu(
+            library: library,
+            downloads: [download],
+            workspaceID: workspaceID,
+            savedFolders: [folder, anotherFolder],
+            isMovingDownloads: false,
+            hasQuickLook: false,
+            placement: .contextMenu
+        )
+        expect(baseMenu != foldersMenu, "saved folders change must invalidate DownloadActionMenu")
+
+        // Moving state change must invalidate
+        let movingMenu = DownloadActionMenu(
+            library: library,
+            downloads: [download],
+            workspaceID: workspaceID,
+            savedFolders: [folder],
+            isMovingDownloads: true,
+            hasQuickLook: false,
+            placement: .contextMenu
+        )
+        expect(baseMenu != movingMenu, "moving state change must invalidate DownloadActionMenu")
+
+        // QuickLook state change must invalidate
+        let qlMenu = DownloadActionMenu(
+            library: library,
+            downloads: [download],
+            workspaceID: workspaceID,
+            savedFolders: [folder],
+            isMovingDownloads: false,
+            hasQuickLook: true,
+            placement: .contextMenu
+        )
+        expect(baseMenu != qlMenu, "quick look state change must invalidate DownloadActionMenu")
+
+        print("  ✓ Download action menu stability check passed")
     }
 }

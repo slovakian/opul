@@ -68,6 +68,7 @@ pub(crate) struct DownloadCapabilities {
     pub(crate) can_change_file_selection: bool,
     pub(crate) can_remove: bool,
     pub(crate) can_reveal_output: bool,
+    pub(crate) can_move: bool,
 }
 
 pub(crate) fn project(state: &AppState, overlay: &RuntimeOverlay) -> AppProjection {
@@ -157,6 +158,9 @@ pub(crate) fn capabilities(state: &AppState, download: &Download) -> DownloadCap
             ),
         can_remove: mutable && !download.lifecycle.is_retired(),
         can_reveal_output: download.output.is_some(),
+        can_move: mutable
+            && matches!(download.lifecycle, DownloadLifecycle::Finished)
+            && download.output.is_some(),
     }
 }
 

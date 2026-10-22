@@ -1132,6 +1132,11 @@ public protocol OpulStateMachineProtocol: AnyObject, Sendable {
 
     func mediaToolStatus()  -> MediaToolStatus
 
+    /**
+     * Records a finished download whose files the shell already moved into `folder_id`.
+     */
+    func moveDownload(request: MachineDownloadCommand, folderIdValue: String, outputPath: String, contentFolder: String?) throws  -> MachineCommandReceipt
+
     func pauseDownload(request: MachineDownloadCommand) throws  -> MachineCommandReceipt
 
     func platformEffects()  -> [MachinePlatformEffect]
@@ -1350,6 +1355,22 @@ open func mediaToolStatus() -> MediaToolStatus  {
         uniffiCallStatus in
     uniffi_opul_core_fn_method_opulstatemachine_media_tool_status(
             self.uniffiCloneHandle(),uniffiCallStatus
+    )
+})
+}
+
+    /**
+     * Records a finished download whose files the shell already moved into `folder_id`.
+     */
+open func moveDownload(request: MachineDownloadCommand, folderIdValue: String, outputPath: String, contentFolder: String?)throws  -> MachineCommandReceipt  {
+    return try  FfiConverterTypeMachineCommandReceipt_lift(try rustCallWithError(FfiConverterTypeStateMachineError_lift) {
+        uniffiCallStatus in
+    uniffi_opul_core_fn_method_opulstatemachine_move_download(
+            self.uniffiCloneHandle(),
+        FfiConverterTypeMachineDownloadCommand_lower(request),
+        FfiConverterString.lower(folderIdValue),
+        FfiConverterString.lower(outputPath),
+        FfiConverterOptionString.lower(contentFolder),uniffiCallStatus
     )
 })
 }
@@ -2501,10 +2522,11 @@ public struct MachineCapabilities: Equatable, Hashable {
     public var canChangeFileSelection: Bool
     public var canRemove: Bool
     public var canRevealOutput: Bool
+    public var canMove: Bool
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(canPause: Bool, canResume: Bool, canRetry: Bool, canCancel: Bool, canStopSeeding: Bool, canChangeFileSelection: Bool, canRemove: Bool, canRevealOutput: Bool) {
+    public init(canPause: Bool, canResume: Bool, canRetry: Bool, canCancel: Bool, canStopSeeding: Bool, canChangeFileSelection: Bool, canRemove: Bool, canRevealOutput: Bool, canMove: Bool) {
         self.canPause = canPause
         self.canResume = canResume
         self.canRetry = canRetry
@@ -2513,6 +2535,7 @@ public struct MachineCapabilities: Equatable, Hashable {
         self.canChangeFileSelection = canChangeFileSelection
         self.canRemove = canRemove
         self.canRevealOutput = canRevealOutput
+        self.canMove = canMove
     }
 
 
@@ -2538,7 +2561,8 @@ public struct FfiConverterTypeMachineCapabilities: FfiConverterRustBuffer {
                 canStopSeeding: FfiConverterBool.read(from: &buf),
                 canChangeFileSelection: FfiConverterBool.read(from: &buf),
                 canRemove: FfiConverterBool.read(from: &buf),
-                canRevealOutput: FfiConverterBool.read(from: &buf)
+                canRevealOutput: FfiConverterBool.read(from: &buf),
+                canMove: FfiConverterBool.read(from: &buf)
         )
     }
 
@@ -2551,6 +2575,7 @@ public struct FfiConverterTypeMachineCapabilities: FfiConverterRustBuffer {
         FfiConverterBool.write(value.canChangeFileSelection, into: &buf)
         FfiConverterBool.write(value.canRemove, into: &buf)
         FfiConverterBool.write(value.canRevealOutput, into: &buf)
+        FfiConverterBool.write(value.canMove, into: &buf)
     }
 }
 
@@ -7157,6 +7182,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_opul_core_checksum_method_opulstatemachine_media_tool_status() != 58208) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_opul_core_checksum_method_opulstatemachine_move_download() != 1650) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_opul_core_checksum_method_opulstatemachine_pause_download() != 17471) {

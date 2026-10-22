@@ -1,4 +1,5 @@
 import AppKit
+import QuickLook
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -35,6 +36,7 @@ struct LibraryWindow: View {
         .sheet(item: inspectorBinding) { request in
             TorrentInspectorSheet(library: library, downloadID: request.downloadID)
         }
+        .quickLookPreview($library.quickLookURL, in: library.quickLookURLs)
         .fileImporter(
             isPresented: $library.isChoosingFolder,
             allowedContentTypes: [.folder],
