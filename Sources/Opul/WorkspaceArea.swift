@@ -659,68 +659,67 @@ private struct DownloadList: View {
     let grouping: DownloadGrouping
     let onInspect: (Download.ID) -> Void
 
+    private var selection: Binding<Set<Download.ID>> {
+        Binding(
+            get: { library.selectedDownloadIDs },
+            set: { library.selectedDownloadIDs = $0 }
+        )
+    }
+
     var body: some View {
-        GeometryReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 14) {
-                    ForEach(arrangement.sections) { section in
-                        DownloadSection(
-                            library: library,
-                            section: section,
-                            workspaceID: workspaceID,
-                            savedFolders: savedFolders,
-                            grouping: grouping,
-                            showsHeader: arrangement.showsHeaders,
-                            order: order,
-                            onInspect: onInspect
-                        )
+        // A native List owns selection, focus, and the inactive look, so the search field
+        // and the list hand focus back and forth like any other macOS controls.
+        List(selection: selection) {
+            ForEach(arrangement.sections) { section in
+                if arrangement.showsHeaders {
+                    Section {
+                        rows(in: section)
+                    } header: {
+                        DownloadGroupHeader(section: section, grouping: grouping)
                     }
+                } else {
+                    rows(in: section)
                 }
-                .padding(.horizontal, 14)
-                .padding(.top, 10)
-                .padding(.bottom, 16)
-                // Fill the viewport so a click below the last row still clears the selection.
-                .frame(minHeight: proxy.size.height, alignment: .top)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    library.clearDownloadSelection()
-                }
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .contextMenu(forSelectionType: Download.ID.self) { ids in
+            let downloads = arrangement.lines.map(\.download).filter { ids.contains($0.id) }
+            if !downloads.isEmpty {
+                DownloadActionMenu(
+                    library: library,
+                    downloads: downloads,
+                    workspaceID: workspaceID,
+                    savedFolders: savedFolders,
+                    isMovingDownloads: library.isMovingDownloads,
+                    hasQuickLook: library.quickLookURL != nil,
+                    placement: .contextMenu
+                )
+                .equatable()
+            }
+        } primaryAction: { ids in
+            guard ids.count == 1,
+                  let download = arrangement.lines.first(where: { ids.contains($0.id) })?.download else {
+                return
+            }
+            if download.source == .torrent {
+                onInspect(download.id)
+            } else if download.state == .finished {
+                library.revealInFinder(download.id)
             }
         }
         .modifier(SoftTopScrollEdgeEffect())
         .background(Color(nsColor: .windowBackgroundColor).opacity(0.55))
     }
 
-    private var order: [Download.ID] {
-        arrangement.lines.map(\.id)
-    }
-}
-
-private struct DownloadSection: View {
-    let library: DownloadLibrary
-    let section: DownloadArrangement.Section
-    let workspaceID: Workspace.ID
-    let savedFolders: [SavedFolder]
-    let grouping: DownloadGrouping
-    let showsHeader: Bool
-    let order: [Download.ID]
-    let onInspect: (Download.ID) -> Void
-
-    var body: some View {
-        LazyVStack(alignment: .leading, spacing: 8) {
-            if showsHeader {
-                DownloadGroupHeader(section: section, grouping: grouping)
-            }
-            ForEach(section.lines) { line in
-                DownloadRow(
-                    library: library,
-                    line: line,
-                    order: order,
-                    workspaceID: workspaceID,
-                    savedFolders: savedFolders,
-                    onInspect: onInspect
-                )
-            }
+    private func rows(in section: DownloadArrangement.Section) -> some View {
+        ForEach(section.lines) { line in
+            DownloadRow(line: line)
+                .tag(line.id)
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14))
         }
     }
 }
@@ -766,26 +765,10 @@ private struct DownloadGroupHeader: View {
 }
 
 private struct DownloadRow: View {
-    let library: DownloadLibrary
     let line: DownloadArrangement.Line
-    let order: [Download.ID]
-    let workspaceID: Workspace.ID
-    let savedFolders: [SavedFolder]
-    let onInspect: (Download.ID) -> Void
     @State private var isHovered = false
 
     private var download: Download { line.download }
-
-    private var isSelected: Bool {
-        library.selectedDownloadIDs.contains(download.id)
-    }
-
-    /// Right-clicking a selected row acts on the whole selection; any other row acts alone.
-    private var menuTargets: [Download] {
-        guard isSelected else { return [download] }
-        let selected = library.selectedDownloads
-        return selected.isEmpty ? [download] : selected
-    }
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
@@ -860,72 +843,25 @@ private struct DownloadRow: View {
         .padding(.vertical, 10)
         .background {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(isHovered || isSelected ? 1 : 0.84))
-            if isSelected {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color.accentColor.opacity(0.14))
-            }
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(isHovered ? 1 : 0.84))
         }
         .overlay {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(borderColor, lineWidth: isSelected ? 1.5 : 1)
+                .strokeBorder(borderColor, lineWidth: 1)
         }
         .shadow(color: .black.opacity(isHovered ? 0.08 : 0.04), radius: isHovered ? 7 : 4, y: 2)
         .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(download.accessibilitySummary(folderName: line.folderName))
         .accessibilityHint(download.activationHint)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .help(download.address)
-        .onTapGesture {
-            click()
-        }
         .onHover { isHovered = $0 }
         .animation(.easeOut(duration: 0.14), value: isHovered)
-        .animation(.easeOut(duration: 0.1), value: isSelected)
-        .contextMenu {
-            DownloadActionMenu(
-                library: library,
-                downloads: menuTargets,
-                workspaceID: workspaceID,
-                savedFolders: savedFolders,
-                isMovingDownloads: library.isMovingDownloads,
-                hasQuickLook: library.quickLookURL != nil,
-                placement: .contextMenu
-            )
-            .equatable()
-        }
     }
 
     private var borderColor: Color {
-        if isSelected { return Color.accentColor.opacity(0.7) }
         if isHovered { return stateColor(download.state).opacity(0.38) }
         return Color.primary.opacity(0.1)
-    }
-
-    /// One tap handler reads the click count, so selecting does not wait out the
-    /// double-click interval the way a separate double-tap gesture would make it.
-    private func click() {
-        let event = NSApp.currentEvent
-        if (event?.clickCount ?? 1) >= 2 {
-            activate()
-            return
-        }
-        let flags = event?.modifierFlags ?? []
-        library.selectDownload(
-            download.id,
-            extending: flags.contains(.shift),
-            toggling: flags.contains(.command),
-            in: order
-        )
-    }
-
-    private func activate() {
-        if download.source == .torrent {
-            onInspect(download.id)
-        } else if download.state == .finished {
-            library.revealInFinder(download.id)
-        }
     }
 }
 
