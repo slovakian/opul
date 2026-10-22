@@ -955,7 +955,8 @@ struct StoredMediaDownload {
     eta_seconds: Option<u64>,
     #[serde(default)]
     output_path: Option<String>,
-    /// Temporary files yt-dlp reported writing, so removal can find what it left behind.
+    /// Files yt-dlp reported writing, temporary downloads and the files its postprocessors
+    /// rewrite, so removal can find what it left behind.
     #[serde(default)]
     partial_files: Vec<String>,
     #[serde(default)]
@@ -2474,7 +2475,7 @@ fn run_download(context: &WorkerContext, id: &str) -> Result<(), String> {
         .arg("--progress-template")
         .arg("download:opul-progress\t%(progress.status)s\t%(progress.downloaded_bytes)s\t%(progress.total_bytes_estimate)s\t%(progress.speed)s\t%(progress.eta)s\t%(progress.tmpfilename)s")
         .arg("--progress-template")
-        .arg("postprocess:opul-postprocess\t%(progress.status)s")
+        .arg("postprocess:opul-postprocess\t%(progress.status)s\t%(info.filepath)s")
         .arg("--print")
         .arg("after_move:opul-file\t%(filepath)s")
         .arg("--output")
@@ -3119,15 +3120,21 @@ fn direct_temporary_path(folder: &str, source: &Url, title: &str, id: &str) -> P
     Path::new(folder).join(format!(".{provisional_filename}.{id}.opulpart"))
 }
 
-/// The files yt-dlp derives from one temporary file: the file itself, the file it becomes,
-/// the resume record next to that, and the fragments of a segmented stream.
+/// The files yt-dlp derives from one file it reported: the file itself, the file it
+/// becomes, the resume record next to that, the copy a postprocessor writes before
+/// replacing it, and the fragments of a segmented stream.
 fn yt_dlp_partial_paths(temporary: &Path) -> Vec<PathBuf> {
     let mut paths = vec![temporary.to_path_buf()];
     let name = temporary.to_string_lossy();
-    if let Some(final_name) = name.strip_suffix(".part") {
-        paths.push(PathBuf::from(final_name));
-        paths.push(PathBuf::from(format!("{final_name}.ytdl")));
-    }
+    let final_path = match name.strip_suffix(".part") {
+        Some(final_name) => {
+            paths.push(PathBuf::from(final_name));
+            paths.push(PathBuf::from(format!("{final_name}.ytdl")));
+            PathBuf::from(final_name)
+        }
+        None => temporary.to_path_buf(),
+    };
+    paths.extend(yt_dlp_postprocessor_path(&final_path));
     if let (Some(folder), Some(file_name)) = (temporary.parent(), temporary.file_name()) {
         let fragment_prefix = format!("{}-Frag", file_name.to_string_lossy());
         if let Ok(entries) = fs::read_dir(folder) {
@@ -3145,6 +3152,17 @@ fn yt_dlp_partial_paths(temporary: &Path) -> Vec<PathBuf> {
         }
     }
     paths
+}
+
+/// Where a yt-dlp postprocessor writes before replacing `path`: `Film.mp4` becomes
+/// `Film.temp.mp4`, as yt-dlp's `prepend_extension(path, "temp")` does.
+fn yt_dlp_postprocessor_path(path: &Path) -> Option<PathBuf> {
+    let stem = path.file_stem()?.to_string_lossy();
+    let name = match path.extension() {
+        Some(extension) => format!("{stem}.temp.{}", extension.to_string_lossy()),
+        None => format!("{stem}.temp"),
+    };
+    Some(path.with_file_name(name))
 }
 
 fn direct_filename(source: &Url, fallback: &str) -> String {
@@ -3425,12 +3443,7 @@ fn apply_progress_line(
             let Some(item) = items.get_mut(id) else {
                 return;
             };
-            if !temporary.trim().is_empty()
-                && temporary != "NA"
-                && !item.partial_files.contains(&temporary)
-            {
-                item.partial_files.push(temporary);
-            }
+            remember_partial_file(item, temporary);
             if !matches!(
                 item.state,
                 MediaTransferState::Paused | MediaTransferState::Cancelled
@@ -3451,15 +3464,21 @@ fn apply_progress_line(
             }
         }
         Some("opul-postprocess") => {
+            let _status = parts.next();
+            // The file the postprocessor rewrites, which it writes through a temporary
+            // sibling first; a merge names a file no download progress line mentioned.
+            let target = parts.collect::<Vec<_>>().join("\t");
             let mut items = items
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
-            if let Some(item) = items.get_mut(id)
-                && !matches!(
-                    item.state,
-                    MediaTransferState::Paused | MediaTransferState::Cancelled
-                )
-            {
+            let Some(item) = items.get_mut(id) else {
+                return;
+            };
+            remember_partial_file(item, target);
+            if !matches!(
+                item.state,
+                MediaTransferState::Paused | MediaTransferState::Cancelled
+            ) {
                 item.state = MediaTransferState::Processing;
                 item.download_rate = 0;
                 item.eta_seconds = None;
@@ -3475,6 +3494,12 @@ fn apply_progress_line(
             }
         }
         _ => {}
+    }
+}
+
+fn remember_partial_file(item: &mut StoredMediaDownload, path: String) {
+    if !path.trim().is_empty() && path != "NA" && !item.partial_files.contains(&path) {
+        item.partial_files.push(path);
     }
 }
 
@@ -3664,6 +3689,7 @@ mod tests {
     use std::io::{Read, Write as _};
     use std::net::TcpListener;
     use std::os::unix::fs::PermissionsExt as _;
+    use std::path::{Path, PathBuf};
     use std::process::Command;
     use std::sync::{Arc, Mutex};
     use std::thread;
@@ -4224,10 +4250,16 @@ mod tests {
             &id,
             "opul-progress\tdownloading\t60\t100\t25\t2\tNA",
         );
+        apply_progress_line(&items, &id, "opul-postprocess\tstarted\t/tmp/Film.mp4");
+        apply_progress_line(&items, &id, "opul-postprocess\tstarted\tNA");
         let items = items.lock().unwrap();
         let item = items.get(&id).unwrap();
-        assert_eq!(item.partial_files, ["/tmp/Film.f137.mp4.part"]);
+        assert_eq!(
+            item.partial_files,
+            ["/tmp/Film.f137.mp4.part", "/tmp/Film.mp4"]
+        );
         assert_eq!(item.downloaded_bytes, 60);
+        assert_eq!(item.state, MediaTransferState::Processing);
     }
 
     #[test]
@@ -4250,10 +4282,30 @@ mod tests {
             dir.join("Film.mp4.part-Frag1"),
             dir.join("Film.mp4.part-Frag2"),
             dir.join("Film.mp4.ytdl"),
+            dir.join("Film.temp.mp4"),
         ];
         expected.sort();
         assert_eq!(paths, expected);
         let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_postprocessed_file_includes_the_copy_ffmpeg_was_writing() {
+        // A merge reports the merged file, which ffmpeg writes as a temporary sibling first.
+        assert_eq!(
+            yt_dlp_partial_paths(Path::new("/tmp/Downloads/Film [x].mkv")),
+            [
+                PathBuf::from("/tmp/Downloads/Film [x].mkv"),
+                PathBuf::from("/tmp/Downloads/Film [x].temp.mkv"),
+            ]
+        );
+        assert_eq!(
+            yt_dlp_partial_paths(Path::new("/tmp/Downloads/Film")),
+            [
+                PathBuf::from("/tmp/Downloads/Film"),
+                PathBuf::from("/tmp/Downloads/Film.temp"),
+            ]
+        );
     }
 
     #[test]
