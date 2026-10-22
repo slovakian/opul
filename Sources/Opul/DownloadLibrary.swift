@@ -347,10 +347,7 @@ final class DownloadLibrary {
     func askToRemoveDownloads(_ ids: Set<Download.ID>) {
         let downloads = workspaces.flatMap(\.downloads).filter { ids.contains($0.id) }
         guard !downloads.isEmpty else { return }
-        pendingDownloadRemoval = DownloadRemovalRequest(
-            downloadIDs: downloads.map(\.id),
-            fileURLs: uniqueRemovableFileURLs(for: downloads)
-        )
+        pendingDownloadRemoval = DownloadRemovalRequest(downloadIDs: downloads.map(\.id))
     }
 
     func removePendingDownloads(moveFilesToTrash: Bool) {
@@ -760,8 +757,7 @@ final class DownloadLibrary {
             workspaceID: workspaceID,
             folderID: folderID,
             folderName: folder.name,
-            downloadIDs: downloads.map(\.id),
-            fileURLs: uniqueRemovableFileURLs(for: downloads)
+            downloadIDs: downloads.map(\.id)
         )
     }
 
@@ -1288,72 +1284,64 @@ final class DownloadLibrary {
         for effect in machine.platformEffects()
         where !platformEffectsInProgress.contains(effect.effectId)
             && !rejectedPlatformEffects.contains(effect.effectId) {
-            let url = URL(fileURLWithPath: effect.path).standardizedFileURL
-            guard FileManager.default.fileExists(atPath: url.path) else {
-                try? machine.completePlatformEffect(effectIdValue: effect.effectId, succeeded: true)
-                continue
-            }
-            guard fileIdentityMatches(effect, at: url) else {
+            let present = effect.targets
+                .map { ($0, URL(fileURLWithPath: $0.path).standardizedFileURL) }
+                .filter { FileManager.default.fileExists(atPath: $0.1.path) }
+            let urls = present.filter { fileIdentityMatches($0.0, at: $0.1) }.map(\.1)
+            let changed = present.filter { !urls.contains($0.1) }.map(\.1)
+            if !changed.isEmpty {
                 rejectedPlatformEffects.insert(effect.effectId)
-                recoveryNotice = "A downloaded file changed after removal was requested, so Opul left it in place: \(url.lastPathComponent)."
-                do {
-                    try machine.completePlatformEffect(
-                        effectIdValue: effect.effectId,
-                        succeeded: false
-                    )
-                    consume(machine.snapshot())
-                } catch {
-                    engineNotice = error.localizedDescription
-                }
+                recoveryNotice = changed.count == 1
+                    ? "A downloaded file changed after removal was requested, so Opul left it in place: \(changed[0].lastPathComponent)."
+                    : "\(changed.count) downloaded files changed after removal was requested, so Opul left them in place."
+            }
+            guard !urls.isEmpty else {
+                // The snapshot refresh that follows picks up the finished removal; consuming
+                // here would re-enter this loop while it still walks the same effects.
+                completePlatformEffect(effect.effectId, succeeded: changed.isEmpty, refresh: false)
                 continue
             }
             platformEffectsInProgress.insert(effect.effectId)
-            NSWorkspace.shared.recycle([url]) { [weak self, machine] _, error in
+            NSWorkspace.shared.recycle(urls) { [weak self] _, error in
                 Task { @MainActor in
                     guard let self else { return }
                     self.platformEffectsInProgress.remove(effect.effectId)
                     if let error {
                         self.rejectedPlatformEffects.insert(effect.effectId)
                         self.recoveryNotice = "A file could not be moved to the Trash: \(error.localizedDescription)"
-                        do {
-                            try machine.completePlatformEffect(
-                                effectIdValue: effect.effectId,
-                                succeeded: false
-                            )
-                            self.consume(machine.snapshot())
-                        } catch {
-                            self.engineNotice = error.localizedDescription
-                        }
-                        return
                     }
-                    do {
-                        try machine.completePlatformEffect(
-                            effectIdValue: effect.effectId,
-                            succeeded: true
-                        )
-                        self.consume(machine.snapshot())
-                    } catch {
-                        self.engineNotice = error.localizedDescription
-                    }
+                    self.completePlatformEffect(effect.effectId, succeeded: error == nil && changed.isEmpty)
                 }
             }
         }
     }
 
-    private func fileIdentityMatches(_ effect: MachinePlatformEffect, at url: URL) -> Bool {
+    private func completePlatformEffect(_ effectID: String, succeeded: Bool, refresh: Bool = true) {
+        guard let machine else { return }
+        do {
+            try machine.completePlatformEffect(effectIdValue: effectID, succeeded: succeeded)
+            if refresh { consume(machine.snapshot()) }
+        } catch {
+            engineNotice = error.localizedDescription
+        }
+    }
+
+    /// The file must still be the one Opul recorded. Its device and inode prove that on their
+    /// own, and survive Finder adding a `.DS_Store` or an app editing the file in place; size
+    /// and modification time only stand in when the inode was never recorded.
+    private func fileIdentityMatches(_ target: MachineTrashTarget, at url: URL) -> Bool {
         var value = stat()
         guard lstat(url.path, &value) == 0 else { return false }
-        if let expected = effect.expectedByteLength, UInt64(value.st_size) != expected {
+        if let expected = target.expectedFileIdentifier {
+            return "\(value.st_dev):\(value.st_ino)" == expected
+        }
+        if let expected = target.expectedByteLength, UInt64(value.st_size) != expected {
             return false
         }
-        if let expected = effect.expectedModifiedAtMillis {
+        if let expected = target.expectedModifiedAtMillis {
             let actual = UInt64(value.st_mtimespec.tv_sec) * 1_000
                 + UInt64(value.st_mtimespec.tv_nsec) / 1_000_000
             if actual != expected { return false }
-        }
-        if let expected = effect.expectedFileIdentifier,
-           "\(value.st_dev):\(value.st_ino)" != expected {
-            return false
         }
         return true
     }
@@ -1483,22 +1471,6 @@ final class DownloadLibrary {
         }
         guard let folderID = selection.folderID else { return true }
         return workspace.savedFolders.contains { $0.id == folderID }
-    }
-
-    private func uniqueRemovableFileURLs(for downloads: [Download]) -> [URL] {
-        downloads.flatMap(removableFileURLs(for:)).reduce(into: []) { result, url in
-            if !result.contains(url) { result.append(url) }
-        }
-    }
-
-    private func removableFileURLs(for download: Download) -> [URL] {
-        if let contentFolder = download.contentFolder {
-            return [URL(fileURLWithPath: contentFolder, isDirectory: true).standardizedFileURL]
-        }
-        if let outputPath = download.outputPath {
-            return [URL(fileURLWithPath: outputPath).standardizedFileURL]
-        }
-        return []
     }
 
     private func kind(forLargest files: [TorrentFileItem]) -> Kind? {

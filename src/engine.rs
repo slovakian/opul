@@ -541,6 +541,35 @@ impl TorrentEngine {
         }
     }
 
+    /// Everything this Download's torrents write to disk: the content folder when there is
+    /// one, otherwise each file of the torrent, finished or not.
+    pub(crate) fn owned_paths(&self, download_id: &str) -> Vec<PathBuf> {
+        let extras = self.extras.lock().unwrap_or_else(|p| p.into_inner());
+        let mut paths = Vec::new();
+        for (key, stored) in extras.iter() {
+            if stored.download_id.as_deref() != Some(download_id) {
+                continue;
+            }
+            if let Some(content_folder) = &stored.content_folder {
+                paths.push(PathBuf::from(content_folder));
+                continue;
+            }
+            let Some(handle) = TorrentIdOrHash::parse(key)
+                .ok()
+                .and_then(|id| self.session.get(id))
+            else {
+                continue;
+            };
+            let folder = handle.output_folder().to_path_buf();
+            let _ = handle.with_metadata(|metadata| {
+                for details in metadata.info.iter_file_details() {
+                    paths.push(folder.join(details.filename.to_pathbuf()));
+                }
+            });
+        }
+        paths
+    }
+
     pub(crate) fn binding_for(&self, download_id: &str, attempt: u32) -> Option<String> {
         self.extras
             .lock()

@@ -74,10 +74,8 @@ struct LibraryWindow: View {
             Button("Remove Folder and Downloads", role: .destructive) {
                 library.removePendingFolder(moveFilesToTrash: false)
             }
-            if let request = library.pendingFolderRemoval, !request.fileURLs.isEmpty {
-                Button("Remove and Move Files to Trash", role: .destructive) {
-                    library.removePendingFolder(moveFilesToTrash: true)
-                }
+            Button("Remove and Move Files to Trash", role: .destructive) {
+                library.removePendingFolder(moveFilesToTrash: true)
             }
             Button("Cancel", role: .cancel) {
                 library.pendingFolderRemoval = nil
@@ -151,7 +149,7 @@ struct LibraryWindow: View {
         guard let request = library.pendingFolderRemoval else { return "" }
         let count = request.downloadIDs.count
         let downloads = count == 1 ? "1 download uses" : "\(count) downloads use"
-        return "\(downloads) this saved folder. Removing it stops active transfers and removes those downloads from Opul. Files stay where they are unless you choose to move known downloaded files to the Trash."
+        return "\(downloads) this saved folder. Removing it stops active transfers and removes those downloads from Opul. Files stay where they are unless you choose to move them, including partially downloaded files, to the Trash."
     }
 
     private var folderReplacementPresented: Binding<Bool> {

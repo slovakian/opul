@@ -94,6 +94,8 @@ pub(crate) enum Command {
         folder: FolderId,
         output_path: String,
         content_folder: Option<String>,
+        #[serde(default)]
+        identity: Option<OutputIdentity>,
     },
     AcknowledgeRecovery,
     MarkReconciled,
@@ -140,6 +142,11 @@ pub(crate) enum Fact {
         info_hash: String,
         metadata: TorrentMetadata,
         files: Vec<TorrentFileSelection>,
+    },
+    LeftoversFound {
+        download: DownloadId,
+        attempt: u32,
+        leftovers: Vec<OutputArtifact>,
     },
     WriterStopped {
         download: DownloadId,
@@ -239,6 +246,10 @@ pub(crate) enum Event {
         downloads: Vec<DownloadId>,
         move_files_to_trash: bool,
     },
+    RetirementLeftoversRecorded {
+        download: DownloadId,
+        leftovers: Vec<OutputArtifact>,
+    },
     RetirementProgressed {
         download: DownloadId,
         writer_stopped: Option<bool>,
@@ -263,6 +274,7 @@ pub(crate) enum Event {
         folder: FolderId,
         output_path: String,
         content_folder: Option<String>,
+        identity: Option<OutputIdentity>,
     },
     TorrentResolved {
         download: DownloadId,
@@ -583,12 +595,14 @@ pub(crate) fn decide(state: &AppState, envelope: &CommandEnvelope) -> Result<Dec
             folder,
             output_path,
             content_folder,
+            identity,
         } => decide_move_download(
             state,
             *download,
             *folder,
             output_path,
             content_folder.as_deref(),
+            identity.clone(),
         ),
         Command::AcknowledgeRecovery => {
             if !matches!(state.session, SessionPhase::RecoveryRequired) {
@@ -822,6 +836,32 @@ pub(crate) fn decide_fact(state: &AppState, fact: &Fact) -> Result<Decision, Rej
                 info_hash: normalized,
                 metadata: metadata.clone(),
                 files: files.clone(),
+            }))
+        }
+        Fact::LeftoversFound {
+            download,
+            attempt,
+            leftovers,
+        } => {
+            let (_, item) = match state.locate_download(*download) {
+                Some(found) => found,
+                None => return Ok(Decision::none()),
+            };
+            let DownloadLifecycle::Retiring {
+                move_files_to_trash: true,
+                writer_stopped: false,
+                leftovers: current,
+                ..
+            } = &item.lifecycle
+            else {
+                return Ok(Decision::none());
+            };
+            if item.attempt != *attempt || current == leftovers {
+                return Ok(Decision::none());
+            }
+            Ok(simple(Event::RetirementLeftoversRecorded {
+                download: *download,
+                leftovers: leftovers.clone(),
             }))
         }
         Fact::WriterStopped {
@@ -1060,8 +1100,23 @@ pub(crate) fn apply(state: &mut AppState, event: &Event) {
                         move_files_to_trash: *move_files_to_trash,
                         writer_stopped: false,
                         adapter_absent: false,
-                        files_resolved: !*move_files_to_trash || item.output.is_none(),
+                        files_resolved: !*move_files_to_trash || item.verified_output().is_none(),
+                        leftovers: Vec::new(),
                     };
+                }
+            }
+        }
+        Event::RetirementLeftoversRecorded {
+            download,
+            leftovers: recorded,
+        } => {
+            if let Some((_, item)) = state.locate_download_mut(*download)
+                && let DownloadLifecycle::Retiring { leftovers, .. } = &mut item.lifecycle
+            {
+                *leftovers = recorded.clone();
+                let resolved = !item.has_trash_targets();
+                if let DownloadLifecycle::Retiring { files_resolved, .. } = &mut item.lifecycle {
+                    *files_resolved = resolved;
                 }
             }
         }
@@ -1101,14 +1156,16 @@ pub(crate) fn apply(state: &mut AppState, event: &Event) {
             folder,
             output_path,
             content_folder,
+            identity,
         } => {
             if let Some((_, item)) = state.locate_download_mut(*download) {
                 item.folder = *folder;
                 if let Some(output) = &mut item.output {
                     output.path = output_path.clone();
                     output.content_folder = content_folder.clone();
-                    // Moving the artifact invalidates the previous filesystem identity.
-                    output.identity = None;
+                    // The previous identity described the old location; keep only what the
+                    // shell measured at the new one.
+                    output.identity = identity.clone();
                 }
             }
         }
@@ -1276,21 +1333,24 @@ pub(crate) fn effect_is_eligible(state: &AppState, effect: &PendingEffect) -> bo
                     && item.lifecycle.is_retired()
             })
         }
-        EffectKind::MoveOutputToTrash { download, artifact } => {
-            state.locate_download(*download).is_some_and(|(_, item)| {
-                effect.control_generation == Some(item.control_generation)
-                    && item.output.as_ref() == Some(artifact)
-                    && matches!(
-                        item.lifecycle,
-                        DownloadLifecycle::Retiring {
-                            writer_stopped: true,
-                            adapter_absent: true,
-                            files_resolved: false,
-                            ..
-                        }
-                    )
-            })
-        }
+        EffectKind::MoveOutputToTrash {
+            download,
+            artifact,
+            leftovers,
+        } => state.locate_download(*download).is_some_and(|(_, item)| {
+            effect.control_generation == Some(item.control_generation)
+                && item.verified_output() == artifact.as_ref()
+                && item.uncovered_leftovers() == *leftovers
+                && matches!(
+                    item.lifecycle,
+                    DownloadLifecycle::Retiring {
+                        writer_stopped: true,
+                        adapter_absent: true,
+                        files_resolved: false,
+                        ..
+                    }
+                )
+        }),
         EffectKind::FinalizeRetirement { download } => {
             state.locate_download(*download).is_some_and(|(_, item)| {
                 matches!(
@@ -1326,13 +1386,16 @@ pub(crate) fn effect_is_obsolete(state: &AppState, effect: &PendingEffect) -> bo
                     || effect.control_generation != Some(item.control_generation)
             })
         }
-        EffectKind::MoveOutputToTrash { download, artifact } => {
-            state.locate_download(*download).is_none_or(|(_, item)| {
-                effect.control_generation != Some(item.control_generation)
-                    || item.output.as_ref() != Some(artifact)
-                    || !item.lifecycle.is_retired()
-            })
-        }
+        EffectKind::MoveOutputToTrash {
+            download,
+            artifact,
+            leftovers,
+        } => state.locate_download(*download).is_none_or(|(_, item)| {
+            effect.control_generation != Some(item.control_generation)
+                || item.verified_output() != artifact.as_ref()
+                || item.uncovered_leftovers() != *leftovers
+                || !item.lifecycle.is_retired()
+        }),
         EffectKind::FinalizeRetirement { download } => state
             .locate_download(*download)
             .is_none_or(|(_, item)| !item.lifecycle.is_retired()),
@@ -1710,17 +1773,6 @@ fn decide_remove(
         if item.lifecycle.is_retired() {
             continue;
         }
-        if move_files_to_trash
-            && item
-                .output
-                .as_ref()
-                .is_some_and(|output| output.identity.is_none())
-        {
-            return Err(Rejection::InvalidInput(format!(
-                "download {} has no verified output identity; remove it without moving files",
-                item.id
-            )));
-        }
         let generation = item.control_generation + 1;
         effects.push(EffectPlan {
             attempt: Some(item.attempt),
@@ -1809,17 +1861,18 @@ fn decide_reconciled(state: &AppState) -> Result<Decision, Rejection> {
                 } => {
                     let kind = if !writer_stopped || !adapter_absent {
                         Some(EffectKind::RemoveTransfer { download: item.id })
-                    } else if !files_resolved && *move_files_to_trash {
-                        item.output
-                            .clone()
-                            .map(|artifact| EffectKind::MoveOutputToTrash {
-                                download: item.id,
-                                artifact,
-                            })
-                    } else if *files_resolved {
-                        Some(EffectKind::FinalizeRetirement { download: item.id })
+                    } else if !files_resolved && *move_files_to_trash && item.has_trash_targets() {
+                        Some(trash_effect(item))
                     } else {
-                        None
+                        if !files_resolved {
+                            decision.events.push(Event::RetirementProgressed {
+                                download: item.id,
+                                writer_stopped: None,
+                                adapter_absent: None,
+                                files_resolved: Some(true),
+                            });
+                        }
+                        Some(EffectKind::FinalizeRetirement { download: item.id })
                     };
                     if let Some(kind) = kind
                         && !already_planned(&kind, item.control_generation)
@@ -1904,21 +1957,16 @@ fn retirement_progress(
     };
     let stopped = writer_stopped.unwrap_or(old_stopped);
     let absent = adapter_absent.unwrap_or(old_absent);
+    let needs_trash = move_files_to_trash && item.has_trash_targets();
+    // Nothing left to trash resolves the files, so a retirement can never wait on them.
+    let files_resolved = files_resolved.or((!old_resolved && !needs_trash).then_some(true));
     let resolved = files_resolved.unwrap_or(old_resolved);
     let mut effects = Vec::new();
-    if stopped
-        && absent
-        && !resolved
-        && move_files_to_trash
-        && let Some(output) = &item.output
-    {
+    if stopped && absent && !resolved {
         effects.push(EffectPlan {
             attempt: Some(item.attempt),
             control_generation: Some(item.control_generation),
-            kind: EffectKind::MoveOutputToTrash {
-                download: id,
-                artifact: output.clone(),
-            },
+            kind: trash_effect(item),
         });
     }
     if stopped && absent && resolved {
@@ -1938,6 +1986,14 @@ fn retirement_progress(
         effects,
         created_downloads: Vec::new(),
     })
+}
+
+fn trash_effect(item: &Download) -> EffectKind {
+    EffectKind::MoveOutputToTrash {
+        download: item.id,
+        artifact: item.verified_output().cloned(),
+        leftovers: item.uncovered_leftovers(),
+    }
 }
 
 fn control_effect(item: &Download, generation: u64) -> EffectPlan {
@@ -1977,6 +2033,7 @@ fn decide_move_download(
     folder: FolderId,
     output_path: &str,
     content_folder: Option<&str>,
+    identity: Option<OutputIdentity>,
 ) -> Result<Decision, Rejection> {
     let (workspace, item) = state
         .locate_download(id)
@@ -2008,6 +2065,7 @@ fn decide_move_download(
         folder,
         output_path: output_path.to_string(),
         content_folder: content_folder.map(str::to_string),
+        identity,
     }))
 }
 
@@ -2307,6 +2365,7 @@ mod tests {
             folder: target.id,
             output_path: output_path.to_string(),
             content_folder: None,
+            identity: None,
         };
         assert!(matches!(
             decide(&state, &command(move_to("/tmp/Films/film.mp4"))),
@@ -2323,6 +2382,24 @@ mod tests {
         let (_, item) = moved.locate_download(download.id).unwrap();
         assert_eq!(item.folder, target.id);
         assert_eq!(item.output.as_ref().unwrap().path, "/tmp/Films/film.mp4");
+
+        let identity = OutputIdentity {
+            byte_length: 42,
+            modified_at_millis: 7,
+            file_identifier: Some("inode-9".to_string()),
+        };
+        let measured = run(
+            &state,
+            Command::MoveDownload {
+                download: download.id,
+                folder: target.id,
+                output_path: "/tmp/Films/film.mp4".to_string(),
+                content_folder: None,
+                identity: Some(identity.clone()),
+            },
+        );
+        let (_, item) = measured.locate_download(download.id).unwrap();
+        assert_eq!(item.verified_output().unwrap().identity, Some(identity));
     }
 
     #[test]
@@ -2371,6 +2448,284 @@ mod tests {
             absent.effects.first().map(|effect| &effect.kind),
             Some(EffectKind::MoveOutputToTrash { .. })
         ));
+    }
+
+    fn apply_facts(state: &AppState, facts: &[Fact]) -> (AppState, Vec<EffectKind>) {
+        let mut next = state.clone();
+        let mut effects = Vec::new();
+        for fact in facts {
+            let decision = decide_fact(&next, fact).unwrap();
+            effects.extend(decision.effects.iter().map(|effect| effect.kind.clone()));
+            next = evolve(&next, &decision).unwrap();
+        }
+        (next, effects)
+    }
+
+    fn partial(path: &str) -> OutputArtifact {
+        OutputArtifact {
+            path: path.to_string(),
+            content_folder: None,
+            identity: Some(OutputIdentity {
+                byte_length: 10,
+                modified_at_millis: 1,
+                file_identifier: Some(format!("inode-{path}")),
+            }),
+        }
+    }
+
+    #[test]
+    fn every_unfinished_state_can_trash_its_partial_files() {
+        let lifecycles = [
+            DownloadLifecycle::Queued,
+            DownloadLifecycle::Starting,
+            DownloadLifecycle::Active(ActivePhase::Fetching),
+            DownloadLifecycle::Active(ActivePhase::Processing),
+            DownloadLifecycle::Pausing {
+                from: ActivePhase::Fetching,
+                cause: HoldCause::Person,
+            },
+            DownloadLifecycle::Paused {
+                resume: ActivePhase::Fetching,
+                cause: HoldCause::Person,
+            },
+            DownloadLifecycle::Failed {
+                message: "network".to_string(),
+                retryable: true,
+            },
+            DownloadLifecycle::Cancelled,
+        ];
+        for lifecycle in lifecycles {
+            let mut state = running_state();
+            let mut download = media_download(&state);
+            download.lifecycle = lifecycle.clone();
+            state.workspaces[0].downloads.push(download.clone());
+            let retiring = run(
+                &state,
+                Command::Remove {
+                    downloads: vec![download.id],
+                    move_files_to_trash: true,
+                },
+            );
+            let leftovers = vec![partial("/tmp/Downloads/.film.part")];
+            let (stopped, effects) = apply_facts(
+                &retiring,
+                &[
+                    Fact::LeftoversFound {
+                        download: download.id,
+                        attempt: 0,
+                        leftovers: leftovers.clone(),
+                    },
+                    Fact::WriterStopped {
+                        download: download.id,
+                        attempt: 0,
+                        control_generation: 1,
+                    },
+                    Fact::AdapterRecordAbsent {
+                        download: download.id,
+                        attempt: 0,
+                    },
+                ],
+            );
+            assert_eq!(
+                effects,
+                vec![EffectKind::MoveOutputToTrash {
+                    download: download.id,
+                    artifact: None,
+                    leftovers,
+                }],
+                "{lifecycle:?} should trash its partial files"
+            );
+            let (resolved, effects) = apply_facts(
+                &stopped,
+                &[Fact::FilesResolved {
+                    download: download.id,
+                    control_generation: 1,
+                }],
+            );
+            assert_eq!(
+                effects,
+                vec![EffectKind::FinalizeRetirement {
+                    download: download.id
+                }]
+            );
+            let (retired, _) = apply_facts(
+                &resolved,
+                &[Fact::RetirementFinalized {
+                    download: download.id,
+                    control_generation: 1,
+                }],
+            );
+            assert!(retired.locate_download(download.id).is_none());
+        }
+    }
+
+    #[test]
+    fn unverified_output_is_trashed_only_on_the_adapters_evidence() {
+        let mut state = running_state();
+        let mut download = media_download(&state);
+        download.lifecycle = DownloadLifecycle::Finished;
+        download.output = Some(OutputArtifact {
+            path: "/tmp/Downloads/film.mp4".to_string(),
+            content_folder: None,
+            identity: None,
+        });
+        state.workspaces[0].downloads.push(download.clone());
+        let remove = Command::Remove {
+            downloads: vec![download.id],
+            move_files_to_trash: true,
+        };
+        assert!(decide(&state, &command(remove.clone())).is_ok());
+        let retiring = run(&state, remove);
+
+        // The adapter still owned the file, so it is trashed with the identity it has now.
+        let leftovers = vec![partial("/tmp/Downloads/film.mp4")];
+        let (_, effects) = apply_facts(
+            &retiring,
+            &[
+                Fact::LeftoversFound {
+                    download: download.id,
+                    attempt: 0,
+                    leftovers: leftovers.clone(),
+                },
+                Fact::WriterStopped {
+                    download: download.id,
+                    attempt: 0,
+                    control_generation: 1,
+                },
+                Fact::AdapterRecordAbsent {
+                    download: download.id,
+                    attempt: 0,
+                },
+            ],
+        );
+        assert_eq!(
+            effects,
+            vec![EffectKind::MoveOutputToTrash {
+                download: download.id,
+                artifact: None,
+                leftovers,
+            }]
+        );
+
+        // Without that evidence the file stays, and the removal still finishes.
+        let (_, effects) = apply_facts(
+            &retiring,
+            &[
+                Fact::WriterStopped {
+                    download: download.id,
+                    attempt: 0,
+                    control_generation: 1,
+                },
+                Fact::AdapterRecordAbsent {
+                    download: download.id,
+                    attempt: 0,
+                },
+            ],
+        );
+        assert_eq!(
+            effects,
+            vec![EffectKind::FinalizeRetirement {
+                download: download.id
+            }]
+        );
+    }
+
+    #[test]
+    fn leftovers_inside_the_verified_output_are_not_trashed_twice() {
+        let mut state = running_state();
+        let mut download = media_download(&state);
+        download.lifecycle = DownloadLifecycle::Finished;
+        let output = OutputArtifact {
+            path: "/tmp/Downloads/Film/film.mp4".to_string(),
+            content_folder: Some("/tmp/Downloads/Film".to_string()),
+            identity: Some(OutputIdentity {
+                byte_length: 42,
+                modified_at_millis: 7,
+                file_identifier: Some("inode-9".to_string()),
+            }),
+        };
+        download.output = Some(output.clone());
+        state.workspaces[0].downloads.push(download.clone());
+        let retiring = run(
+            &state,
+            Command::Remove {
+                downloads: vec![download.id],
+                move_files_to_trash: true,
+            },
+        );
+        let (_, effects) = apply_facts(
+            &retiring,
+            &[
+                Fact::LeftoversFound {
+                    download: download.id,
+                    attempt: 0,
+                    leftovers: vec![
+                        partial("/tmp/Downloads/Film"),
+                        partial("/tmp/Downloads/.film.f137.mp4.part"),
+                    ],
+                },
+                Fact::WriterStopped {
+                    download: download.id,
+                    attempt: 0,
+                    control_generation: 1,
+                },
+                Fact::AdapterRecordAbsent {
+                    download: download.id,
+                    attempt: 0,
+                },
+            ],
+        );
+        assert_eq!(
+            effects,
+            vec![EffectKind::MoveOutputToTrash {
+                download: download.id,
+                artifact: Some(output),
+                leftovers: vec![partial("/tmp/Downloads/.film.f137.mp4.part")],
+            }]
+        );
+    }
+
+    #[test]
+    fn removing_from_the_list_ignores_leftovers() {
+        let mut state = running_state();
+        let mut download = media_download(&state);
+        download.lifecycle = DownloadLifecycle::Paused {
+            resume: ActivePhase::Fetching,
+            cause: HoldCause::Person,
+        };
+        state.workspaces[0].downloads.push(download.clone());
+        let retiring = run(
+            &state,
+            Command::Remove {
+                downloads: vec![download.id],
+                move_files_to_trash: false,
+            },
+        );
+        let (_, effects) = apply_facts(
+            &retiring,
+            &[
+                Fact::LeftoversFound {
+                    download: download.id,
+                    attempt: 0,
+                    leftovers: vec![partial("/tmp/Downloads/.film.part")],
+                },
+                Fact::WriterStopped {
+                    download: download.id,
+                    attempt: 0,
+                    control_generation: 1,
+                },
+                Fact::AdapterRecordAbsent {
+                    download: download.id,
+                    attempt: 0,
+                },
+            ],
+        );
+        assert_eq!(
+            effects,
+            vec![EffectKind::FinalizeRetirement {
+                download: download.id
+            }]
+        );
     }
 
     #[test]

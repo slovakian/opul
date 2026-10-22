@@ -103,12 +103,10 @@ private struct WorkspaceDetail: View {
             isPresented: removalPresented,
             titleVisibility: .visible
         ) {
-            if let request = library.pendingDownloadRemoval, !request.fileURLs.isEmpty {
-                Button(role: .destructive) {
-                    library.removePendingDownloads(moveFilesToTrash: true)
-                } label: {
-                    Label(trashButtonTitle(for: request), systemImage: "trash")
-                }
+            Button(role: .destructive) {
+                library.removePendingDownloads(moveFilesToTrash: true)
+            } label: {
+                Label("Remove and Move Files to Trash", systemImage: "trash")
             }
             Button(role: .destructive) {
                 library.removePendingDownloads(moveFilesToTrash: false)
@@ -194,17 +192,7 @@ private struct WorkspaceDetail: View {
     }
 
     private var removalMessage: String {
-        guard let request = library.pendingDownloadRemoval else { return "" }
-        if request.fileURLs.isEmpty {
-            return "This stops the transfer and removes it from the list. Files already saved on disk will stay where they are."
-        }
-        return "Remove from List keeps downloaded files in place. The other option moves the known downloaded files to the Trash."
-    }
-
-    private func trashButtonTitle(for request: DownloadRemovalRequest) -> String {
-        request.fileURLs.count == 1
-            ? "Remove and Move File to Trash"
-            : "Remove and Move Files to Trash"
+        "Removing stops any transfer in progress. Remove from List keeps files on disk; the other option moves them to the Trash, including partially downloaded files."
     }
 
     @ViewBuilder

@@ -361,7 +361,7 @@ struct DownloadActionMenu: View, Equatable {
             systemImage: "trash",
             shortcut: KeyboardShortcut(.delete, modifiers: [.command, .option]),
             role: .destructive,
-            isAvailable: removable && downloads.contains { $0.openableURL != nil }
+            isAvailable: removable
         ) {
             library.removeDownloadsMovingFilesToTrash(ids)
         }
