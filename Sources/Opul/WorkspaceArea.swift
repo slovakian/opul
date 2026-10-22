@@ -115,12 +115,7 @@ private struct WorkspaceDetail: View {
     }
 
     private var filteredDownloads: [Download] {
-        let visible = library.visibleDownloads(in: workspace)
-        guard !searchQuery.isEmpty else { return visible }
-        return visible.filter { download in
-            download.name.localizedStandardContains(searchQuery)
-                || download.address.localizedStandardContains(searchQuery)
-        }
+        library.displayedDownloads(in: workspace)
     }
 
     private func handleSearchOrPasteSubmit(_ text: String) {
@@ -657,24 +652,37 @@ private struct DownloadList: View {
     let onInspect: (Download.ID) -> Void
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 14) {
-                ForEach(arrangement.sections) { section in
-                    DownloadSection(
-                        library: library,
-                        section: section,
-                        grouping: grouping,
-                        showsHeader: arrangement.showsHeaders,
-                        onInspect: onInspect
-                    )
+        GeometryReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 14) {
+                    ForEach(arrangement.sections) { section in
+                        DownloadSection(
+                            library: library,
+                            section: section,
+                            grouping: grouping,
+                            showsHeader: arrangement.showsHeaders,
+                            order: order,
+                            onInspect: onInspect
+                        )
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.top, 10)
+                .padding(.bottom, 16)
+                // Fill the viewport so a click below the last row still clears the selection.
+                .frame(minHeight: proxy.size.height, alignment: .top)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    library.clearDownloadSelection()
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.top, 10)
-            .padding(.bottom, 16)
         }
         .modifier(SoftTopScrollEdgeEffect())
         .background(Color(nsColor: .windowBackgroundColor).opacity(0.55))
+    }
+
+    private var order: [Download.ID] {
+        arrangement.lines.map(\.id)
     }
 }
 
@@ -683,6 +691,7 @@ private struct DownloadSection: View {
     let section: DownloadArrangement.Section
     let grouping: DownloadGrouping
     let showsHeader: Bool
+    let order: [Download.ID]
     let onInspect: (Download.ID) -> Void
 
     var body: some View {
@@ -691,7 +700,7 @@ private struct DownloadSection: View {
                 DownloadGroupHeader(section: section, grouping: grouping)
             }
             ForEach(section.lines) { line in
-                DownloadRow(library: library, line: line, onInspect: onInspect)
+                DownloadRow(library: library, line: line, order: order, onInspect: onInspect)
             }
         }
     }
@@ -740,10 +749,22 @@ private struct DownloadGroupHeader: View {
 private struct DownloadRow: View {
     let library: DownloadLibrary
     let line: DownloadArrangement.Line
+    let order: [Download.ID]
     let onInspect: (Download.ID) -> Void
     @State private var isHovered = false
 
     private var download: Download { line.download }
+
+    private var isSelected: Bool {
+        library.selectedDownloadIDs.contains(download.id)
+    }
+
+    /// Right-clicking a selected row acts on the whole selection; any other row acts alone.
+    private var menuTargets: [Download] {
+        guard isSelected else { return [download] }
+        let selected = library.selectedDownloads
+        return selected.isEmpty ? [download] : selected
+    }
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
@@ -818,54 +839,55 @@ private struct DownloadRow: View {
         .padding(.vertical, 10)
         .background {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(isHovered ? 1 : 0.84))
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(isHovered || isSelected ? 1 : 0.84))
+            if isSelected {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.14))
+            }
         }
         .overlay {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(
-                    isHovered ? stateColor(download.state).opacity(0.38) : Color.primary.opacity(0.1),
-                    lineWidth: 1
-                )
+                .strokeBorder(borderColor, lineWidth: isSelected ? 1.5 : 1)
         }
         .shadow(color: .black.opacity(isHovered ? 0.08 : 0.04), radius: isHovered ? 7 : 4, y: 2)
         .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(download.accessibilitySummary(folderName: line.folderName))
         .accessibilityHint(download.activationHint)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .help(download.address)
-        .onTapGesture(count: 2) {
-            activate()
+        .onTapGesture {
+            click()
         }
         .onHover { isHovered = $0 }
         .animation(.easeOut(duration: 0.14), value: isHovered)
+        .animation(.easeOut(duration: 0.1), value: isSelected)
         .contextMenu {
-            if download.capabilities.canPause {
-                Button("Pause", systemImage: "pause.fill") { library.pauseDownload(download.id) }
-            } else if download.capabilities.canResume {
-                Button("Resume", systemImage: "play.fill") { library.resumeDownload(download.id) }
-            } else if download.capabilities.canRetry {
-                Button("Retry", systemImage: "arrow.clockwise") { library.retryDownload(download.id) }
-            }
-            if download.capabilities.canCancel {
-                Button("Cancel", systemImage: "xmark.circle") { library.cancelDownload(download.id) }
-            }
-            if download.capabilities.canRevealOutput {
-                Button("Reveal in Finder", systemImage: "folder") { library.revealInFinder(download.id) }
-            }
-            if download.source == .torrent {
-                Button("Torrent Info", systemImage: "info.circle") {
-                    onInspect(download.id)
-                }
-            }
-            Divider()
-            if download.capabilities.canRemove {
-                Button(role: .destructive) {
-                    library.askToRemoveDownload(download.id)
-                } label: {
-                    Label("Remove…", systemImage: "trash")
-                }
-            }
+            DownloadActionMenu(library: library, downloads: menuTargets, placement: .contextMenu)
         }
+    }
+
+    private var borderColor: Color {
+        if isSelected { return Color.accentColor.opacity(0.7) }
+        if isHovered { return stateColor(download.state).opacity(0.38) }
+        return Color.primary.opacity(0.1)
+    }
+
+    /// One tap handler reads the click count, so selecting does not wait out the
+    /// double-click interval the way a separate double-tap gesture would make it.
+    private func click() {
+        let event = NSApp.currentEvent
+        if (event?.clickCount ?? 1) >= 2 {
+            activate()
+            return
+        }
+        let flags = event?.modifierFlags ?? []
+        library.selectDownload(
+            download.id,
+            extending: flags.contains(.shift),
+            toggling: flags.contains(.command),
+            in: order
+        )
     }
 
     private func activate() {
@@ -1129,7 +1151,6 @@ private struct DownloadTable: View {
     let lines: [DownloadArrangement.Line]
     let showsGroup: Bool
     let onInspect: (Download.ID) -> Void
-    @State private var selectedIDs = Set<Download.ID>()
 
     var body: some View {
         // A conditional column inside Table needs macOS 14.4. This target is macOS 14.
@@ -1143,45 +1164,31 @@ private struct DownloadTable: View {
         .tableStyle(.inset)
         .alternatingRowBackgrounds()
         .contextMenu(forSelectionType: Download.ID.self) { ids in
-            if ids.count == 1, let id = ids.first,
-               let download = lines.first(where: { $0.id == id })?.download {
-                if download.capabilities.canPause {
-                    Button("Pause", systemImage: "pause.fill") { library.pauseDownload(id) }
-                } else if download.capabilities.canResume {
-                    Button("Resume", systemImage: "play.fill") { library.resumeDownload(id) }
-                } else if download.capabilities.canRetry {
-                    Button("Retry", systemImage: "arrow.clockwise") { library.retryDownload(id) }
-                }
-                if download.capabilities.canCancel {
-                    Button("Cancel", systemImage: "xmark.circle") { library.cancelDownload(id) }
-                }
-                if download.capabilities.canRevealOutput {
-                    Button("Reveal in Finder", systemImage: "folder") { library.revealInFinder(id) }
-                }
+            let downloads = lines.map(\.download).filter { ids.contains($0.id) }
+            if !downloads.isEmpty {
+                DownloadActionMenu(library: library, downloads: downloads, placement: .contextMenu)
             }
-            if ids.count == 1, let id = ids.first,
-               lines.first(where: { $0.id == id })?.download.source == .torrent {
-                Button("Torrent Info", systemImage: "info.circle") {
-                    onInspect(id)
-                }
+        } primaryAction: { ids in
+            guard ids.count == 1, let download = lines.first(where: { ids.contains($0.id) })?.download else {
+                return
             }
-            if !ids.isEmpty,
-               ids.allSatisfy({ id in lines.contains(where: { $0.id == id }) }) {
-                Divider()
-                Button(role: .destructive) {
-                    library.askToRemoveDownloads(ids)
-                } label: {
-                    Label(ids.count == 1 ? "Remove…" : "Remove \(ids.count) Downloads…", systemImage: "trash")
-                }
-                .disabled(!ids.allSatisfy { id in
-                    lines.first(where: { $0.id == id })?.download.capabilities.canRemove == true
-                })
+            if download.source == .torrent {
+                onInspect(download.id)
+            } else if download.state == .finished {
+                library.revealInFinder(download.id)
             }
         }
     }
 
+    private var selection: Binding<Set<Download.ID>> {
+        Binding(
+            get: { library.selectedDownloadIDs },
+            set: { library.selectedDownloadIDs = $0 }
+        )
+    }
+
     private var groupedTable: some View {
-        Table(lines, selection: $selectedIDs) {
+        Table(lines, selection: selection) {
             TableColumn("Group") { line in
                 Text(line.groupTitle)
             }
@@ -1223,7 +1230,7 @@ private struct DownloadTable: View {
     }
 
     private var plainTable: some View {
-        Table(lines, selection: $selectedIDs) {
+        Table(lines, selection: selection) {
             TableColumn("Name") { line in
                 Text(line.download.name)
                     .lineLimit(1)

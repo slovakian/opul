@@ -30,6 +30,7 @@ struct OpulApp: App {
         .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
             CheckForUpdatesCommand(updater: updater)
+            DownloadCommands(library: library)
         }
     }
 }

@@ -78,6 +78,7 @@ struct DeleteRequest: Equatable {
 enum FolderChoice: Equatable {
     case add(Workspace.ID)
     case addAsDefault(Workspace.ID)
+    case addAndMove(workspace: Workspace.ID, downloads: [Download.ID])
     case replace(workspace: Workspace.ID, folder: SavedFolder.ID)
 }
 
@@ -429,6 +430,45 @@ struct Download: Identifiable, Equatable, Codable {
         progressFraction.map { Int($0 * 100) }
     }
 
+    /// The file to open, preview, or copy the path of: the main file, else the download's folder.
+    var openableURL: URL? {
+        (outputPath ?? contentFolder).map { URL(fileURLWithPath: $0) }
+    }
+
+    var magnetLink: String? {
+        if address.lowercased().hasPrefix("magnet:") { return address }
+        guard let infoHash else { return nil }
+        return createMagnetUri(infoHash: infoHash, name: name, trackers: trackers)
+    }
+
+    /// What Copy Link puts on the clipboard. Pasting it back into Opul adds the same download.
+    var shareableLink: String? {
+        if source == .torrent {
+            return magnetLink ?? (address.lowercased().hasPrefix("http") ? address : nil)
+        }
+        return address.isEmpty ? nil : address
+    }
+
+    /// The web page the media came from, when it differs from the link itself:
+    /// the playlist of a video page, or the page a guided extraction ran on.
+    var distinctPageLink: String? {
+        guard source != .torrent, let pageURL, !pageURL.isEmpty, pageURL != address else { return nil }
+        return pageURL
+    }
+
+    /// The page to open in a browser. A video page is its own link; a guided download's
+    /// link is the raw media, so its page is the one it was found on.
+    var webPageURL: URL? {
+        let page: String? = switch source {
+        case .videoPage: address
+        case .guided: pageURL
+        case .fileURL, .torrent: nil
+        }
+        guard let page, let url = URL(string: page),
+              let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return nil }
+        return url
+    }
+
     func detail(folderName: String) -> String {
         var parts = [kind?.title ?? "Kind not known yet"]
         if let format {
@@ -449,6 +489,67 @@ struct Download: Identifiable, Equatable, Codable {
     }
 }
 
+/// Moving a finished download's files into another saved folder.
+enum DownloadMove {
+    enum Failure: LocalizedError {
+        case nameTaken(String, folder: String)
+        case outsideOwnFolder(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .nameTaken(let name, let folder):
+                "“\(name)” already exists in \(folder), so it was not moved."
+            case .outsideOwnFolder(let name):
+                "Opul could not tell which files belong to “\(name)”, so it was not moved."
+            }
+        }
+    }
+
+    /// Where `path` ends up when `source`, the file or folder that contains it, moves to
+    /// `destination`. Nil when `path` is not inside `source`.
+    static func rebasedPath(_ path: String, from source: URL, to destination: URL) -> String? {
+        let file = URL(fileURLWithPath: path).standardizedFileURL.pathComponents
+        let base = source.standardizedFileURL.pathComponents
+        guard file.starts(with: base) else { return nil }
+        return file.dropFirst(base.count)
+            .reduce(destination) { $0.appending(path: $1) }
+            .path(percentEncoded: false)
+    }
+}
+
+/// The downloads selected in a Workspace list, with the anchor a Shift-click extends from.
+struct DownloadSelection: Equatable {
+    var ids = Set<Download.ID>()
+    private(set) var anchor: Download.ID?
+
+    /// Finder-style clicks. `order` is the list as displayed, for Shift-click ranges.
+    mutating func click(
+        _ id: Download.ID,
+        extending: Bool,
+        toggling: Bool,
+        in order: [Download.ID]
+    ) {
+        if extending,
+           let anchor,
+           let start = order.firstIndex(of: anchor),
+           let end = order.firstIndex(of: id) {
+            let range = order[min(start, end)...max(start, end)]
+            ids = toggling ? ids.union(range) : Set(range)
+            return
+        }
+        if toggling {
+            if ids.contains(id) {
+                ids.remove(id)
+            } else {
+                ids.insert(id)
+            }
+        } else {
+            ids = [id]
+        }
+        anchor = id
+    }
+}
+
 struct DownloadCapabilities: Equatable, Codable {
     var canPause: Bool
     var canResume: Bool
@@ -458,6 +559,7 @@ struct DownloadCapabilities: Equatable, Codable {
     var canChangeFileSelection: Bool
     var canRemove: Bool
     var canRevealOutput: Bool
+    var canMove: Bool
 
     static let none = DownloadCapabilities(
         canPause: false,
@@ -467,7 +569,8 @@ struct DownloadCapabilities: Equatable, Codable {
         canStopSeeding: false,
         canChangeFileSelection: false,
         canRemove: false,
-        canRevealOutput: false
+        canRevealOutput: false,
+        canMove: false
     )
 }
 

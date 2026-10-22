@@ -44,10 +44,19 @@ final class DownloadLibrary {
             if selection != oldValue {
                 pasteNotice = nil
                 searchText = ""
+                downloadSelection = DownloadSelection()
             }
         }
     }
     var searchText = ""
+    /// Downloads selected in the workspace list. Menu bar commands act on these.
+    var downloadSelection = DownloadSelection()
+    var selectedDownloadIDs: Set<Download.ID> {
+        get { downloadSelection.ids }
+        set { downloadSelection.ids = newValue }
+    }
+    var quickLookURL: URL?
+    private(set) var quickLookURLs: [URL] = []
     var pasteNotice: PasteNotice?
     var sheet: LibrarySheet?
     var pendingDelete: DeleteRequest?
@@ -56,6 +65,7 @@ final class DownloadLibrary {
     var pendingFolderReplacement: FolderReplacementRequest?
     var isChoosingFolder = false
     var folderChoice: FolderChoice?
+    private var activeMoves = 0
 
     @ObservationIgnored private var machine: OpulStateMachine?
     @ObservationIgnored private var observationTask: Task<Void, Never>?
@@ -132,6 +142,37 @@ final class DownloadLibrary {
             return workspace.downloads
         }
         return workspace.downloads.filter { $0.folderID == folderID }
+    }
+
+    /// The workspace list as shown: the folder filter and then the search text applied.
+    func displayedDownloads(in workspace: Workspace) -> [Download] {
+        let visible = visibleDownloads(in: workspace)
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return visible }
+        return visible.filter { download in
+            download.name.localizedStandardContains(query)
+                || download.address.localizedStandardContains(query)
+        }
+    }
+
+    /// Selected downloads that are still shown. A search can hide part of a selection,
+    /// and hidden downloads are never acted on.
+    var selectedDownloads: [Download] {
+        guard !selectedDownloadIDs.isEmpty, let workspace = selectedWorkspace else { return [] }
+        return displayedDownloads(in: workspace).filter { selectedDownloadIDs.contains($0.id) }
+    }
+
+    func selectDownload(
+        _ id: Download.ID,
+        extending: Bool,
+        toggling: Bool,
+        in order: [Download.ID]
+    ) {
+        downloadSelection.click(id, extending: extending, toggling: toggling, in: order)
+    }
+
+    func clearDownloadSelection() {
+        downloadSelection = DownloadSelection()
     }
 
     func pasteClipboard() {
@@ -381,15 +422,7 @@ final class DownloadLibrary {
     }
 
     func copyMagnetURI(_ id: Download.ID) {
-        guard let download = findDownload(id) else { return }
-        let magnet: String
-        if download.address.lowercased().hasPrefix("magnet:") {
-            magnet = download.address
-        } else if let hash = download.infoHash {
-            magnet = createMagnetUri(infoHash: hash, name: download.name, trackers: download.trackers)
-        } else {
-            return
-        }
+        guard let magnet = findDownload(id)?.magnetLink else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(magnet, forType: .string)
     }
@@ -403,11 +436,157 @@ final class DownloadLibrary {
     }
 
     func revealInFinder(_ id: Download.ID) {
-        guard let download = findDownload(id) else { return }
-        let path = download.outputPath ?? download.contentFolder ?? folder(for: download.folderID)?.path
-        guard let path else { return }
-        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+        revealInFinder([id])
     }
+
+    func revealInFinder(_ ids: [Download.ID]) {
+        let urls = ids.compactMap(findDownload).compactMap { download in
+            (download.outputPath ?? download.contentFolder ?? folder(for: download.folderID)?.path)
+                .map { URL(fileURLWithPath: $0) }
+        }
+        guard !urls.isEmpty else { return }
+        NSWorkspace.shared.activateFileViewerSelecting(urls)
+    }
+
+    // MARK: Download actions
+    //
+    // Each action takes the downloads it targets and applies itself to the ones it fits,
+    // so a mixed selection never fails as a whole.
+
+    func pauseDownloads(_ ids: [Download.ID]) {
+        for id in ids where findDownload(id)?.capabilities.canPause == true {
+            pauseDownload(id)
+        }
+    }
+
+    /// Resumes paused downloads and retries failed ones: both mean "get this going again".
+    func resumeOrRetryDownloads(_ ids: [Download.ID]) {
+        for id in ids {
+            guard let capabilities = findDownload(id)?.capabilities else { continue }
+            if capabilities.canResume {
+                resumeDownload(id)
+            } else if capabilities.canRetry {
+                retryDownload(id)
+            }
+        }
+    }
+
+    func cancelDownloads(_ ids: [Download.ID]) {
+        for id in ids where findDownload(id)?.capabilities.canCancel == true {
+            cancelDownload(id)
+        }
+    }
+
+    func stopSeeding(_ ids: [Download.ID]) {
+        for id in ids where findDownload(id)?.capabilities.canStopSeeding == true {
+            stopSeeding(id)
+        }
+    }
+
+    func setSeedRatioLimit(_ ids: [Download.ID], limit: Double?) {
+        for id in ids where findDownload(id)?.source == .torrent {
+            setSeedRatioLimit(id, limit: limit)
+        }
+    }
+
+    func openOutput(_ ids: [Download.ID]) {
+        for url in ids.compactMap(findDownload).compactMap(\.openableURL) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    /// Opens Quick Look on the downloads' files. Asking again for the same files closes it,
+    /// the way the space bar does in Finder.
+    func toggleQuickLook(_ ids: [Download.ID]) {
+        let urls = ids.compactMap(findDownload).compactMap(\.openableURL)
+        if quickLookURL != nil, urls.isEmpty || urls == quickLookURLs {
+            quickLookURL = nil
+            return
+        }
+        guard let first = urls.first else { return }
+        quickLookURLs = urls
+        quickLookURL = first
+    }
+
+    func openPageInBrowser(_ ids: [Download.ID]) {
+        for url in ids.compactMap(findDownload).compactMap(\.webPageURL) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    func copyLinks(_ ids: [Download.ID]) {
+        copyLines(ids.compactMap(findDownload).compactMap(\.shareableLink))
+    }
+
+    func copyPageLinks(_ ids: [Download.ID]) {
+        copyLines(ids.compactMap(findDownload).compactMap(\.distinctPageLink))
+    }
+
+    func copyFilePaths(_ ids: [Download.ID]) {
+        copyLines(ids.compactMap(findDownload).compactMap(\.openableURL).map {
+            $0.path(percentEncoded: false)
+        })
+    }
+
+    func copyErrorMessages(_ ids: [Download.ID]) {
+        copyLines(ids.compactMap(findDownload).compactMap { download in
+            guard let message = download.errorMessage, !message.isEmpty else { return nil }
+            return ids.count == 1 ? message : "\(download.name): \(message)"
+        })
+    }
+
+    /// Removes without asking. Files go to the Trash, where the person can still recover them.
+    func removeDownloadsMovingFilesToTrash(_ ids: [Download.ID]) {
+        let removable = ids.filter { findDownload($0)?.capabilities.canRemove == true }
+        if retireDownloads(removable, moveFilesToTrash: true) {
+            soundEngine.playRandom(.success, preferences: preferences.interactionSounds)
+        }
+    }
+
+    /// Moves finished downloads, files and all, into another saved folder of their Workspace.
+    /// Files move first; the state machine records the new location only once they have.
+    func moveDownloads(_ ids: [Download.ID], to folderID: SavedFolder.ID) {
+        guard let target = folder(for: folderID) else { return }
+        let candidates = ids.compactMap(findDownload).filter { $0.folderID != folderID }
+        let movable = candidates.filter(\.capabilities.canMove)
+        let skipped = candidates.count - movable.count
+        guard !movable.isEmpty else {
+            if skipped > 0 {
+                warn("Only finished downloads can move to another folder.")
+            }
+            return
+        }
+        activeMoves += 1
+        Task {
+            defer { activeMoves -= 1 }
+            var failures: [String] = []
+            for download in movable {
+                do {
+                    try await move(download, to: target)
+                } catch {
+                    failures.append(error.localizedDescription)
+                }
+            }
+            refreshTransfers()
+            if let failure = failures.first {
+                warn(failure)
+            } else if skipped > 0 {
+                pasteNotice = PasteNotice(
+                    text: "Moved \(movable.count) to \(target.name). Unfinished downloads stay where they are.",
+                    isWarning: false
+                )
+            } else {
+                soundEngine.playRandom(.success, preferences: preferences.interactionSounds)
+            }
+        }
+    }
+
+    func beginMoveToNewFolder(_ ids: [Download.ID], in workspaceID: Workspace.ID) {
+        folderChoice = .addAndMove(workspace: workspaceID, downloads: ids)
+        isChoosingFolder = true
+    }
+
+    var isMovingDownloads: Bool { activeMoves > 0 }
 
     func updateTrackers(_ id: Download.ID) {
         refreshTransfers()
@@ -636,6 +815,10 @@ final class DownloadLibrary {
             addFolder(name: name, path: path, workspaceID: workspaceID, makeDefault: false)
         case .addAsDefault(let workspaceID):
             addFolder(name: name, path: path, workspaceID: workspaceID, makeDefault: true)
+        case .addAndMove(let workspaceID, let downloadIDs):
+            if let folderID = addFolder(name: name, path: path, workspaceID: workspaceID, makeDefault: false) {
+                moveDownloads(downloadIDs, to: folderID)
+            }
         case .replace(let workspaceID, let folderID):
             guard let workspace = workspaces.first(where: { $0.id == workspaceID }),
                   let folder = workspace.savedFolders.first(where: { $0.id == folderID }),
@@ -868,18 +1051,19 @@ final class DownloadLibrary {
         }
     }
 
+    @discardableResult
     private func addFolder(
         name: String,
         path: String,
         workspaceID: Workspace.ID,
         makeDefault: Bool
-    ) {
+    ) -> SavedFolder.ID? {
         guard let machine,
-              let workspace = workspaces.first(where: { $0.id == workspaceID }) else { return }
+              let workspace = workspaces.first(where: { $0.id == workspaceID }) else { return nil }
         if let existing = workspace.savedFolders.first(where: { $0.path == path }) {
             if makeDefault { self.makeDefault(existing.id, in: workspaceID) }
             selection = .folder(workspace: workspaceID, folder: existing.id)
-            return
+            return existing.id
         }
         let folderID = UUID()
         do {
@@ -894,9 +1078,50 @@ final class DownloadLibrary {
             )
             refreshTransfers()
             selection = .folder(workspace: workspaceID, folder: folderID)
+            return folderID
         } catch {
             warn(error.localizedDescription)
+            return nil
         }
+    }
+
+    private func move(_ download: Download, to target: SavedFolder) async throws {
+        guard let machine, let outputPath = download.outputPath else { return }
+        // Move the outermost artifact: the download's own folder when it has one, else its file.
+        let source = URL(fileURLWithPath: download.contentFolder ?? outputPath).standardizedFileURL
+        let destination = URL(fileURLWithPath: target.path, isDirectory: true)
+            .appending(path: source.lastPathComponent)
+            .standardizedFileURL
+        guard let movedOutput = DownloadMove.rebasedPath(outputPath, from: source, to: destination) else {
+            throw DownloadMove.Failure.outsideOwnFolder(download.name)
+        }
+        guard !FileManager.default.fileExists(atPath: destination.path(percentEncoded: false)) else {
+            throw DownloadMove.Failure.nameTaken(source.lastPathComponent, folder: target.name)
+        }
+        // A move across volumes copies every byte, so keep it off the main actor.
+        try await Task.detached(priority: .userInitiated) {
+            try FileManager.default.moveItem(at: source, to: destination)
+        }.value
+        do {
+            _ = try machine.moveDownload(
+                request: downloadCommand(download.id),
+                folderIdValue: target.id.uuidString,
+                outputPath: movedOutput,
+                contentFolder: download.contentFolder == nil ? nil : destination.path(percentEncoded: false)
+            )
+        } catch {
+            // The record still points at the old place, so put the files back there.
+            try? await Task.detached(priority: .userInitiated) {
+                try FileManager.default.moveItem(at: destination, to: source)
+            }.value
+            throw error
+        }
+    }
+
+    private func copyLines(_ lines: [String]) {
+        guard !lines.isEmpty else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(lines.joined(separator: "\n"), forType: .string)
     }
 
     private func relinkFolder(
@@ -945,6 +1170,12 @@ final class DownloadLibrary {
         revision = snapshot.revision
         machineSession = snapshot.session
         workspaces = snapshot.workspaces.compactMap(workspace(from:))
+        if !selectedDownloadIDs.isEmpty {
+            let remaining = selectedDownloadIDs.filter { findDownload($0) != nil }
+            if remaining != selectedDownloadIDs {
+                selectedDownloadIDs = remaining
+            }
+        }
         let notices = snapshot.recoveryNotices
         if !notices.isEmpty {
             recoveryNotice = notices.joined(separator: " ")
@@ -1512,7 +1743,8 @@ private extension MachineCapabilities {
             canStopSeeding: canStopSeeding,
             canChangeFileSelection: canChangeFileSelection,
             canRemove: canRemove,
-            canRevealOutput: canRevealOutput
+            canRevealOutput: canRevealOutput,
+            canMove: canMove
         )
     }
 }
