@@ -658,6 +658,7 @@ private struct DownloadList: View {
     let savedFolders: [SavedFolder]
     let grouping: DownloadGrouping
     let onInspect: (Download.ID) -> Void
+    @FocusState private var isFocused: Bool
 
     private var selection: Binding<Set<Download.ID>> {
         Binding(
@@ -684,6 +685,7 @@ private struct DownloadList: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .focused($isFocused)
         .contextMenu(forSelectionType: Download.ID.self) { ids in
             let downloads = arrangement.lines.map(\.download).filter { ids.contains($0.id) }
             if !downloads.isEmpty {
@@ -715,7 +717,11 @@ private struct DownloadList: View {
 
     private func rows(in section: DownloadArrangement.Section) -> some View {
         ForEach(section.lines) { line in
-            DownloadRow(line: line)
+            DownloadRow(
+                line: line,
+                isSelected: library.selectedDownloadIDs.contains(line.id),
+                isEmphasized: isFocused
+            )
                 .tag(line.id)
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
@@ -766,6 +772,9 @@ private struct DownloadGroupHeader: View {
 
 private struct DownloadRow: View {
     let line: DownloadArrangement.Line
+    let isSelected: Bool
+    /// Whether the list has keyboard focus; an unfocused selection turns gray like a native one.
+    let isEmphasized: Bool
     @State private var isHovered = false
 
     private var download: Download { line.download }
@@ -843,12 +852,18 @@ private struct DownloadRow: View {
         .padding(.vertical, 10)
         .background {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(isHovered ? 1 : 0.84))
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(isHovered || isSelected ? 1 : 0.84))
+            if isSelected {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(selectionColor.opacity(0.14))
+            }
         }
         .overlay {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(borderColor, lineWidth: 1)
+                .strokeBorder(borderColor, lineWidth: isSelected ? 1.5 : 1)
         }
+        // The card shows selection, so the table's own row highlight stays hidden.
+        .background(TableSelectionHighlightRemover())
         .shadow(color: .black.opacity(isHovered ? 0.08 : 0.04), radius: isHovered ? 7 : 4, y: 2)
         .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .accessibilityElement(children: .combine)
@@ -857,11 +872,45 @@ private struct DownloadRow: View {
         .help(download.address)
         .onHover { isHovered = $0 }
         .animation(.easeOut(duration: 0.14), value: isHovered)
+        .animation(.easeOut(duration: 0.1), value: isSelected)
+    }
+
+    private var selectionColor: Color {
+        isEmphasized ? .accentColor : .secondary
     }
 
     private var borderColor: Color {
+        if isSelected { return selectionColor.opacity(0.7) }
         if isHovered { return stateColor(download.state).opacity(0.38) }
         return Color.primary.opacity(0.1)
+    }
+}
+
+/// Turns off the row highlight of the table backing the enclosing `List`. With no highlight,
+/// rows also keep their normal foreground styles instead of switching to the emphasized ones.
+private struct TableSelectionHighlightRemover: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        TableSelectionHighlightRemoverView()
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        (nsView as? TableSelectionHighlightRemoverView)?.removeHighlight()
+    }
+}
+
+private final class TableSelectionHighlightRemoverView: NSView {
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        removeHighlight()
+    }
+
+    func removeHighlight() {
+        var view = superview
+        while let current = view, !(current is NSTableView) {
+            view = current.superview
+        }
+        guard let table = view as? NSTableView, table.selectionHighlightStyle != .none else { return }
+        table.selectionHighlightStyle = .none
     }
 }
 
