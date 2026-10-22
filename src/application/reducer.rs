@@ -263,6 +263,7 @@ pub(crate) enum Event {
         output: OutputArtifact,
     },
     SessionChanged(SessionPhase),
+    RecoveryAcknowledged,
 }
 
 impl Eq for Event {}
@@ -571,7 +572,14 @@ pub(crate) fn decide(state: &AppState, envelope: &CommandEnvelope) -> Result<Dec
                     "there is no fenced recovery to acknowledge".to_string(),
                 ));
             }
-            Ok(simple(Event::SessionChanged(SessionPhase::Reconciling)))
+            Ok(Decision {
+                events: vec![
+                    Event::SessionChanged(SessionPhase::Reconciling),
+                    Event::RecoveryAcknowledged,
+                ],
+                effects: Vec::new(),
+                created_downloads: Vec::new(),
+            })
         }
         Command::MarkReconciled => decide_reconciled(state),
         Command::BeginShutdown { boot } => decide_shutdown(state, *boot),
@@ -1108,6 +1116,7 @@ pub(crate) fn apply(state: &mut AppState, event: &Event) {
             }
         }
         Event::SessionChanged(session) => state.session = session.clone(),
+        Event::RecoveryAcknowledged => state.recovery.clear(),
     }
 }
 

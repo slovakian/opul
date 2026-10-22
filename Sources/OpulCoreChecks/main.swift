@@ -90,8 +90,54 @@ func checkApplicationStateMachine() throws {
     expect(machine.snapshot().session == .stopped, "clean shutdown reaches stopped")
 }
 
+func checkInvalidStateMachineRecovery() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appending(path: "opul-invalid-state-checks-\(UUID().uuidString)", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    let stateURL = root.appending(path: "application-state.json")
+    try "CORRUPTED_NON_JSON_CONTENT".data(using: .utf8)!.write(to: stateURL)
+
+    let config = OpulMachineConfig(
+        applicationSupportFolder: root.path(percentEncoded: false),
+        downloadsFolder: root.appending(path: "Downloads").path(percentEncoded: false),
+        torrent: EngineConfig(
+            sessionFolder: root.appending(path: "torrent").path(percentEncoded: false),
+            listenPort: 0,
+            randomizePort: true,
+            enableDht: false,
+            maxConnections: 8,
+            maxDownloadBps: 0,
+            maxUploadBps: 0
+        ),
+        media: MediaEngineConfig(
+            sessionFolder: root.appending(path: "media").path(percentEncoded: false),
+            resourcesFolder: nil,
+            ytDlpPath: nil,
+            ffmpegPath: nil,
+            maxConcurrentDownloads: 1,
+            maxDownloadBps: 0
+        )
+    )
+
+    let machine = try OpulStateMachine.open(config: config)
+    var snapshot = machine.snapshot()
+    expect(snapshot.session == .recoveryRequired, "corrupt state opens in recoveryRequired")
+    expect(!snapshot.recoveryNotices.isEmpty, "recovery notices present for corrupt state")
+
+    _ = try machine.acknowledgeRecovery()
+    snapshot = machine.snapshot()
+    expect(snapshot.session == .running, "acknowledging recovery transitions to running")
+    expect(snapshot.recoveryNotices.isEmpty, "recovery notices cleared after acknowledgement")
+    expect(!snapshot.workspaces.isEmpty, "fresh workspace is available after recovery")
+
+    _ = try machine.beginShutdown()
+}
+
 do {
     try checkApplicationStateMachine()
+    try checkInvalidStateMachineRecovery()
     let empty = try Session().summarize()
     expect(empty.count == 0, "empty count")
     expect(empty.total == 0, "empty total")
