@@ -86,8 +86,24 @@ impl ApplicationActor {
             CheckpointLoad::Missing => {
                 let legacy = support_directory.join("library.json");
                 let state = if legacy.exists() {
-                    import_legacy_library(&legacy, downloads_path.clone())
-                        .map_err(ActorError::Open)?
+                    match import_legacy_library(&legacy, downloads_path.clone()) {
+                        Ok(state) => state,
+                        Err(import_error) => {
+                            let corrupt = super::checkpoint::preserve(&legacy).ok();
+                            let mut fresh = AppState::fresh(downloads_path);
+                            fresh.recovery.push(RecoveryItem {
+                                key: "legacy-library-invalid".to_string(),
+                                summary: "Legacy download library could not be imported.".to_string(),
+                                detail: match corrupt {
+                                    Some(path) => {
+                                        format!("{import_error}. Preserved as {}.", path.display())
+                                    }
+                                    None => import_error,
+                                },
+                            });
+                            fresh
+                        }
+                    }
                 } else {
                     AppState::fresh(downloads_path)
                 };
@@ -127,7 +143,7 @@ impl ApplicationActor {
                         None => reason,
                     },
                 });
-                (state, false)
+                (state, true)
             }
         };
 
@@ -790,6 +806,70 @@ mod tests {
             ApplicationActor::open(folder.clone(), "/tmp/Downloads".to_string()),
             Err(ActorError::AlreadyOpen)
         ));
+        drop(actor);
+        fs::remove_dir_all(folder).unwrap();
+    }
+
+    #[test]
+    fn corrupt_primary_with_backup_recovers_and_acknowledges_cleanly() {
+        let folder = temp_dir();
+        let path = folder.join("application-state.json");
+        let store = CheckpointStore::new(path.clone());
+        let mut first = AppState::fresh("/tmp/Downloads".to_string());
+        first.session = SessionPhase::Running;
+        store.commit(&first).unwrap();
+        let mut second = first.clone();
+        second.revision = 1;
+        store.commit(&second).unwrap();
+
+        // Corrupt primary
+        fs::write(&path, b"corrupted JSON").unwrap();
+
+        let actor = ApplicationActor::open(folder.clone(), "/tmp/Downloads".to_string()).unwrap();
+        assert_eq!(actor.snapshot().session, SessionPhase::RecoveryRequired);
+        assert!(!actor.snapshot().recovery.is_empty());
+
+        // Acknowledging recovery must succeed, transition to Reconciling, and clear recovery items
+        let receipt = actor.dispatch(envelope(Command::AcknowledgeRecovery)).unwrap();
+        assert_eq!(receipt.revision, first.revision + 1);
+        assert_eq!(actor.snapshot().session, SessionPhase::Reconciling);
+        assert!(actor.snapshot().recovery.is_empty());
+
+        drop(actor);
+        fs::remove_dir_all(folder).unwrap();
+    }
+
+    #[test]
+    fn corrupt_primary_without_backup_starts_fresh_and_acknowledges_cleanly() {
+        let folder = temp_dir();
+        let path = folder.join("application-state.json");
+        fs::write(&path, b"corrupted JSON without backup").unwrap();
+
+        let actor = ApplicationActor::open(folder.clone(), "/tmp/Downloads".to_string()).unwrap();
+        assert_eq!(actor.snapshot().session, SessionPhase::RecoveryRequired);
+        assert!(!actor.snapshot().recovery.is_empty());
+
+        // Must not be locked into read-only mode; acknowledging recovery must transition to Reconciling
+        actor.dispatch(envelope(Command::AcknowledgeRecovery)).unwrap();
+        assert_eq!(actor.snapshot().session, SessionPhase::Reconciling);
+        assert!(actor.snapshot().recovery.is_empty());
+
+        drop(actor);
+        fs::remove_dir_all(folder).unwrap();
+    }
+
+    #[test]
+    fn corrupt_legacy_library_starts_fresh_without_failing() {
+        let folder = temp_dir();
+        let legacy = folder.join("library.json");
+        fs::write(&legacy, b"invalid legacy JSON").unwrap();
+
+        let actor = ApplicationActor::open(folder.clone(), "/tmp/Downloads".to_string()).unwrap();
+        let snapshot = actor.snapshot();
+        assert_eq!(snapshot.workspaces.len(), 1);
+        assert_eq!(snapshot.workspaces[0].name, "Downloads");
+        assert!(snapshot.recovery.iter().any(|r| r.key == "legacy-library-invalid"));
+
         drop(actor);
         fs::remove_dir_all(folder).unwrap();
     }

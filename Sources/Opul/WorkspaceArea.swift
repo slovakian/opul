@@ -7,21 +7,62 @@ struct WorkspaceArea: View {
     let onOpenPreferences: () -> Void
 
     var body: some View {
-        if let workspace = library.selectedWorkspace {
-            WorkspaceDetail(
-                library: library,
-                workspace: workspace,
-                onOpenTorrent: onOpenTorrent,
-                onOpenPreferences: onOpenPreferences
-            )
-        } else {
-            ContentUnavailableView(
-                "No Workspace",
-                systemImage: "square.stack.3d.up",
-                description: Text("Create a Workspace to keep a pile of Downloads.")
-            )
-            .navigationTitle("Opul")
+        VStack(spacing: 0) {
+            if let recoveryNotice = library.recoveryNotice {
+                RecoveryNoticeBanner(library: library, recoveryNotice: recoveryNotice)
+            }
+            if let workspace = library.selectedWorkspace {
+                WorkspaceDetail(
+                    library: library,
+                    workspace: workspace,
+                    onOpenTorrent: onOpenTorrent,
+                    onOpenPreferences: onOpenPreferences
+                )
+            } else {
+                ContentUnavailableView(
+                    "No Workspace",
+                    systemImage: "square.stack.3d.up",
+                    description: Text("Create a Workspace to keep a pile of Downloads.")
+                )
+                .navigationTitle("Opul")
+            }
         }
+    }
+}
+
+private struct RecoveryNoticeBanner: View {
+    @Bindable var library: DownloadLibrary
+    let recoveryNotice: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(Color.orange)
+                .accessibilityHidden(true)
+            Text(recoveryNotice)
+                .font(.callout)
+                .foregroundStyle(Color.primary)
+                .accessibilityLabel("Recovery notice: \(recoveryNotice)")
+            Spacer()
+            if library.machineSession == .recoveryRequired {
+                let buttonTitle = recoveryNotice.contains("recovered from an older backup") ? "Resume from Backup" : "Start Fresh"
+                Button(buttonTitle) {
+                    library.acknowledgeRecovery()
+                }
+            }
+            Button {
+                library.recoveryNotice = nil
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss recovery notice")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(Color.orange.opacity(0.12))
+        .accessibilityIdentifier("recovery-notice")
     }
 }
 
@@ -33,35 +74,6 @@ private struct WorkspaceDetail: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if let recoveryNotice = library.recoveryNotice {
-                HStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(Color.orange)
-                        .accessibilityHidden(true)
-                    Text(recoveryNotice)
-                        .font(.callout)
-                        .foregroundStyle(Color.primary)
-                        .accessibilityLabel("Recovery notice: \(recoveryNotice)")
-                    Spacer()
-                    if library.machineSession == .recoveryRequired {
-                        Button("Resume from Backup") {
-                            library.acknowledgeRecovery()
-                        }
-                    }
-                    Button {
-                        library.recoveryNotice = nil
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.caption)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Dismiss recovery notice")
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(Color.orange.opacity(0.12))
-                .accessibilityIdentifier("recovery-notice")
-            }
             if let notice = library.pasteNotice {
                 Text(notice.text)
                     .font(.callout)

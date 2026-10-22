@@ -1,4 +1,5 @@
 import Foundation
+import OpulCore
 
 enum StorageChecks {
     private static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -21,6 +22,7 @@ enum StorageChecks {
         testInteractionSoundCues()
         testInteractionSoundTransitions()
         testDefaultDownloadArrangement()
+        testApplicationStateRecovery()
         testDownloadSelection()
         testDownloadLinks()
         testDownloadMovePaths()
@@ -426,6 +428,50 @@ enum StorageChecks {
         expect(!arrangement.showsHeaders, "the default download view should not show group headers")
         expect(arrangement.lines.map(\.id) == [newest.id, first.id], "newest downloads should appear first")
         print("  ✓ Default download arrangement check passed")
+    }
+
+    static func testApplicationStateRecovery() {
+        let tempDir = FileManager.default.temporaryDirectory.appending(path: "opul-storage-app-state-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let stateURL = tempDir.appending(path: "application-state.json")
+        try! "INVALID_CORRUPTED_APP_STATE".data(using: .utf8)!.write(to: stateURL)
+
+        let config = OpulMachineConfig(
+            applicationSupportFolder: tempDir.path(percentEncoded: false),
+            downloadsFolder: tempDir.appending(path: "Downloads").path(percentEncoded: false),
+            torrent: EngineConfig(
+                sessionFolder: tempDir.appending(path: "torrent").path(percentEncoded: false),
+                listenPort: 0,
+                randomizePort: true,
+                enableDht: false,
+                maxConnections: 8,
+                maxDownloadBps: 0,
+                maxUploadBps: 0
+            ),
+            media: MediaEngineConfig(
+                sessionFolder: tempDir.appending(path: "media").path(percentEncoded: false),
+                resourcesFolder: nil,
+                ytDlpPath: nil,
+                ffmpegPath: nil,
+                maxConcurrentDownloads: 1,
+                maxDownloadBps: 0
+            )
+        )
+
+        let machine = try! OpulStateMachine.open(config: config)
+        let boot = machine.snapshot()
+        expect(boot.session == .recoveryRequired, "corrupt state opens in recoveryRequired")
+        expect(!boot.recoveryNotices.isEmpty, "recovery notices present")
+
+        _ = try! machine.acknowledgeRecovery()
+        let running = machine.snapshot()
+        expect(running.session == .running, "acknowledging recovery transitions to running")
+        expect(running.recoveryNotices.isEmpty, "recovery notices cleared")
+        expect(running.workspaces.count == 1, "default workspace available")
+        _ = try! machine.beginShutdown()
+        print("  ✓ Application state recovery check passed")
     }
 
     static func testDownloadSelection() {

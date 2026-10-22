@@ -104,12 +104,19 @@ impl CheckpointStore {
                                 .unwrap_or_else(|| self.path.clone()),
                         })
                     }
-                    Err(backup_error) => Ok(CheckpointLoad::RecoveryRequired {
-                        preserved_primary,
+                Err(backup_error) => {
+                    let preserved_backup = if backup.exists() {
+                        preserve(&backup).ok()
+                    } else {
+                        None
+                    };
+                    Ok(CheckpointLoad::RecoveryRequired {
+                        preserved_primary: preserved_primary.or(preserved_backup),
                         reason: format!(
                             "the application checkpoint is invalid ({primary_error}) and its backup is unavailable or invalid ({backup_error})"
                         ),
-                    }),
+                    })
+                }
                 }
             }
         }
@@ -136,11 +143,16 @@ impl CheckpointStore {
 
         // Rotate the old validated primary first. A returned error must mean the authoritative
         // primary did not change; otherwise the actor's in-memory state could disagree with disk.
+        // If the existing primary is invalid/corrupt, we do not rotate it into backup and do not fail;
+        // instead we preserve existing backup and proceed to overwrite the corrupt file with valid state.
         let old_primary = if self.path.exists() {
             let bytes = fs::read(&self.path)
                 .map_err(|error| format!("could not read {}: {error}", self.path.display()))?;
-            read_checkpoint_bytes(&bytes)?;
-            Some(bytes)
+            if read_checkpoint_bytes(&bytes).is_ok() {
+                Some(bytes)
+            } else {
+                None
+            }
         } else {
             None
         };
@@ -195,7 +207,7 @@ fn checksum(bytes: &[u8]) -> String {
     hex::encode(Sha1::digest(bytes))
 }
 
-fn preserve(path: &Path) -> Result<PathBuf, String> {
+pub(crate) fn preserve(path: &Path) -> Result<PathBuf, String> {
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
@@ -361,6 +373,43 @@ mod tests {
         };
         assert_eq!(state.revision, first.revision);
         assert_eq!(state.session, SessionPhase::RecoveryRequired);
+        fs::remove_dir_all(folder).unwrap();
+    }
+
+    #[test]
+    fn commit_succeeds_and_overwrites_corrupt_primary() {
+        let folder = temp_dir();
+        let path = folder.join("application-state.json");
+        let store = CheckpointStore::new(path.clone());
+        let first = AppState::fresh("/tmp/Downloads".to_string());
+        store.commit(&first).unwrap();
+
+        // Corrupt the primary file on disk.
+        fs::write(&path, b"{ invalid json").unwrap();
+
+        // A new commit must succeed and cleanly overwrite the corrupt primary,
+        // without attempting to rotate corrupt bytes to backup.
+        let mut second = first.clone();
+        second.revision = 2;
+        store.commit(&second).unwrap();
+
+        let loaded = store.load().unwrap();
+        assert_eq!(loaded, CheckpointLoad::Current(second));
+        fs::remove_dir_all(folder).unwrap();
+    }
+
+    #[test]
+    fn corrupt_primary_and_corrupt_backup_requires_recovery() {
+        let folder = temp_dir();
+        let path = folder.join("application-state.json");
+        let store = CheckpointStore::new(path.clone());
+        let backup = store.backup_path();
+
+        fs::write(&path, b"corrupted primary").unwrap();
+        fs::write(&backup, b"corrupted backup").unwrap();
+
+        let outcome = store.load().unwrap();
+        assert!(matches!(outcome, CheckpointLoad::RecoveryRequired { .. }));
         fs::remove_dir_all(folder).unwrap();
     }
 }
