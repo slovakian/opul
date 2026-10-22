@@ -1128,7 +1128,7 @@ public protocol OpulStateMachineProtocol: AnyObject, Sendable {
 
     func createWorkspace(request: MachineWorkspaceRequest) throws  -> MachineCommandReceipt
 
-    func deleteWorkspace(requestId: String, expectedRevision: UInt64?, workspaceIdValue: String, replacement: MachineWorkspaceRequest?) throws  -> MachineCommandReceipt
+    func deleteWorkspace(requestId: String, expectedRevision: UInt64?, workspaceIdValue: String, replacement: MachineWorkspaceRequest?, moveFilesToTrash: Bool) throws  -> MachineCommandReceipt
 
     func mediaToolStatus()  -> MediaToolStatus
 
@@ -1337,7 +1337,7 @@ open func createWorkspace(request: MachineWorkspaceRequest)throws  -> MachineCom
 })
 }
 
-open func deleteWorkspace(requestId: String, expectedRevision: UInt64?, workspaceIdValue: String, replacement: MachineWorkspaceRequest?)throws  -> MachineCommandReceipt  {
+open func deleteWorkspace(requestId: String, expectedRevision: UInt64?, workspaceIdValue: String, replacement: MachineWorkspaceRequest?, moveFilesToTrash: Bool)throws  -> MachineCommandReceipt  {
     return try  FfiConverterTypeMachineCommandReceipt_lift(try rustCallWithError(FfiConverterTypeStateMachineError_lift) {
         uniffiCallStatus in
     uniffi_opul_core_fn_method_opulstatemachine_delete_workspace(
@@ -1345,7 +1345,8 @@ open func deleteWorkspace(requestId: String, expectedRevision: UInt64?, workspac
         FfiConverterString.lower(requestId),
         FfiConverterOptionUInt64.lower(expectedRevision),
         FfiConverterString.lower(workspaceIdValue),
-        FfiConverterOptionTypeMachineWorkspaceRequest.lower(replacement),uniffiCallStatus
+        FfiConverterOptionTypeMachineWorkspaceRequest.lower(replacement),
+        FfiConverterBool.lower(moveFilesToTrash),uniffiCallStatus
     )
 })
 }
@@ -7253,7 +7254,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_opul_core_checksum_method_opulstatemachine_create_workspace() != 35264) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_opul_core_checksum_method_opulstatemachine_delete_workspace() != 54901) {
+    if (uniffi_opul_core_checksum_method_opulstatemachine_delete_workspace() != 52462) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_opul_core_checksum_method_opulstatemachine_media_tool_status() != 58208) {

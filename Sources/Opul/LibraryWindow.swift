@@ -57,8 +57,17 @@ struct LibraryWindow: View {
             isPresented: deletePresented,
             titleVisibility: .visible
         ) {
-            Button("Delete", role: .destructive) {
-                library.deletePending()
+            if library.pendingDelete?.hasDownloads == true {
+                Button("Delete Workspace and Downloads", role: .destructive) {
+                    library.deletePending(moveFilesToTrash: false)
+                }
+                Button("Delete and Move Files to Trash", role: .destructive) {
+                    library.deletePending(moveFilesToTrash: true)
+                }
+            } else {
+                Button("Delete", role: .destructive) {
+                    library.deletePending(moveFilesToTrash: false)
+                }
             }
             Button("Cancel", role: .cancel) {
                 library.pendingDelete = nil

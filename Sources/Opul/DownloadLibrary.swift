@@ -654,16 +654,22 @@ final class DownloadLibrary {
 
     func askToDelete(_ id: Workspace.ID) {
         guard let workspace = workspaces.first(where: { $0.id == id }) else { return }
+        let hasDownloads = !workspace.downloads.isEmpty
+        var message = workspaces.count == 1
+            ? "A Downloads Workspace will be created afterward, empty of Downloads."
+            : "\(workspace.name) and its Downloads will leave Opul."
+        if hasDownloads {
+            message += " Active transfers stop. Files stay where they are unless you choose to move them, including partially downloaded files, to the Trash."
+        }
         pendingDelete = DeleteRequest(
             workspaceID: id,
             title: "Delete \(workspace.name)?",
-            message: workspaces.count == 1
-                ? "A Downloads Workspace will be created afterward, empty of Downloads."
-                : "\(workspace.name) and its Downloads will leave Opul."
+            message: message,
+            hasDownloads: hasDownloads
         )
     }
 
-    func deletePending() {
+    func deletePending(moveFilesToTrash: Bool) {
         guard let machine, let request = pendingDelete else { return }
         pendingDelete = nil
         let replacement = workspaces.count == 1 ? freshWorkspaceRequest() : nil
@@ -672,7 +678,8 @@ final class DownloadLibrary {
                 requestId: UUID().uuidString,
                 expectedRevision: nil,
                 workspaceIdValue: request.workspaceID.uuidString,
-                replacement: replacement
+                replacement: replacement,
+                moveFilesToTrash: moveFilesToTrash
             )
             refreshTransfers()
             if let first = workspaces.first {

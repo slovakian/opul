@@ -444,6 +444,7 @@ impl OpulStateMachine {
         expected_revision: Option<u64>,
         workspace_id_value: String,
         replacement: Option<MachineWorkspaceRequest>,
+        move_files_to_trash: bool,
     ) -> Result<MachineCommandReceipt, StateMachineError> {
         let replacement = replacement
             .map(|request| {
@@ -472,6 +473,7 @@ impl OpulStateMachine {
             Command::DeleteWorkspace {
                 workspace: workspace_id(&workspace_id_value)?,
                 replacement,
+                move_files_to_trash,
             },
         )
     }

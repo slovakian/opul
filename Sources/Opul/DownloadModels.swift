@@ -73,6 +73,7 @@ struct DeleteRequest: Equatable {
     let workspaceID: Workspace.ID
     let title: String
     let message: String
+    let hasDownloads: Bool
 }
 
 enum FolderChoice: Equatable {

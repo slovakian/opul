@@ -25,6 +25,7 @@ pub(crate) enum Command {
     DeleteWorkspace {
         workspace: WorkspaceId,
         replacement: Option<Workspace>,
+        move_files_to_trash: bool,
     },
     AddFolder {
         workspace: WorkspaceId,
@@ -403,7 +404,8 @@ pub(crate) fn decide(state: &AppState, envelope: &CommandEnvelope) -> Result<Dec
         Command::DeleteWorkspace {
             workspace,
             replacement,
-        } => decide_delete_workspace(state, *workspace, replacement.clone()),
+            move_files_to_trash,
+        } => decide_delete_workspace(state, *workspace, replacement.clone(), *move_files_to_trash),
         Command::AddFolder {
             workspace,
             folder,
@@ -1457,6 +1459,7 @@ fn decide_delete_workspace(
     state: &AppState,
     workspace: WorkspaceId,
     replacement: Option<Workspace>,
+    move_files_to_trash: bool,
 ) -> Result<Decision, Rejection> {
     let existing = state
         .workspace(workspace)
@@ -1491,7 +1494,7 @@ fn decide_delete_workspace(
             replacement,
         }));
     }
-    let mut decision = decide_remove(state, &downloads, false)?;
+    let mut decision = decide_remove(state, &downloads, move_files_to_trash)?;
     decision.events.insert(
         0,
         Event::WorkspaceDeletionRequested(PendingWorkspaceDeletion {
@@ -2729,6 +2732,74 @@ mod tests {
     }
 
     #[test]
+    fn deleting_a_workspace_can_trash_its_downloads_files() {
+        let mut state = running_state();
+        let mut download = media_download(&state);
+        download.lifecycle = DownloadLifecycle::Paused {
+            resume: ActivePhase::Fetching,
+            cause: HoldCause::Person,
+        };
+        state.workspaces[0].downloads.push(download.clone());
+        let mut remaining = state.workspaces[0].clone();
+        remaining.id = WorkspaceId::new();
+        remaining.default_folder = FolderId::new();
+        remaining.folders[0].id = remaining.default_folder;
+        remaining.downloads.clear();
+        state.workspaces.push(remaining.clone());
+        let deleting = run(
+            &state,
+            Command::DeleteWorkspace {
+                workspace: state.workspaces[0].id,
+                replacement: None,
+                move_files_to_trash: true,
+            },
+        );
+        let leftovers = vec![partial("/tmp/Downloads/.film.part")];
+        let (stopped, effects) = apply_facts(
+            &deleting,
+            &[
+                Fact::LeftoversFound {
+                    download: download.id,
+                    attempt: 0,
+                    leftovers: leftovers.clone(),
+                },
+                Fact::WriterStopped {
+                    download: download.id,
+                    attempt: 0,
+                    control_generation: 1,
+                },
+                Fact::AdapterRecordAbsent {
+                    download: download.id,
+                    attempt: 0,
+                },
+            ],
+        );
+        assert_eq!(
+            effects,
+            vec![EffectKind::MoveOutputToTrash {
+                download: download.id,
+                artifact: None,
+                leftovers,
+            }]
+        );
+        let (finished, _) = apply_facts(
+            &stopped,
+            &[
+                Fact::FilesResolved {
+                    download: download.id,
+                    control_generation: 1,
+                },
+                Fact::RetirementFinalized {
+                    download: download.id,
+                    control_generation: 1,
+                },
+            ],
+        );
+        assert_eq!(finished.workspaces, vec![remaining]);
+        assert!(finished.structural_changes.workspace_deletions.is_empty());
+    }
+
+    #[test]
     fn workspace_deletion_intent_survives_until_retirement_finishes() {
         let mut state = running_state();
         let mut download = media_download(&state);
@@ -2755,6 +2826,7 @@ mod tests {
             Command::DeleteWorkspace {
                 workspace: state.workspaces[0].id,
                 replacement: Some(replacement.clone()),
+                move_files_to_trash: false,
             },
         );
         assert_eq!(deleting.structural_changes.workspace_deletions.len(), 1);
