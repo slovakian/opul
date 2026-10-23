@@ -11,11 +11,14 @@ gh workflow run release.yml -R slovakian/opul -f bump=patch
 The workflow takes the newest `v*` tag, increases the part you chose, and then:
 
 1. runs the test suite;
-2. builds a universal (Apple silicon and Intel) `Opul.app`, launches it once with the build folder moved away, and wraps it in `Opul.dmg`;
-3. signs and notarizes it when a Developer ID certificate is configured (see below);
-4. writes release notes listing the commit subjects since the previous release, and an `appcast.xml` signed with the Sparkle key;
-5. tags the commit and publishes a GitHub release with `Opul.dmg` and `appcast.xml`;
-6. downloads both files back through the public "latest" links and checks the version, checksum, update signature, and code signature.
+2. builds an Apple silicon `Opul.app` with the pinned media tools in `Contents/Helpers`, checks the tools and the QuickJS sandbox, launches the app once with the build folder moved away, and wraps it in `Opul.dmg`;
+3. prints the size of `Opul.dmg` and warns when it is over 25 MB (it never fails because of size);
+4. signs and notarizes it when a Developer ID certificate is configured (see below);
+5. writes release notes listing the commit subjects since the previous release, and an `appcast.xml` signed with the Sparkle key;
+6. tags the commit and publishes a GitHub release with `Opul.dmg` and `appcast.xml`;
+7. downloads both files back through the public "latest" links and checks the version, checksum, update signature, and code signature.
+
+Opul runs on Apple silicon only (ADR 0026), so the release builds arm64 alone.
 
 If any step before publishing fails, nothing is tagged or published. Fix the problem and run the workflow again.
 
@@ -25,6 +28,23 @@ Nothing else needs updating. The website's download button and the in-app update
 - Update feed: `https://github.com/slovakian/opul/releases/latest/download/appcast.xml`
 
 Keep the asset names `Opul.dmg` and `appcast.xml`. Installed copies of Opul look for that feed URL. Don't mark a release as a pre-release unless it should be skipped by both the download button and the updater.
+
+## The bundled media tools
+
+`Contents/Helpers` holds `ffmpeg`, `ffprobe` and `qjs`, Opul's sandboxed QuickJS driver (ADR 0025). They come from a `media-tools-<n>` GitHub release, which the **Media Tools** workflow builds from the sources pinned in `MediaTools/sources.env`. `Scripts/package_app.sh` downloads the release named in `MediaTools/release.env`, checks each file's SHA-256, and caches it under `.build/media-tools/`.
+
+To bump FFmpeg, LAME or QuickJS:
+
+1. Change the version, URL and SHA-256 in `MediaTools/sources.env`. `shasum -a 256 <tarball>` gives the checksum; check it against the project's own published signature or checksum.
+2. Open a pull request. The Media Tools workflow builds the tools, runs the sandbox test (`Scripts/test_media_tools.sh`), and runs every download format against the new FFmpeg.
+3. After merging, run **Actions → Media Tools → Run workflow** with *Publish* checked (and *YouTube* checked to download a real video with the QuickJS driver). It publishes the next `media-tools-<n>` release, as a pre-release that is never marked latest, so Opul's download link and updater are unaffected.
+4. Copy the `MediaTools/release.env` lines from the workflow summary into the repository and commit them.
+
+From a terminal: `gh workflow run media-tools.yml -R slovakian/opul -f publish=true -f youtube=true`.
+
+To build the tools locally, run `Scripts/build_media_tools.sh`; package an app with them by setting `MEDIA_TOOLS_DIR=.build/media-tools-build/out`. Such an app is for testing only, since its tools are not the pinned release.
+
+yt-dlp is not bundled. Opul downloads it after the person agrees and checks it against yt-dlp's release key, which is `src/tools/yt-dlp-public.key`. If yt-dlp ever rotates its key, replace that file with the new `public.key` from the yt-dlp repository and update the fingerprint in `src/tools.rs` and its test.
 
 ## Version numbers
 

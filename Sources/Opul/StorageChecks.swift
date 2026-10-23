@@ -452,9 +452,9 @@ enum StorageChecks {
             ),
             media: MediaEngineConfig(
                 sessionFolder: tempDir.appending(path: "media").path(percentEncoded: false),
-                resourcesFolder: nil,
-                ytDlpPath: nil,
-                ffmpegPath: nil,
+                toolsFolder: tempDir.appending(path: "Tools").path(percentEncoded: false),
+                helpersFolder: nil,
+                toolSettings: MediaToolSettings(customYtDlpPath: nil, customFfmpegPath: nil, autoUpdateYtDlp: false),
                 maxConcurrentDownloads: 1,
                 maxDownloadBps: 0
             )

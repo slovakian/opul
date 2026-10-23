@@ -1,0 +1,145 @@
+name: Media Tools
+
+# Builds the tools Opul bundles in Contents/Helpers (ffmpeg, ffprobe and the QuickJS driver)
+# from the sources pinned in MediaTools/sources.env. A pull request that changes them builds
+# and tests them; running the workflow by hand also publishes a media-tools-<n> release.
+# See docs/releasing.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the tools as a new media-tools-<n> release
+        type: boolean
+        default: true
+      youtube:
+        description: Also download a real YouTube video (YouTube often blocks CI runners)
+        type: boolean
+        default: false
+  pull_request:
+    paths:
+      - MediaTools/**
+      - Scripts/build_media_tools.sh
+      - Scripts/test_media_tools.sh
+      - Scripts/fetch_yt_dlp_for_ci.sh
+      - src/media.rs
+      - src/tools.rs
+      - .github/workflows/media-tools.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: media-tools-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build and check the sandbox
+        run: Scripts/build_media_tools.sh "$RUNNER_TEMP/media-tools"
+
+      - name: Upload the tools
+        uses: actions/upload-artifact@v7
+        with:
+          name: media-tools
+          path: ${{ runner.temp }}/media-tools
+          if-no-files-found: error
+
+  formats:
+    needs: build
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/download-artifact@v8
+        with:
+          name: media-tools
+          path: ${{ runner.temp }}/media-tools
+      - name: Get the latest stable yt-dlp
+        run: Scripts/fetch_yt_dlp_for_ci.sh "$RUNNER_TEMP/yt-dlp"
+      - name: Run every format against the bundled FFmpeg
+        run: |
+          chmod +x "$RUNNER_TEMP"/media-tools/{ffmpeg,ffprobe,qjs}
+          OPUL_MEDIA_TOOLS="$RUNNER_TEMP/media-tools" OPUL_YT_DLP="$RUNNER_TEMP/yt-dlp/yt-dlp_macos" \
+            cargo test --lib format_matrix -- --ignored
+
+  youtube:
+    if: github.event_name == 'workflow_dispatch' && inputs.youtube
+    needs: build
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: media-tools
+          path: ${{ runner.temp }}/media-tools
+      - name: Get the latest stable yt-dlp
+        run: Scripts/fetch_yt_dlp_for_ci.sh "$RUNNER_TEMP/yt-dlp"
+      - name: Download a short public video with the QuickJS driver
+        run: |
+          tools="$RUNNER_TEMP/media-tools"
+          chmod +x "$tools"/{ffmpeg,ffprobe,qjs}
+          "$RUNNER_TEMP/yt-dlp/yt-dlp_macos" -v --no-js-runtimes --js-runtimes "quickjs:$tools/qjs" \
+            --ffmpeg-location "$tools" --format 'bestvideo*[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best' \
+            --merge-output-format mp4 -o "$RUNNER_TEMP/video/%(id)s.%(ext)s" \
+            'https://www.youtube.com/watch?v=jNQXAC9IVRw' 2>&1 | tee "$RUNNER_TEMP/youtube.log"
+          grep -q 'JS runtimes: quickjs-' "$RUNNER_TEMP/youtube.log"
+          grep -q 'Solving JS challenges using quickjs' "$RUNNER_TEMP/youtube.log"
+          if grep -q 'solve the JS challenges very slowly' "$RUNNER_TEMP/youtube.log"; then
+            echo "::error::yt-dlp considers the bundled QuickJS too old."
+            exit 1
+          fi
+          test -s "$RUNNER_TEMP/video/jNQXAC9IVRw.mp4"
+
+  publish:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    needs: [build, formats]
+    runs-on: macos-26
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v8
+        with:
+          name: media-tools
+          path: ${{ runner.temp }}/media-tools
+      - name: Publish media-tools-<n>
+        run: |
+          source MediaTools/sources.env
+          last=$(gh release list --limit 200 --json tagName --jq '.[].tagName' \
+            | sed -n 's/^media-tools-\([0-9]*\)$/\1/p' | sort -n | tail -1)
+          tag="media-tools-$(( ${last:-0} + 1 ))"
+          cd "$RUNNER_TEMP/media-tools"
+          shasum -a 256 -c SHA256SUMS --ignore-missing
+          {
+            echo "Tools bundled in Opul.app/Contents/Helpers, built by the Media Tools workflow from $GITHUB_SHA."
+            echo
+            echo "- FFmpeg $FFMPEG_VERSION and ffprobe, LGPL 2.1 or later, configured without GPL or non-free parts. Source: \`ffmpeg-$FFMPEG_VERSION.tar.xz\` below ($FFMPEG_URL)."
+            echo "- LAME $LAME_VERSION, LGPL, linked into FFmpeg. Source: \`lame-$LAME_VERSION.tar.gz\` below ($LAME_URL)."
+            echo "- QuickJS $QUICKJS_VERSION, MIT, in Opul's sandboxed driver \`qjs\` (\`qjs-driver.c\`). Source: \`quickjs-$QUICKJS_VERSION.tar.xz\` below ($QUICKJS_URL)."
+            echo
+            echo "\`BUILD-INFO.txt\` lists the FFmpeg configure arguments. Commit these lines as \`MediaTools/release.env\` to bundle this release:"
+            echo
+            echo '```'
+            echo "MEDIA_TOOLS_TAG=$tag"
+            for tool in ffmpeg ffprobe qjs; do
+              echo "$(tr '[:lower:]' '[:upper:]' <<<"$tool")_SHA256=$(shasum -a 256 "$tool" | cut -d' ' -f1)"
+            done
+            echo '```'
+          } > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md" >> "$GITHUB_STEP_SUMMARY"
+          # Never "latest": Opul's updater and download links follow the latest release.
+          gh release create "$tag" ffmpeg ffprobe qjs SHA256SUMS BUILD-INFO.txt sources/* \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Media tools $tag" \
+            --notes-file "$RUNNER_TEMP/notes.md" --prerelease --latest=false

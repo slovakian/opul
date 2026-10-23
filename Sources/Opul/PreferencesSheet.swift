@@ -73,9 +73,17 @@ struct PreferencesSheet: View {
             }
 
             Section("Updates") {
-                Toggle("Automatically install updates", isOn: $updater.automaticallyInstallsUpdates)
+                Toggle("Update Opul automatically", isOn: $updater.updatesAutomatically)
                 Button("Check for Updates…", action: updater.checkForUpdates)
                     .disabled(!updater.canCheckForUpdates)
+                Toggle("Update yt-dlp automatically", isOn: Binding(
+                    get: { library.preferences.ytDlpAutoUpdate },
+                    set: { library.preferences.ytDlpAutoUpdate = $0 }
+                ))
+                .disabled(library.mediaToolStatus?.isCustomYtDlp == true)
+                Button("Check for yt-dlp Updates", action: library.checkForYtDlpUpdates)
+                    .disabled(library.mediaToolStatus?.isManagedYtDlpInstalled != true
+                        || library.mediaToolStatus?.activity != .idle)
             }
         }
         .formStyle(.grouped)
@@ -83,29 +91,11 @@ struct PreferencesSheet: View {
 
     private var mediaView: some View {
         Form {
-            Section("Download Engine") {
-                LabeledContent("Status") {
-                    HStack(spacing: 6) {
-                        Image(systemName: library.mediaToolStatus?.ready == true ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                            .foregroundStyle(library.mediaToolStatus?.ready == true ? Color.green : Color.orange)
-                        Text(library.mediaToolStatus?.message ?? "Not initialized")
-                            .multilineTextAlignment(.trailing)
-                    }
-                }
-                if let version = library.mediaToolStatus?.ytDlpVersion {
-                    LabeledContent("yt-dlp", value: version)
-                }
-                if let version = library.mediaToolStatus?.ffmpegVersion {
-                    LabeledContent("FFmpeg", value: version)
-                }
-                TextField("yt-dlp Path", text: Binding(
-                    get: { library.preferences.ytDlpPath },
-                    set: { library.preferences.ytDlpPath = $0 }
-                ), prompt: Text("Automatic"))
-                TextField("FFmpeg Path", text: Binding(
-                    get: { library.preferences.ffmpegPath },
-                    set: { library.preferences.ffmpegPath = $0 }
-                ), prompt: Text("Automatic"))
+            YtDlpSettingsSection(library: library)
+
+            BundledToolsSection(library: library)
+
+            Section("Downloads") {
                 Stepper(
                     "Concurrent downloads: \(library.preferences.maxConcurrentMediaDownloads)",
                     value: Binding(
@@ -146,7 +136,7 @@ struct PreferencesSheet: View {
                     get: { library.preferences.filenameTemplate },
                     set: { library.preferences.filenameTemplate = $0 }
                 ))
-                Text("Uses yt-dlp output-template fields. Tool path changes apply after reopening Opul.")
+                Text("Uses yt-dlp output-template fields.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }

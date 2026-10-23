@@ -109,6 +109,14 @@ struct PasteNotice: Equatable {
     var isWarning: Bool
 }
 
+/// A pasted link that needs yt-dlp, held while Opul asks whether to download it.
+struct VideoToolsPrompt: Identifiable, Equatable {
+    let id = UUID()
+    let address: String
+    /// The person's own yt-dlp, when that is what stopped working.
+    let brokenCustomPath: String?
+}
+
 struct MediaImportRequest: Identifiable {
     let id = UUID()
     let workspaceID: Workspace.ID

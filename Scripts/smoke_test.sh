@@ -15,6 +15,9 @@ restore() {
 }
 trap restore EXIT
 
+# The bundled tools must run from the packaged app, and the QuickJS driver must stay sandboxed.
+"$ROOT/Scripts/test_media_tools.sh" "$APP/Contents/Helpers"
+
 [[ -d "$ROOT/.build" ]] && mv "$ROOT/.build" "$HIDDEN_BUILD"
 
 "$APP/Contents/MacOS/$APP_NAME" >/dev/null 2>&1 &

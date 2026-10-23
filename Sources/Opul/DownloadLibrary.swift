@@ -18,11 +18,19 @@ final class DownloadLibrary {
         didSet {
             persistPreferences()
             applyLimits()
+            if preferences.mediaToolSettings != oldValue.mediaToolSettings {
+                machine?.setMediaToolSettings(settings: preferences.mediaToolSettings)
+            }
         }
     }
     var engineNotice: String?
     var recoveryNotice: String?
-    var mediaToolStatus: MediaToolStatus?
+    /// The tools behind video downloads, as the Rust core reports them.
+    private(set) var mediaToolStatus: MediaToolStatus?
+    var isShowingWelcome = false
+    /// Shown instead of adding a link that needs yt-dlp while it isn't available.
+    var videoToolsPrompt: VideoToolsPrompt?
+    var isConfirmingYtDlpRemoval = false
     private var activeExtractions = 0
     var isExtracting: Bool { activeExtractions > 0 }
     private var mediaImportQueue: [MediaImportRequest] = []
@@ -69,6 +77,7 @@ final class DownloadLibrary {
 
     @ObservationIgnored private var machine: OpulStateMachine?
     @ObservationIgnored private var observationTask: Task<Void, Never>?
+    @ObservationIgnored private var toolObservationTask: Task<Void, Never>?
     @ObservationIgnored private let soundEngine = InteractionSoundEngine()
     @ObservationIgnored private var canPlayTransferSounds = false
     @ObservationIgnored private var platformEffectsInProgress = Set<String>()
@@ -88,15 +97,18 @@ final class DownloadLibrary {
             consume(opened.snapshot())
             applyLimits()
             startObservation(of: opened)
+            startToolObservation(of: opened)
         } catch {
             engineNotice = error.localizedDescription
             recoveryNotice = "Opul could not open its application state. No transfer was started."
         }
         canPlayTransferSounds = true
+        isShowingWelcome = !preferences.hasSeenWelcome
     }
 
     deinit {
         observationTask?.cancel()
+        toolObservationTask?.cancel()
     }
 
     var selectedWorkspace: Workspace? {
@@ -207,9 +219,198 @@ final class DownloadLibrary {
             if raw.lowercased().hasPrefix("magnet:") || isTorrentFile(raw) {
                 addTorrentAddress(raw, fileData: nil)
             } else {
-                Task { await addMediaAddress(raw) }
+                addLink(raw)
             }
         }
+    }
+
+    /// Sends a link to yt-dlp when it can run. While Opul is getting yt-dlp the link waits for
+    /// it; without yt-dlp, direct media files still download and anything else asks first.
+    private func addLink(_ address: String) {
+        guard let status = mediaToolStatus else {
+            Task { await addMediaAddress(address) }
+            return
+        }
+        if status.ytDlpReady {
+            Task { await addMediaAddress(address) }
+        } else if status.ytDlpPending {
+            queueVideoLink(address)
+        } else if addDirectMediaFile(address) {
+            return
+        } else if case .customBroken(let path, _) = status.ytDlp {
+            videoToolsPrompt = VideoToolsPrompt(address: address, brokenCustomPath: path)
+        } else {
+            videoToolsPrompt = VideoToolsPrompt(address: address, brokenCustomPath: nil)
+            machine?.requestYtDlpDownloadSize()
+        }
+    }
+
+    /// Adds a link without asking yt-dlp about it first. The download waits as "Getting video
+    /// tools…" and starts once yt-dlp is ready.
+    private func queueVideoLink(_ address: String) {
+        guard let machine,
+              let workspace = selectedWorkspace,
+              let folderID = folderIDForPaste(in: workspace) else {
+            warn("Choose a Workspace and download folder before adding media.")
+            return
+        }
+        do {
+            _ = try machine.addMedia(request: MachineMediaRequest(
+                requestId: UUID().uuidString,
+                expectedRevision: nil,
+                workspaceId: workspace.id.uuidString,
+                folderId: folderID.uuidString,
+                format: workspace.defaultFormat.machine,
+                policy: mediaPolicy(userAgent: nil, direct: false),
+                items: [MachineMediaItem(
+                    url: address,
+                    title: address,
+                    pageUrl: address,
+                    thumbnailUrl: nil,
+                    extractor: nil,
+                    playlistIndex: nil
+                )]
+            ))
+            refreshTransfers()
+            pasteNotice = nil
+            playDownloadAddedSound()
+        } catch {
+            warn(error.localizedDescription)
+        }
+    }
+
+    /// A link straight to a video, audio, image or subtitle file needs no yt-dlp.
+    private func addDirectMediaFile(_ address: String) -> Bool {
+        guard let url = URL(string: address), ["http", "https"].contains(url.scheme?.lowercased()) else {
+            return false
+        }
+        let session = GuidedExtractionSession()
+        let candidates = session.observe(observation: GuidedObservation(
+            url: url.absoluteString,
+            pageUrl: url.absoluteString,
+            frameUrl: nil,
+            title: url.lastPathComponent,
+            initiator: "",
+            mimeType: nil,
+            statusCode: nil,
+            contentLength: nil,
+            observedAtMs: UInt64(Date().timeIntervalSince1970 * 1_000),
+            source: .navigation,
+            isMainFrame: true,
+            elementKey: nil,
+            width: nil,
+            height: nil,
+            headers: []
+        ))
+        guard let candidate = candidates.first(where: \.directDownload) else { return false }
+        _ = addGuidedDownload(candidate: candidate, session: session, cookies: "", userAgent: nil)
+        return true
+    }
+
+    // MARK: Media tools
+
+    /// The person agreed to download yt-dlp, or asked for a newer one.
+    func downloadYtDlp() {
+        machine?.updateYtDlp()
+    }
+
+    func checkForYtDlpUpdates() {
+        machine?.updateYtDlp()
+    }
+
+    func requestYtDlpDownloadSize() {
+        machine?.requestYtDlpDownloadSize()
+    }
+
+    /// Video downloads that would need yt-dlp to start.
+    var activeVideoDownloadCount: Int {
+        workspaces.lazy.flatMap(\.downloads).filter { download in
+            download.source == .videoPage
+                && [.queued, .fetching, .processing, .paused].contains(download.state)
+        }.count
+    }
+
+    func askToRemoveYtDlp() {
+        if activeVideoDownloadCount > 0 {
+            isConfirmingYtDlpRemoval = true
+        } else {
+            machine?.removeYtDlp()
+        }
+    }
+
+    func removeYtDlp() {
+        isConfirmingYtDlpRemoval = false
+        machine?.removeYtDlp()
+    }
+
+    /// Checks a yt-dlp the person picked and uses it for the next video download.
+    func useCustomYtDlp(at url: URL) async -> String? {
+        guard let machine else { return "Opul isn't ready yet." }
+        let path = url.path(percentEncoded: false)
+        do {
+            _ = try await Task.detached(priority: .userInitiated) {
+                try machine.verifyYtDlp(path: path)
+            }.value
+            preferences.ytDlpPath = path
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    func useOpulsYtDlp() {
+        preferences.ytDlpPath = ""
+    }
+
+    /// Clears a yt-dlp that stopped working and downloads Opul's copy instead.
+    func replaceCustomYtDlpWithOpuls(retrying id: Download.ID? = nil) {
+        preferences.ytDlpPath = ""
+        downloadYtDlp()
+        if let id {
+            retryDownload(id)
+        }
+    }
+
+    func useCustomFFmpeg(at url: URL) async -> String? {
+        guard let machine else { return "Opul isn't ready yet." }
+        let path = url.path(percentEncoded: false)
+        do {
+            _ = try await Task.detached(priority: .userInitiated) {
+                try machine.verifyFfmpeg(path: path)
+            }.value
+            preferences.ffmpegPath = path
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    func useBundledFFmpeg() {
+        preferences.ffmpegPath = ""
+    }
+
+    func showWelcome() {
+        isShowingWelcome = true
+        requestYtDlpDownloadSize()
+    }
+
+    func welcomeDismissed() {
+        if !preferences.hasSeenWelcome {
+            preferences.hasSeenWelcome = true
+        }
+    }
+
+    /// Answers the "Video downloads need yt-dlp" prompt. Downloading also queues the link, which
+    /// then waits for yt-dlp.
+    func resolveVideoToolsPrompt(download: Bool) {
+        guard let prompt = videoToolsPrompt else { return }
+        videoToolsPrompt = nil
+        guard download else { return }
+        if prompt.brokenCustomPath != nil {
+            preferences.ytDlpPath = ""
+        }
+        downloadYtDlp()
+        queueVideoLink(prompt.address)
     }
 
     func addGuidedDownload(
@@ -1147,6 +1348,28 @@ final class DownloadLibrary {
         }
     }
 
+    private func startToolObservation(of machine: OpulStateMachine) {
+        let initial = machine.mediaToolStatus()
+        toolObservationTask = Task.detached(priority: .utility) { [weak self, machine] in
+            var generation = initial.generation
+            while !Task.isCancelled {
+                let status = machine.waitForMediaToolStatus(
+                    afterGeneration: generation,
+                    timeoutMilliseconds: 30_000
+                )
+                guard !Task.isCancelled else { return }
+                if status.generation != generation {
+                    generation = status.generation
+                    await self?.consume(status)
+                }
+            }
+        }
+    }
+
+    private func consume(_ status: MediaToolStatus) {
+        mediaToolStatus = status
+    }
+
     private func startObservation(of machine: OpulStateMachine) {
         let initial = machine.snapshot()
         observationTask = Task.detached(priority: .utility) { [weak self, machine] in
@@ -1372,9 +1595,11 @@ final class DownloadLibrary {
                 sessionFolder: Self.applicationSupportFolder
                     .appending(path: "media-session", directoryHint: .isDirectory)
                     .path(percentEncoded: false),
-                resourcesFolder: Bundle.main.resourceURL?.path(percentEncoded: false),
-                ytDlpPath: preferences.ytDlpPath.nilIfBlank,
-                ffmpegPath: preferences.ffmpegPath.nilIfBlank,
+                toolsFolder: Self.applicationSupportFolder
+                    .appending(path: "Tools", directoryHint: .isDirectory)
+                    .path(percentEncoded: false),
+                helpersFolder: Self.helpersFolder?.path(percentEncoded: false),
+                toolSettings: preferences.mediaToolSettings,
                 maxConcurrentDownloads: UInt32(clamping: max(preferences.maxConcurrentMediaDownloads, 1)),
                 maxDownloadBps: bps(preferences.maxDownloadRateKBps)
             )
@@ -1545,6 +1770,13 @@ final class DownloadLibrary {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
         return base.appending(path: "Opul", directoryHint: .isDirectory)
+    }
+
+    /// Contents/Helpers holds the bundled ffmpeg, ffprobe and qjs. A build run with
+    /// `swift run` has none, and video downloads then work without FFmpeg.
+    static var helpersFolder: URL? {
+        let folder = Bundle.main.bundleURL.appending(path: "Contents/Helpers", directoryHint: .isDirectory)
+        return FileManager.default.fileExists(atPath: folder.path(percentEncoded: false)) ? folder : nil
     }
 
     static var libraryURL: URL {
@@ -1738,6 +1970,16 @@ enum MacFolder {
         guard let component else { return base.path(percentEncoded: false) }
         let cleaned = component.replacingOccurrences(of: "/", with: "-")
         return base.appending(path: cleaned).path(percentEncoded: false)
+    }
+}
+
+extension TorrentPreferences {
+    var mediaToolSettings: MediaToolSettings {
+        MediaToolSettings(
+            customYtDlpPath: ytDlpPath.nilIfBlank,
+            customFfmpegPath: ffmpegPath.nilIfBlank,
+            autoUpdateYtDlp: ytDlpAutoUpdate
+        )
     }
 }
 

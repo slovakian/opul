@@ -7,6 +7,7 @@ use crate::media::{
     MediaTransferState,
 };
 use crate::meta::{TorrentState, parse_magnet_uri, parse_torrent_bytes};
+use crate::tools::{MediaToolSettings, MediaToolStatus, MediaTools};
 use sha1::{Digest, Sha1};
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
@@ -881,8 +882,52 @@ impl OpulStateMachine {
         self.media.clear_guided_session_data().map_err(engine_error)
     }
 
-    pub fn media_tool_status(&self) -> crate::media::MediaToolStatus {
+    pub fn media_tool_status(&self) -> MediaToolStatus {
         self.media.tool_status()
+    }
+
+    /// Returns once the tool status moves past `after_generation`, or after the timeout.
+    pub fn wait_for_media_tool_status(
+        &self,
+        after_generation: u64,
+        timeout_milliseconds: u32,
+    ) -> MediaToolStatus {
+        self.media.tools().wait_for_status(
+            after_generation,
+            Duration::from_millis(u64::from(timeout_milliseconds.min(30_000))),
+        )
+    }
+
+    /// Custom tool paths and the yt-dlp update setting. They apply to the next process.
+    pub fn set_media_tool_settings(&self, settings: MediaToolSettings) {
+        self.media.tools().apply_settings(settings);
+    }
+
+    /// The person agreed to download yt-dlp, or asked to check for a newer one.
+    pub fn update_yt_dlp(&self) {
+        self.media.tools().request_install();
+    }
+
+    /// Looks up how large the yt-dlp download is, so the welcome sheet can say.
+    pub fn request_yt_dlp_download_size(&self) {
+        self.media.tools().request_download_size();
+    }
+
+    pub fn remove_yt_dlp(&self) {
+        self.media.tools().remove();
+    }
+
+    /// Runs a yt-dlp the person picked, and returns its version, before they use it.
+    pub fn verify_yt_dlp(&self, path: String) -> Result<String, StateMachineError> {
+        MediaTools::verify_yt_dlp(Path::new(&path)).map_err(|reason| StateMachineError::Rejected {
+            reason: format!("That yt-dlp didn't run: {reason}."),
+        })
+    }
+
+    pub fn verify_ffmpeg(&self, path: String) -> Result<String, StateMachineError> {
+        MediaTools::verify_ffmpeg(Path::new(&path)).map_err(|reason| StateMachineError::Rejected {
+            reason: format!("That FFmpeg didn't run: {reason}."),
+        })
     }
 
     pub fn set_speed_limits(&self, download_bps: u64, upload_bps: u64) {

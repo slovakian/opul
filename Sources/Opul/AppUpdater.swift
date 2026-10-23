@@ -21,10 +21,17 @@ final class AppUpdater: ObservableObject {
         controller.updater.publisher(for: \.canCheckForUpdates).assign(to: &$canCheckForUpdates)
     }
 
-    var automaticallyInstallsUpdates: Bool {
-        get { controller.updater.automaticallyDownloadsUpdates }
+    /// One switch for checking and installing. Off means Opul makes no automatic update checks.
+    /// Sparkle saves the choice in its own user defaults, which take precedence over the
+    /// Info.plist defaults, so it survives a relaunch.
+    var updatesAutomatically: Bool {
+        get {
+            controller.updater.automaticallyChecksForUpdates
+                && controller.updater.automaticallyDownloadsUpdates
+        }
         set {
             objectWillChange.send()
+            controller.updater.automaticallyChecksForUpdates = newValue
             controller.updater.automaticallyDownloadsUpdates = newValue
         }
     }

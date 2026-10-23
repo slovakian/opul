@@ -7,6 +7,7 @@ mod engine;
 mod media;
 mod meta;
 mod persistence;
+mod tools;
 
 pub use application::{
     MachineCapabilities, MachineCommandReceipt, MachineDownload, MachineDownloadCommand,
@@ -23,9 +24,11 @@ pub use destination::DownloadContentLayout;
 pub use media::{
     GuidedCandidate, GuidedDownloadSelection, GuidedExtractionSession, GuidedHttpHeader,
     GuidedMediaKind, GuidedObservation, GuidedObservationSource, MediaDownloadOptions, MediaEngine,
-    MediaEngineConfig, MediaFormat, MediaProbe, MediaProbeItem, MediaToolStatus,
-    MediaTransferSnapshot, MediaTransferState, classify_guided_url,
+    MediaEngineConfig, MediaFormat, MediaProbe, MediaProbeItem, MediaTransferSnapshot,
+    MediaTransferState, classify_guided_url,
 };
+
+pub use tools::{BundledToolStatus, MediaToolSettings, MediaToolStatus, YtDlpActivity, YtDlpState};
 
 uniffi::setup_scaffolding!();
 

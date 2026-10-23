@@ -17,6 +17,7 @@ use uuid::Uuid;
 use crate::CoreError;
 use crate::destination::{DownloadContentLayout, resolve_download_destination};
 use crate::persistence::{LoadedState, load_state, save_state};
+use crate::tools::{MediaToolSettings, MediaToolStatus, MediaTools, ProcessTools, Unavailable};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, uniffi::Enum)]
 pub enum MediaFormat {
@@ -77,21 +78,13 @@ impl Default for MediaDownloadOptions {
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct MediaEngineConfig {
     pub session_folder: String,
-    pub resources_folder: Option<String>,
-    pub yt_dlp_path: Option<String>,
-    pub ffmpeg_path: Option<String>,
+    /// Where Opul keeps the yt-dlp it downloads: `Application Support/Opul/Tools`.
+    pub tools_folder: String,
+    /// The app's `Contents/Helpers`, which holds the bundled FFmpeg, ffprobe and QuickJS.
+    pub helpers_folder: Option<String>,
+    pub tool_settings: MediaToolSettings,
     pub max_concurrent_downloads: u32,
     pub max_download_bps: u64,
-}
-
-#[derive(Debug, Clone, uniffi::Record)]
-pub struct MediaToolStatus {
-    pub yt_dlp_path: Option<String>,
-    pub yt_dlp_version: Option<String>,
-    pub ffmpeg_path: Option<String>,
-    pub ffmpeg_version: Option<String>,
-    pub ready: bool,
-    pub message: String,
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
@@ -1014,8 +1007,7 @@ struct WorkerRegistry {
 
 #[derive(Clone)]
 struct WorkerContext {
-    yt_dlp: Option<PathBuf>,
-    ffmpeg: Option<PathBuf>,
+    tools: Arc<MediaTools>,
     cookie_directory: PathBuf,
     request_header_directory: PathBuf,
     store_path: PathBuf,
@@ -1028,10 +1020,7 @@ struct WorkerContext {
 
 #[derive(uniffi::Object)]
 pub struct MediaEngine {
-    yt_dlp: Option<PathBuf>,
-    yt_dlp_version: Option<String>,
-    ffmpeg: Option<PathBuf>,
-    ffmpeg_version: Option<String>,
+    tools: Arc<MediaTools>,
     cookie_path: PathBuf,
     store_path: PathBuf,
     items: Arc<Mutex<HashMap<String, StoredMediaDownload>>>,
@@ -1051,36 +1040,18 @@ fn open_media_engine(
         reason: format!("could not create the media session folder: {error}"),
     })?;
 
-    let resource_folder = config.resources_folder.as_deref().map(Path::new);
-    let yt_dlp = locate_tool(
-        config.yt_dlp_path.as_deref(),
-        resource_folder,
-        "yt-dlp",
-        &["/opt/homebrew/bin/yt-dlp", "/usr/local/bin/yt-dlp"],
-        &["--version"],
+    let tools = MediaTools::new(
+        Path::new(&config.tools_folder),
+        config.helpers_folder.as_deref().map(PathBuf::from),
+        config.tool_settings,
     );
-    let ffmpeg = locate_tool(
-        config.ffmpeg_path.as_deref(),
-        resource_folder,
-        "ffmpeg",
-        &["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"],
-        &["-version"],
-    );
-    let yt_dlp_version = yt_dlp
-        .as_ref()
-        .and_then(|path| tool_version(path, &["--version"]));
-    let ffmpeg_version = ffmpeg
-        .as_ref()
-        .and_then(|path| tool_version(path, &["-version"]));
+    tools.start();
     let store_path = session_folder.join("media-downloads.json");
     let cookie_path = session_folder.join("browser-cookies.txt");
     let loaded = load_downloads(&store_path).map_err(|reason| CoreError::Engine { reason })?;
     let items = Arc::new(Mutex::new(loaded.items));
     let engine = Arc::new(MediaEngine {
-        yt_dlp,
-        yt_dlp_version,
-        ffmpeg,
-        ffmpeg_version,
+        tools,
         cookie_path,
         store_path,
         items,
@@ -1115,37 +1086,14 @@ impl MediaEngine {
     }
 
     pub fn tool_status(&self) -> MediaToolStatus {
-        let ready = self.yt_dlp.is_some();
-        MediaToolStatus {
-            yt_dlp_path: self
-                .yt_dlp
-                .as_ref()
-                .map(|path| path.to_string_lossy().into_owned()),
-            yt_dlp_version: self.yt_dlp_version.clone(),
-            ffmpeg_path: self
-                .ffmpeg
-                .as_ref()
-                .map(|path| path.to_string_lossy().into_owned()),
-            ffmpeg_version: self.ffmpeg_version.clone(),
-            ready,
-            message: if ready {
-                if self.ffmpeg.is_some() {
-                    "Video extraction and post-processing are ready.".to_string()
-                } else {
-                    "Video extraction is ready. Install FFmpeg to merge formats, convert audio, and embed subtitles.".to_string()
-                }
-            } else {
-                "Install yt-dlp to download video pages. Torrents and direct guided files remain available."
-                    .to_string()
-            },
-        }
+        self.tools.status()
     }
 
     pub fn probe_url(&self, url: String) -> Result<MediaProbe, CoreError> {
         validate_http_url(&url)?;
-        let yt_dlp = self.require_yt_dlp()?;
+        let tools = self.tools.resolve().map_err(dependency_unavailable)?;
         let cookie_path = self.cookie_path_if_present();
-        probe_with_ytdlp(yt_dlp, cookie_path.as_deref(), &url)
+        probe_with_ytdlp(&tools, cookie_path.as_deref(), &url)
     }
 
     pub fn add_download(
@@ -1450,19 +1398,23 @@ impl MediaEngine {
         validate_filename_template(&options.filename_template)?;
         validate_output_folder(&output_folder)?;
         if !direct_download
-            && self.ffmpeg.is_none()
+            && !self.tools.has_ffmpeg()
             && matches!(
                 options.format,
                 MediaFormat::AudioMp3 | MediaFormat::AudioM4a
             )
         {
             return Err(CoreError::DependencyUnavailable {
-                reason: "FFmpeg is required for audio conversion. Install it or select its path in Settings."
+                reason: "Audio conversion needs FFmpeg, which this copy of Opul doesn't have. Choose Use Bundled in Settings ▸ Media."
                     .to_string(),
             });
         }
-        if !direct_download {
-            self.require_yt_dlp()?;
+        // While Opul is getting yt-dlp, a video link waits for it instead of failing.
+        if !direct_download
+            && let Some(unavailable) = self.tools.unavailable()
+            && unavailable != Unavailable::Pending
+        {
+            return Err(dependency_unavailable(unavailable));
         }
         let title = if item.title.trim().is_empty() {
             item.webpage_url.clone()
@@ -1612,7 +1564,12 @@ impl MediaEngine {
                 &id,
                 &[MediaTransferState::Paused],
                 MediaTransferState::Failed,
-                Some("yt-dlp is required to resume this download".to_string()),
+                Some(
+                    self.tools
+                        .unavailable()
+                        .unwrap_or(Unavailable::Missing)
+                        .message(),
+                ),
             );
         }
         self.gate.1.notify_all();
@@ -1693,7 +1650,12 @@ impl MediaEngine {
                 self.update_state(
                     &id,
                     MediaTransferState::Failed,
-                    Some("yt-dlp is required to retry this download".to_string()),
+                    Some(
+                        self.tools
+                            .unavailable()
+                            .unwrap_or(Unavailable::Missing)
+                            .message(),
+                    ),
                 );
             }
         }
@@ -1816,14 +1778,8 @@ impl MediaEngine {
 }
 
 impl MediaEngine {
-    fn require_yt_dlp(&self) -> Result<&PathBuf, CoreError> {
-        self.yt_dlp
-            .as_ref()
-            .ok_or_else(|| CoreError::DependencyUnavailable {
-                reason:
-                    "yt-dlp was not found. Install it with Homebrew or select its path in Settings."
-                        .to_string(),
-            })
+    pub(crate) fn tools(&self) -> &Arc<MediaTools> {
+        &self.tools
     }
 
     fn cookie_path_if_present(&self) -> Option<PathBuf> {
@@ -1832,8 +1788,7 @@ impl MediaEngine {
 
     fn worker_context(&self) -> WorkerContext {
         WorkerContext {
-            yt_dlp: self.yt_dlp.clone(),
-            ffmpeg: self.ffmpeg.clone(),
+            tools: Arc::clone(&self.tools),
             cookie_directory: self.cookie_directory(),
             request_header_directory: self.request_header_directory(),
             store_path: self.store_path.clone(),
@@ -1955,7 +1910,7 @@ impl MediaEngine {
                 if matches!(
                     item.state,
                     MediaTransferState::Queued | MediaTransferState::Paused
-                ) && (item.direct_download || self.yt_dlp.is_some())
+                ) && (item.direct_download || self.tools.can_start_video())
                 {
                     ids.push(item.id.clone());
                 }
@@ -1973,7 +1928,7 @@ impl MediaEngine {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .get(id)
-            .is_some_and(|item| item.direct_download || self.yt_dlp.is_some())
+            .is_some_and(|item| item.direct_download || self.tools.can_start_video())
     }
 
     fn transition_state(
@@ -2029,6 +1984,7 @@ impl MediaEngine {
 
 impl Drop for MediaEngine {
     fn drop(&mut self) {
+        self.tools.shutdown();
         {
             let mut gate = self
                 .gate
@@ -2153,11 +2109,11 @@ fn is_media_mime(value: &str) -> bool {
 }
 
 fn probe_with_ytdlp(
-    yt_dlp: &Path,
+    tools: &ProcessTools,
     cookie_path: Option<&Path>,
     url: &str,
 ) -> Result<MediaProbe, CoreError> {
-    let mut command = Command::new(yt_dlp);
+    let mut command = tools.yt_dlp_command();
     command.args(["--dump-single-json", "--flat-playlist", "--no-warnings"]);
     if let Some(cookie_path) = cookie_path {
         command.arg("--cookies").arg(cookie_path);
@@ -2331,14 +2287,19 @@ fn restart_download(context: WorkerContext, id: String) {
         let Some(item) = items.get_mut(&id) else {
             return;
         };
-        let can_start = item.direct_download || context.yt_dlp.is_some();
+        let can_start = item.direct_download || context.tools.can_start_video();
         item.state = if can_start {
             MediaTransferState::Queued
         } else {
             MediaTransferState::Failed
         };
-        item.error_message =
-            (!can_start).then(|| "yt-dlp is required to retry this download".to_string());
+        item.error_message = (!can_start).then(|| {
+            context
+                .tools
+                .unavailable()
+                .unwrap_or(Unavailable::Missing)
+                .message()
+        });
         item.progress = 0.0;
         item.download_rate = 0;
         item.eta_seconds = None;
@@ -2398,17 +2359,22 @@ fn run_worker(context: WorkerContext, id: String) {
 
 fn wait_for_slot(context: &WorkerContext, id: &str) -> bool {
     loop {
-        let state = context
+        let (state, direct_download) = context
             .items
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .get(id)
-            .map(|item| item.state);
+            .map(|item| (Some(item.state), item.direct_download))
+            .unwrap_or((None, false));
         match state {
             None | Some(MediaTransferState::Cancelled | MediaTransferState::Finished) => {
                 return false;
             }
-            Some(MediaTransferState::Paused) => {
+            // A video link added while Opul is getting yt-dlp starts once yt-dlp is ready.
+            Some(state)
+                if state == MediaTransferState::Paused
+                    || (!direct_download && context.tools.is_pending()) =>
+            {
                 let gate = context
                     .gate
                     .0
@@ -2463,11 +2429,14 @@ fn run_download(context: &WorkerContext, id: &str) -> Result<(), String> {
     if item.direct_download {
         return run_direct_download(context, id, &item);
     }
-    let yt_dlp = context
-        .yt_dlp
-        .as_ref()
-        .ok_or_else(|| "yt-dlp is required for this download".to_string())?;
-    let mut command = Command::new(yt_dlp);
+    // Tools are looked up for each process, so a change in Settings or an update applies to
+    // the next download. `tools` keeps this yt-dlp version on disk until the process ends.
+    let tools = context
+        .tools
+        .resolve()
+        .map_err(|unavailable| unavailable.message())?;
+    let has_ffmpeg = tools.has_ffmpeg();
+    let mut command = tools.yt_dlp_command();
     command
         .arg("--newline")
         .arg("--continue")
@@ -2482,31 +2451,7 @@ fn run_download(context: &WorkerContext, id: &str) -> Result<(), String> {
         .arg(output_template(&item))
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    apply_format_args(&mut command, item.options.format, context.ffmpeg.is_some());
-    if item.options.download_subtitles {
-        command.args(["--write-subs", "--write-auto-subs"]);
-        let languages = if item.options.subtitle_languages.is_empty() {
-            "all,-live_chat".to_string()
-        } else {
-            item.options.subtitle_languages.join(",")
-        };
-        command.arg("--sub-langs").arg(languages);
-        if context.ffmpeg.is_some() {
-            command.args(["--convert-subs", "srt"]);
-            if item.options.embed_subtitles {
-                command.arg("--embed-subs");
-            }
-        }
-    }
-    if item.options.write_thumbnail {
-        command.arg("--write-thumbnail");
-        if context.ffmpeg.is_some() {
-            command.args(["--convert-thumbnails", "jpg"]);
-        }
-    }
-    if item.options.write_metadata {
-        command.arg("--write-info-json");
-    }
+    apply_output_args(&mut command, &item.options, has_ffmpeg);
     if let Some(referer) = item.options.referer.as_deref() {
         command.arg("--referer").arg(referer);
     }
@@ -2520,9 +2465,6 @@ fn run_download(context: &WorkerContext, id: &str) -> Result<(), String> {
     }
     if let Some(cookie_file) = item_cookie_path(context, &item) {
         command.arg("--cookies").arg(cookie_file);
-    }
-    if let Some(ffmpeg) = context.ffmpeg.as_ref() {
-        command.arg("--ffmpeg-location").arg(ffmpeg);
     }
     let max_download_bps = *context
         .max_download_bps
@@ -3345,6 +3287,36 @@ fn update_direct_progress(
     }
 }
 
+/// The format, subtitle, thumbnail and metadata choices, as yt-dlp arguments. FFmpeg does the
+/// merging and conversions, so without it Opul asks for single files and skips conversions.
+fn apply_output_args(command: &mut Command, options: &MediaDownloadOptions, has_ffmpeg: bool) {
+    apply_format_args(command, options.format, has_ffmpeg);
+    if options.download_subtitles {
+        command.args(["--write-subs", "--write-auto-subs"]);
+        let languages = if options.subtitle_languages.is_empty() {
+            "all,-live_chat".to_string()
+        } else {
+            options.subtitle_languages.join(",")
+        };
+        command.arg("--sub-langs").arg(languages);
+        if has_ffmpeg {
+            command.args(["--convert-subs", "srt"]);
+            if options.embed_subtitles {
+                command.arg("--embed-subs");
+            }
+        }
+    }
+    if options.write_thumbnail {
+        command.arg("--write-thumbnail");
+        if has_ffmpeg {
+            command.args(["--convert-thumbnails", "jpg"]);
+        }
+    }
+    if options.write_metadata {
+        command.arg("--write-info-json");
+    }
+}
+
 fn apply_format_args(command: &mut Command, format: MediaFormat, has_ffmpeg: bool) {
     match format {
         MediaFormat::Best => {
@@ -3562,42 +3534,10 @@ fn validate_output_folder(value: &str) -> Result<(), CoreError> {
     Ok(())
 }
 
-fn locate_tool(
-    configured: Option<&str>,
-    resources: Option<&Path>,
-    name: &str,
-    standard_paths: &[&str],
-    version_arguments: &[&str],
-) -> Option<PathBuf> {
-    let mut candidates = Vec::new();
-    if let Some(configured) = configured.filter(|value| !value.trim().is_empty()) {
-        candidates.push(PathBuf::from(configured));
+fn dependency_unavailable(unavailable: Unavailable) -> CoreError {
+    CoreError::DependencyUnavailable {
+        reason: unavailable.message(),
     }
-    if let Some(resources) = resources {
-        candidates.push(resources.join(name));
-    }
-    candidates.extend(standard_paths.iter().map(PathBuf::from));
-    candidates.push(PathBuf::from(name));
-    candidates.into_iter().find(|candidate| {
-        Command::new(candidate)
-            .args(version_arguments)
-            .output()
-            .is_ok_and(|output| output.status.success())
-    })
-}
-
-fn tool_version(path: &Path, arguments: &[&str]) -> Option<String> {
-    let output = Command::new(path).args(arguments).output().ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    String::from_utf8(output.stdout)
-        .ok()?
-        .lines()
-        .next()
-        .map(str::trim)
-        .filter(|line| !line.is_empty())
-        .map(str::to_string)
 }
 
 fn signal_process(pid: u32, signal: &str) {
@@ -3682,6 +3622,7 @@ mod tests {
         owned_cookie_path, parse_probe, parse_utc_seconds, save_downloads,
         validate_filename_template, validate_output_folder, yt_dlp_partial_paths,
     };
+    use crate::tools::MediaToolSettings;
     use crate::{CoreError, DownloadContentLayout};
     use serde_json::json;
     use std::collections::HashMap;
@@ -4052,9 +3993,13 @@ mod tests {
         let root = std::env::temp_dir().join(format!("opul-auth-stream-test-{}", Uuid::new_v4()));
         let engine = MediaEngine::new(MediaEngineConfig {
             session_folder: root.join("session").to_string_lossy().into_owned(),
-            resources_folder: None,
-            yt_dlp_path: Some("/does/not/exist".to_string()),
-            ffmpeg_path: Some("/does/not/exist".to_string()),
+            tools_folder: root.join("Tools").to_string_lossy().into_owned(),
+            helpers_folder: None,
+            tool_settings: MediaToolSettings {
+                custom_yt_dlp_path: Some("/does/not/exist".to_string()),
+                custom_ffmpeg_path: Some("/does/not/exist".to_string()),
+                auto_update_yt_dlp: false,
+            },
             max_concurrent_downloads: 1,
             max_download_bps: 0,
         })
@@ -4438,26 +4383,295 @@ mod tests {
         );
     }
 
+    /// A stand-in yt-dlp that answers --version and appends each run's arguments to `log`,
+    /// after a `--- <name>` line saying which copy ran.
+    fn argument_recorder(path: &Path, log: &Path, name: &str) {
+        fs::write(
+            path,
+            format!(
+                "#!/bin/sh\nif [ \"$1\" = --version ]; then echo 2026.10.21; exit 0; fi\nprintf '%s\\n' '--- {name}' \"$@\" >> '{}'\nexit 0\n",
+                log.display()
+            ),
+        )
+        .unwrap();
+        fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    /// A Contents/Helpers folder with stand-ins for the bundled tools.
+    fn helpers_folder(root: &Path) -> PathBuf {
+        let helpers = root.join("Helpers");
+        fs::create_dir_all(&helpers).unwrap();
+        for tool in ["ffmpeg", "ffprobe", "qjs"] {
+            let path = helpers.join(tool);
+            fs::write(&path, "#!/bin/sh\nexit 0\n").unwrap();
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        helpers
+    }
+
+    fn wait_until_finished(engine: &MediaEngine, ids: &[String]) {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !engine
+            .snapshots()
+            .iter()
+            .filter(|snapshot| ids.contains(&snapshot.id))
+            .all(|snapshot| snapshot.state == MediaTransferState::Finished)
+        {
+            assert!(Instant::now() < deadline, "the yt-dlp handoff timed out");
+            thread::sleep(Duration::from_millis(25));
+        }
+    }
+
+    fn add_guided_stream(engine: &MediaEngine, url: &str, folder: &Path) -> String {
+        let session = GuidedExtractionSession::new();
+        let observation = guided_observation(url, "fetch", GuidedObservationSource::Performance);
+        let candidate_id = session.observe(observation)[0].id.clone();
+        engine
+            .add_guided_download(
+                session,
+                GuidedDownloadSelection {
+                    candidate_id,
+                    user_agent: None,
+                    cookies: String::new(),
+                },
+                folder.to_string_lossy().into_owned(),
+                MediaDownloadOptions::default(),
+            )
+            .unwrap()
+    }
+
+    #[test]
+    fn every_yt_dlp_run_gets_the_bundled_javascript_runtime_and_ffmpeg_folder() {
+        let root = std::env::temp_dir().join(format!("opul-tool-args-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&root).unwrap();
+        let log = root.join("arguments.txt");
+        let yt_dlp = root.join("yt-dlp");
+        argument_recorder(&yt_dlp, &log, "custom");
+        let helpers = helpers_folder(&root);
+        let engine = MediaEngine::new(MediaEngineConfig {
+            session_folder: root.join("session").to_string_lossy().into_owned(),
+            tools_folder: root.join("Tools").to_string_lossy().into_owned(),
+            helpers_folder: Some(helpers.to_string_lossy().into_owned()),
+            tool_settings: MediaToolSettings {
+                custom_yt_dlp_path: Some(yt_dlp.to_string_lossy().into_owned()),
+                custom_ffmpeg_path: None,
+                auto_update_yt_dlp: false,
+            },
+            max_concurrent_downloads: 1,
+            max_download_bps: 0,
+        })
+        .unwrap();
+
+        let id = add_guided_stream(
+            &engine,
+            "https://cdn.example/a/master.m3u8",
+            &root.join("downloads"),
+        );
+        wait_until_finished(&engine, &[id]);
+        let _ = engine.probe_url("https://video.example/watch/1".to_string());
+
+        let runs = fs::read_to_string(&log).unwrap();
+        let runs = runs.split("--- custom\n").skip(1).collect::<Vec<_>>();
+        assert_eq!(runs.len(), 2, "one download and one probe");
+        let expected = format!(
+            "--no-js-runtimes\n--js-runtimes\nquickjs:{}\n--ffmpeg-location\n{}\n",
+            helpers.join("qjs").display(),
+            helpers.display()
+        );
+        for run in runs {
+            assert!(run.starts_with(&expected), "{run}");
+        }
+        drop(engine);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn tool_paths_are_looked_up_when_each_process_starts() {
+        let root = std::env::temp_dir().join(format!("opul-tool-lookup-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&root).unwrap();
+        let log = root.join("arguments.txt");
+        let first = root.join("first-yt-dlp");
+        let second = root.join("second-yt-dlp");
+        argument_recorder(&first, &log, "first");
+        argument_recorder(&second, &log, "second");
+        let settings = |path: &Path| MediaToolSettings {
+            custom_yt_dlp_path: Some(path.to_string_lossy().into_owned()),
+            custom_ffmpeg_path: None,
+            auto_update_yt_dlp: false,
+        };
+        let engine = MediaEngine::new(MediaEngineConfig {
+            session_folder: root.join("session").to_string_lossy().into_owned(),
+            tools_folder: root.join("Tools").to_string_lossy().into_owned(),
+            helpers_folder: None,
+            tool_settings: settings(&first),
+            max_concurrent_downloads: 1,
+            max_download_bps: 0,
+        })
+        .unwrap();
+        let downloads = root.join("downloads");
+
+        let id = add_guided_stream(&engine, "https://cdn.example/a/master.m3u8", &downloads);
+        wait_until_finished(&engine, &[id]);
+        engine.tools().apply_settings(settings(&second));
+        let id = add_guided_stream(&engine, "https://cdn.example/b/master.m3u8", &downloads);
+        wait_until_finished(&engine, &[id]);
+
+        let runs = fs::read_to_string(&log).unwrap();
+        let first_run = runs.find("--- first").unwrap();
+        let second_run = runs.find("--- second").unwrap();
+        assert!(first_run < second_run);
+        assert!(runs[second_run..].contains("cdn.example/b/master.m3u8"));
+        // Without bundled tools, yt-dlp still may not use any other JavaScript runtime.
+        assert!(runs[second_run..].starts_with("--- second\n--no-js-runtimes\n--newline\n"));
+        drop(engine);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    /// Every MediaFormat against the bundled FFmpeg, with subtitles converted and embedded and
+    /// the thumbnail converted to jpg. yt-dlp reads a local info JSON whose formats are fixture
+    /// files, so no network is needed. Run by the Media Tools workflow:
+    /// `OPUL_MEDIA_TOOLS=<folder with ffmpeg, ffprobe, qjs> OPUL_YT_DLP=<yt-dlp> cargo test
+    /// format_matrix -- --ignored`.
+    #[test]
+    #[ignore = "needs the bundled tools and yt-dlp: set OPUL_MEDIA_TOOLS and OPUL_YT_DLP"]
+    fn format_matrix_against_the_bundled_ffmpeg() {
+        let tools = PathBuf::from(std::env::var("OPUL_MEDIA_TOOLS").unwrap());
+        let yt_dlp = PathBuf::from(std::env::var("OPUL_YT_DLP").unwrap());
+        let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("MediaTools/fixtures");
+        let root = std::env::temp_dir().join(format!("opul-format-matrix-{}", Uuid::new_v4()));
+        fs::create_dir_all(&root).unwrap();
+        let file = |name: &str| format!("file://{}", fixtures.join(name).display());
+        let info = json!({
+            "id": "fixture", "title": "Fixture", "extractor": "generic", "extractor_key": "Generic",
+            "webpage_url": "https://example.invalid/watch", "_type": "video",
+            "formats": [
+                {"format_id": "v-h264", "url": file("video-h264.mp4"), "ext": "mp4", "vcodec": "avc1.64000a",
+                 "acodec": "none", "width": 64, "height": 36, "tbr": 50, "protocol": "file"},
+                {"format_id": "v-vp9", "url": file("video-vp9.webm"), "ext": "webm", "vcodec": "vp9",
+                 "acodec": "none", "width": 128, "height": 72, "tbr": 60, "protocol": "file"},
+                {"format_id": "a-aac", "url": file("audio-aac.m4a"), "ext": "m4a", "vcodec": "none",
+                 "acodec": "mp4a.40.2", "abr": 24, "protocol": "file"},
+                {"format_id": "a-opus", "url": file("audio-opus.webm"), "ext": "webm", "vcodec": "none",
+                 "acodec": "opus", "abr": 32, "protocol": "file"},
+                {"format_id": "av-h264", "url": file("combined-h264-aac.mp4"), "ext": "mp4",
+                 "vcodec": "avc1.64000a", "acodec": "mp4a.40.2", "width": 64, "height": 36, "tbr": 80,
+                 "protocol": "file"}
+            ],
+            "subtitles": {"en": [{"url": file("subtitles.en.vtt"), "ext": "vtt"}]},
+            "thumbnails": [{"url": file("thumbnail.webp"), "id": "0"}]
+        });
+        let info_path = root.join("fixture.info.json");
+        fs::write(&info_path, serde_json::to_vec(&info).unwrap()).unwrap();
+        let streams = |path: &Path| {
+            let output = Command::new(tools.join("ffprobe"))
+                .args([
+                    "-v",
+                    "error",
+                    "-show_entries",
+                    "stream=codec_name",
+                    "-of",
+                    "csv=p=0",
+                ])
+                .arg(path)
+                .output()
+                .unwrap();
+            String::from_utf8_lossy(&output.stdout)
+                .split_whitespace()
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        };
+
+        // (format, file it writes, streams in it). WebM holds only WebVTT subtitles, and Opul
+        // converts them to SRT, so yt-dlp leaves them beside a WebM file instead.
+        let matrix = [
+            (MediaFormat::Best, "Fixture.webm", vec!["vp9", "opus"]),
+            (
+                MediaFormat::BestMp4,
+                "Fixture.mp4",
+                vec!["h264", "aac", "mov_text"],
+            ),
+            (MediaFormat::P1080, "Fixture.webm", vec!["vp9", "opus"]),
+            (MediaFormat::P720, "Fixture.webm", vec!["vp9", "opus"]),
+            (
+                MediaFormat::Original,
+                "Fixture.mp4",
+                vec!["h264", "aac", "mov_text"],
+            ),
+            (MediaFormat::AudioMp3, "Fixture.mp3", vec!["mp3"]),
+            (
+                MediaFormat::AudioM4a,
+                "Fixture.m4a",
+                vec!["aac", "mov_text"],
+            ),
+        ];
+        let mut failures = Vec::new();
+        for (format, expected_file, expected_streams) in matrix {
+            let folder = root.join(format!("{format:?}"));
+            let options = MediaDownloadOptions {
+                format,
+                download_subtitles: true,
+                subtitle_languages: vec!["en".to_string()],
+                embed_subtitles: true,
+                write_thumbnail: true,
+                ..MediaDownloadOptions::default()
+            };
+            let mut command = Command::new(&yt_dlp);
+            command.args(crate::tools::yt_dlp_tool_arguments(
+                Some(&tools.join("qjs")),
+                Some(&tools),
+            ));
+            super::apply_output_args(&mut command, &options, true);
+            let output = command
+                .arg("--load-info-json")
+                .arg(&info_path)
+                .arg("--enable-file-urls")
+                .arg("--output")
+                .arg(folder.join("%(title)s.%(ext)s"))
+                .output()
+                .unwrap();
+            let log = String::from_utf8_lossy(&output.stderr);
+            if !output.status.success() {
+                failures.push(format!("{format:?}: yt-dlp failed: {log}"));
+                continue;
+            }
+            let written = folder.join(expected_file);
+            let actual = streams(&written);
+            if actual != expected_streams {
+                failures.push(format!(
+                    "{format:?}: {expected_file} has {actual:?}, expected {expected_streams:?}"
+                ));
+            }
+            if streams(&folder.join("Fixture.jpg")) != ["mjpeg"] {
+                failures.push(format!(
+                    "{format:?}: the thumbnail was not converted to jpg"
+                ));
+            }
+            if streams(&folder.join("Fixture.en.srt")) != ["subrip"] {
+                failures.push(format!(
+                    "{format:?}: the subtitles were not converted to srt"
+                ));
+            }
+        }
+        let _ = fs::remove_dir_all(&root);
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
+    }
+
     #[test]
     fn guided_hls_and_dash_reach_the_scoped_yt_dlp_handoff() {
         let root = std::env::temp_dir().join(format!("opul-stream-test-{}", Uuid::new_v4()));
         fs::create_dir_all(&root).unwrap();
         let arguments_path = root.join("arguments.txt");
         let tool_path = root.join("yt-dlp-fixture");
-        fs::write(
-            &tool_path,
-            format!(
-                "#!/bin/sh\nprintf '%s\\n' '---' \"$@\" >> '{}'\nexit 0\n",
-                arguments_path.display()
-            ),
-        )
-        .unwrap();
-        fs::set_permissions(&tool_path, fs::Permissions::from_mode(0o755)).unwrap();
+        argument_recorder(&tool_path, &arguments_path, "fixture");
         let engine = MediaEngine::new(MediaEngineConfig {
             session_folder: root.join("session").to_string_lossy().into_owned(),
-            resources_folder: None,
-            yt_dlp_path: Some(tool_path.to_string_lossy().into_owned()),
-            ffmpeg_path: None,
+            tools_folder: root.join("Tools").to_string_lossy().into_owned(),
+            helpers_folder: None,
+            tool_settings: MediaToolSettings {
+                custom_yt_dlp_path: Some(tool_path.to_string_lossy().into_owned()),
+                custom_ffmpeg_path: None,
+                auto_update_yt_dlp: false,
+            },
             max_concurrent_downloads: 1,
             max_download_bps: 0,
         })
@@ -4553,9 +4767,13 @@ mod tests {
         fs::create_dir_all(&downloads).unwrap();
         let engine = MediaEngine::new(MediaEngineConfig {
             session_folder: session.to_string_lossy().into_owned(),
-            resources_folder: None,
-            yt_dlp_path: Some("/does/not/exist".to_string()),
-            ffmpeg_path: Some("/does/not/exist".to_string()),
+            tools_folder: root.join("Tools").to_string_lossy().into_owned(),
+            helpers_folder: None,
+            tool_settings: MediaToolSettings {
+                custom_yt_dlp_path: Some("/does/not/exist".to_string()),
+                custom_ffmpeg_path: Some("/does/not/exist".to_string()),
+                auto_update_yt_dlp: false,
+            },
             max_concurrent_downloads: 1,
             max_download_bps: 0,
         })
@@ -4633,9 +4851,13 @@ mod tests {
         fs::create_dir_all(&downloads).unwrap();
         let engine = MediaEngine::new(MediaEngineConfig {
             session_folder: root.join("session").to_string_lossy().into_owned(),
-            resources_folder: None,
-            yt_dlp_path: Some("/does/not/exist".to_string()),
-            ffmpeg_path: Some("/does/not/exist".to_string()),
+            tools_folder: root.join("Tools").to_string_lossy().into_owned(),
+            helpers_folder: None,
+            tool_settings: MediaToolSettings {
+                custom_yt_dlp_path: Some("/does/not/exist".to_string()),
+                custom_ffmpeg_path: Some("/does/not/exist".to_string()),
+                auto_update_yt_dlp: false,
+            },
             max_concurrent_downloads: 1,
             max_download_bps: 0,
         })
@@ -4751,9 +4973,13 @@ mod tests {
         fs::create_dir_all(&downloads).unwrap();
         let engine = MediaEngine::new(MediaEngineConfig {
             session_folder: root.join("session").to_string_lossy().into_owned(),
-            resources_folder: None,
-            yt_dlp_path: Some("/does/not/exist".to_string()),
-            ffmpeg_path: Some("/does/not/exist".to_string()),
+            tools_folder: root.join("Tools").to_string_lossy().into_owned(),
+            helpers_folder: None,
+            tool_settings: MediaToolSettings {
+                custom_yt_dlp_path: Some("/does/not/exist".to_string()),
+                custom_ffmpeg_path: Some("/does/not/exist".to_string()),
+                auto_update_yt_dlp: false,
+            },
             max_concurrent_downloads: 1,
             max_download_bps: 0,
         })

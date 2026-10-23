@@ -83,8 +83,12 @@ public struct TorrentPreferences: Equatable, Sendable, Codable {
     public var writeThumbnail: Bool = true
     public var writeMetadata: Bool = true
     public var filenameTemplate: String = "%(title).180B [%(id)s].%(ext)s"
+    /// A yt-dlp the person chose. Empty means Opul's own copy.
     public var ytDlpPath: String = ""
+    /// An FFmpeg the person chose. Empty means the bundled one.
     public var ffmpegPath: String = ""
+    public var ytDlpAutoUpdate: Bool = true
+    public var hasSeenWelcome: Bool = false
     var interactionSounds = InteractionSoundPreferences()
 
     public init() {}
@@ -110,6 +114,8 @@ public struct TorrentPreferences: Equatable, Sendable, Codable {
         filenameTemplate = try values.decodeIfPresent(String.self, forKey: .filenameTemplate) ?? filenameTemplate
         ytDlpPath = try values.decodeIfPresent(String.self, forKey: .ytDlpPath) ?? ytDlpPath
         ffmpegPath = try values.decodeIfPresent(String.self, forKey: .ffmpegPath) ?? ffmpegPath
+        ytDlpAutoUpdate = try values.decodeIfPresent(Bool.self, forKey: .ytDlpAutoUpdate) ?? ytDlpAutoUpdate
+        hasSeenWelcome = try values.decodeIfPresent(Bool.self, forKey: .hasSeenWelcome) ?? hasSeenWelcome
         interactionSounds = try values.decodeIfPresent(InteractionSoundPreferences.self, forKey: .interactionSounds) ?? interactionSounds
     }
 }

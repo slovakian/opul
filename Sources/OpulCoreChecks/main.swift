@@ -54,9 +54,9 @@ func checkApplicationStateMachine() throws {
         ),
         media: MediaEngineConfig(
             sessionFolder: root.appending(path: "media").path(percentEncoded: false),
-            resourcesFolder: nil,
-            ytDlpPath: nil,
-            ffmpegPath: nil,
+            toolsFolder: root.appending(path: "Tools").path(percentEncoded: false),
+            helpersFolder: nil,
+            toolSettings: MediaToolSettings(customYtDlpPath: nil, customFfmpegPath: nil, autoUpdateYtDlp: false),
             maxConcurrentDownloads: 1,
             maxDownloadBps: 0
         )
@@ -113,9 +113,9 @@ func checkInvalidStateMachineRecovery() throws {
         ),
         media: MediaEngineConfig(
             sessionFolder: root.appending(path: "media").path(percentEncoded: false),
-            resourcesFolder: nil,
-            ytDlpPath: nil,
-            ffmpegPath: nil,
+            toolsFolder: root.appending(path: "Tools").path(percentEncoded: false),
+            helpersFolder: nil,
+            toolSettings: MediaToolSettings(customYtDlpPath: nil, customFfmpegPath: nil, autoUpdateYtDlp: false),
             maxConcurrentDownloads: 1,
             maxDownloadBps: 0
         )
@@ -243,9 +243,9 @@ do {
     defer { try? FileManager.default.removeItem(at: sessionFolder) }
     let media = try MediaEngine(config: MediaEngineConfig(
         sessionFolder: sessionFolder.path(percentEncoded: false),
-        resourcesFolder: nil,
-        ytDlpPath: nil,
-        ffmpegPath: nil,
+        toolsFolder: sessionFolder.appending(path: "Tools").path(percentEncoded: false),
+        helpersFolder: nil,
+        toolSettings: MediaToolSettings(customYtDlpPath: ProcessInfo.processInfo.environment["OPUL_YT_DLP"], customFfmpegPath: nil, autoUpdateYtDlp: false),
         maxConcurrentDownloads: 2,
         maxDownloadBps: 0
     ))
