@@ -73,6 +73,7 @@ struct DeleteRequest: Equatable {
     let workspaceID: Workspace.ID
     let title: String
     let message: String
+    let hasDownloads: Bool
 }
 
 enum FolderChoice: Equatable {
@@ -84,7 +85,6 @@ enum FolderChoice: Equatable {
 
 struct DownloadRemovalRequest: Equatable {
     let downloadIDs: [Download.ID]
-    let fileURLs: [URL]
 }
 
 struct FolderRemovalRequest: Equatable {
@@ -92,7 +92,6 @@ struct FolderRemovalRequest: Equatable {
     let folderID: SavedFolder.ID
     let folderName: String
     let downloadIDs: [Download.ID]
-    let fileURLs: [URL]
 }
 
 struct FolderReplacementRequest: Equatable {

@@ -104,19 +104,19 @@ impl CheckpointStore {
                                 .unwrap_or_else(|| self.path.clone()),
                         })
                     }
-                Err(backup_error) => {
-                    let preserved_backup = if backup.exists() {
-                        preserve(&backup).ok()
-                    } else {
-                        None
-                    };
-                    Ok(CheckpointLoad::RecoveryRequired {
-                        preserved_primary: preserved_primary.or(preserved_backup),
-                        reason: format!(
-                            "the application checkpoint is invalid ({primary_error}) and its backup is unavailable or invalid ({backup_error})"
-                        ),
-                    })
-                }
+                    Err(backup_error) => {
+                        let preserved_backup = if backup.exists() {
+                            preserve(&backup).ok()
+                        } else {
+                            None
+                        };
+                        Ok(CheckpointLoad::RecoveryRequired {
+                            preserved_primary: preserved_primary.or(preserved_backup),
+                            reason: format!(
+                                "the application checkpoint is invalid ({primary_error}) and its backup is unavailable or invalid ({backup_error})"
+                            ),
+                        })
+                    }
                 }
             }
         }

@@ -382,6 +382,37 @@ impl Download {
         }
     }
 
+    /// The output Opul may move to the Trash on its own evidence: only an artifact whose
+    /// identity was recorded when it was produced proves the file at that path is this one.
+    pub(crate) fn verified_output(&self) -> Option<&OutputArtifact> {
+        self.output
+            .as_ref()
+            .filter(|output| output.identity.is_some())
+    }
+
+    /// Adapter-reported leftovers that the verified output does not already cover.
+    pub(crate) fn uncovered_leftovers(&self) -> Vec<OutputArtifact> {
+        let DownloadLifecycle::Retiring { leftovers, .. } = &self.lifecycle else {
+            return Vec::new();
+        };
+        let covered = self.verified_output().map(|output| {
+            std::path::PathBuf::from(output.content_folder.as_deref().unwrap_or(&output.path))
+        });
+        leftovers
+            .iter()
+            .filter(|leftover| {
+                covered.as_ref().is_none_or(|covered| {
+                    !std::path::Path::new(&leftover.path).starts_with(covered)
+                })
+            })
+            .cloned()
+            .collect()
+    }
+
+    pub(crate) fn has_trash_targets(&self) -> bool {
+        self.verified_output().is_some() || !self.uncovered_leftovers().is_empty()
+    }
+
     pub(crate) fn source_kind(&self) -> SourceKind {
         match self.source {
             DownloadSource::Torrent(_) => SourceKind::Torrent,
@@ -531,6 +562,10 @@ pub(crate) enum DownloadLifecycle {
         writer_stopped: bool,
         adapter_absent: bool,
         files_resolved: bool,
+        /// Files the transfer adapter owned when its writer stopped: partial data for an
+        /// unfinished download, or output the aggregate never verified.
+        #[serde(default)]
+        leftovers: Vec<OutputArtifact>,
     },
 }
 
@@ -629,7 +664,9 @@ pub(crate) enum EffectKind {
     },
     MoveOutputToTrash {
         download: DownloadId,
-        artifact: OutputArtifact,
+        artifact: Option<OutputArtifact>,
+        #[serde(default)]
+        leftovers: Vec<OutputArtifact>,
     },
     FinalizeRetirement {
         download: DownloadId,

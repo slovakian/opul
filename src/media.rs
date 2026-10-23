@@ -955,6 +955,10 @@ struct StoredMediaDownload {
     eta_seconds: Option<u64>,
     #[serde(default)]
     output_path: Option<String>,
+    /// Files yt-dlp reported writing, temporary downloads and the files its postprocessors
+    /// rewrite, so removal can find what it left behind.
+    #[serde(default)]
+    partial_files: Vec<String>,
     #[serde(default)]
     error_message: Option<String>,
     #[serde(default)]
@@ -1363,10 +1367,56 @@ impl MediaEngine {
         }
     }
 
-    pub(crate) fn remove_download(&self, download_id: &str, attempt: u32) {
-        if let Some(id) = self.transfer_id_for(download_id, attempt) {
+    /// Removes every attempt of the Download: a retry leaves earlier attempts behind, and
+    /// none of them may outlive the Download.
+    pub(crate) fn remove_download(&self, download_id: &str, _attempt: u32) {
+        for id in self.transfer_ids_for(download_id) {
             self.remove(id);
         }
+    }
+
+    /// Everything this Download's attempts write to disk: the content folder when there is
+    /// one, otherwise the finished file and whatever partial files are still around.
+    pub(crate) fn owned_paths(&self, download_id: &str) -> Vec<PathBuf> {
+        let items = self
+            .items
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut paths = Vec::new();
+        for item in items
+            .values()
+            .filter(|item| item.download_id.as_deref() == Some(download_id))
+        {
+            if let Some(content_folder) = &item.content_folder {
+                paths.push(PathBuf::from(content_folder));
+                continue;
+            }
+            paths.extend(item.output_path.iter().map(PathBuf::from));
+            if item.direct_download
+                && let Ok(source) = Url::parse(&item.source_url)
+            {
+                paths.push(direct_temporary_path(
+                    &item.output_folder,
+                    &source,
+                    &item.title,
+                    &item.id,
+                ));
+            }
+            for partial in &item.partial_files {
+                paths.extend(yt_dlp_partial_paths(Path::new(partial)));
+            }
+        }
+        paths
+    }
+
+    fn transfer_ids_for(&self, download_id: &str) -> Vec<String> {
+        self.items
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .values()
+            .filter(|item| item.download_id.as_deref() == Some(download_id))
+            .map(|item| item.id.clone())
+            .collect()
     }
 
     pub(crate) fn stop_all(&self) {
@@ -1488,6 +1538,7 @@ impl MediaEngine {
             download_rate: 0,
             eta_seconds: None,
             output_path: None,
+            partial_files: Vec::new(),
             error_message: None,
             created_at: now_millis(),
         };
@@ -2422,9 +2473,9 @@ fn run_download(context: &WorkerContext, id: &str) -> Result<(), String> {
         .arg("--continue")
         .arg("--no-playlist")
         .arg("--progress-template")
-        .arg("download:opul-progress\t%(progress.status)s\t%(progress.downloaded_bytes)s\t%(progress.total_bytes_estimate)s\t%(progress.speed)s\t%(progress.eta)s")
+        .arg("download:opul-progress\t%(progress.status)s\t%(progress.downloaded_bytes)s\t%(progress.total_bytes_estimate)s\t%(progress.speed)s\t%(progress.eta)s\t%(progress.tmpfilename)s")
         .arg("--progress-template")
-        .arg("postprocess:opul-postprocess\t%(progress.status)s")
+        .arg("postprocess:opul-postprocess\t%(progress.status)s\t%(info.filepath)s")
         .arg("--print")
         .arg("after_move:opul-file\t%(filepath)s")
         .arg("--output")
@@ -2571,9 +2622,8 @@ async fn download_direct_resource(
 ) -> Result<(), String> {
     let source = Url::parse(&item.source_url)
         .map_err(|error| format!("invalid direct download URL: {error}"))?;
-    let provisional_filename = direct_filename(&source, &item.title);
     let folder = Path::new(&item.output_folder);
-    let temporary = folder.join(format!(".{provisional_filename}.{id}.opulpart"));
+    let temporary = direct_temporary_path(&item.output_folder, &source, &item.title, id);
     let existing_bytes = fs::metadata(&temporary)
         .map(|metadata| metadata.len())
         .unwrap_or(0);
@@ -3065,6 +3115,56 @@ fn direct_mime_extension(value: &str) -> Option<&'static str> {
     }
 }
 
+fn direct_temporary_path(folder: &str, source: &Url, title: &str, id: &str) -> PathBuf {
+    let provisional_filename = direct_filename(source, title);
+    Path::new(folder).join(format!(".{provisional_filename}.{id}.opulpart"))
+}
+
+/// The files yt-dlp derives from one file it reported: the file itself, the file it
+/// becomes, the resume record next to that, the copy a postprocessor writes before
+/// replacing it, and the fragments of a segmented stream.
+fn yt_dlp_partial_paths(temporary: &Path) -> Vec<PathBuf> {
+    let mut paths = vec![temporary.to_path_buf()];
+    let name = temporary.to_string_lossy();
+    let final_path = match name.strip_suffix(".part") {
+        Some(final_name) => {
+            paths.push(PathBuf::from(final_name));
+            paths.push(PathBuf::from(format!("{final_name}.ytdl")));
+            PathBuf::from(final_name)
+        }
+        None => temporary.to_path_buf(),
+    };
+    paths.extend(yt_dlp_postprocessor_path(&final_path));
+    if let (Some(folder), Some(file_name)) = (temporary.parent(), temporary.file_name()) {
+        let fragment_prefix = format!("{}-Frag", file_name.to_string_lossy());
+        if let Ok(entries) = fs::read_dir(folder) {
+            paths.extend(
+                entries
+                    .flatten()
+                    .filter(|entry| {
+                        entry
+                            .file_name()
+                            .to_string_lossy()
+                            .starts_with(&fragment_prefix)
+                    })
+                    .map(|entry| entry.path()),
+            );
+        }
+    }
+    paths
+}
+
+/// Where a yt-dlp postprocessor writes before replacing `path`: `Film.mp4` becomes
+/// `Film.temp.mp4`, as yt-dlp's `prepend_extension(path, "temp")` does.
+fn yt_dlp_postprocessor_path(path: &Path) -> Option<PathBuf> {
+    let stem = path.file_stem()?.to_string_lossy();
+    let name = match path.extension() {
+        Some(extension) => format!("{stem}.temp.{}", extension.to_string_lossy()),
+        None => format!("{stem}.temp"),
+    };
+    Some(path.with_file_name(name))
+}
+
 fn direct_filename(source: &Url, fallback: &str) -> String {
     let candidate = source
         .path_segments()
@@ -3335,12 +3435,15 @@ fn apply_progress_line(
             let total = numeric_field(parts.next());
             let speed = numeric_field(parts.next());
             let eta = numeric_field(parts.next());
+            // The path is last so a tab inside it cannot shift the numeric fields.
+            let temporary = parts.collect::<Vec<_>>().join("\t");
             let mut items = items
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
             let Some(item) = items.get_mut(id) else {
                 return;
             };
+            remember_partial_file(item, temporary);
             if !matches!(
                 item.state,
                 MediaTransferState::Paused | MediaTransferState::Cancelled
@@ -3361,15 +3464,21 @@ fn apply_progress_line(
             }
         }
         Some("opul-postprocess") => {
+            let _status = parts.next();
+            // The file the postprocessor rewrites, which it writes through a temporary
+            // sibling first; a merge names a file no download progress line mentioned.
+            let target = parts.collect::<Vec<_>>().join("\t");
             let mut items = items
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
-            if let Some(item) = items.get_mut(id)
-                && !matches!(
-                    item.state,
-                    MediaTransferState::Paused | MediaTransferState::Cancelled
-                )
-            {
+            let Some(item) = items.get_mut(id) else {
+                return;
+            };
+            remember_partial_file(item, target);
+            if !matches!(
+                item.state,
+                MediaTransferState::Paused | MediaTransferState::Cancelled
+            ) {
                 item.state = MediaTransferState::Processing;
                 item.download_rate = 0;
                 item.eta_seconds = None;
@@ -3385,6 +3494,12 @@ fn apply_progress_line(
             }
         }
         _ => {}
+    }
+}
+
+fn remember_partial_file(item: &mut StoredMediaDownload, path: String) {
+    if !path.trim().is_empty() && path != "NA" && !item.partial_files.contains(&path) {
+        item.partial_files.push(path);
     }
 }
 
@@ -3565,7 +3680,7 @@ mod tests {
         apply_progress_line, classify_guided_url, direct_cookie_header, direct_download_compatible,
         direct_filename, direct_referer_for_target, expiry_from_url, load_downloads, numeric_field,
         owned_cookie_path, parse_probe, parse_utc_seconds, save_downloads,
-        validate_filename_template, validate_output_folder,
+        validate_filename_template, validate_output_folder, yt_dlp_partial_paths,
     };
     use crate::{CoreError, DownloadContentLayout};
     use serde_json::json;
@@ -3574,6 +3689,7 @@ mod tests {
     use std::io::{Read, Write as _};
     use std::net::TcpListener;
     use std::os::unix::fs::PermissionsExt as _;
+    use std::path::{Path, PathBuf};
     use std::process::Command;
     use std::sync::{Arc, Mutex};
     use std::thread;
@@ -4105,6 +4221,7 @@ mod tests {
             download_rate: 0,
             eta_seconds: None,
             output_path: None,
+            partial_files: Vec::new(),
             error_message: None,
             created_at: 0,
         };
@@ -4113,6 +4230,81 @@ mod tests {
         assert_eq!(
             items.lock().unwrap().get(&id).unwrap().state,
             MediaTransferState::Cancelled
+        );
+    }
+
+    #[test]
+    fn progress_lines_remember_the_temporary_files_yt_dlp_writes() {
+        let id = "opul-test".to_string();
+        let item: StoredMediaDownload = serde_json::from_value(json!({
+            "id": id,
+            "source_url": "https://example.com/watch?v=1",
+        }))
+        .unwrap();
+        let items = Arc::new(Mutex::new(HashMap::from([(id.clone(), item)])));
+        let line = "opul-progress\tdownloading\t50\t100\t25\t2\t/tmp/Film.f137.mp4.part";
+        apply_progress_line(&items, &id, line);
+        apply_progress_line(&items, &id, line);
+        apply_progress_line(
+            &items,
+            &id,
+            "opul-progress\tdownloading\t60\t100\t25\t2\tNA",
+        );
+        apply_progress_line(&items, &id, "opul-postprocess\tstarted\t/tmp/Film.mp4");
+        apply_progress_line(&items, &id, "opul-postprocess\tstarted\tNA");
+        let items = items.lock().unwrap();
+        let item = items.get(&id).unwrap();
+        assert_eq!(
+            item.partial_files,
+            ["/tmp/Film.f137.mp4.part", "/tmp/Film.mp4"]
+        );
+        assert_eq!(item.downloaded_bytes, 60);
+        assert_eq!(item.state, MediaTransferState::Processing);
+    }
+
+    #[test]
+    fn yt_dlp_partials_include_resume_records_and_fragments() {
+        let dir = std::env::temp_dir().join(format!("opul-partials-{}", Uuid::new_v4()));
+        fs::create_dir_all(&dir).unwrap();
+        let temporary = dir.join("Film.mp4.part");
+        for name in [
+            "Film.mp4.part-Frag1",
+            "Film.mp4.part-Frag2",
+            "Other.mp4.part-Frag1",
+        ] {
+            fs::write(dir.join(name), b"").unwrap();
+        }
+        let mut paths = yt_dlp_partial_paths(&temporary);
+        paths.sort();
+        let mut expected = vec![
+            dir.join("Film.mp4"),
+            dir.join("Film.mp4.part"),
+            dir.join("Film.mp4.part-Frag1"),
+            dir.join("Film.mp4.part-Frag2"),
+            dir.join("Film.mp4.ytdl"),
+            dir.join("Film.temp.mp4"),
+        ];
+        expected.sort();
+        assert_eq!(paths, expected);
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_postprocessed_file_includes_the_copy_ffmpeg_was_writing() {
+        // A merge reports the merged file, which ffmpeg writes as a temporary sibling first.
+        assert_eq!(
+            yt_dlp_partial_paths(Path::new("/tmp/Downloads/Film [x].mkv")),
+            [
+                PathBuf::from("/tmp/Downloads/Film [x].mkv"),
+                PathBuf::from("/tmp/Downloads/Film [x].temp.mkv"),
+            ]
+        );
+        assert_eq!(
+            yt_dlp_partial_paths(Path::new("/tmp/Downloads/Film")),
+            [
+                PathBuf::from("/tmp/Downloads/Film"),
+                PathBuf::from("/tmp/Downloads/Film.temp"),
+            ]
         );
     }
 
@@ -4420,6 +4612,92 @@ mod tests {
     }
 
     #[test]
+    fn an_interrupted_direct_download_reports_its_partial_file() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0_u8; 4096];
+            let _ = stream.read(&mut request).unwrap();
+            stream
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Type: video/mp4\r\nContent-Length: 1000\r\nConnection: close\r\n\r\npartial",
+                )
+                .unwrap();
+            stream.flush().unwrap();
+            let _ = released.recv_timeout(Duration::from_secs(5));
+        });
+        let root = std::env::temp_dir().join(format!("opul-partial-test-{}", Uuid::new_v4()));
+        let downloads = root.join("downloads");
+        fs::create_dir_all(&downloads).unwrap();
+        let engine = MediaEngine::new(MediaEngineConfig {
+            session_folder: root.join("session").to_string_lossy().into_owned(),
+            resources_folder: None,
+            yt_dlp_path: Some("/does/not/exist".to_string()),
+            ffmpeg_path: Some("/does/not/exist".to_string()),
+            max_concurrent_downloads: 1,
+            max_download_bps: 0,
+        })
+        .unwrap();
+        let extraction = GuidedExtractionSession::new();
+        let candidate_id = extraction.observe(guided_observation(
+            &format!("http://{address}/movie.mp4"),
+            "video",
+            GuidedObservationSource::Dom,
+        ))[0]
+            .id
+            .clone();
+        engine
+            .ensure_guided_download(
+                "download-1",
+                0,
+                extraction,
+                GuidedDownloadSelection {
+                    candidate_id,
+                    user_agent: None,
+                    cookies: String::new(),
+                },
+                downloads.to_string_lossy().into_owned(),
+                MediaDownloadOptions {
+                    format: MediaFormat::Best,
+                    content_layout: DownloadContentLayout::Original,
+                    download_subtitles: false,
+                    subtitle_languages: Vec::new(),
+                    embed_subtitles: false,
+                    write_thumbnail: false,
+                    write_metadata: false,
+                    filename_template: "%(title)s.%(ext)s".to_string(),
+                    referer: None,
+                    user_agent: None,
+                },
+            )
+            .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let partial = loop {
+            let partial = engine
+                .owned_paths("download-1")
+                .into_iter()
+                .find(|path| path.exists() && path.to_string_lossy().ends_with(".opulpart"));
+            if let Some(partial) = partial
+                && fs::read(&partial).unwrap() == b"partial"
+            {
+                break partial;
+            }
+            assert!(Instant::now() < deadline, "partial file never appeared");
+            thread::sleep(Duration::from_millis(25));
+        };
+        assert!(partial.starts_with(&downloads));
+        assert!(engine.owned_paths("another-download").is_empty());
+        engine.remove_download("download-1", 0);
+        assert!(engine.owned_paths("download-1").is_empty());
+        let _ = release.send(());
+        server.join().unwrap();
+        drop(engine);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn guided_direct_download_scopes_authentication_across_redirects() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();
@@ -4605,6 +4883,7 @@ mod tests {
                 download_rate: 0,
                 eta_seconds: None,
                 output_path: Some("/tmp/video.mp4".to_string()),
+                partial_files: Vec::new(),
                 error_message: None,
                 created_at: 100000,
             },
@@ -4726,6 +5005,7 @@ mod tests {
                 download_rate: 0,
                 eta_seconds: None,
                 output_path: None,
+                partial_files: Vec::new(),
                 error_message: None,
                 created_at: 1,
             },
@@ -4763,6 +5043,7 @@ mod tests {
                 download_rate: 0,
                 eta_seconds: None,
                 output_path: None,
+                partial_files: Vec::new(),
                 error_message: None,
                 created_at: 2,
             },

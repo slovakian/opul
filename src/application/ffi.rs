@@ -304,15 +304,21 @@ pub struct MachineMediaRequest {
     pub items: Vec<MachineMediaItem>,
 }
 
+/// A file or folder the shell may move to the Trash once it still matches the identity
+/// recorded for it.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct MachineTrashTarget {
+    pub path: String,
+    pub expected_byte_length: Option<u64>,
+    pub expected_modified_at_millis: Option<u64>,
+    pub expected_file_identifier: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct MachinePlatformEffect {
     pub effect_id: String,
     pub download_id: String,
-    pub path: String,
-    pub content_folder: Option<String>,
-    pub expected_byte_length: Option<u64>,
-    pub expected_modified_at_millis: Option<u64>,
-    pub expected_file_identifier: Option<String>,
+    pub targets: Vec<MachineTrashTarget>,
 }
 
 struct GuidedInput {
@@ -438,6 +444,7 @@ impl OpulStateMachine {
         expected_revision: Option<u64>,
         workspace_id_value: String,
         replacement: Option<MachineWorkspaceRequest>,
+        move_files_to_trash: bool,
     ) -> Result<MachineCommandReceipt, StateMachineError> {
         let replacement = replacement
             .map(|request| {
@@ -466,6 +473,7 @@ impl OpulStateMachine {
             Command::DeleteWorkspace {
                 workspace: workspace_id(&workspace_id_value)?,
                 replacement,
+                move_files_to_trash,
             },
         )
     }
@@ -850,6 +858,8 @@ impl OpulStateMachine {
         content_folder: Option<String>,
     ) -> Result<MachineCommandReceipt, StateMachineError> {
         let download = download_id(&request.download_id)?;
+        // The shell has already moved the files, so measure them where they now live.
+        let identity = output_artifact(output_path.clone(), content_folder.clone()).identity;
         self.dispatch_request(
             request.request_id,
             request.expected_revision,
@@ -858,6 +868,7 @@ impl OpulStateMachine {
                 folder: folder_id(&folder_id_value)?,
                 output_path,
                 content_folder,
+                identity,
             },
         )
     }
@@ -1140,43 +1151,69 @@ fn execute_effect(
                 context.ok_or_else(|| ActorError::Rejected("download disappeared".to_string()))
             })
             .and_then(|context| {
+                // Ask the adapter what it wrote before its record goes away: that is the only
+                // evidence of partial files, and of output the aggregate never verified.
+                let owned = if matches!(
+                    context.download.lifecycle,
+                    DownloadLifecycle::Retiring {
+                        move_files_to_trash: true,
+                        ..
+                    }
+                ) {
+                    owned_paths(torrent, media, &context)
+                } else {
+                    Vec::new()
+                };
                 remove_transfer(torrent, media, &context);
-                actor.complete_effect(
-                    effect.id,
-                    vec![
-                        Fact::WriterStopped {
-                            download: context.download.id,
-                            attempt: context.download.attempt,
-                            control_generation: context.download.control_generation,
-                        },
-                        Fact::AdapterRecordAbsent {
-                            download: context.download.id,
-                            attempt: context.download.attempt,
-                        },
-                    ],
-                )
+                let mut facts = Vec::new();
+                if !owned.is_empty() {
+                    facts.push(Fact::LeftoversFound {
+                        download: context.download.id,
+                        attempt: context.download.attempt,
+                        leftovers: leftover_artifacts(owned),
+                    });
+                }
+                facts.push(Fact::WriterStopped {
+                    download: context.download.id,
+                    attempt: context.download.attempt,
+                    control_generation: context.download.control_generation,
+                });
+                facts.push(Fact::AdapterRecordAbsent {
+                    download: context.download.id,
+                    attempt: context.download.attempt,
+                });
+                actor.complete_effect(effect.id, facts)
             }),
-        EffectKind::MoveOutputToTrash { download, artifact } => {
+        EffectKind::MoveOutputToTrash {
+            download,
+            artifact,
+            leftovers,
+        } => {
             let platform_effect = MachinePlatformEffect {
                 effect_id: effect.id.to_string(),
                 download_id: download.to_string(),
-                path: artifact
-                    .content_folder
-                    .clone()
-                    .unwrap_or_else(|| artifact.path.clone()),
-                content_folder: artifact.content_folder.clone(),
-                expected_byte_length: artifact
-                    .identity
-                    .as_ref()
-                    .map(|identity| identity.byte_length),
-                expected_modified_at_millis: artifact
-                    .identity
-                    .as_ref()
-                    .map(|identity| identity.modified_at_millis),
-                expected_file_identifier: artifact
-                    .identity
-                    .as_ref()
-                    .and_then(|identity| identity.file_identifier.clone()),
+                targets: artifact
+                    .iter()
+                    .chain(leftovers)
+                    .map(|artifact| MachineTrashTarget {
+                        path: artifact
+                            .content_folder
+                            .clone()
+                            .unwrap_or_else(|| artifact.path.clone()),
+                        expected_byte_length: artifact
+                            .identity
+                            .as_ref()
+                            .map(|identity| identity.byte_length),
+                        expected_modified_at_millis: artifact
+                            .identity
+                            .as_ref()
+                            .map(|identity| identity.modified_at_millis),
+                        expected_file_identifier: artifact
+                            .identity
+                            .as_ref()
+                            .and_then(|identity| identity.file_identifier.clone()),
+                    })
+                    .collect(),
             };
             let mut effects = platform
                 .lock()
@@ -1375,6 +1412,48 @@ fn remove_transfer(torrent: &TorrentEngine, media: &MediaEngine, context: &Execu
         DownloadSource::Torrent(_) => torrent.remove_download(&id, context.download.attempt),
         DownloadSource::Media(_) => media.remove_download(&id, context.download.attempt),
     }
+}
+
+/// Every path the adapters wrote for this Download, across all of its attempts, kept only
+/// when it lies strictly inside the Download's saved folder.
+fn owned_paths(
+    torrent: &TorrentEngine,
+    media: &MediaEngine,
+    context: &ExecutionContext,
+) -> Vec<PathBuf> {
+    let id = context.download.id.to_string();
+    let paths = match context.download.source {
+        DownloadSource::Torrent(_) => torrent.owned_paths(&id),
+        DownloadSource::Media(_) => media.owned_paths(&id),
+    };
+    let folder = Path::new(&context.output_folder);
+    let mut owned = Vec::<PathBuf>::new();
+    for path in paths {
+        let inside = path != folder
+            && path.starts_with(folder)
+            && !path
+                .components()
+                .any(|component| matches!(component, std::path::Component::ParentDir));
+        // A folder already listed covers everything in it.
+        if inside && !owned.iter().any(|known| path.starts_with(known)) {
+            owned.retain(|known| !known.starts_with(&path));
+            owned.push(path);
+        }
+    }
+    owned
+}
+
+/// Leftovers that exist once the writer has stopped, with the identity they have now.
+fn leftover_artifacts(paths: Vec<PathBuf>) -> Vec<OutputArtifact> {
+    paths
+        .into_iter()
+        .filter_map(|path| {
+            let metadata = fs::symlink_metadata(&path).ok()?;
+            let path = path.to_string_lossy().into_owned();
+            let content_folder = metadata.is_dir().then(|| path.clone());
+            Some(output_artifact(path, content_folder))
+        })
+        .collect()
 }
 
 fn observe_adapters(actor: &ApplicationActor, torrent: &TorrentEngine, media: &MediaEngine) {

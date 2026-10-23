@@ -1128,7 +1128,7 @@ public protocol OpulStateMachineProtocol: AnyObject, Sendable {
 
     func createWorkspace(request: MachineWorkspaceRequest) throws  -> MachineCommandReceipt
 
-    func deleteWorkspace(requestId: String, expectedRevision: UInt64?, workspaceIdValue: String, replacement: MachineWorkspaceRequest?) throws  -> MachineCommandReceipt
+    func deleteWorkspace(requestId: String, expectedRevision: UInt64?, workspaceIdValue: String, replacement: MachineWorkspaceRequest?, moveFilesToTrash: Bool) throws  -> MachineCommandReceipt
 
     func mediaToolStatus()  -> MediaToolStatus
 
@@ -1337,7 +1337,7 @@ open func createWorkspace(request: MachineWorkspaceRequest)throws  -> MachineCom
 })
 }
 
-open func deleteWorkspace(requestId: String, expectedRevision: UInt64?, workspaceIdValue: String, replacement: MachineWorkspaceRequest?)throws  -> MachineCommandReceipt  {
+open func deleteWorkspace(requestId: String, expectedRevision: UInt64?, workspaceIdValue: String, replacement: MachineWorkspaceRequest?, moveFilesToTrash: Bool)throws  -> MachineCommandReceipt  {
     return try  FfiConverterTypeMachineCommandReceipt_lift(try rustCallWithError(FfiConverterTypeStateMachineError_lift) {
         uniffiCallStatus in
     uniffi_opul_core_fn_method_opulstatemachine_delete_workspace(
@@ -1345,7 +1345,8 @@ open func deleteWorkspace(requestId: String, expectedRevision: UInt64?, workspac
         FfiConverterString.lower(requestId),
         FfiConverterOptionUInt64.lower(expectedRevision),
         FfiConverterString.lower(workspaceIdValue),
-        FfiConverterOptionTypeMachineWorkspaceRequest.lower(replacement),uniffiCallStatus
+        FfiConverterOptionTypeMachineWorkspaceRequest.lower(replacement),
+        FfiConverterBool.lower(moveFilesToTrash),uniffiCallStatus
     )
 })
 }
@@ -3238,22 +3239,14 @@ public func FfiConverterTypeMachineMediaRequest_lower(_ value: MachineMediaReque
 public struct MachinePlatformEffect: Equatable, Hashable {
     public var effectId: String
     public var downloadId: String
-    public var path: String
-    public var contentFolder: String?
-    public var expectedByteLength: UInt64?
-    public var expectedModifiedAtMillis: UInt64?
-    public var expectedFileIdentifier: String?
+    public var targets: [MachineTrashTarget]
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(effectId: String, downloadId: String, path: String, contentFolder: String?, expectedByteLength: UInt64?, expectedModifiedAtMillis: UInt64?, expectedFileIdentifier: String?) {
+    public init(effectId: String, downloadId: String, targets: [MachineTrashTarget]) {
         self.effectId = effectId
         self.downloadId = downloadId
-        self.path = path
-        self.contentFolder = contentFolder
-        self.expectedByteLength = expectedByteLength
-        self.expectedModifiedAtMillis = expectedModifiedAtMillis
-        self.expectedFileIdentifier = expectedFileIdentifier
+        self.targets = targets
     }
 
 
@@ -3274,22 +3267,14 @@ public struct FfiConverterTypeMachinePlatformEffect: FfiConverterRustBuffer {
             try MachinePlatformEffect(
                 effectId: FfiConverterString.read(from: &buf),
                 downloadId: FfiConverterString.read(from: &buf),
-                path: FfiConverterString.read(from: &buf),
-                contentFolder: FfiConverterOptionString.read(from: &buf),
-                expectedByteLength: FfiConverterOptionUInt64.read(from: &buf),
-                expectedModifiedAtMillis: FfiConverterOptionUInt64.read(from: &buf),
-                expectedFileIdentifier: FfiConverterOptionString.read(from: &buf)
+                targets: FfiConverterSequenceTypeMachineTrashTarget.read(from: &buf)
         )
     }
 
     public static func write(_ value: MachinePlatformEffect, into buf: inout [UInt8]) {
         FfiConverterString.write(value.effectId, into: &buf)
         FfiConverterString.write(value.downloadId, into: &buf)
-        FfiConverterString.write(value.path, into: &buf)
-        FfiConverterOptionString.write(value.contentFolder, into: &buf)
-        FfiConverterOptionUInt64.write(value.expectedByteLength, into: &buf)
-        FfiConverterOptionUInt64.write(value.expectedModifiedAtMillis, into: &buf)
-        FfiConverterOptionString.write(value.expectedFileIdentifier, into: &buf)
+        FfiConverterSequenceTypeMachineTrashTarget.write(value.targets, into: &buf)
     }
 }
 
@@ -3512,6 +3497,72 @@ public func FfiConverterTypeMachineTorrentRequest_lift(_ buf: RustBuffer) throws
 #endif
 public func FfiConverterTypeMachineTorrentRequest_lower(_ value: MachineTorrentRequest) -> RustBuffer {
     return FfiConverterTypeMachineTorrentRequest.lower(value)
+}
+
+
+/**
+ * A file or folder the shell may move to the Trash once it still matches the identity
+ * recorded for it.
+ */
+public struct MachineTrashTarget: Equatable, Hashable {
+    public var path: String
+    public var expectedByteLength: UInt64?
+    public var expectedModifiedAtMillis: UInt64?
+    public var expectedFileIdentifier: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(path: String, expectedByteLength: UInt64?, expectedModifiedAtMillis: UInt64?, expectedFileIdentifier: String?) {
+        self.path = path
+        self.expectedByteLength = expectedByteLength
+        self.expectedModifiedAtMillis = expectedModifiedAtMillis
+        self.expectedFileIdentifier = expectedFileIdentifier
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension MachineTrashTarget: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeMachineTrashTarget: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MachineTrashTarget {
+        return
+            try MachineTrashTarget(
+                path: FfiConverterString.read(from: &buf),
+                expectedByteLength: FfiConverterOptionUInt64.read(from: &buf),
+                expectedModifiedAtMillis: FfiConverterOptionUInt64.read(from: &buf),
+                expectedFileIdentifier: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: MachineTrashTarget, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.path, into: &buf)
+        FfiConverterOptionUInt64.write(value.expectedByteLength, into: &buf)
+        FfiConverterOptionUInt64.write(value.expectedModifiedAtMillis, into: &buf)
+        FfiConverterOptionString.write(value.expectedFileIdentifier, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMachineTrashTarget_lift(_ buf: RustBuffer) throws -> MachineTrashTarget {
+    return try FfiConverterTypeMachineTrashTarget.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMachineTrashTarget_lower(_ value: MachineTrashTarget) -> RustBuffer {
+    return FfiConverterTypeMachineTrashTarget.lower(value)
 }
 
 
@@ -6931,6 +6982,31 @@ fileprivate struct FfiConverterSequenceTypeMachineTorrentFile: FfiConverterRustB
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeMachineTrashTarget: FfiConverterRustBuffer {
+    typealias SwiftType = [MachineTrashTarget]
+
+    public static func write(_ value: [MachineTrashTarget], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeMachineTrashTarget.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [MachineTrashTarget] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [MachineTrashTarget]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeMachineTrashTarget.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeMachineWorkspace: FfiConverterRustBuffer {
     typealias SwiftType = [MachineWorkspace]
 
@@ -7178,7 +7254,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_opul_core_checksum_method_opulstatemachine_create_workspace() != 35264) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_opul_core_checksum_method_opulstatemachine_delete_workspace() != 54901) {
+    if (uniffi_opul_core_checksum_method_opulstatemachine_delete_workspace() != 52462) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_opul_core_checksum_method_opulstatemachine_media_tool_status() != 58208) {
