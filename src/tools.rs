@@ -473,9 +473,15 @@ impl MediaTools {
         self.touch(&mut state);
     }
 
+    /// Only asked while there is a Download button to label, so an installed or custom yt-dlp
+    /// never causes a request.
     pub(crate) fn request_download_size(&self) {
         let mut state = self.lock();
-        if state.download_bytes.is_none() && !state.requests.contains(&Job::Size) {
+        if state.download_bytes.is_none()
+            && state.settings.custom_yt_dlp().is_none()
+            && self.current_version().is_none()
+            && !state.requests.contains(&Job::Size)
+        {
             state.requests.push(Job::Size);
             self.touch(&mut state);
         }
@@ -1054,6 +1060,11 @@ impl MediaTools {
         let _ = fs::remove_dir_all(&staging);
 
         let mut state = self.lock();
+        // The person removed yt-dlp while this download was running.
+        if !state.record.wanted {
+            self.remove_unused_versions(&state);
+            return Ok(());
+        }
         let next = self.root.join(format!("{CURRENT}.next"));
         let _ = fs::remove_file(&next);
         std::os::unix::fs::symlink(&version, &next).map_err(storage_error)?;

@@ -320,6 +320,7 @@ fn installs_a_verified_release_and_points_current_at_it() {
 #[test]
 fn a_bad_checksum_is_rejected_and_the_previous_copy_stays() {
     let fixture = Fixture::new(managed());
+    fixture.tools.request_install();
     fixture.publish("2026.10.01", true);
     fixture.tools.install(true).unwrap();
     fixture.publish("2026.10.21", true);
@@ -355,6 +356,7 @@ fn a_bad_checksum_is_rejected_and_the_previous_copy_stays() {
 #[test]
 fn a_bad_signature_is_rejected() {
     let fixture = Fixture::new(managed());
+    fixture.tools.request_install();
     fixture.publish("2026.10.21", true);
     let checksums = fixture.fake.files.lock().unwrap()
         [&("2026.10.21".to_string(), CHECKSUMS.to_string())]
@@ -374,6 +376,7 @@ fn a_bad_signature_is_rejected() {
 #[test]
 fn tampered_checksums_are_rejected() {
     let fixture = Fixture::new(managed());
+    fixture.tools.request_install();
     fixture.publish("2026.10.21", true);
     let archive = fixture.fake.files.lock().unwrap()
         [&("2026.10.21".to_string(), ARCHIVE.to_string())]
@@ -396,6 +399,7 @@ fn tampered_checksums_are_rejected() {
 #[test]
 fn a_release_that_fails_version_rolls_back_and_is_never_tried_again() {
     let fixture = Fixture::new(managed());
+    fixture.tools.request_install();
     fixture.publish("2026.10.01", true);
     fixture.tools.install(true).unwrap();
     fixture.publish("2026.10.21", false);
@@ -479,6 +483,7 @@ fn nothing_is_requested_from_the_network_without_consent_or_with_updates_off() {
 
     // Installed with automatic updates off: still no request.
     let fixture = Fixture::new(managed());
+    fixture.tools.request_install();
     fixture.publish("2026.10.01", true);
     fixture.tools.install(true).unwrap();
     let calls = fixture.calls();
@@ -504,6 +509,7 @@ fn nothing_is_requested_from_the_network_without_consent_or_with_updates_off() {
 #[test]
 fn a_custom_path_means_the_managed_copy_is_never_touched() {
     let fixture = Fixture::new(managed());
+    fixture.tools.request_install();
     fixture.publish("2026.10.01", true);
     fixture.tools.install(true).unwrap();
     fixture.publish("2026.10.21", true);
@@ -574,6 +580,7 @@ fn removal_keeps_a_version_in_use_until_its_process_ends() {
 #[test]
 fn updates_keep_the_previous_version_and_any_version_in_use() {
     let fixture = Fixture::new(managed());
+    fixture.tools.request_install();
     fixture.publish("2026.09.01", true);
     fixture.tools.install(true).unwrap();
     let running = fixture.tools.resolve().unwrap();
