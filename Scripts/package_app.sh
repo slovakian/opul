@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build Opul.app. Signs ad-hoc unless APP_IDENTITY names a Developer ID certificate.
+# Build Opul.app for Apple silicon. Signs ad-hoc unless APP_IDENTITY names a Developer ID certificate.
 set -euo pipefail
 
 CONF=${1:-release}
@@ -22,11 +22,14 @@ if [[ ${#ARCH_LIST[@]} -eq 0 ]]; then
   ARCH_LIST=("$HOST_ARCH")
 fi
 
+# The bundled tools are arm64 only, like the release. Fetch them first so a bad checksum
+# stops the build before anything is compiled.
+MEDIA_TOOLS=$("$ROOT/Scripts/fetch_media_tools.sh")
+
 for ARCH in "${ARCH_LIST[@]}"; do
   case "$ARCH" in
     arm64) RUST_TARGET="aarch64-apple-darwin" ;;
-    x86_64) RUST_TARGET="x86_64-apple-darwin" ;;
-    *) echo "ERROR: unsupported architecture $ARCH" >&2; exit 1 ;;
+    *) echo "ERROR: unsupported architecture $ARCH. Opul runs on Apple silicon only (docs/adr/0026)." >&2; exit 1 ;;
   esac
   rustup target add "$RUST_TARGET"
   "$ROOT/Scripts/build_core.sh" "$CONF" "$RUST_TARGET"
@@ -37,7 +40,7 @@ done
 
 APP="$ROOT/${APP_NAME}.app"
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks" "$APP/Contents/Helpers"
 
 # macOS icon: full iconset compiled from the 1024px master. The system masks it.
 ICON_TARGET=""
@@ -167,6 +170,13 @@ SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
 ditto "$PREFERRED_BUILD_DIR/Sparkle.framework" "$SPARKLE"
 rm -rf "$SPARKLE/Versions/B/XPCServices" "$SPARKLE/XPCServices"
 
+# Bundled media tools: FFmpeg and ffprobe (LGPL) and the sandboxed QuickJS driver.
+for tool in ffmpeg ffprobe qjs; do
+  install -m 755 "$MEDIA_TOOLS/$tool" "$APP/Contents/Helpers/$tool"
+  verify_binary_arches "$APP/Contents/Helpers/$tool" arm64
+done
+cp "$ROOT/THIRD-PARTY-NOTICES.md" "$APP/Contents/Resources/"
+
 if [[ -n "$ICON_TARGET" && -f "$ICON_TARGET" ]]; then
   cp "$ICON_TARGET" "$APP/Contents/Resources/Icon.icns"
 fi
@@ -205,6 +215,9 @@ else
 fi
 
 # Sign from the inside out: nested helpers, then frameworks, then the app.
+for tool in ffmpeg ffprobe qjs; do
+  codesign "${CODESIGN_ARGS[@]}" "$APP/Contents/Helpers/$tool"
+done
 codesign "${CODESIGN_ARGS[@]}" "$SPARKLE/Versions/B/Autoupdate"
 codesign "${CODESIGN_ARGS[@]}" "$SPARKLE/Versions/B/Updater.app"
 codesign "${CODESIGN_ARGS[@]}" "$SPARKLE"

@@ -31,6 +31,9 @@ struct OpulApp: App {
         .commands {
             CheckForUpdatesCommand(updater: updater)
             DownloadCommands(library: library)
+            CommandGroup(replacing: .help) {
+                Button("Welcome to Opul", action: library.showWelcome)
+            }
         }
     }
 }

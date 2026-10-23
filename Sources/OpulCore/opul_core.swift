@@ -1149,6 +1149,13 @@ public protocol OpulStateMachineProtocol: AnyObject, Sendable {
 
     func removeFolder(request: MachineFolderRequest, moveFilesToTrash: Bool) throws  -> MachineCommandReceipt
 
+    func removeYtDlp()
+
+    /**
+     * Looks up how large the yt-dlp download is, so the welcome sheet can say.
+     */
+    func requestYtDlpDownloadSize()
+
     func resumeDownload(request: MachineDownloadCommand) throws  -> MachineCommandReceipt
 
     func retryDownload(request: MachineDownloadCommand) throws  -> MachineCommandReceipt
@@ -1158,6 +1165,11 @@ public protocol OpulStateMachineProtocol: AnyObject, Sendable {
     func setDefaultFormat(requestId: String, expectedRevision: UInt64?, workspaceIdValue: String, format: MachineFormat) throws  -> MachineCommandReceipt
 
     func setMaxConcurrentMediaDownloads(maximum: UInt32)
+
+    /**
+     * Custom tool paths and the yt-dlp update setting. They apply to the next process.
+     */
+    func setMediaToolSettings(settings: MediaToolSettings)
 
     func setSeedRatio(request: MachineDownloadCommand, limit: Double?) throws  -> MachineCommandReceipt
 
@@ -1172,6 +1184,23 @@ public protocol OpulStateMachineProtocol: AnyObject, Sendable {
     func stopSeeding(request: MachineDownloadCommand) throws  -> MachineCommandReceipt
 
     func updateWorkspace(request: MachineWorkspaceRequest) throws  -> MachineCommandReceipt
+
+    /**
+     * The person agreed to download yt-dlp, or asked to check for a newer one.
+     */
+    func updateYtDlp()
+
+    func verifyFfmpeg(path: String) throws  -> String
+
+    /**
+     * Runs a yt-dlp the person picked, and returns its version, before they use it.
+     */
+    func verifyYtDlp(path: String) throws  -> String
+
+    /**
+     * Returns once the tool status moves past `after_generation`, or after the timeout.
+     */
+    func waitForMediaToolStatus(afterGeneration: UInt64, timeoutMilliseconds: UInt32)  -> MediaToolStatus
 
     func waitForSnapshot(afterBootId: String?, afterSequence: UInt64, timeoutMilliseconds: UInt32)  -> MachineSnapshot
 
@@ -1439,6 +1468,25 @@ open func removeFolder(request: MachineFolderRequest, moveFilesToTrash: Bool)thr
 })
 }
 
+open func removeYtDlp()  {try! rustCall() {
+        uniffiCallStatus in
+    uniffi_opul_core_fn_method_opulstatemachine_remove_yt_dlp(
+            self.uniffiCloneHandle(),uniffiCallStatus
+    )
+}
+}
+
+    /**
+     * Looks up how large the yt-dlp download is, so the welcome sheet can say.
+     */
+open func requestYtDlpDownloadSize()  {try! rustCall() {
+        uniffiCallStatus in
+    uniffi_opul_core_fn_method_opulstatemachine_request_yt_dlp_download_size(
+            self.uniffiCloneHandle(),uniffiCallStatus
+    )
+}
+}
+
 open func resumeDownload(request: MachineDownloadCommand)throws  -> MachineCommandReceipt  {
     return try  FfiConverterTypeMachineCommandReceipt_lift(try rustCallWithError(FfiConverterTypeStateMachineError_lift) {
         uniffiCallStatus in
@@ -1487,6 +1535,18 @@ open func setMaxConcurrentMediaDownloads(maximum: UInt32)  {try! rustCall() {
     uniffi_opul_core_fn_method_opulstatemachine_set_max_concurrent_media_downloads(
             self.uniffiCloneHandle(),
         FfiConverterUInt32.lower(maximum),uniffiCallStatus
+    )
+}
+}
+
+    /**
+     * Custom tool paths and the yt-dlp update setting. They apply to the next process.
+     */
+open func setMediaToolSettings(settings: MediaToolSettings)  {try! rustCall() {
+        uniffiCallStatus in
+    uniffi_opul_core_fn_method_opulstatemachine_set_media_tool_settings(
+            self.uniffiCloneHandle(),
+        FfiConverterTypeMediaToolSettings_lower(settings),uniffiCallStatus
     )
 }
 }
@@ -1563,6 +1623,54 @@ open func updateWorkspace(request: MachineWorkspaceRequest)throws  -> MachineCom
     uniffi_opul_core_fn_method_opulstatemachine_update_workspace(
             self.uniffiCloneHandle(),
         FfiConverterTypeMachineWorkspaceRequest_lower(request),uniffiCallStatus
+    )
+})
+}
+
+    /**
+     * The person agreed to download yt-dlp, or asked to check for a newer one.
+     */
+open func updateYtDlp()  {try! rustCall() {
+        uniffiCallStatus in
+    uniffi_opul_core_fn_method_opulstatemachine_update_yt_dlp(
+            self.uniffiCloneHandle(),uniffiCallStatus
+    )
+}
+}
+
+open func verifyFfmpeg(path: String)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeStateMachineError_lift) {
+        uniffiCallStatus in
+    uniffi_opul_core_fn_method_opulstatemachine_verify_ffmpeg(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(path),uniffiCallStatus
+    )
+})
+}
+
+    /**
+     * Runs a yt-dlp the person picked, and returns its version, before they use it.
+     */
+open func verifyYtDlp(path: String)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeStateMachineError_lift) {
+        uniffiCallStatus in
+    uniffi_opul_core_fn_method_opulstatemachine_verify_yt_dlp(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(path),uniffiCallStatus
+    )
+})
+}
+
+    /**
+     * Returns once the tool status moves past `after_generation`, or after the timeout.
+     */
+open func waitForMediaToolStatus(afterGeneration: UInt64, timeoutMilliseconds: UInt32) -> MediaToolStatus  {
+    return try!  FfiConverterTypeMediaToolStatus_lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_opul_core_fn_method_opulstatemachine_wait_for_media_tool_status(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(afterGeneration),
+        FfiConverterUInt32.lower(timeoutMilliseconds),uniffiCallStatus
     )
 })
 }
@@ -2040,6 +2148,68 @@ public func FfiConverterTypeTorrentEngine_lower(_ value: TorrentEngine) -> UInt6
 }
 
 
+
+
+public struct BundledToolStatus: Equatable, Hashable {
+    public var path: String?
+    public var version: String?
+    public var custom: Bool
+    public var problem: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(path: String?, version: String?, custom: Bool, problem: String?) {
+        self.path = path
+        self.version = version
+        self.custom = custom
+        self.problem = problem
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension BundledToolStatus: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeBundledToolStatus: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> BundledToolStatus {
+        return
+            try BundledToolStatus(
+                path: FfiConverterOptionString.read(from: &buf),
+                version: FfiConverterOptionString.read(from: &buf),
+                custom: FfiConverterBool.read(from: &buf),
+                problem: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: BundledToolStatus, into buf: inout [UInt8]) {
+        FfiConverterOptionString.write(value.path, into: &buf)
+        FfiConverterOptionString.write(value.version, into: &buf)
+        FfiConverterBool.write(value.custom, into: &buf)
+        FfiConverterOptionString.write(value.problem, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeBundledToolStatus_lift(_ buf: RustBuffer) throws -> BundledToolStatus {
+    return try FfiConverterTypeBundledToolStatus.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeBundledToolStatus_lower(_ value: BundledToolStatus) -> RustBuffer {
+    return FfiConverterTypeBundledToolStatus.lower(value)
+}
 
 
 public struct EngineConfig: Equatable, Hashable {
@@ -3942,19 +4112,31 @@ public func FfiConverterTypeMediaDownloadOptions_lower(_ value: MediaDownloadOpt
 
 public struct MediaEngineConfig: Equatable, Hashable {
     public var sessionFolder: String
-    public var resourcesFolder: String?
-    public var ytDlpPath: String?
-    public var ffmpegPath: String?
+    /**
+     * Where Opul keeps the yt-dlp it downloads: `Application Support/Opul/Tools`.
+     */
+    public var toolsFolder: String
+    /**
+     * The app's `Contents/Helpers`, which holds the bundled FFmpeg, ffprobe and QuickJS.
+     */
+    public var helpersFolder: String?
+    public var toolSettings: MediaToolSettings
     public var maxConcurrentDownloads: UInt32
     public var maxDownloadBps: UInt64
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(sessionFolder: String, resourcesFolder: String?, ytDlpPath: String?, ffmpegPath: String?, maxConcurrentDownloads: UInt32, maxDownloadBps: UInt64) {
+    public init(sessionFolder: String,
+        /**
+         * Where Opul keeps the yt-dlp it downloads: `Application Support/Opul/Tools`.
+         */toolsFolder: String,
+        /**
+         * The app's `Contents/Helpers`, which holds the bundled FFmpeg, ffprobe and QuickJS.
+         */helpersFolder: String?, toolSettings: MediaToolSettings, maxConcurrentDownloads: UInt32, maxDownloadBps: UInt64) {
         self.sessionFolder = sessionFolder
-        self.resourcesFolder = resourcesFolder
-        self.ytDlpPath = ytDlpPath
-        self.ffmpegPath = ffmpegPath
+        self.toolsFolder = toolsFolder
+        self.helpersFolder = helpersFolder
+        self.toolSettings = toolSettings
         self.maxConcurrentDownloads = maxConcurrentDownloads
         self.maxDownloadBps = maxDownloadBps
     }
@@ -3976,9 +4158,9 @@ public struct FfiConverterTypeMediaEngineConfig: FfiConverterRustBuffer {
         return
             try MediaEngineConfig(
                 sessionFolder: FfiConverterString.read(from: &buf),
-                resourcesFolder: FfiConverterOptionString.read(from: &buf),
-                ytDlpPath: FfiConverterOptionString.read(from: &buf),
-                ffmpegPath: FfiConverterOptionString.read(from: &buf),
+                toolsFolder: FfiConverterString.read(from: &buf),
+                helpersFolder: FfiConverterOptionString.read(from: &buf),
+                toolSettings: FfiConverterTypeMediaToolSettings.read(from: &buf),
                 maxConcurrentDownloads: FfiConverterUInt32.read(from: &buf),
                 maxDownloadBps: FfiConverterUInt64.read(from: &buf)
         )
@@ -3986,9 +4168,9 @@ public struct FfiConverterTypeMediaEngineConfig: FfiConverterRustBuffer {
 
     public static func write(_ value: MediaEngineConfig, into buf: inout [UInt8]) {
         FfiConverterString.write(value.sessionFolder, into: &buf)
-        FfiConverterOptionString.write(value.resourcesFolder, into: &buf)
-        FfiConverterOptionString.write(value.ytDlpPath, into: &buf)
-        FfiConverterOptionString.write(value.ffmpegPath, into: &buf)
+        FfiConverterString.write(value.toolsFolder, into: &buf)
+        FfiConverterOptionString.write(value.helpersFolder, into: &buf)
+        FfiConverterTypeMediaToolSettings.write(value.toolSettings, into: &buf)
         FfiConverterUInt32.write(value.maxConcurrentDownloads, into: &buf)
         FfiConverterUInt64.write(value.maxDownloadBps, into: &buf)
     }
@@ -4150,22 +4332,116 @@ public func FfiConverterTypeMediaProbeItem_lower(_ value: MediaProbeItem) -> Rus
 }
 
 
+public struct MediaToolSettings: Equatable, Hashable {
+    public var customYtDlpPath: String?
+    public var customFfmpegPath: String?
+    public var autoUpdateYtDlp: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(customYtDlpPath: String?, customFfmpegPath: String?, autoUpdateYtDlp: Bool) {
+        self.customYtDlpPath = customYtDlpPath
+        self.customFfmpegPath = customFfmpegPath
+        self.autoUpdateYtDlp = autoUpdateYtDlp
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension MediaToolSettings: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeMediaToolSettings: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MediaToolSettings {
+        return
+            try MediaToolSettings(
+                customYtDlpPath: FfiConverterOptionString.read(from: &buf),
+                customFfmpegPath: FfiConverterOptionString.read(from: &buf),
+                autoUpdateYtDlp: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: MediaToolSettings, into buf: inout [UInt8]) {
+        FfiConverterOptionString.write(value.customYtDlpPath, into: &buf)
+        FfiConverterOptionString.write(value.customFfmpegPath, into: &buf)
+        FfiConverterBool.write(value.autoUpdateYtDlp, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMediaToolSettings_lift(_ buf: RustBuffer) throws -> MediaToolSettings {
+    return try FfiConverterTypeMediaToolSettings.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMediaToolSettings_lower(_ value: MediaToolSettings) -> RustBuffer {
+    return FfiConverterTypeMediaToolSettings.lower(value)
+}
+
+
 public struct MediaToolStatus: Equatable, Hashable {
-    public var ytDlpPath: String?
-    public var ytDlpVersion: String?
-    public var ffmpegPath: String?
-    public var ffmpegVersion: String?
-    public var ready: Bool
+    /**
+     * Increases whenever anything below changes.
+     */
+    public var generation: UInt64
+    public var ytDlp: YtDlpState
+    public var activity: YtDlpActivity
+    /**
+     * yt-dlp can start a process now.
+     */
+    public var ytDlpReady: Bool
+    /**
+     * yt-dlp is being fetched for the first time, so video links wait for it.
+     */
+    public var ytDlpPending: Bool
+    /**
+     * The last update failed. The verified copy that was already installed stays in use.
+     */
+    public var updateError: String?
+    public var downloadBytes: UInt64?
+    public var autoUpdate: Bool
+    public var ffmpeg: BundledToolStatus
+    public var ffprobe: BundledToolStatus
+    public var quickjs: BundledToolStatus
     public var message: String
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(ytDlpPath: String?, ytDlpVersion: String?, ffmpegPath: String?, ffmpegVersion: String?, ready: Bool, message: String) {
-        self.ytDlpPath = ytDlpPath
-        self.ytDlpVersion = ytDlpVersion
-        self.ffmpegPath = ffmpegPath
-        self.ffmpegVersion = ffmpegVersion
-        self.ready = ready
+    public init(
+        /**
+         * Increases whenever anything below changes.
+         */generation: UInt64, ytDlp: YtDlpState, activity: YtDlpActivity,
+        /**
+         * yt-dlp can start a process now.
+         */ytDlpReady: Bool,
+        /**
+         * yt-dlp is being fetched for the first time, so video links wait for it.
+         */ytDlpPending: Bool,
+        /**
+         * The last update failed. The verified copy that was already installed stays in use.
+         */updateError: String?, downloadBytes: UInt64?, autoUpdate: Bool, ffmpeg: BundledToolStatus, ffprobe: BundledToolStatus, quickjs: BundledToolStatus, message: String) {
+        self.generation = generation
+        self.ytDlp = ytDlp
+        self.activity = activity
+        self.ytDlpReady = ytDlpReady
+        self.ytDlpPending = ytDlpPending
+        self.updateError = updateError
+        self.downloadBytes = downloadBytes
+        self.autoUpdate = autoUpdate
+        self.ffmpeg = ffmpeg
+        self.ffprobe = ffprobe
+        self.quickjs = quickjs
         self.message = message
     }
 
@@ -4185,21 +4461,33 @@ public struct FfiConverterTypeMediaToolStatus: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MediaToolStatus {
         return
             try MediaToolStatus(
-                ytDlpPath: FfiConverterOptionString.read(from: &buf),
-                ytDlpVersion: FfiConverterOptionString.read(from: &buf),
-                ffmpegPath: FfiConverterOptionString.read(from: &buf),
-                ffmpegVersion: FfiConverterOptionString.read(from: &buf),
-                ready: FfiConverterBool.read(from: &buf),
+                generation: FfiConverterUInt64.read(from: &buf),
+                ytDlp: FfiConverterTypeYtDlpState.read(from: &buf),
+                activity: FfiConverterTypeYtDlpActivity.read(from: &buf),
+                ytDlpReady: FfiConverterBool.read(from: &buf),
+                ytDlpPending: FfiConverterBool.read(from: &buf),
+                updateError: FfiConverterOptionString.read(from: &buf),
+                downloadBytes: FfiConverterOptionUInt64.read(from: &buf),
+                autoUpdate: FfiConverterBool.read(from: &buf),
+                ffmpeg: FfiConverterTypeBundledToolStatus.read(from: &buf),
+                ffprobe: FfiConverterTypeBundledToolStatus.read(from: &buf),
+                quickjs: FfiConverterTypeBundledToolStatus.read(from: &buf),
                 message: FfiConverterString.read(from: &buf)
         )
     }
 
     public static func write(_ value: MediaToolStatus, into buf: inout [UInt8]) {
-        FfiConverterOptionString.write(value.ytDlpPath, into: &buf)
-        FfiConverterOptionString.write(value.ytDlpVersion, into: &buf)
-        FfiConverterOptionString.write(value.ffmpegPath, into: &buf)
-        FfiConverterOptionString.write(value.ffmpegVersion, into: &buf)
-        FfiConverterBool.write(value.ready, into: &buf)
+        FfiConverterUInt64.write(value.generation, into: &buf)
+        FfiConverterTypeYtDlpState.write(value.ytDlp, into: &buf)
+        FfiConverterTypeYtDlpActivity.write(value.activity, into: &buf)
+        FfiConverterBool.write(value.ytDlpReady, into: &buf)
+        FfiConverterBool.write(value.ytDlpPending, into: &buf)
+        FfiConverterOptionString.write(value.updateError, into: &buf)
+        FfiConverterOptionUInt64.write(value.downloadBytes, into: &buf)
+        FfiConverterBool.write(value.autoUpdate, into: &buf)
+        FfiConverterTypeBundledToolStatus.write(value.ffmpeg, into: &buf)
+        FfiConverterTypeBundledToolStatus.write(value.ffprobe, into: &buf)
+        FfiConverterTypeBundledToolStatus.write(value.quickjs, into: &buf)
         FfiConverterString.write(value.message, into: &buf)
     }
 }
@@ -6513,6 +6801,200 @@ public func FfiConverterTypeTorrentState_lower(_ value: TorrentState) -> RustBuf
 }
 
 
+
+
+public enum YtDlpActivity: Equatable, Hashable {
+
+    case idle
+    case checking
+    case downloading(progress: Double
+    )
+    case waitingToRetry(seconds: UInt64
+    )
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension YtDlpActivity: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeYtDlpActivity: FfiConverterRustBuffer {
+    typealias SwiftType = YtDlpActivity
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> YtDlpActivity {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        case 1: return .idle
+
+        case 2: return .checking
+
+        case 3: return .downloading(progress: try FfiConverterDouble.read(from: &buf)
+        )
+
+        case 4: return .waitingToRetry(seconds: try FfiConverterUInt64.read(from: &buf)
+        )
+
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: YtDlpActivity, into buf: inout [UInt8]) {
+        switch value {
+
+
+        case .idle:
+            writeInt(&buf, Int32(1))
+
+
+        case .checking:
+            writeInt(&buf, Int32(2))
+
+
+        case let .downloading(progress):
+            writeInt(&buf, Int32(3))
+            FfiConverterDouble.write(progress, into: &buf)
+
+
+        case let .waitingToRetry(seconds):
+            writeInt(&buf, Int32(4))
+            FfiConverterUInt64.write(seconds, into: &buf)
+
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeYtDlpActivity_lift(_ buf: RustBuffer) throws -> YtDlpActivity {
+    return try FfiConverterTypeYtDlpActivity.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeYtDlpActivity_lower(_ value: YtDlpActivity) -> RustBuffer {
+    return FfiConverterTypeYtDlpActivity.lower(value)
+}
+
+
+
+
+public enum YtDlpState: Equatable, Hashable {
+
+    case notInstalled
+    case installed(version: String, lastCheckedMs: UInt64?
+    )
+    /**
+     * The last download failed and no copy is installed.
+     */
+    case failed(reason: String
+    )
+    /**
+     * A yt-dlp the person chose. The version is unknown until Opul has run it once.
+     */
+    case custom(path: String, version: String?
+    )
+    case customBroken(path: String, reason: String
+    )
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension YtDlpState: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeYtDlpState: FfiConverterRustBuffer {
+    typealias SwiftType = YtDlpState
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> YtDlpState {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        case 1: return .notInstalled
+
+        case 2: return .installed(version: try FfiConverterString.read(from: &buf), lastCheckedMs: try FfiConverterOptionUInt64.read(from: &buf)
+        )
+
+        case 3: return .failed(reason: try FfiConverterString.read(from: &buf)
+        )
+
+        case 4: return .custom(path: try FfiConverterString.read(from: &buf), version: try FfiConverterOptionString.read(from: &buf)
+        )
+
+        case 5: return .customBroken(path: try FfiConverterString.read(from: &buf), reason: try FfiConverterString.read(from: &buf)
+        )
+
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: YtDlpState, into buf: inout [UInt8]) {
+        switch value {
+
+
+        case .notInstalled:
+            writeInt(&buf, Int32(1))
+
+
+        case let .installed(version,lastCheckedMs):
+            writeInt(&buf, Int32(2))
+            FfiConverterString.write(version, into: &buf)
+            FfiConverterOptionUInt64.write(lastCheckedMs, into: &buf)
+
+
+        case let .failed(reason):
+            writeInt(&buf, Int32(3))
+            FfiConverterString.write(reason, into: &buf)
+
+
+        case let .custom(path,version):
+            writeInt(&buf, Int32(4))
+            FfiConverterString.write(path, into: &buf)
+            FfiConverterOptionString.write(version, into: &buf)
+
+
+        case let .customBroken(path,reason):
+            writeInt(&buf, Int32(5))
+            FfiConverterString.write(path, into: &buf)
+            FfiConverterString.write(reason, into: &buf)
+
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeYtDlpState_lift(_ buf: RustBuffer) throws -> YtDlpState {
+    return try FfiConverterTypeYtDlpState.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeYtDlpState_lower(_ value: YtDlpState) -> RustBuffer {
+    return FfiConverterTypeYtDlpState.lower(value)
+}
+
+
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
@@ -7257,7 +7739,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_opul_core_checksum_method_opulstatemachine_delete_workspace() != 52462) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_opul_core_checksum_method_opulstatemachine_media_tool_status() != 58208) {
+    if (uniffi_opul_core_checksum_method_opulstatemachine_media_tool_status() != 16949) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_opul_core_checksum_method_opulstatemachine_move_download() != 1650) {
@@ -7281,6 +7763,12 @@ private let initializationResult: InitializationResult = {
     if (uniffi_opul_core_checksum_method_opulstatemachine_remove_folder() != 20743) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_opul_core_checksum_method_opulstatemachine_remove_yt_dlp() != 26237) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_opul_core_checksum_method_opulstatemachine_request_yt_dlp_download_size() != 49552) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_opul_core_checksum_method_opulstatemachine_resume_download() != 56362) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -7294,6 +7782,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_opul_core_checksum_method_opulstatemachine_set_max_concurrent_media_downloads() != 48602) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_opul_core_checksum_method_opulstatemachine_set_media_tool_settings() != 26525) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_opul_core_checksum_method_opulstatemachine_set_seed_ratio() != 41919) {
@@ -7315,6 +7806,18 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_opul_core_checksum_method_opulstatemachine_update_workspace() != 39118) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_opul_core_checksum_method_opulstatemachine_update_yt_dlp() != 24408) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_opul_core_checksum_method_opulstatemachine_verify_ffmpeg() != 60485) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_opul_core_checksum_method_opulstatemachine_verify_yt_dlp() != 54016) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_opul_core_checksum_method_opulstatemachine_wait_for_media_tool_status() != 9) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_opul_core_checksum_method_opulstatemachine_wait_for_snapshot() != 4970) {
@@ -7416,7 +7919,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_opul_core_checksum_method_mediaengine_snapshots() != 6710) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_opul_core_checksum_method_mediaengine_tool_status() != 21934) {
+    if (uniffi_opul_core_checksum_method_mediaengine_tool_status() != 46143) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_opul_core_checksum_constructor_session_new() != 41007) {

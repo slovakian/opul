@@ -25,20 +25,15 @@ for arg in "$@"; do
     --test|-t) RUN_TESTS=1 ;;
     --debug|-d) BUILD_CONF="debug" ;;
     --release|-r) BUILD_CONF="release" ;;
-    --release-universal)
-      BUILD_CONF="release"
-      RELEASE_ARCHES="arm64 x86_64"
-      ;;
     --release-arches=*)
       BUILD_CONF="release"
       RELEASE_ARCHES="${arg#*=}"
       ;;
     --help|-h)
-      log "Usage: $(basename "$0") [--debug|--release] [--test] [--release-universal] [--release-arches=\"arm64 x86_64\"]"
+      log "Usage: $(basename "$0") [--debug|--release] [--test] [--release-arches=arm64]"
       log "  --debug, -d              Build in debug configuration (default, faster for local preview)"
       log "  --release, -r            Build in release configuration"
       log "  --test, -t               Run the test suite before packaging and launching"
-      log "  --release-universal      Build release for both arm64 and x86_64"
       log "  --release-arches=ARCHES  Build release for specified architectures"
       exit 0
       ;;

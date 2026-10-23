@@ -770,12 +770,28 @@ private struct DownloadGroupHeader: View {
     }
 }
 
+private struct DownloadStateText: View {
+    let download: Download
+    @Environment(\.videoTools) private var videoTools
+
+    var body: some View {
+        if download.isWaitingForVideoTools(videoTools) {
+            Text("Getting video tools…")
+                .foregroundStyle(.secondary)
+        } else {
+            Text(download.state.title)
+                .foregroundStyle(stateColor(download.state))
+        }
+    }
+}
+
 private struct DownloadRow: View {
     let line: DownloadArrangement.Line
     let isSelected: Bool
     /// Whether the list has keyboard focus; an unfocused selection turns gray like a native one.
     let isEmphasized: Bool
     @State private var isHovered = false
+    @Environment(\.videoTools) private var videoTools
 
     private var download: Download { line.download }
 
@@ -840,11 +856,23 @@ private struct DownloadRow: View {
                     )
                 }
 
-                if let error = download.errorMessage, !error.isEmpty {
-                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                if download.isWaitingForVideoTools(videoTools) {
+                    Label("Getting video tools…", systemImage: "shippingbox")
                         .font(.caption)
-                        .foregroundStyle(.red)
-                        .lineLimit(1)
+                        .foregroundStyle(.secondary)
+                } else if let error = download.errorMessage, !error.isEmpty {
+                    HStack(spacing: 8) {
+                        Label(error, systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .lineLimit(1)
+                        if download.offersOpulsYtDlp(videoTools) {
+                            Button("Download Opul's copy") {
+                                videoTools.downloadOpulsCopy(download.id)
+                            }
+                            .controlSize(.small)
+                        }
+                    }
                 }
             }
         }
@@ -869,6 +897,13 @@ private struct DownloadRow: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(download.accessibilitySummary(folderName: line.folderName))
         .accessibilityHint(download.activationHint)
+        .accessibilityActions {
+            if download.offersOpulsYtDlp(videoTools) {
+                Button("Download Opul's copy") {
+                    videoTools.downloadOpulsCopy(download.id)
+                }
+            }
+        }
         .help(download.address)
         .onHover { isHovered = $0 }
         .animation(.easeOut(duration: 0.14), value: isHovered)
@@ -1227,8 +1262,7 @@ private struct DownloadTable: View {
             }
             .width(min: 160, ideal: 280)
             TableColumn("State") { line in
-                Text(line.download.state.title)
-                    .foregroundStyle(stateColor(line.download.state))
+                DownloadStateText(download: line.download)
             }
             .width(min: 80, ideal: 100)
             TableColumn("Progress") { line in
@@ -1265,8 +1299,7 @@ private struct DownloadTable: View {
             }
             .width(min: 160, ideal: 280)
             TableColumn("State") { line in
-                Text(line.download.state.title)
-                    .foregroundStyle(stateColor(line.download.state))
+                DownloadStateText(download: line.download)
             }
             .width(min: 80, ideal: 100)
             TableColumn("Progress") { line in

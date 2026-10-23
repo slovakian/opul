@@ -30,6 +30,29 @@ struct LibraryWindow: View {
         .sheet(isPresented: $showPreferences) {
             PreferencesSheet(library: library)
         }
+        .sheet(isPresented: $library.isShowingWelcome, onDismiss: library.welcomeDismissed) {
+            WelcomeSheet(library: library)
+        }
+        .alert(
+            videoToolsPromptTitle,
+            isPresented: videoToolsPromptPresented,
+            presenting: library.videoToolsPrompt
+        ) { prompt in
+            Button(videoToolsDownloadTitle(prompt)) {
+                library.resolveVideoToolsPrompt(download: true)
+            }
+            .keyboardShortcut(.defaultAction)
+            Button("Cancel", role: .cancel) {
+                library.resolveVideoToolsPrompt(download: false)
+            }
+        } message: { prompt in
+            if prompt.brokenCustomPath != nil {
+                Text("Opul won't switch tools on its own. Download Opul's copy of yt-dlp to use it from now on, and this link starts when it's ready.")
+            } else {
+                Text("yt-dlp is a free tool that reads video pages. Opul downloads it from GitHub, and this link starts when it's ready.")
+            }
+        }
+        .environment(\.videoTools, videoToolsContext)
         .sheet(item: $library.pendingMediaImport) { request in
             MediaImportSheet(library: library, request: request)
         }
@@ -125,6 +148,44 @@ struct LibraryWindow: View {
             library.shutdown()
         }
         .frame(minWidth: 860, minHeight: 520)
+    }
+
+    private var videoToolsContext: VideoToolsContext {
+        let status = library.mediaToolStatus
+        var hasBrokenCustomYtDlp = false
+        if case .customBroken = status?.ytDlp {
+            hasBrokenCustomYtDlp = true
+        }
+        return VideoToolsContext(
+            isGettingTools: status?.ytDlpPending == true,
+            hasBrokenCustomYtDlp: hasBrokenCustomYtDlp,
+            downloadOpulsCopy: { [library] id in
+                library.replaceCustomYtDlpWithOpuls(retrying: id)
+            }
+        )
+    }
+
+    private var videoToolsPromptTitle: String {
+        guard let path = library.videoToolsPrompt?.brokenCustomPath else {
+            return "Video downloads need yt-dlp"
+        }
+        return "Your yt-dlp at \(path) isn't working"
+    }
+
+    private func videoToolsDownloadTitle(_ prompt: VideoToolsPrompt) -> String {
+        let size = library.mediaToolStatus?.downloadSizeText.map { " (\($0))" } ?? ""
+        return prompt.brokenCustomPath == nil ? "Download\(size)" : "Download Opul's copy\(size)"
+    }
+
+    private var videoToolsPromptPresented: Binding<Bool> {
+        Binding(
+            get: { library.videoToolsPrompt != nil },
+            set: { isPresented in
+                if !isPresented {
+                    library.videoToolsPrompt = nil
+                }
+            }
+        )
     }
 
     private var deletePresented: Binding<Bool> {
