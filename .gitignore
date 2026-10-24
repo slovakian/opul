@@ -6,3 +6,6 @@
 /*.sha256
 .DS_Store
 /*.dmg
+node_modules
+dist
+.vite

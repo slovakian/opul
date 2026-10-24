@@ -10,8 +10,13 @@ APP=${1:-"$ROOT/${APP_NAME}.app"}
 HIDDEN_BUILD="$ROOT/../.opul-build-hidden-$$"
 
 restore() {
-  [[ -n "${PID:-}" ]] && kill "$PID" 2>/dev/null || true
-  [[ -d "$HIDDEN_BUILD" ]] && mv "$HIDDEN_BUILD" "$ROOT/.build"
+  if [[ -n "${PID:-}" ]]; then
+    kill "$PID" 2>/dev/null || true
+  fi
+  if [[ -d "$HIDDEN_BUILD" ]]; then
+    mv "$HIDDEN_BUILD" "$ROOT/.build" || true
+  fi
+  return 0
 }
 trap restore EXIT
 
