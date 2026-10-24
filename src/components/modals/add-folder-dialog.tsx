@@ -1,10 +1,10 @@
-import { useState } from 'react'
-import { open as openDialog } from '@tauri-apps/plugin-dialog'
-import { FolderPlus } from 'lucide-react'
-import { api } from '@/lib/api'
-import { playSound } from '@/lib/sounds'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
+import { useState } from "react";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { FolderPlus } from "lucide-react";
+import { api } from "@/lib/api";
+import { playSound } from "@/lib/sounds";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -12,70 +12,75 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import type { MachineWorkspace } from '@/types/opul'
-import { toast } from 'sonner'
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import type { MachineWorkspace } from "@/types/opul";
+import { toast } from "sonner";
 
 interface Props {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  workspace: MachineWorkspace
-  onSuccess: () => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  workspace: MachineWorkspace;
+  onSuccess: () => void;
 }
 
-export function AddFolderDialog({ open, onOpenChange, workspace, onSuccess }: Props) {
-  const [name, setName] = useState('')
-  const [path, setPath] = useState('')
-  const [makeDefault, setMakeDefault] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+export function AddFolderDialog({
+  open,
+  onOpenChange,
+  workspace,
+  onSuccess,
+}: Props) {
+  const [name, setName] = useState("");
+  const [path, setPath] = useState("");
+  const [makeDefault, setMakeDefault] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handlePickFolder = async () => {
     try {
       const selected = await openDialog({
         directory: true,
         multiple: false,
-        title: 'Select Folder',
-      })
-      if (selected && typeof selected === 'string') {
-        setPath(selected)
+        title: "Select Folder",
+      });
+      if (selected && typeof selected === "string") {
+        setPath(selected);
         if (!name) {
-          const parts = selected.split(/[\/\\]/)
-          setName(parts[parts.length - 1] || 'Folder')
+          const parts = selected.split(/[/\\]/);
+          setName(parts[parts.length - 1] || "Folder");
         }
       }
     } catch (e) {
-      console.error(e)
+      console.error(e);
     }
-  }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (!path.trim()) {
-      toast.error('Please choose a folder path')
-      return
+      toast.error("Please choose a folder path");
+      return;
     }
 
-    setIsSubmitting(true)
+    setIsSubmitting(true);
     try {
       await api.addFolder({
         workspaceId: workspace.id,
-        name: name.trim() || 'Folder',
+        name: name.trim() || "Folder",
         path: path.trim(),
         makeDefault,
-      })
-      playSound('tap')
-      toast.success(`Added folder "${name || 'Folder'}"`)
-      onSuccess()
-      onOpenChange(false)
+      });
+      playSound("tap");
+      toast.success(`Added folder "${name || "Folder"}"`);
+      onSuccess();
+      onOpenChange(false);
     } catch (err) {
-      console.error(err)
-      toast.error(`Failed to add folder: ${String(err)}`)
+      console.error(err);
+      toast.error(`Failed to add folder: ${String(err)}`);
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -87,7 +92,8 @@ export function AddFolderDialog({ open, onOpenChange, workspace, onSuccess }: Pr
               Add Saved Folder
             </DialogTitle>
             <DialogDescription>
-              Add a folder in &quot;{workspace.name}&quot; to direct downloads into specific places.
+              Add a folder in &quot;{workspace.name}&quot; to direct downloads
+              into specific places.
             </DialogDescription>
           </DialogHeader>
 
@@ -102,7 +108,11 @@ export function AddFolderDialog({ open, onOpenChange, workspace, onSuccess }: Pr
                   placeholder="Select a folder..."
                   className="font-mono text-xs"
                 />
-                <Button type="button" variant="outline" onClick={handlePickFolder}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handlePickFolder}
+                >
                   Browse...
                 </Button>
               </div>
@@ -149,5 +159,5 @@ export function AddFolderDialog({ open, onOpenChange, workspace, onSuccess }: Pr
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

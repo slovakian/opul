@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
-import { CheckCircle2, Sliders, Volume2, XCircle } from 'lucide-react'
-import { api } from '@/lib/api'
-import { areSoundsEnabled, setSoundsEnabled } from '@/lib/sounds'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
+import { useEffect, useState } from "react";
+import { CheckCircle2, Sliders, Volume2, XCircle } from "lucide-react";
+import { api } from "@/lib/api";
+import { areSoundsEnabled, setSoundsEnabled } from "@/lib/sounds";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -11,50 +11,72 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import type { MediaToolStatus, SystemPaths } from '@/types/opul'
-import { toast } from 'sonner'
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import type { MediaToolStatus, SystemPaths } from "@/types/opul";
+import { toast } from "sonner";
 
 interface Props {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  paths: SystemPaths | null
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  paths: SystemPaths | null;
 }
 
 export function PreferencesDialog({ open, onOpenChange, paths }: Props) {
-  const [downloadLimitKB, setDownloadLimitKB] = useState('')
-  const [uploadLimitKB, setUploadLimitKB] = useState('')
-  const [maxMediaDownloads, setMaxMediaDownloads] = useState('3')
-  const [soundEffects, setSoundEffects] = useState(areSoundsEnabled())
-  const [toolStatus, setToolStatus] = useState<MediaToolStatus | null>(null)
+  const [downloadLimitKB, setDownloadLimitKB] = useState("");
+  const [uploadLimitKB, setUploadLimitKB] = useState("");
+  const [maxMediaDownloads, setMaxMediaDownloads] = useState("3");
+  const [soundEffects, setSoundEffects] = useState(areSoundsEnabled());
+  const [toolStatus, setToolStatus] = useState<MediaToolStatus | null>(null);
 
   useEffect(() => {
     if (open) {
-      api.getMediaToolStatus().then(setToolStatus).catch(console.error)
+      api.getMediaToolStatus().then(setToolStatus).catch(console.error);
+      api
+        .getEnginePreferences()
+        .then((prefs) => {
+          if (prefs) {
+            setDownloadLimitKB(
+              prefs.max_download_bps > 0
+                ? String(Math.round(prefs.max_download_bps / 1024))
+                : "",
+            );
+            setUploadLimitKB(
+              prefs.max_upload_bps > 0
+                ? String(Math.round(prefs.max_upload_bps / 1024))
+                : "",
+            );
+            setMaxMediaDownloads(
+              String(prefs.max_concurrent_media_downloads || 3),
+            );
+          }
+        })
+        .catch(console.error);
     }
-  }, [open])
+  }, [open]);
 
   const handleSave = async () => {
     try {
-      const dlBps = downloadLimitKB.trim() ? parseFloat(downloadLimitKB) * 1024 : 0
-      const ulBps = uploadLimitKB.trim() ? parseFloat(uploadLimitKB) * 1024 : 0
-      await api.setSpeedLimits(dlBps, ulBps)
+      const dlBps = downloadLimitKB.trim()
+        ? parseFloat(downloadLimitKB) * 1024
+        : 0;
+      const ulBps = uploadLimitKB.trim() ? parseFloat(uploadLimitKB) * 1024 : 0;
+      await api.setSpeedLimits(dlBps, ulBps);
 
-      const maxMedia = parseInt(maxMediaDownloads, 10)
+      const maxMedia = parseInt(maxMediaDownloads, 10);
       if (!isNaN(maxMedia) && maxMedia > 0) {
-        await api.setMaxConcurrentMediaDownloads(maxMedia)
+        await api.setMaxConcurrentMediaDownloads(maxMedia);
       }
 
-      setSoundsEnabled(soundEffects)
-      toast.success('Preferences saved')
-      onOpenChange(false)
+      setSoundsEnabled(soundEffects);
+      toast.success("Preferences saved");
+      onOpenChange(false);
     } catch (err) {
-      console.error(err)
-      toast.error(`Failed to save preferences: ${String(err)}`)
+      console.error(err);
+      toast.error(`Failed to save preferences: ${String(err)}`);
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -64,7 +86,9 @@ export function PreferencesDialog({ open, onOpenChange, paths }: Props) {
             <Sliders className="size-5 text-primary" />
             Preferences
           </DialogTitle>
-          <DialogDescription>Configure system, transfer and engine settings.</DialogDescription>
+          <DialogDescription>
+            Configure system, transfer and engine settings.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-5 py-3">
@@ -75,11 +99,17 @@ export function PreferencesDialog({ open, onOpenChange, paths }: Props) {
             <div className="rounded-md border p-3 space-y-2 text-xs font-mono bg-muted/30">
               <div>
                 <span className="text-muted-foreground">Downloads Folder:</span>
-                <p className="truncate text-foreground font-medium">{paths?.downloads_folder || '—'}</p>
+                <p className="truncate text-foreground font-medium">
+                  {paths?.downloads_folder || "—"}
+                </p>
               </div>
               <div>
-                <span className="text-muted-foreground">Application Support:</span>
-                <p className="truncate text-foreground font-medium">{paths?.support_folder || '—'}</p>
+                <span className="text-muted-foreground">
+                  Application Support:
+                </span>
+                <p className="truncate text-foreground font-medium">
+                  {paths?.support_folder || "—"}
+                </p>
               </div>
             </div>
           </div>
@@ -143,13 +173,15 @@ export function PreferencesDialog({ open, onOpenChange, paths }: Props) {
                     <>
                       <CheckCircle2 className="size-3.5 text-emerald-500" />
                       <span className="font-mono text-muted-foreground">
-                        {toolStatus.yt_dlp_version || 'Installed'}
+                        {toolStatus.yt_dlp_version || "Installed"}
                       </span>
                     </>
                   ) : (
                     <>
                       <XCircle className="size-3.5 text-amber-500" />
-                      <span className="text-muted-foreground">Not found in PATH</span>
+                      <span className="text-muted-foreground">
+                        Not found in PATH
+                      </span>
                     </>
                   )}
                 </span>
@@ -161,13 +193,15 @@ export function PreferencesDialog({ open, onOpenChange, paths }: Props) {
                     <>
                       <CheckCircle2 className="size-3.5 text-emerald-500" />
                       <span className="font-mono text-muted-foreground">
-                        {toolStatus.ffmpeg_version || 'Installed'}
+                        {toolStatus.ffmpeg_version || "Installed"}
                       </span>
                     </>
                   ) : (
                     <>
                       <XCircle className="size-3.5 text-amber-500" />
-                      <span className="text-muted-foreground">Not found in PATH</span>
+                      <span className="text-muted-foreground">
+                        Not found in PATH
+                      </span>
                     </>
                   )}
                 </span>
@@ -199,5 +233,5 @@ export function PreferencesDialog({ open, onOpenChange, paths }: Props) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

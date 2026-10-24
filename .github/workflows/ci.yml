@@ -14,7 +14,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
-      - name: Test Rust and Swift
+      - uses: oven-sh/setup-bun@v2
+      - name: Install dependencies
+        run: bun install
+      - name: Test Rust and Frontend
         run: Scripts/test.sh
       - name: Package the app and disk image
         run: |

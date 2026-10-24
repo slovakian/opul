@@ -1,5 +1,5 @@
-import { Trash2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -7,15 +7,15 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from "@/components/ui/dialog";
 
 interface Props {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  title: string
-  description: string
-  showTrashOption?: boolean
-  onConfirm: (moveFilesToTrash: boolean) => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  description: string;
+  showTrashOption?: boolean;
+  onConfirm: (moveFilesToTrash: boolean) => void;
 }
 
 export function ConfirmDeleteDialog({
@@ -46,8 +46,8 @@ export function ConfirmDeleteDialog({
           <Button
             variant="secondary"
             onClick={() => {
-              onConfirm(false)
-              onOpenChange(false)
+              onConfirm(false);
+              onOpenChange(false);
             }}
           >
             Remove from List
@@ -56,8 +56,8 @@ export function ConfirmDeleteDialog({
             <Button
               variant="destructive"
               onClick={() => {
-                onConfirm(true)
-                onOpenChange(false)
+                onConfirm(true);
+                onOpenChange(false);
               }}
             >
               Move to Trash
@@ -66,5 +66,5 @@ export function ConfirmDeleteDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

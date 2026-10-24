@@ -1,9 +1,9 @@
-import { useState } from 'react'
-import { open as openDialog } from '@tauri-apps/plugin-dialog'
-import { Folder, Sparkles } from 'lucide-react'
-import { api } from '@/lib/api'
-import { playSound } from '@/lib/sounds'
-import { Button } from '@/components/ui/button'
+import { useState } from "react";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { Folder, Sparkles } from "lucide-react";
+import { api } from "@/lib/api";
+import { playSound } from "@/lib/sounds";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -11,52 +11,65 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import type { MachineWorkspace } from '@/types/opul'
-import { toast } from 'sonner'
+} from "@/components/ui/select";
+import type { MachineWorkspace } from "@/types/opul";
+import { toast } from "sonner";
 
 interface Props {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onSuccess: (newWorkspaceId?: string) => void
-  defaultPath?: string
-  workspaceToEdit?: MachineWorkspace | null
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess: (newWorkspaceId?: string) => void;
+  defaultPath?: string;
+  workspaceToEdit?: MachineWorkspace | null;
 }
 
-const EMOJI_OPTIONS = ['📦', '🎬', '🎵', '📚', '⚡️', '🚀', '📥', '💎', '🔥', '💻']
+const EMOJI_OPTIONS = [
+  "📦",
+  "🎬",
+  "🎵",
+  "📚",
+  "⚡️",
+  "🚀",
+  "📥",
+  "💎",
+  "🔥",
+  "💻",
+];
 
 export function CreateWorkspaceDialog({
   open,
   onOpenChange,
   onSuccess,
-  defaultPath = '',
+  defaultPath = "",
   workspaceToEdit,
 }: Props) {
-  const isEditing = !!workspaceToEdit
-  const [name, setName] = useState(workspaceToEdit?.name ?? '')
-  const [iconKind, setIconKind] = useState<'symbol' | 'emoji'>(
-    workspaceToEdit?.icon.kind === 'Emoji' ? 'emoji' : 'symbol',
-  )
-  const [iconValue, setIconValue] = useState(workspaceToEdit?.icon.value ?? 'sparkles')
+  const isEditing = !!workspaceToEdit;
+  const [name, setName] = useState(workspaceToEdit?.name ?? "");
+  const [iconKind, setIconKind] = useState<"symbol" | "emoji">(
+    workspaceToEdit?.icon.kind === "Emoji" ? "emoji" : "symbol",
+  );
+  const [iconValue, setIconValue] = useState(
+    workspaceToEdit?.icon.value ?? "sparkles",
+  );
   const [folderPath, setFolderPath] = useState(
     workspaceToEdit?.folders[0]?.path ?? defaultPath,
-  )
+  );
   const [defaultFormat, setDefaultFormat] = useState(
-    workspaceToEdit?.default_format ?? 'Best',
-  )
+    workspaceToEdit?.default_format ?? "Best",
+  );
   const [fileOrg, setFileOrg] = useState(
-    workspaceToEdit?.file_organization ?? 'Automatic',
-  )
-  const [isSubmitting, setIsSubmitting] = useState(false)
+    workspaceToEdit?.file_organization ?? "Automatic",
+  );
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handlePickFolder = async () => {
     try {
@@ -64,24 +77,24 @@ export function CreateWorkspaceDialog({
         directory: true,
         multiple: false,
         defaultPath: folderPath || defaultPath,
-        title: 'Choose Save Folder for Workspace',
-      })
-      if (selected && typeof selected === 'string') {
-        setFolderPath(selected)
+        title: "Choose Save Folder for Workspace",
+      });
+      if (selected && typeof selected === "string") {
+        setFolderPath(selected);
       }
     } catch (e) {
-      console.error('Failed to open folder picker:', e)
+      console.error("Failed to open folder picker:", e);
     }
-  }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (!name.trim()) {
-      toast.error('Please enter a workspace name')
-      return
+      toast.error("Please enter a workspace name");
+      return;
     }
 
-    setIsSubmitting(true)
+    setIsSubmitting(true);
     try {
       if (isEditing && workspaceToEdit) {
         await api.updateWorkspace({
@@ -90,10 +103,10 @@ export function CreateWorkspaceDialog({
           iconKind,
           iconValue,
           fileOrganization: fileOrg,
-        })
-        playSound('tap')
-        toast.success(`Updated workspace "${name}"`)
-        onSuccess(workspaceToEdit.id)
+        });
+        playSound("tap");
+        toast.success(`Updated workspace "${name}"`);
+        onSuccess(workspaceToEdit.id);
       } else {
         await api.createWorkspace({
           name: name.trim(),
@@ -102,30 +115,32 @@ export function CreateWorkspaceDialog({
           folderPath: folderPath || defaultPath,
           defaultFormat,
           fileOrganization: fileOrg,
-        })
-        playSound('tap')
-        toast.success(`Created workspace "${name}"`)
-        onSuccess()
+        });
+        playSound("tap");
+        toast.success(`Created workspace "${name}"`);
+        onSuccess();
       }
-      onOpenChange(false)
+      onOpenChange(false);
     } catch (err) {
-      console.error(err)
-      toast.error(`Error: ${String(err)}`)
+      console.error(err);
+      toast.error(`Error: ${String(err)}`);
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[480px]">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>{isEditing ? 'Edit Workspace' : 'Create Workspace'}</DialogTitle>
+            <DialogTitle>
+              {isEditing ? "Edit Workspace" : "Create Workspace"}
+            </DialogTitle>
             <DialogDescription>
               {isEditing
-                ? 'Update workspace settings and icon.'
-                : 'Workspaces help you organize different types of downloads and saved folders.'}
+                ? "Update workspace settings and icon."
+                : "Workspaces help you organize different types of downloads and saved folders."}
             </DialogDescription>
           </DialogHeader>
 
@@ -146,11 +161,15 @@ export function CreateWorkspaceDialog({
               <div className="flex flex-wrap gap-2 pt-1">
                 <Button
                   type="button"
-                  variant={iconKind === 'symbol' && iconValue === 'sparkles' ? 'default' : 'outline'}
+                  variant={
+                    iconKind === "symbol" && iconValue === "sparkles"
+                      ? "default"
+                      : "outline"
+                  }
                   size="sm"
                   onClick={() => {
-                    setIconKind('symbol')
-                    setIconValue('sparkles')
+                    setIconKind("symbol");
+                    setIconValue("sparkles");
                   }}
                   className="gap-1.5"
                 >
@@ -159,11 +178,15 @@ export function CreateWorkspaceDialog({
                 </Button>
                 <Button
                   type="button"
-                  variant={iconKind === 'symbol' && iconValue === 'folder' ? 'default' : 'outline'}
+                  variant={
+                    iconKind === "symbol" && iconValue === "folder"
+                      ? "default"
+                      : "outline"
+                  }
                   size="sm"
                   onClick={() => {
-                    setIconKind('symbol')
-                    setIconValue('folder')
+                    setIconKind("symbol");
+                    setIconValue("folder");
                   }}
                   className="gap-1.5"
                 >
@@ -174,11 +197,15 @@ export function CreateWorkspaceDialog({
                   <Button
                     key={emoji}
                     type="button"
-                    variant={iconKind === 'emoji' && iconValue === emoji ? 'default' : 'outline'}
+                    variant={
+                      iconKind === "emoji" && iconValue === emoji
+                        ? "default"
+                        : "outline"
+                    }
                     size="sm"
                     onClick={() => {
-                      setIconKind('emoji')
-                      setIconValue(emoji)
+                      setIconKind("emoji");
+                      setIconValue(emoji);
                     }}
                     className="text-base px-2.5"
                   >
@@ -199,7 +226,11 @@ export function CreateWorkspaceDialog({
                     placeholder="Path to downloads folder"
                     className="font-mono text-xs"
                   />
-                  <Button type="button" variant="outline" onClick={handlePickFolder}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handlePickFolder}
+                  >
                     Browse...
                   </Button>
                 </div>
@@ -212,7 +243,7 @@ export function CreateWorkspaceDialog({
                 <Select
                   value={defaultFormat}
                   onValueChange={(val) => {
-                    if (val) setDefaultFormat(val as typeof defaultFormat)
+                    if (val) setDefaultFormat(val as typeof defaultFormat);
                   }}
                 >
                   <SelectTrigger>
@@ -234,7 +265,7 @@ export function CreateWorkspaceDialog({
                 <Select
                   value={fileOrg}
                   onValueChange={(val) => {
-                    if (val) setFileOrg(val as typeof fileOrg)
+                    if (val) setFileOrg(val as typeof fileOrg);
                   }}
                 >
                   <SelectTrigger>
@@ -242,8 +273,12 @@ export function CreateWorkspaceDialog({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Automatic">Automatic</SelectItem>
-                    <SelectItem value="AlwaysCreateFolder">Always Folder</SelectItem>
-                    <SelectItem value="KeepInSaveLocation">Flat / In Place</SelectItem>
+                    <SelectItem value="AlwaysCreateFolder">
+                      Always Folder
+                    </SelectItem>
+                    <SelectItem value="KeepInSaveLocation">
+                      Flat / In Place
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -260,11 +295,11 @@ export function CreateWorkspaceDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isEditing ? 'Save Changes' : 'Create Workspace'}
+              {isEditing ? "Save Changes" : "Create Workspace"}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

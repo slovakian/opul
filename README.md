@@ -90,6 +90,12 @@ Scripts/compile_and_run.sh
 
 ---
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines, testing requirements, and development workflow.
+
+---
+
 ## License
 
 MIT License. Bug reports and pull requests are welcome!

@@ -22,10 +22,18 @@ pub struct SystemPaths {
     pub support_folder: String,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+pub struct EnginePreferences {
+    pub max_download_bps: u64,
+    pub max_upload_bps: u64,
+    pub max_concurrent_media_downloads: u32,
+}
+
 pub struct AppState {
     pub machine: Arc<OpulStateMachine>,
     pub downloads_folder: String,
     pub support_folder: String,
+    pub preferences: Arc<std::sync::RwLock<EnginePreferences>>,
 }
 
 #[tauri::command]
@@ -505,6 +513,15 @@ fn reveal_in_finder(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn get_engine_preferences(state: State<AppState>) -> Result<EnginePreferences, String> {
+    Ok(state.preferences.read().map(|p| p.clone()).unwrap_or(EnginePreferences {
+        max_download_bps: 0,
+        max_upload_bps: 0,
+        max_concurrent_media_downloads: 3,
+    }))
+}
+
+#[tauri::command]
 fn get_media_tool_status(state: State<AppState>) -> Result<MediaToolStatus, String> {
     Ok(state.machine.media_tool_status())
 }
@@ -516,6 +533,10 @@ fn set_speed_limits(
     upload_bps: u64,
 ) -> Result<(), String> {
     state.machine.set_speed_limits(download_bps, upload_bps);
+    if let Ok(mut prefs) = state.preferences.write() {
+        prefs.max_download_bps = download_bps;
+        prefs.max_upload_bps = upload_bps;
+    }
     Ok(())
 }
 
@@ -525,6 +546,9 @@ fn set_max_concurrent_media_downloads(
     maximum: u32,
 ) -> Result<(), String> {
     state.machine.set_max_concurrent_media_downloads(maximum);
+    if let Ok(mut prefs) = state.preferences.write() {
+        prefs.max_concurrent_media_downloads = maximum;
+    }
     Ok(())
 }
 
@@ -588,29 +612,12 @@ fn handle_platform_effects(machine: Arc<OpulStateMachine>) {
                 for target in &effect.targets {
                     let path = Path::new(&target.path);
                     if path.exists() {
-                        #[cfg(target_os = "macos")]
-                        {
-                            let _ = std::process::Command::new("osascript")
-                                .arg("-e")
-                                .arg(format!(
-                                    "tell application \"Finder\" to delete POSIX file \"{}\"",
-                                    target.path
-                                ))
-                                .output();
-                        }
-                        #[cfg(not(target_os = "macos"))]
-                        {
-                            if path.is_dir() {
-                                let _ = fs::remove_dir_all(path);
-                            } else {
-                                let _ = fs::remove_file(path);
-                            }
-                        }
+                        let _ = trash::delete(path);
                     }
                 }
                 let _ = machine.complete_platform_effect(effect.effect_id, true);
             }
-            std::thread::sleep(Duration::from_millis(500));
+            std::thread::sleep(Duration::from_millis(200));
         })
         .ok();
 }
@@ -683,6 +690,11 @@ pub fn run() {
         machine,
         downloads_folder: downloads_dir.to_string_lossy().to_string(),
         support_folder: support_dir.to_string_lossy().to_string(),
+        preferences: Arc::new(std::sync::RwLock::new(EnginePreferences {
+            max_download_bps: 0,
+            max_upload_bps: 0,
+            max_concurrent_media_downloads: 3,
+        })),
     };
 
     tauri::Builder::default()
@@ -726,6 +738,7 @@ pub fn run() {
             move_download,
             reveal_in_finder,
             get_media_tool_status,
+            get_engine_preferences,
             set_speed_limits,
             set_max_concurrent_media_downloads
         ])

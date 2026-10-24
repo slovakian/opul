@@ -1,15 +1,6 @@
-import {
-  ArrowDownCircle,
-  FolderOpen,
-  Info,
-  Pause,
-  Play,
-  RotateCw,
-  Trash2,
-} from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
+import { ArrowDown, ArrowUp } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import {
   Table,
   TableBody,
@@ -17,180 +8,159 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
+} from "@/components/ui/table";
+import {
+  DownloadActions,
+  type DownloadActionHandlers,
+} from "@/components/download-actions";
 import {
   formatBytes,
   formatRate,
+  getMediaArtwork,
   getSourceLabel,
   getStateMeta,
-} from '@/lib/format'
-import type { MachineDownload } from '@/types/opul'
+} from "@/lib/format";
+import type { MachineDownload } from "@/types/opul";
 
 interface DownloadTableProps {
-  downloads: MachineDownload[]
-  onPause: (id: string) => void
-  onResume: (id: string) => void
-  onRetry: (id: string) => void
-  onReveal: (path: string) => void
-  onInspect: (download: MachineDownload) => void
-  onRemove: (download: MachineDownload) => void
+  downloads: MachineDownload[];
+  handlers: DownloadActionHandlers;
 }
 
-export function DownloadTable({
-  downloads,
-  onPause,
-  onResume,
-  onRetry,
-  onReveal,
-  onInspect,
-  onRemove,
-}: DownloadTableProps) {
+export function DownloadTable({ downloads, handlers }: DownloadTableProps) {
   return (
-    <div className="rounded-lg border bg-card overflow-hidden">
+    <div className="rounded-xl border border-border/60 bg-card overflow-hidden shadow-2xs">
       <Table>
         <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            <TableHead className="w-[35%]">Name</TableHead>
-            <TableHead className="w-[12%]">Source</TableHead>
-            <TableHead className="w-[12%]">Status</TableHead>
-            <TableHead className="w-[16%]">Progress</TableHead>
-            <TableHead className="w-[13%]">Size</TableHead>
-            <TableHead className="w-[12%] text-right">Actions</TableHead>
+          <TableRow className="hover:bg-transparent border-b border-border/60 bg-muted/30">
+            <TableHead className="w-[40%] text-xs font-medium">Name</TableHead>
+            <TableHead className="w-[10%] text-xs font-medium">
+              Source
+            </TableHead>
+            <TableHead className="w-[12%] text-xs font-medium">
+              Status
+            </TableHead>
+            <TableHead className="w-[18%] text-xs font-medium">
+              Progress
+            </TableHead>
+            <TableHead className="w-[10%] text-xs font-medium">Size</TableHead>
+            <TableHead className="w-[10%] text-right text-xs font-medium pr-4">
+              Actions
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {downloads.map((download) => {
-            const percent = download.progress_millionths / 10_000
-            const stateMeta = getStateMeta(download.state)
-            const isTorrent = download.source === 'Torrent'
-            const isPaused = download.state === 'Paused'
-            const isFailed = download.state === 'Failed'
+            const percent = download.progress_millionths / 10_000;
+            const stateMeta = getStateMeta(download.state);
+            const artworkSrc = getMediaArtwork(
+              download.name,
+              download.source,
+              download.thumbnail_url,
+            );
 
             return (
-              <TableRow key={download.id} className="text-xs">
-                {/* Name */}
-                <TableCell className="font-medium max-w-0">
-                  <div className="truncate font-semibold text-xs" title={download.name}>
-                    {download.name}
-                  </div>
-                  {download.download_rate > 0 && (
-                    <div className="flex items-center gap-1 font-mono text-[11px] text-blue-500">
-                      <ArrowDownCircle className="size-3" />
-                      {formatRate(download.download_rate)}
+              <TableRow
+                key={download.id}
+                className="text-xs group hover:bg-muted/40 transition-colors"
+                onDoubleClick={() => {
+                  if (download.output_path) {
+                    handlers.onReveal(download.output_path);
+                  }
+                }}
+              >
+                {/* Name & Artwork */}
+                <TableCell className="font-medium max-w-0 py-2.5">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <img
+                      src={artworkSrc}
+                      alt=""
+                      className="size-5 shrink-0 object-contain select-none"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div
+                        className="truncate font-medium text-xs text-foreground select-text"
+                        title={download.name}
+                      >
+                        {download.name}
+                      </div>
+                      {download.download_rate > 0 && (
+                        <div className="flex items-center gap-1 font-mono text-[10px] text-blue-500">
+                          <ArrowDown className="size-2.5" />
+                          {formatRate(download.download_rate)}
+                        </div>
+                      )}
+                      {download.upload_rate > 0 &&
+                        download.download_rate === 0 && (
+                          <div className="flex items-center gap-1 font-mono text-[10px] text-emerald-500">
+                            <ArrowUp className="size-2.5" />
+                            {formatRate(download.upload_rate)}
+                          </div>
+                        )}
                     </div>
-                  )}
+                  </div>
                 </TableCell>
 
                 {/* Source */}
-                <TableCell>
-                  <Badge variant="outline" className="text-[10px] font-normal">
+                <TableCell className="py-2.5">
+                  <span className="font-sans text-[10px] text-muted-foreground/80 bg-muted/50 px-1.5 py-0.5 rounded border border-border/40">
                     {getSourceLabel(download.source)}
-                  </Badge>
+                  </span>
                 </TableCell>
 
                 {/* Status */}
-                <TableCell>
-                  <Badge variant={stateMeta.badgeVariant} className="text-[10px] font-medium">
+                <TableCell className="py-2.5">
+                  <Badge
+                    variant={stateMeta.badgeVariant}
+                    className="text-[10px] font-medium h-5 px-1.5 rounded-full"
+                  >
                     {stateMeta.label}
                   </Badge>
                 </TableCell>
 
                 {/* Progress */}
-                <TableCell>
-                  <div className="space-y-1">
-                    <Progress value={percent} className="h-1.5" />
-                    <span className="text-[10px] font-mono text-muted-foreground">
-                      {percent.toFixed(1)}%
-                    </span>
+                <TableCell className="py-2.5">
+                  <div className="space-y-1 w-36">
+                    <div className="flex items-center justify-between text-[10px] font-mono text-muted-foreground">
+                      <span>{percent.toFixed(1)}%</span>
+                    </div>
+                    <Progress
+                      value={percent}
+                      className={`h-1.5 ${
+                        download.state === "Finished"
+                          ? "[&>div]:bg-emerald-500"
+                          : download.state === "Failed"
+                            ? "[&>div]:bg-destructive"
+                            : download.state === "Paused"
+                              ? "[&>div]:bg-amber-500"
+                              : "[&>div]:bg-primary"
+                      }`}
+                    />
                   </div>
                 </TableCell>
 
                 {/* Size */}
-                <TableCell className="font-mono text-muted-foreground">
-                  <div>{formatBytes(download.bytes_downloaded)}</div>
-                  {download.total_size > 0 && (
-                    <div className="text-[10px] text-muted-foreground/70">
-                      of {formatBytes(download.total_size)}
-                    </div>
-                  )}
+                <TableCell className="font-mono text-[11px] text-muted-foreground py-2.5">
+                  {download.total_size > 0
+                    ? formatBytes(download.total_size)
+                    : formatBytes(download.bytes_downloaded)}
                 </TableCell>
 
                 {/* Actions */}
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    {download.capabilities.can_pause && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-6 text-muted-foreground hover:text-foreground"
-                        onClick={() => onPause(download.id)}
-                        title="Pause"
-                      >
-                        <Pause className="size-3" />
-                      </Button>
-                    )}
-                    {download.capabilities.can_resume && isPaused && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-6 text-muted-foreground hover:text-foreground"
-                        onClick={() => onResume(download.id)}
-                        title="Resume"
-                      >
-                        <Play className="size-3" />
-                      </Button>
-                    )}
-                    {download.capabilities.can_retry && isFailed && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-6 text-muted-foreground hover:text-foreground"
-                        onClick={() => onRetry(download.id)}
-                        title="Retry"
-                      >
-                        <RotateCw className="size-3" />
-                      </Button>
-                    )}
-                    {download.output_path && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-6 text-muted-foreground hover:text-foreground"
-                        onClick={() => onReveal(download.output_path!)}
-                        title="Reveal in Finder"
-                      >
-                        <FolderOpen className="size-3" />
-                      </Button>
-                    )}
-                    {isTorrent && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-6 text-muted-foreground hover:text-foreground"
-                        onClick={() => onInspect(download)}
-                        title="Inspect Torrent"
-                      >
-                        <Info className="size-3" />
-                      </Button>
-                    )}
-                    {download.capabilities.can_remove && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-6 text-muted-foreground hover:text-destructive"
-                        onClick={() => onRemove(download)}
-                        title="Remove"
-                      >
-                        <Trash2 className="size-3" />
-                      </Button>
-                    )}
+                <TableCell className="text-right py-2.5 pr-3">
+                  <div className="flex justify-end">
+                    <DownloadActions
+                      download={download}
+                      handlers={handlers}
+                      size="sm"
+                    />
                   </div>
                 </TableCell>
               </TableRow>
-            )
+            );
           })}
         </TableBody>
       </Table>
     </div>
-  )
+  );
 }

@@ -1,39 +1,34 @@
-import * as React from 'react'
+import * as React from "react";
 import {
   AlertTriangle,
-  Download,
+  ArrowDownCircle,
   FileCode,
   Layers,
   X,
-} from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { DownloadCard } from '@/components/download-card'
-import { DownloadTable } from '@/components/download-table'
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { DownloadCard } from "@/components/download-card";
+import { DownloadTable } from "@/components/download-table";
+import type { DownloadActionHandlers } from "@/components/download-actions";
 import type {
   MachineDownload,
   MachineGrouping,
   MachineLayout,
   MachineSort,
   MachineWorkspace,
-} from '@/types/opul'
+} from "@/types/opul";
 
 interface WorkspaceViewProps {
-  workspace: MachineWorkspace
-  downloads: MachineDownload[]
-  layout: MachineLayout
-  sort: MachineSort
-  grouping: MachineGrouping
-  recoveryNotices: string[]
-  onDismissRecovery: () => void
-  onAcknowledgeRecovery: () => void
-  onPause: (id: string) => void
-  onResume: (id: string) => void
-  onRetry: (id: string) => void
-  onCancel: (id: string) => void
-  onReveal: (path: string) => void
-  onInspect: (download: MachineDownload) => void
-  onRemove: (download: MachineDownload) => void
-  onPickTorrentFile: () => void
+  workspace: MachineWorkspace;
+  downloads: MachineDownload[];
+  layout: MachineLayout;
+  sort: MachineSort;
+  grouping: MachineGrouping;
+  recoveryNotices: string[];
+  onDismissRecovery: () => void;
+  onAcknowledgeRecovery: () => void;
+  handlers: DownloadActionHandlers;
+  onPickTorrentFile: () => void;
 }
 
 export function WorkspaceView({
@@ -45,67 +40,61 @@ export function WorkspaceView({
   recoveryNotices,
   onDismissRecovery,
   onAcknowledgeRecovery,
-  onPause,
-  onResume,
-  onRetry,
-  onCancel,
-  onReveal,
-  onInspect,
-  onRemove,
+  handlers,
   onPickTorrentFile,
 }: WorkspaceViewProps) {
   // Sort downloads
   const sortedDownloads = React.useMemo(() => {
-    const list = [...downloads]
+    const list = [...downloads];
     switch (sort) {
-      case 'Name':
-        return list.sort((a, b) => a.name.localeCompare(b.name))
-      case 'State':
-        return list.sort((a, b) => a.state.localeCompare(b.state))
-      case 'Source':
-        return list.sort((a, b) => a.source.localeCompare(b.source))
-      case 'Order':
+      case "Name":
+        return list.sort((a, b) => a.name.localeCompare(b.name));
+      case "State":
+        return list.sort((a, b) => a.state.localeCompare(b.state));
+      case "Source":
+        return list.sort((a, b) => a.source.localeCompare(b.source));
+      case "Order":
       default:
-        return list
+        return list;
     }
-  }, [downloads, sort])
+  }, [downloads, sort]);
 
   // Group downloads
   const groupedDownloads = React.useMemo(() => {
-    if (grouping === 'None') {
-      return [{ key: 'all', label: '', items: sortedDownloads }]
+    if (grouping === "None") {
+      return [{ key: "all", label: "", items: sortedDownloads }];
     }
 
-    const groups: Record<string, MachineDownload[]> = {}
+    const groups: Record<string, MachineDownload[]> = {};
     for (const d of sortedDownloads) {
-      let key = 'Other'
-      if (grouping === 'State') {
-        key = d.state
-      } else if (grouping === 'Source') {
-        key = d.source
-      } else if (grouping === 'Folder') {
-        const f = workspace.folders.find((f) => f.id === d.folder_id)
-        key = f?.name ?? 'Default Folder'
+      let key = "Other";
+      if (grouping === "State") {
+        key = d.state;
+      } else if (grouping === "Source") {
+        key = d.source;
+      } else if (grouping === "Folder") {
+        const f = workspace.folders.find((f) => f.id === d.folder_id);
+        key = f?.name ?? "Default Folder";
       }
-      if (!groups[key]) groups[key] = []
-      groups[key].push(d)
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(d);
     }
 
     return Object.entries(groups).map(([key, items]) => ({
       key,
       label: key,
       items,
-    }))
-  }, [sortedDownloads, grouping, workspace.folders])
+    }));
+  }, [sortedDownloads, grouping, workspace.folders]);
 
   return (
-    <div className="flex-1 flex flex-col p-4 md:p-6 space-y-6">
+    <div className="flex-1 flex flex-col p-4 md:p-6 space-y-5 overflow-y-auto">
       {/* Recovery notice banner */}
       {recoveryNotices.length > 0 && (
         <div className="flex items-center justify-between rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400">
           <div className="flex items-center gap-2">
             <AlertTriangle className="size-4 shrink-0 text-amber-500" />
-            <span>{recoveryNotices.join(' ')}</span>
+            <span>{recoveryNotices.join(" ")}</span>
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -130,58 +119,50 @@ export function WorkspaceView({
 
       {/* Downloads list / table or empty state */}
       {downloads.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed p-12 text-center min-h-[360px]">
-          <div className="flex size-14 items-center justify-center rounded-2xl bg-muted/60 text-muted-foreground mb-4">
-            <Download className="size-7" />
+        <div className="flex flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 p-12 text-center min-h-[380px] bg-card/40">
+          <div className="flex size-14 items-center justify-center rounded-2xl bg-muted/50 text-muted-foreground/70 mb-4 shadow-2xs">
+            <ArrowDownCircle className="size-7" />
           </div>
-          <h3 className="text-base font-semibold">No downloads in this workspace</h3>
-          <p className="text-xs text-muted-foreground max-w-sm mt-1 mb-6">
-            Paste a video URL, torrent magnet link, direct web link above, or open a .torrent file to start downloading.
+          <h3 className="text-sm font-semibold tracking-tight text-foreground">
+            No downloads in this workspace
+          </h3>
+          <p className="text-xs text-muted-foreground/80 max-w-sm mt-1.5 mb-5 leading-relaxed">
+            Paste a video page, direct file URL, or magnet link in the toolbar
+            above, or open a BitTorrent file to begin.
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <Button variant="outline" size="sm" onClick={onPickTorrentFile} className="gap-2">
-              <FileCode className="size-3.5" />
-              Open .torrent File
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onPickTorrentFile}
+            className="gap-2 h-8 text-xs rounded-lg border-border/60 shadow-2xs"
+          >
+            <FileCode className="size-3.5 text-muted-foreground" />
+            <span>Open .torrent File</span>
+          </Button>
         </div>
       ) : (
         <div className="space-y-6">
           {groupedDownloads.map((group) => (
             <div key={group.key} className="space-y-3">
               {group.label && (
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground pb-1 border-b">
-                  <Layers className="size-3.5" />
+                <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80 pb-1.5 border-b border-border/40">
+                  <Layers className="size-3.5 text-muted-foreground/60" />
                   <span>{group.label}</span>
-                  <span className="text-[10px] font-mono text-muted-foreground">
+                  <span className="text-[10px] font-mono opacity-60">
                     ({group.items.length})
                   </span>
                 </div>
               )}
 
-              {layout === 'Table' ? (
-                <DownloadTable
-                  downloads={group.items}
-                  onPause={onPause}
-                  onResume={onResume}
-                  onRetry={onRetry}
-                  onReveal={onReveal}
-                  onInspect={onInspect}
-                  onRemove={onRemove}
-                />
+              {layout === "Table" ? (
+                <DownloadTable downloads={group.items} handlers={handlers} />
               ) : (
-                <div className="grid gap-3 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
                   {group.items.map((download) => (
                     <DownloadCard
                       key={download.id}
                       download={download}
-                      onPause={onPause}
-                      onResume={onResume}
-                      onRetry={onRetry}
-                      onCancel={onCancel}
-                      onReveal={onReveal}
-                      onInspect={onInspect}
-                      onRemove={onRemove}
+                      handlers={handlers}
                     />
                   ))}
                 </div>
@@ -191,5 +172,5 @@ export function WorkspaceView({
         </div>
       )}
     </div>
-  )
+  );
 }
