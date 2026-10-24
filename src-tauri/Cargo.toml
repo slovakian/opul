@@ -29,3 +29,7 @@ open = "5"
 trash = "5.2"
 uuid = { version = "1.18", features = ["v4"] }
 opul_core = { path = "../crates/opul-core" }
+
+[dev-dependencies]
+tauri = { version = "2", features = ["test"] }
+

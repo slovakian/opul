@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { api } from "@/lib/api";
 import { playSound } from "@/lib/sounds";
 import type {
@@ -82,36 +83,38 @@ export function useOpul() {
     prevDownloadsRef.current = curr;
   }, [snapshot]);
 
-  // Reactive wait-for-snapshot loop
+  // Reactive event subscription: listen for snapshot updates pushed from Rust backend
   useEffect(() => {
-    let unmounted = false;
+    let unlisten: (() => void) | undefined;
+    let mounted = true;
 
-    async function poll() {
-      while (!unmounted) {
-        try {
-          const current = snapshotRef.current;
-          const currentSeq = current?.sequence ?? 0;
-          const currentBoot = current?.boot_id ?? null;
-          const nextSnap = await api.waitForSnapshot(
-            currentBoot,
-            currentSeq,
-            2000,
-          );
-          if (!unmounted && nextSnap) {
-            setSnapshot(nextSnap);
-            snapshotRef.current = nextSnap;
-          }
-        } catch {
-          if (!unmounted) {
-            await new Promise((r) => setTimeout(r, 1000));
-          }
-        }
+    listen<MachineSnapshot>("opul://snapshot", (event) => {
+      if (!mounted) return;
+      const nextSnap = event.payload;
+      const current = snapshotRef.current;
+      if (
+        !current ||
+        current.boot_id !== nextSnap.boot_id ||
+        current.sequence !== nextSnap.sequence
+      ) {
+        setSnapshot(nextSnap);
+        snapshotRef.current = nextSnap;
       }
-    }
+    })
+      .then((fn) => {
+        if (!mounted) {
+          fn();
+        } else {
+          unlisten = fn;
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to subscribe to opul://snapshot events:", err);
+      });
 
-    poll();
     return () => {
-      unmounted = true;
+      mounted = false;
+      unlisten?.();
     };
   }, []);
 

@@ -58,14 +58,11 @@ export default function App() {
     useState<MachineDownload | null>(null);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [probeUrl, setProbeUrl] = useState<string | null>(null);
-  const [recoveryNotices, setRecoveryNotices] = useState<string[]>([]);
+  const [isRecoveryDismissed, setIsRecoveryDismissed] = useState(false);
 
-  // Update recovery notices from snapshot
-  useState(() => {
-    if (snapshot?.recovery_notices && snapshot.recovery_notices.length > 0) {
-      setRecoveryNotices(snapshot.recovery_notices);
-    }
-  });
+  const recoveryNotices = isRecoveryDismissed
+    ? []
+    : (snapshot?.recovery_notices ?? []);
 
   // Handle URL or Magnet submission
   const handleSubmitUrl = async (url: string, folderId: string) => {
@@ -251,7 +248,7 @@ export default function App() {
   const handleAcknowledgeRecovery = async () => {
     try {
       await api.acknowledgeRecovery();
-      setRecoveryNotices([]);
+      setIsRecoveryDismissed(true);
       toast.success("App session recovered");
       refresh();
     } catch (err) {
@@ -331,7 +328,7 @@ export default function App() {
               sort={selectedWorkspace.sort ?? "Order"}
               grouping={selectedWorkspace.grouping ?? "None"}
               recoveryNotices={recoveryNotices}
-              onDismissRecovery={() => setRecoveryNotices([])}
+              onDismissRecovery={() => setIsRecoveryDismissed(true)}
               onAcknowledgeRecovery={handleAcknowledgeRecovery}
               handlers={downloadHandlers}
               onPickTorrentFile={() => handlePickTorrentFile()}

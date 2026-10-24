@@ -50,16 +50,19 @@ fn get_snapshot(state: State<AppState>) -> Result<MachineSnapshot, String> {
 }
 
 #[tauri::command]
-fn wait_for_snapshot(
-    state: State<AppState>,
+async fn wait_for_snapshot(
+    state: State<'_, AppState>,
     after_boot_id: Option<String>,
     after_sequence: u64,
     timeout_ms: Option<u32>,
 ) -> Result<MachineSnapshot, String> {
     let timeout = timeout_ms.unwrap_or(15_000).min(30_000);
-    Ok(state
-        .machine
-        .wait_for_snapshot(after_boot_id, after_sequence, timeout))
+    let machine = Arc::clone(&state.machine);
+    tokio::task::spawn_blocking(move || {
+        machine.wait_for_snapshot(after_boot_id, after_sequence, timeout)
+    })
+    .await
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -154,21 +157,24 @@ fn update_workspace(
 }
 
 #[tauri::command]
-fn delete_workspace(
-    state: State<AppState>,
+async fn delete_workspace(
+    state: State<'_, AppState>,
     workspace_id: String,
     move_files_to_trash: bool,
 ) -> Result<MachineCommandReceipt, String> {
-    state
-        .machine
-        .delete_workspace(
+    let machine = Arc::clone(&state.machine);
+    tokio::task::spawn_blocking(move || {
+        machine.delete_workspace(
             Uuid::new_v4().to_string(),
             None,
             workspace_id,
             None,
             move_files_to_trash,
         )
-        .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -291,25 +297,30 @@ fn set_default_format(
 }
 
 #[tauri::command]
-fn add_torrent(
-    state: State<AppState>,
+async fn add_torrent(
+    state: State<'_, AppState>,
     workspace_id: String,
     folder_id: String,
     source: String,
     metainfo_bytes: Option<Vec<u8>>,
     seed_ratio_limit: Option<f64>,
 ) -> Result<MachineCommandReceipt, String> {
-    let req = MachineTorrentRequest {
-        request_id: Uuid::new_v4().to_string(),
-        expected_revision: None,
-        workspace_id,
-        folder_id,
-        source,
-        metainfo: metainfo_bytes,
-        seed_ratio_limit,
-    };
-
-    state.machine.add_torrent(req).map_err(|e| e.to_string())
+    let machine = Arc::clone(&state.machine);
+    tokio::task::spawn_blocking(move || {
+        let req = MachineTorrentRequest {
+            request_id: Uuid::new_v4().to_string(),
+            expected_revision: None,
+            workspace_id,
+            folder_id,
+            source,
+            metainfo: metainfo_bytes,
+            seed_ratio_limit,
+        };
+        machine.add_torrent(req)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -417,20 +428,23 @@ fn stop_seeding(
 }
 
 #[tauri::command]
-fn remove_downloads(
-    state: State<AppState>,
+async fn remove_downloads(
+    state: State<'_, AppState>,
     download_ids: Vec<String>,
     move_files_to_trash: bool,
 ) -> Result<MachineCommandReceipt, String> {
-    state
-        .machine
-        .remove_downloads(
+    let machine = Arc::clone(&state.machine);
+    tokio::task::spawn_blocking(move || {
+        machine.remove_downloads(
             Uuid::new_v4().to_string(),
             None,
             download_ids,
             move_files_to_trash,
         )
-        .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -468,27 +482,30 @@ fn set_torrent_files(
 }
 
 #[tauri::command]
-fn move_download(
-    state: State<AppState>,
+async fn move_download(
+    state: State<'_, AppState>,
     download_id: String,
     folder_id: String,
     output_path: String,
     content_folder: Option<String>,
 ) -> Result<MachineCommandReceipt, String> {
-    let cmd = MachineDownloadCommand {
-        request_id: Uuid::new_v4().to_string(),
-        expected_revision: None,
-        download_id,
-    };
-    state
-        .machine
-        .move_download(
+    let machine = Arc::clone(&state.machine);
+    tokio::task::spawn_blocking(move || {
+        let cmd = MachineDownloadCommand {
+            request_id: Uuid::new_v4().to_string(),
+            expected_revision: None,
+            download_id,
+        };
+        machine.move_download(
             cmd,
             folder_id,
             output_path,
             content_folder,
         )
-        .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -622,6 +639,31 @@ fn handle_platform_effects(machine: Arc<OpulStateMachine>) {
         .ok();
 }
 
+fn start_snapshot_emitter<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    machine: Arc<OpulStateMachine>,
+) {
+    std::thread::Builder::new()
+        .name("opul-snapshot-emitter".to_string())
+        .spawn(move || {
+            let initial = machine.snapshot();
+            let mut boot = initial.boot_id;
+            let mut sequence = initial.sequence;
+            loop {
+                let next = machine.wait_for_snapshot(boot.clone(), sequence, 30_000);
+                if boot != next.boot_id || next.sequence != sequence {
+                    boot = next.boot_id.clone();
+                    sequence = next.sequence;
+                    use tauri::Emitter;
+                    if app.emit("opul://snapshot", &next).is_err() {
+                        break;
+                    }
+                }
+            }
+        })
+        .ok();
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let support_dir = dirs::data_local_dir()
@@ -686,6 +728,8 @@ pub fn run() {
 
     handle_platform_effects(Arc::clone(&machine));
 
+    let emitter_machine = Arc::clone(&machine);
+
     let app_state = AppState {
         machine,
         downloads_folder: downloads_dir.to_string_lossy().to_string(),
@@ -698,6 +742,10 @@ pub fn run() {
     };
 
     tauri::Builder::default()
+        .setup(move |app| {
+            start_snapshot_emitter(app.handle().clone(), emitter_machine);
+            Ok(())
+        })
         .plugin(
             tauri_plugin_log::Builder::new()
                 .targets([
@@ -751,3 +799,159 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running opul application");
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Instant;
+    use tauri::Manager;
+
+    fn test_app_state() -> AppState {
+        std::thread::spawn(|| {
+            let temp_dir = std::env::temp_dir().join(format!("opul-test-{}", Uuid::new_v4()));
+            let support_dir = temp_dir.join("support");
+            let downloads_dir = temp_dir.join("downloads");
+            let torrent_session = support_dir.join("torrent-session");
+            let media_session = support_dir.join("media-session");
+            fs::create_dir_all(&torrent_session).ok();
+            fs::create_dir_all(&media_session).ok();
+            fs::create_dir_all(&downloads_dir).ok();
+
+            let config = OpulMachineConfig {
+                application_support_folder: support_dir.to_string_lossy().to_string(),
+                downloads_folder: downloads_dir.to_string_lossy().to_string(),
+                torrent: EngineConfig {
+                    session_folder: torrent_session.to_string_lossy().to_string(),
+                    listen_port: 0,
+                    randomize_port: true,
+                    enable_dht: false,
+                    max_connections: 10,
+                    max_download_bps: 0,
+                    max_upload_bps: 0,
+                },
+                media: MediaEngineConfig {
+                    session_folder: media_session.to_string_lossy().to_string(),
+                    resources_folder: None,
+                    yt_dlp_path: None,
+                    ffmpeg_path: None,
+                    max_concurrent_downloads: 1,
+                    max_download_bps: 0,
+                },
+            };
+            let machine = OpulStateMachine::open(config).unwrap();
+            AppState {
+                machine,
+                downloads_folder: downloads_dir.to_string_lossy().to_string(),
+                support_folder: support_dir.to_string_lossy().to_string(),
+                preferences: Arc::new(std::sync::RwLock::new(EnginePreferences {
+                    max_download_bps: 0,
+                    max_upload_bps: 0,
+                    max_concurrent_media_downloads: 3,
+                })),
+            }
+        })
+        .join()
+        .unwrap()
+    }
+
+    #[test]
+    fn test_snapshot_wait_blocks_main_thread_event_loop() {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        rt.block_on(async {
+            let app = tauri::test::mock_app();
+            app.manage(test_app_state());
+            let state = app.state::<AppState>();
+            let current_snap = state.machine.snapshot();
+
+            let start = Instant::now();
+            let (tx, rx) = tokio::sync::oneshot::channel();
+
+            // Task simulating a user click / UI event on the main thread
+            tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+                let _ = tx.send(Instant::now());
+            });
+
+            // Calling wait_for_snapshot asynchronously off the main thread
+            let _ = wait_for_snapshot(
+                state,
+                current_snap.boot_id,
+                current_snap.sequence,
+                Some(500),
+            )
+            .await;
+
+            let ui_finished = rx.await.expect("UI click should have run");
+            let ui_latency = ui_finished.duration_since(start);
+            assert!(
+                ui_latency < Duration::from_millis(100),
+                "UI click was blocked by synchronous wait_for_snapshot! Latency was {:?}",
+                ui_latency
+            );
+        });
+    }
+
+    #[tokio::test]
+    async fn test_snapshot_emitter_pushes_state_changes() {
+        use tauri::Listener;
+
+        let state = test_app_state();
+        let machine = Arc::clone(&state.machine);
+        let app = tauri::test::mock_app();
+        let handle = app.handle().clone();
+
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let tx_cell = Arc::new(std::sync::Mutex::new(Some(tx)));
+
+        handle.listen("opul://snapshot", move |event| {
+            if let Ok(snap) = serde_json::from_str::<MachineSnapshot>(event.payload()) {
+                if snap.sequence > 0 {
+                    if let Some(sender) = tx_cell.lock().unwrap().take() {
+                        let _ = sender.send(snap);
+                    }
+                }
+            }
+        });
+
+        start_snapshot_emitter(handle, Arc::clone(&machine));
+
+        // Create a workspace on a background blocking task to trigger a state change
+        let m = Arc::clone(&machine);
+        tokio::task::spawn_blocking(move || {
+            let _ = m.create_workspace(MachineWorkspaceRequest {
+                request_id: Uuid::new_v4().to_string(),
+                expected_revision: None,
+                workspace_id: Uuid::new_v4().to_string(),
+                name: "Test Workspace".to_string(),
+                icon: MachineWorkspaceIcon {
+                    kind: MachineWorkspaceIconKind::Symbol,
+                    value: "sparkles".to_string(),
+                },
+                folder_id: Uuid::new_v4().to_string(),
+                folder_name: "Downloads".to_string(),
+                folder_path: "/tmp".to_string(),
+                default_format: MachineFormat::Best,
+                file_organization: MachineFileOrganization::Automatic,
+            });
+        });
+
+        let received = tokio::time::timeout(Duration::from_secs(3), rx)
+            .await
+            .expect("snapshot event should be emitted within 3s")
+            .expect("should receive valid snapshot");
+
+        assert!(
+            received.sequence > 0,
+            "Received sequence should be greater than 0"
+        );
+        assert!(
+            received.workspaces.iter().any(|w| w.name == "Test Workspace"),
+            "Snapshot should contain newly created workspace"
+        );
+    }
+}
+

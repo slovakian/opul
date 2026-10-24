@@ -13,6 +13,10 @@ log "Running Rust core tests (cargo test)"
 cargo test --package opul_core
 success "Rust core tests passed (80/80)"
 
+log "Running Rust Tauri tests (cargo test --package opul_tauri)"
+cargo test --package opul_tauri
+success "Rust Tauri tests passed"
+
 log "Running frontend typecheck (bun run typecheck)"
 bun run typecheck
 success "Frontend TypeScript typecheck passed"
