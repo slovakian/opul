@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP="${1:-$ROOT_DIR/Opul.app}"
 [[ -x "$APP/Contents/MacOS/Opul" ]] || { echo "Package Opul first." >&2; exit 1; }
+swift "$ROOT_DIR/Scripts/check_macos_icon.swift" "$APP"
 SMOKE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/opul-smoke.XXXXXX")"
 cleanup() {
   if [[ -n "${SMOKE_PID:-}" ]]; then

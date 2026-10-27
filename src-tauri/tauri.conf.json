@@ -5,9 +5,9 @@
   "version": "0.1.0",
   "identifier": "dev.opul.app",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "Scripts/build_icon.sh && npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "Scripts/build_icon.sh && npm run build",
     "frontendDist": "../dist"
   },
   "app": {

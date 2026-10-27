@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
-# Build a macOS .icns from a square PNG master (assets/AppIcon.png).
-# The master supplies the silhouette: macOS does not remove a baked-in background.
-# Regenerate both Tauri icon assets from the same transparent master.
+# Build both Tauri icons from the native macOS master. See assets/README.md.
+# Development displays the ICNS directly; Finder may normalize it again.
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-SRC=${1:-$ROOT/assets/AppIcon.png}
+SRC=${1:-$ROOT/assets/AppIcon-macOS.png}
 OUT=${2:-$ROOT/src-tauri/icons/icon.icns}
 
 if [[ ! -f "$SRC" ]]; then
@@ -23,11 +22,6 @@ if [[ "$width" -lt 1024 ]]; then
   echo "ERROR: app icon must be at least 1024x1024 (got ${width})" >&2
   exit 1
 fi
-if [[ "$(sips -g hasAlpha "$SRC" | awk 'END { print $2 }')" != "yes" ]]; then
-  echo "ERROR: app icon must preserve its transparent background" >&2
-  exit 1
-fi
-
 workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT
 iconset="$workdir/AppIcon.iconset"

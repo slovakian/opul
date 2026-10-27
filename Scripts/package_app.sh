@@ -19,6 +19,9 @@ if [[ -n "${MARKETING_VERSION:-}" ]]; then
 fi
 export APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}"
 npm run tauri -- "${ARGS[@]}"
+# Replace the generated bundle instead of merging into an existing app. Besides
+# retaining obsolete resources, merging can leave Finder showing its cached icon.
+rm -rf "$ROOT_DIR/Opul.app"
 ditto "$TARGET_DIR/$BUILD_CONF/bundle/macos/Opul.app" "$ROOT_DIR/Opul.app"
 codesign --verify --deep --strict "$ROOT_DIR/Opul.app"
 echo "Built $ROOT_DIR/Opul.app"
