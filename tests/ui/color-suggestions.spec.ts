@@ -42,6 +42,46 @@ async function saved(page: Page) {
   );
 }
 
+test("color suggestions have square targets and equal spacing in both directions", async ({
+  page,
+}) => {
+  await mockDesktop(page);
+  await page.goto("/");
+  await openPicker(page);
+  await picker(page)
+    .getByRole("button", { name: "Show 6 more color suggestions", exact: true })
+    .click();
+  const cells = await suggestions(page)
+    .getByRole("button")
+    .evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const { x, y, width, height } = node.getBoundingClientRect();
+        return { x, y, width, height };
+      }),
+    );
+  expect(cells).toHaveLength(12);
+  const horizontalGap = cells[1].x - cells[0].x - cells[0].width;
+  const verticalGap = cells[6].y - cells[0].y - cells[0].height;
+  expect(horizontalGap).toBeGreaterThan(0);
+  expect(horizontalGap).toBeCloseTo(verticalGap, 1);
+  for (const [index, cell] of cells.entries()) {
+    expect(cell.width).toBeCloseTo(cell.height, 1);
+    expect(cell.x).toBeCloseTo(cells[index % 6].x, 1);
+    if (index % 6 > 0)
+      expect(cell.x - cells[index - 1].x - cells[index - 1].width).toBeCloseTo(
+        horizontalGap,
+        1,
+      );
+  }
+  const grid = await suggestions(page).boundingBox();
+  expect(cells[0].x).toBeCloseTo(grid?.x ?? 0, 1);
+  expect(cells[5].x + cells[5].width).toBeCloseTo(
+    (grid?.x ?? 0) + (grid?.width ?? 0),
+    1,
+  );
+  await page.screenshot({ path: "test-results/color-suggestions-spacing.png" });
+});
+
 test("six unique suggestions include a saved preset; expansion preserves selection, focus and emoji scroll", async ({
   page,
 }) => {

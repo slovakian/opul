@@ -15,6 +15,7 @@ import { EmojiArtwork } from "@/components/workspace-icon";
 import type { IconDraft } from "@/components/workspace-icon-picker";
 import { createColorSuggestions } from "@/lib/color-suggestions";
 import { canTreatEmoji, isFolderEmoji } from "@/lib/workspace-appearance";
+import { cn } from "@/lib/utils";
 
 export function WorkspaceColorSuggestions({
   workspaceId,
@@ -82,7 +83,7 @@ export function WorkspaceColorSuggestions({
         <ToggleGroup
           aria-label="Color suggestions"
           size="sm"
-          className="grid w-full grid-cols-6 gap-1"
+          className="grid w-full grid-cols-6 gap-2"
           value={
             preference.kind === "Preset" ? [preference.treatment.preset_id] : []
           }
@@ -100,7 +101,10 @@ export function WorkspaceColorSuggestions({
               ref={index === 6 ? firstRevealed : undefined}
               aria-label={`Preview ${treatment.preset_id} treatment`}
               title={`${treatment.preset_id} treatment`}
-              className={emojiOptionClassName}
+              className={cn(
+                emojiOptionClassName,
+                "aspect-square size-auto w-full",
+              )}
             >
               <EmojiFrame
                 selected={
