@@ -3,6 +3,7 @@ import {
   ChevronDown,
   Download,
   FolderClosed,
+  FolderPlus,
   Link,
   Loader2,
   Settings2,
@@ -16,6 +17,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { SidebarPopover } from "@/components/sidebar-popover";
 import { useLibrary } from "@/lib/library";
+import { bridge, errorMessage } from "@/lib/bridge";
+import { toast } from "@/components/ui/toast";
 import type { Workspace } from "@/lib/model";
 
 export function DownloadInput({
@@ -34,6 +37,32 @@ export function DownloadInput({
   const folder =
     workspace.folders.find((folder) => folder.id === selectedFolderId) ??
     workspace.folders.find((folder) => folder.is_default);
+
+  async function addLocation() {
+    try {
+      const path = await bridge.chooseFolder();
+      if (!path) return;
+      const folderId = crypto.randomUUID();
+      const receipt = await run({
+        kind: "add_folder",
+        request: {
+          request_id: crypto.randomUUID(),
+          expected_revision: null,
+          workspace_id: workspace.id,
+          folder_id: folderId,
+          name: path.split("/").filter(Boolean).pop() || "Folder",
+          path,
+        },
+      });
+      if (receipt) setSelectedFolderId(folderId);
+    } catch (error) {
+      toast.add({
+        title: "Couldn't add location",
+        description: errorMessage(error),
+        type: "error",
+      });
+    }
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -99,6 +128,15 @@ export function DownloadInput({
                     icon: FolderClosed,
                     onClick: () => setSelectedFolderId(option.id),
                   })),
+              },
+              {
+                actions: [
+                  {
+                    label: "Add new location…",
+                    icon: FolderPlus,
+                    onClick: () => void addLocation(),
+                  },
+                ],
               },
             ]}
           />

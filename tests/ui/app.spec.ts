@@ -242,6 +242,99 @@ test("header downloads use the workspace default and selected saved folder", asy
   ).toBeVisible();
 });
 
+test("add a saved location from the download input without changing the default", async ({
+  page,
+}) => {
+  await mockDesktop(page, { folderPickerPath: "/Users/test/Research" });
+  await page.goto("/");
+  const header = page.locator("main > header");
+  const link = header.getByRole("textbox", {
+    name: "Download link",
+    exact: true,
+  });
+  await link.fill("https://example.com/new-file.zip");
+  await header
+    .getByRole("button", { name: "Save location: Downloads", exact: true })
+    .click();
+  const menu = page.locator('[data-slot="popover-content"]');
+  await menu
+    .getByRole("button", { name: "Add new location…", exact: true })
+    .click();
+  await expect(
+    header.getByRole("button", {
+      name: "Save location: Research",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(link).toHaveValue("https://example.com/new-file.zip");
+  await header
+    .getByRole("button", { name: "Save location: Research", exact: true })
+    .click();
+  await expect(menu.locator('[data-slot="sidebar-group-label"]')).toHaveCount(
+    0,
+  );
+  await expect(menu.getByRole("button").first()).toHaveText(
+    "Downloads (Default)",
+  );
+  await expect(
+    menu.getByRole("button", { name: "Research", exact: true }),
+  ).toHaveAttribute("data-active");
+  await page.screenshot({ path: "test-results/location-menu.png" });
+  await page.keyboard.press("Escape");
+  await link.press("Enter");
+  await page.getByRole("button", { name: "new-file.zip", exact: true }).click();
+  await expect(
+    page
+      .getByRole("complementary", { name: "Download details" })
+      .locator("dd")
+      .filter({ hasText: /^Research$/ }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Close details", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "All downloads", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Research", exact: true }),
+  ).toBeVisible();
+});
+
+for (const outcome of ["cancelled", "failed"]) {
+  test(`adding a location keeps the draft and selection when the picker is ${outcome}`, async ({
+    page,
+  }) => {
+    await mockDesktop(page, {
+      folderPickerPath: null,
+      folderPickerError:
+        outcome === "failed" ? "Folder picker unavailable" : undefined,
+    });
+    await page.goto("/");
+    const header = page.locator("main > header");
+    const link = header.getByRole("textbox", {
+      name: "Download link",
+      exact: true,
+    });
+    await link.fill("https://example.com/new-file.zip");
+    await header
+      .getByRole("button", { name: "Save location: Downloads", exact: true })
+      .click();
+    await page
+      .locator('[data-slot="popover-content"]')
+      .getByRole("button", { name: "Add new location…", exact: true })
+      .click();
+    if (outcome === "failed")
+      await expect(page.getByText("Folder picker unavailable")).toBeVisible();
+    await expect(
+      header.getByRole("button", {
+        name: "Save location: Downloads",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(link).toHaveValue("https://example.com/new-file.zip");
+  });
+}
+
 test("empty, recovery, and startup failure states", async ({ browser }) => {
   for (const state of ["empty", "recovery", "fail"]) {
     const page = await browser.newPage();

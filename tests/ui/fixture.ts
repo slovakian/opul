@@ -131,6 +131,8 @@ export async function mockDesktop(
     fail?: boolean;
     recovery?: boolean;
     snapshot?: Snapshot;
+    folderPickerPath?: string | null;
+    folderPickerError?: string;
   } = {},
 ) {
   await page.addInitScript(
@@ -180,7 +182,13 @@ export async function mockDesktop(
                 ffmpeg_path: "/opt/homebrew/bin/ffmpeg",
                 ffmpeg_version: "8.0",
               };
-            if (name === "plugin:dialog|open") return "/Users/test/Downloads";
+            if (name === "plugin:dialog|open") {
+              if (options.folderPickerError)
+                throw new Error(options.folderPickerError);
+              return options.folderPickerPath === undefined
+                ? "/Users/test/Downloads"
+                : options.folderPickerPath;
+            }
             if (name === "execute") {
               const command = args.command;
               if (!command) throw new Error("Missing command");
@@ -232,6 +240,17 @@ export async function mockDesktop(
                   workspace.name = command.request.name;
                   workspace.icon = command.request.icon;
                 }
+              }
+              if (command.kind === "add_folder") {
+                const workspace = snapshot.workspaces.find(
+                  (workspace) => workspace.id === command.request.workspace_id,
+                );
+                workspace?.folders.push({
+                  id: command.request.folder_id,
+                  name: command.request.name,
+                  path: command.request.path,
+                  is_default: false,
+                });
               }
               if (command.kind === "remove_downloads")
                 for (const workspace of snapshot.workspaces)
