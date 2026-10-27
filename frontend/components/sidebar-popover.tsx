@@ -1,4 +1,4 @@
-import { useState, type ReactElement, type ReactNode } from "react";
+import { Fragment, useState, type ReactElement, type ReactNode } from "react";
 import { Check, ChevronDown, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +15,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
 } from "@/components/ui/sidebar";
 
 export type MenuAction = {
@@ -24,6 +25,7 @@ export type MenuAction = {
   disabled?: boolean;
   selected?: boolean;
   hint?: string;
+  destructive?: boolean;
 };
 type MenuGroup = { label?: string; actions: MenuAction[] };
 
@@ -74,38 +76,44 @@ export function SidebarPopover({
         <Sidebar collapsible="none" className="w-auto bg-transparent">
           <SidebarContent className="max-h-96 gap-0">
             {groups.map((group, index) => (
-              <SidebarGroup key={group.label ?? index}>
-                {group.label && (
-                  <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-                )}
-                <SidebarMenu>
-                  {group.actions.map((action) => (
-                    <SidebarMenuItem key={action.label}>
-                      <SidebarMenuButton
-                        type="button"
-                        disabled={action.disabled}
-                        isActive={action.selected}
-                        onClick={() => {
-                          setOpen(false);
-                          action.onClick();
-                        }}
-                      >
-                        {action.icon && <action.icon />}
-                        <span>{action.label}</span>
-                        {action.selected ? (
-                          <Check className="ml-auto" />
-                        ) : (
-                          action.hint && (
-                            <span className="ml-auto text-xs text-muted-foreground">
-                              {action.hint}
-                            </span>
-                          )
-                        )}
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroup>
+              <Fragment key={group.label ?? index}>
+                {index > 0 && <SidebarSeparator />}
+                <SidebarGroup>
+                  {group.label && (
+                    <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+                  )}
+                  <SidebarMenu>
+                    {group.actions.map((action) => (
+                      <SidebarMenuItem key={action.label}>
+                        <SidebarMenuButton
+                          type="button"
+                          disabled={action.disabled}
+                          isActive={action.selected}
+                          variant={
+                            action.destructive ? "destructive" : "default"
+                          }
+                          onClick={() => {
+                            setOpen(false);
+                            action.onClick();
+                          }}
+                        >
+                          {action.icon && <action.icon />}
+                          <span>{action.label}</span>
+                          {action.selected ? (
+                            <Check className="ml-auto" />
+                          ) : (
+                            action.hint && (
+                              <span className="ml-auto text-xs text-muted-foreground">
+                                {action.hint}
+                              </span>
+                            )
+                          )}
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
+                  </SidebarMenu>
+                </SidebarGroup>
+              </Fragment>
             ))}
           </SidebarContent>
         </Sidebar>

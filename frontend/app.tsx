@@ -275,6 +275,7 @@ export default function App() {
                         {
                           label: "Delete workspace",
                           icon: Trash2,
+                          destructive: true,
                           disabled: workspaces.length === 1 || !canEdit,
                           onClick: () =>
                             setModal({ kind: "delete-workspace", workspace }),

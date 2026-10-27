@@ -35,6 +35,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
   SidebarRail,
+  SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { SidebarPopover } from "@/components/sidebar-popover";
@@ -174,6 +175,7 @@ export function WorkspaceSidebar({
             />
           </SidebarMenuItem>
         </SidebarMenu>
+        <SidebarSeparator />
         <SidebarMenu>
           {[
             {
@@ -221,6 +223,7 @@ export function WorkspaceSidebar({
           ))}
         </SidebarMenu>
       </SidebarHeader>
+      <SidebarSeparator />
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Workspaces</SidebarGroupLabel>
@@ -354,6 +357,7 @@ export function WorkspaceSidebar({
                                   {
                                     label: "Remove saved folder",
                                     icon: Trash2,
+                                    destructive: true,
                                     disabled:
                                       workspace.folders.length === 1 || busy,
                                     onClick: () =>
@@ -385,6 +389,7 @@ export function WorkspaceSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarSeparator />
       <SidebarFooter className="gap-3 p-3">
         <SidebarMenu>
           <SidebarMenuItem>
