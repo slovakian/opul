@@ -28,23 +28,23 @@ const data = {
   emojis: emojis
     .filter((emoji) => "group" in emoji)
     .map((emoji) => ({
-      emoji: emoji.emoji,
-      label: emoji.label,
-      tags: emoji.tags ?? [],
-      category: emoji.group,
-      version: emoji.version,
-      countryFlag: flags.has(emoji.subgroup),
-      skins: emoji.skins?.some(({ tone }) => typeof tone === "number")
-        ? Object.fromEntries(
-            emoji.skins
-              .filter(({ tone }) => typeof tone === "number")
-              .map(({ tone, emoji }) => [tones[tone], emoji])
-          )
-        : null,
       aliases:
         emoji.skins
           ?.filter(({ tone }) => Array.isArray(tone))
-          .map(({ emoji }) => emoji) ?? [],
+          .map(({ emoji: skinEmoji }) => skinEmoji) ?? [],
+      category: emoji.group,
+      countryFlag: flags.has(emoji.subgroup),
+      emoji: emoji.emoji,
+      label: emoji.label,
+      skins: emoji.skins?.some(({ tone }) => Number.isInteger(tone))
+        ? Object.fromEntries(
+            emoji.skins
+              .filter(({ tone }) => Number.isInteger(tone))
+              .map(({ tone, emoji: skinEmoji }) => [tones[tone], skinEmoji])
+          )
+        : null,
+      tags: emoji.tags ?? [],
+      version: emoji.version,
     })),
   locale: "en",
   skinTones: Object.fromEntries(

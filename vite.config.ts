@@ -16,11 +16,11 @@ export default defineConfig({
           groups: [
             {
               name: "emoji-data",
-              test: /frontend\/assets\/emoji\/data\.json$/,
+              test: /frontend\/assets\/emoji\/data\.json$/u,
             },
             {
               name: "react",
-              test: /node_modules\/(react|react-dom|scheduler)\//,
+              test: /node_modules\/(?:react|react-dom|scheduler)\//u,
             },
           ],
         },
@@ -56,6 +56,7 @@ export default defineConfig({
   },
   lint: {
     env: core.env,
+    // oxlint-disable-next-line typescript/no-explicit-any, anti-slop/require-safety-comment-for-type-assertion
     extends: [core, ultraciteReact, playwright] as any,
     ignorePatterns: [
       ...(core.ignorePatterns ?? []),

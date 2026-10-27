@@ -4,17 +4,19 @@ import palette from "../../src/application/folder-treatments.json";
 
 type Treatment = NonNullable<Workspace["appearance"]["automatic_folder"]>;
 
-function identitySeed(identity: string) {
+const identitySeed = (identity: string) => {
   let hash = 2_166_136_261;
 
   for (const character of identity) {
-    hash = Math.imul(hash ^ character.charCodeAt(0), 16_777_619);
+    // oxlint-disable-next-line no-bitwise
+    hash = Math.imul(hash ^ (character.codePointAt(0) ?? 0), 16_777_619);
   }
 
+  // oxlint-disable-next-line no-bitwise
   return hash >>> 0;
-}
+};
 
-function sample({ seed, saved }: { seed: number; saved: Treatment | null }) {
+const sample = ({ seed, saved }: { seed: number; saved: Treatment | null }) => {
   const remaining = palette.filter(
     (item) => item.preset_id !== saved?.preset_id
   );
@@ -23,7 +25,8 @@ function sample({ seed, saved }: { seed: number; saved: Treatment | null }) {
   // the workspace for folders, and to one picker opening for other emoji.
   let state = seed;
 
-  for (let index = remaining.length - 1; index > 0; index--) {
+  for (let index = remaining.length - 1; index > 0; index -= 1) {
+    // oxlint-disable-next-line no-bitwise
     state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0;
     const target = Math.floor((state / 4_294_967_296) * (index + 1));
     [remaining[index], remaining[target]] = [
@@ -33,15 +36,15 @@ function sample({ seed, saved }: { seed: number; saved: Treatment | null }) {
   }
 
   return saved ? [saved, ...remaining] : remaining;
-}
+};
 
-export function createColorSuggestions({
+export const createColorSuggestions = ({
   workspaceId,
   appearance,
 }: {
   workspaceId: string;
   appearance: Workspace["appearance"];
-}) {
+}) => {
   const saved =
     appearance.preference.kind === "Preset"
       ? appearance.preference.treatment
@@ -68,4 +71,4 @@ export function createColorSuggestions({
       seed: crypto.getRandomValues(new Uint32Array(1))[0],
     }),
   };
-}
+};

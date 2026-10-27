@@ -40,22 +40,18 @@ const excluded = new Set([
   "🔌",
 ]);
 
-function presentationKey(emoji: string) {
-  return emoji.replaceAll(/[\uFE0E\uFE0F]/gu, "");
-}
+const presentationKey = (emoji: string) =>
+  emoji.replaceAll(/[\uFE0E\uFE0F]/gu, "");
 
-export function isFolderEmoji(emoji: string) {
-  return presentationKey(emoji) === "📁";
-}
+export const isFolderEmoji = (emoji: string) => presentationKey(emoji) === "📁";
 
-export function canTreatEmoji(emoji: string) {
-  return !excluded.has(presentationKey(emoji));
-}
+export const canTreatEmoji = (emoji: string) =>
+  !excluded.has(presentationKey(emoji));
 
-export function emojiTreatment(
+export const emojiTreatment = (
   emoji: string,
   appearance: Workspace["appearance"]
-) {
+) => {
   if (!canTreatEmoji(emoji)) {
     return null;
   }
@@ -85,4 +81,4 @@ export function emojiTreatment(
       return exhaustive;
     }
   }
-}
+};

@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 import type { ReactNode } from "react";
@@ -38,7 +39,7 @@ interface Library {
 
 const LibraryContext = createContext<Library | null>(null);
 
-export function LibraryProvider({ children }: { children: ReactNode }) {
+export const LibraryProvider = ({ children }: { children: ReactNode }) => {
   const [state, setState] = useState<LibraryState>({ kind: "loading" });
   const [preferences, setPreferences] = useState<Preferences | null>(null);
   const [pending, setPending] = useState(0);
@@ -62,35 +63,36 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
 
-    async function poll() {
+    const poll = async () => {
       await refresh();
 
       if (!stopped) {
         timer = setTimeout(poll, 800);
       }
-    }
+    };
 
-    void poll();
-    void bridge
+    poll().catch(() => null);
+    bridge
       .preferences()
       .then(setPreferences)
-      .catch(() => {});
+      .catch(() => null);
 
     return () => {
       stopped = true;
       clearTimeout(timer);
     };
   }, [refresh]);
+
   useEffect(() => {
     const media = matchMedia("(prefers-color-scheme: dark)");
 
-    function apply() {
+    const apply = () => {
       document.documentElement.classList.toggle(
         "dark",
         preferences?.theme === "dark" ||
           ((preferences?.theme ?? "system") === "system" && media.matches)
       );
-    }
+    };
 
     apply();
     media.addEventListener("change", apply);
@@ -105,9 +107,11 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       try {
         const receipt = await bridge.execute(command);
         await refresh();
+        setPending((count) => count - 1);
 
         return receipt;
       } catch (error) {
+        setPending((count) => count - 1);
         toast.add({
           description: errorMessage(error),
           title: "Couldn't complete that action",
@@ -115,8 +119,6 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
         });
 
         return null;
-      } finally {
-        setPending((count) => count - 1);
       }
     },
     [refresh]
@@ -141,7 +143,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  async function savePreferences(next: Preferences) {
+  const savePreferences = useCallback(async (next: Preferences) => {
     try {
       setPreferences(await bridge.savePreferences(next));
       toast.add({ title: "Settings saved" });
@@ -156,26 +158,35 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
 
       return false;
     }
-  }
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      busy: pending > 0,
+      preferences,
+      refresh,
+      run,
+      saveAggregateView,
+      savePreferences,
+      state,
+    }),
+    [
+      pending,
+      preferences,
+      refresh,
+      run,
+      saveAggregateView,
+      savePreferences,
+      state,
+    ]
+  );
 
   return (
-    <LibraryContext.Provider
-      value={{
-        busy: pending > 0,
-        preferences,
-        refresh,
-        run,
-        saveAggregateView,
-        savePreferences,
-        state,
-      }}
-    >
-      {children}
-    </LibraryContext.Provider>
+    <LibraryContext.Provider value={value}>{children}</LibraryContext.Provider>
   );
-}
+};
 
-export function useLibrary() {
+export const useLibrary = () => {
   const library = useContext(LibraryContext);
 
   if (!library) {
@@ -183,4 +194,4 @@ export function useLibrary() {
   }
 
   return library;
-}
+};

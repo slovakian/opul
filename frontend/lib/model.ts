@@ -342,13 +342,12 @@ export const sourceNames: Record<Download["source"], string> = {
   VideoPage: "Video",
 };
 
-export function workspaceEmoji(workspace: Pick<Workspace, "icon">) {
-  return workspace.icon.kind === "Emoji" && workspace.icon.value.trim()
+export const workspaceEmoji = (workspace: Pick<Workspace, "icon">) =>
+  workspace.icon.kind === "Emoji" && workspace.icon.value.trim()
     ? workspace.icon.value
     : "📁";
-}
 
-export function bytes(value: number) {
+export const bytes = (value: number) => {
   if (value === 0) {
     return "0 B";
   }
@@ -356,9 +355,9 @@ export function bytes(value: number) {
   const unit = Math.min(Math.floor(Math.log(value) / Math.log(1024)), 4);
 
   return `${(value / 1024 ** unit).toLocaleString(undefined, { maximumFractionDigits: 1 })} ${["B", "KB", "MB", "GB", "TB"][unit]}`;
-}
+};
 
-export function timeRemaining(seconds: number | null) {
+export const timeRemaining = (seconds: number | null) => {
   if (seconds === null) {
     return "Calculating…";
   }
@@ -372,19 +371,19 @@ export function timeRemaining(seconds: number | null) {
   }
 
   return `${Math.floor(seconds / 3600)}h ${Math.ceil((seconds % 3600) / 60)}m left`;
-}
+};
 
-export function sourceHost(download: Download) {
+export const sourceHost = (download: Download) => {
   if (download.source === "Torrent") {
     return "BitTorrent";
   }
 
   try {
     return new URL(download.page_url || download.source_url).hostname.replace(
-      /^www\./,
+      /^www\./u,
       ""
     );
   } catch {
     return sourceNames[download.source];
   }
-}
+};

@@ -27,9 +27,8 @@ for (const item of data.emojis) {
 }
 
 // Match metadata without changing the saved sequence, including mixed-tone aliases.
-function details(emoji: string) {
-  return detailsBySequence.get(withoutPresentation(emoji));
-}
+const details = (emoji: string) =>
+  detailsBySequence.get(withoutPresentation(emoji));
 
 const tones: (keyof EmojiData["skinTones"])[] = [
   "light",
@@ -46,81 +45,10 @@ const toneLabels = new Map<string, string>(
   ])
 );
 
-export function skinToneChoices(emoji: string) {
-  const item = details(emoji);
-  const skins = item?.skins;
-
-  if (!item || !skins) {
-    return [];
-  }
-  const probe = nativeSupportProbe();
-
-  return [
-    { emoji: item.emoji, label: "Default skin tone" },
-    ...tones.map((tone) => ({
-      emoji: skins[tone],
-      label: data.skinTones[tone].replace(/^./u, (letter) =>
-        letter.toUpperCase()
-      ),
-    })),
-  ].filter((choice) => probe(choice.emoji));
-}
-
-// Freeze recent choices for one browsing session, so polling cannot reset search,
-// keyboard position, or scroll. This resolver still uses the offline support filter.
-export function emojiDataWithRecents(
-  recent: readonly string[]
-): EmojiDataResolver {
-  return async (locale, options) => {
-    const supported = await resolveEmojiData(locale, options);
-    const supportedBase = new Set(supported.emojis.map((item) => item.emoji));
-    const probe = nativeSupportProbe();
-    const saved: EmojiDetails[] = [];
-
-    for (const emoji of new Set(recent)) {
-      const item = details(emoji);
-
-      if (!item || !supportedBase.has(item.emoji) || !probe(emoji)) {
-        continue;
-      }
-      const labels = [...emoji].flatMap((character) => {
-        const label = toneLabels.get(character);
-
-        return label ? [label] : [];
-      });
-
-      saved.push({
-        ...item,
-        category: -1,
-        emoji,
-        label:
-          emoji !== item.emoji
-            ? [item.label, ...labels, emoji].join(", ")
-            : item.label,
-        skins: undefined,
-      });
-    }
-
-    const sequences = new Set(saved.map((item) => item.emoji));
-
-    return {
-      ...supported,
-      categories: [
-        { index: -1, label: "Recently used" },
-        ...supported.categories,
-      ],
-      emojis: [
-        ...saved,
-        ...supported.emojis.filter((item) => !sequences.has(item.emoji)),
-      ],
-    };
-  };
-}
-
 // Frimousse's default resolver probes native color glyphs this way. Its custom
 // resolver bypasses support filtering, so perform the probes on bundled data.
 // See liveblocks/frimousse src/utils/is-emoji-supported.ts (MIT license bundled).
-function nativeSupportProbe() {
+const nativeSupportProbe = () => {
   const context = document.createElement("canvas").getContext("2d", {
     willReadFrequently: true,
   });
@@ -153,9 +81,9 @@ function nativeSupportProbe() {
       blue.every((value, index) => value === red[index])
     );
   };
-}
+};
 
-let support: { version: number; flags: boolean } | undefined;
+let support: { flags: boolean; version: number } | undefined;
 
 export const resolveEmojiData: EmojiDataResolver = (_locale, options) => {
   options.signal?.throwIfAborted();
@@ -171,7 +99,7 @@ export const resolveEmojiData: EmojiDataResolver = (_locale, options) => {
     }
 
     const supported = [...versions]
-      .sort(([a], [b]) => b - a)
+      .toSorted(([a], [b]) => b - a)
       .find(([, emoji]) => probe(emoji));
 
     support = { flags: probe("🇪🇺"), version: supported?.[0] ?? 0 };
@@ -189,3 +117,74 @@ export const resolveEmojiData: EmojiDataResolver = (_locale, options) => {
     ),
   };
 };
+
+export const skinToneChoices = (emoji: string) => {
+  const item = details(emoji);
+  const skins = item?.skins;
+
+  if (!item || !skins) {
+    return [];
+  }
+
+  const probe = nativeSupportProbe();
+
+  return [
+    { emoji: item.emoji, label: "Default skin tone" },
+    ...tones.map((tone) => ({
+      emoji: skins[tone],
+      label: data.skinTones[tone].replace(/^./u, (letter) =>
+        letter.toUpperCase()
+      ),
+    })),
+  ].filter((choice) => probe(choice.emoji));
+};
+
+// Freeze recent choices for one browsing session, so polling cannot reset search,
+// keyboard position, or scroll. This resolver still uses the offline support filter.
+export const emojiDataWithRecents =
+  (recent: readonly string[]): EmojiDataResolver =>
+  async (locale, options) => {
+    const supported = await resolveEmojiData(locale, options);
+    const supportedBase = new Set(supported.emojis.map((item) => item.emoji));
+    const probe = nativeSupportProbe();
+    const saved: EmojiDetails[] = [];
+
+    for (const emoji of new Set(recent)) {
+      const item = details(emoji);
+
+      if (!item || !supportedBase.has(item.emoji) || !probe(emoji)) {
+        continue;
+      }
+
+      const labels = [...emoji].flatMap((character) => {
+        const label = toneLabels.get(character);
+
+        return label ? [label] : [];
+      });
+
+      saved.push({
+        ...item,
+        category: -1,
+        emoji,
+        label:
+          emoji === item.emoji
+            ? item.label
+            : [item.label, ...labels, emoji].join(", "),
+        skins: undefined,
+      });
+    }
+
+    const sequences = new Set(saved.map((item) => item.emoji));
+
+    return {
+      ...supported,
+      categories: [
+        { index: -1, label: "Recently used" },
+        ...supported.categories,
+      ],
+      emojis: [
+        ...saved,
+        ...supported.emojis.filter((item) => !sequences.has(item.emoji)),
+      ],
+    };
+  };

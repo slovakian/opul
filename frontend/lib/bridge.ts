@@ -79,5 +79,5 @@ export const bridge = {
   },
 };
 
-export const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : String(error);
+export const errorMessage = (cause: unknown) =>
+  cause instanceof Error ? cause.message : String(cause);
