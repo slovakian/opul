@@ -20,6 +20,7 @@ import {
 
 export type MenuAction = {
   label: string;
+  content?: ReactNode;
   icon?: LucideIcon;
   onClick: () => void;
   disabled?: boolean;
@@ -87,6 +88,7 @@ export function SidebarPopover({
                       <SidebarMenuItem key={action.label}>
                         <SidebarMenuButton
                           type="button"
+                          aria-label={action.label}
                           disabled={action.disabled}
                           isActive={action.selected}
                           variant={
@@ -98,7 +100,9 @@ export function SidebarPopover({
                           }}
                         >
                           {action.icon && <action.icon />}
-                          <span>{action.label}</span>
+                          <span className="flex min-w-0 items-center gap-2">
+                            {action.content ?? action.label}
+                          </span>
                           {action.selected ? (
                             <Check className="ml-auto" />
                           ) : (
@@ -131,10 +135,11 @@ export function Choice<T extends string>({
 }: {
   label: string;
   value: T;
-  options: readonly { value: T; label: string }[];
+  options: readonly { value: T; label: string; content?: ReactNode }[];
   onChange: (value: T) => void;
   disabled?: boolean;
 }) {
+  const selected = options.find((option) => option.value === value);
   return (
     <SidebarPopover
       title={label}
@@ -144,12 +149,13 @@ export function Choice<T extends string>({
           type="button"
           variant="outline"
           className="w-full justify-between"
-          aria-label={`${label}: ${options.find((option) => option.value === value)?.label ?? "Choose"}`}
+          aria-label={`${label}: ${selected?.label ?? "Choose"}`}
           disabled={disabled}
         >
-          <span className="truncate">
-            {options.find((option) => option.value === value)?.label ??
-              "Choose…"}
+          <span className="flex min-w-0 items-center gap-2">
+            {selected?.content ?? (
+              <span className="truncate">{selected?.label ?? "Choose…"}</span>
+            )}
           </span>
           <ChevronDown data-icon="inline-end" />
         </Button>
@@ -159,6 +165,7 @@ export function Choice<T extends string>({
           label,
           actions: options.map((option) => ({
             label: option.label,
+            content: option.content,
             selected: value === option.value,
             onClick: () => onChange(option.value),
           })),

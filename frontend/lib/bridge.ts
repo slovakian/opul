@@ -5,6 +5,7 @@ import {
   receiptSchema,
   snapshotSchema,
   toolStatusSchema,
+  workspaceDraftSchema,
   type Command,
   type Preferences,
 } from "@/lib/model";
@@ -14,6 +15,9 @@ function requireDesktop() {
     throw new Error("Open the Opul desktop app to access your downloads.");
 }
 export const bridge = {
+  async workspaceDraft() {
+    return workspaceDraftSchema.parse(await invoke("workspace_draft"));
+  },
   async snapshot() {
     requireDesktop();
     return snapshotSchema.parse(await invoke("snapshot"));

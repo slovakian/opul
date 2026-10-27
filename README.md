@@ -4,6 +4,11 @@ Opul is a download manager for macOS, built with Tauri, React, shadcn/ui on
 Base UI, and a Rust download core. Organize direct links, video pages, playlists,
 and BitTorrent downloads in emoji workspaces.
 
+Folder workspaces receive one of 12 stable color treatments. Existing libraries
+receive their assignments on startup. Colors stay with each workspace through
+renames, reordering, theme changes, and restarts. Creation previews the exact
+appearance that will be saved. See [appearance behavior and verification](docs/workspace-appearances.md).
+
 ## Develop
 
 Install Xcode Command Line Tools, a stable Rust toolchain, and Node.js 24 or newer.

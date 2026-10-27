@@ -18,6 +18,7 @@ pub(crate) struct ApplicationActor {
 }
 
 enum Message {
+    ProposeWorkspaceAppearance(super::WorkspaceId, mpsc::Sender<super::WorkspaceAppearance>),
     Command(
         Box<CommandEnvelope>,
         mpsc::Sender<Result<CommandReceipt, ActorError>>,
@@ -108,9 +109,6 @@ impl ApplicationActor {
                 } else {
                     AppState::fresh(downloads_path)
                 };
-                store
-                    .commit(&state)
-                    .map_err(|error| ActorError::Open(error.to_string()))?;
                 (state, true)
             }
             CheckpointLoad::Current(state) => (state, true),
@@ -148,7 +146,9 @@ impl ApplicationActor {
             }
         };
 
-        if writable && !matches!(state.session, SessionPhase::RecoveryRequired) {
+        let appearance_migrated = state.migrate_workspace_appearances();
+        let reconcile = !matches!(state.session, SessionPhase::RecoveryRequired);
+        if writable && reconcile {
             // Opening never resumes blindly. Adapters open quiescent, then explicit
             // reconciliation moves the session to Running.
             state.session = SessionPhase::Reconciling;
@@ -158,6 +158,8 @@ impl ApplicationActor {
             for effect in state.outbox.values_mut() {
                 effect.status = EffectStatus::Pending;
             }
+        }
+        if writable && (reconcile || appearance_migrated) {
             store
                 .commit(&state)
                 .map_err(|error| ActorError::Open(error.to_string()))?;
@@ -194,6 +196,17 @@ impl ApplicationActor {
 
     pub(crate) fn snapshot(&self) -> AppProjection {
         self.projection.snapshot()
+    }
+
+    pub(crate) fn propose_workspace_appearance(
+        &self,
+        id: super::WorkspaceId,
+    ) -> Result<super::WorkspaceAppearance, ActorError> {
+        let (response, receiver) = mpsc::channel();
+        self.sender
+            .send(Message::ProposeWorkspaceAppearance(id, response))
+            .map_err(|_| ActorError::Stopped)?;
+        receiver.recv().map_err(|_| ActorError::Stopped)
     }
 
     pub(crate) fn wait_for_projection(
@@ -268,6 +281,9 @@ impl ActorCore {
     fn run(mut self, receiver: mpsc::Receiver<Message>) {
         while let Ok(message) = receiver.recv() {
             match message {
+                Message::ProposeWorkspaceAppearance(id, response) => {
+                    let _ = response.send(self.state.propose_folder_appearance(id));
+                }
                 Message::Command(command, response) => {
                     let _ = response.send(self.handle_command(*command));
                 }
@@ -667,6 +683,42 @@ mod tests {
     }
 
     #[test]
+    fn folder_migration_checkpoints_once_and_survives_restart_without_writes_on_reads() {
+        let folder = temp_dir();
+        let path = folder.join("application-state.json");
+        let store = CheckpointStore::new(path.clone());
+        let mut old = AppState::fresh("/tmp/Downloads".into());
+        old.workspaces[0].appearance = crate::WorkspaceAppearance::default();
+        old.workspaces[0].icon = super::super::WorkspaceIcon::Symbol("arrow.down.circle".into());
+        // Empty appearance is omitted, reproducing the old serialized shape and checksum.
+        store.commit(&old).unwrap();
+        let original_bytes = fs::read(&path).unwrap();
+        assert!(!String::from_utf8_lossy(&original_bytes).contains("appearance"));
+        let actor = ApplicationActor::open(folder.clone(), "/tmp/Unused".into()).unwrap();
+        let first = actor.snapshot();
+        assert_eq!(first.workspaces[0].id, old.workspaces[0].id);
+        assert!(!first.workspaces[0].appearance.is_unassigned());
+        assert_eq!(
+            fs::read(path.with_extension("json.bak")).unwrap(),
+            original_bytes
+        );
+        let migrated_bytes = fs::read(&path).unwrap();
+        for _ in 0..5 {
+            assert_eq!(actor.snapshot(), first);
+            let proposal = actor
+                .propose_workspace_appearance(super::super::WorkspaceId::new())
+                .unwrap();
+            assert!(!proposal.is_unassigned());
+        }
+        assert_eq!(fs::read(&path).unwrap(), migrated_bytes);
+        drop(actor);
+        let reopened = ApplicationActor::open(folder.clone(), "/tmp/Unused".into()).unwrap();
+        assert_eq!(reopened.snapshot().workspaces, first.workspaces);
+        drop(reopened);
+        fs::remove_dir_all(folder).unwrap();
+    }
+
+    #[test]
     fn actor_commits_intent_and_outbox_before_effect_claim() {
         let folder = temp_dir();
         let actor = ApplicationActor::open(folder.clone(), "/tmp/Downloads".to_string()).unwrap();
@@ -773,6 +825,7 @@ mod tests {
             id: super::super::WorkspaceId::new(),
             name: "Study".to_string(),
             icon: crate::application::WorkspaceIcon::Emoji("📚".to_string()),
+            appearance: crate::application::WorkspaceAppearance::default(),
             folders: vec![crate::application::SavedFolder {
                 id: super::super::FolderId::new(),
                 name: "Study".to_string(),

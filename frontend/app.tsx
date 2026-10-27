@@ -45,12 +45,12 @@ import {
   type Location,
   type StatusFilter,
 } from "@/components/workspace-sidebar";
+import { WorkspaceIcon } from "@/components/workspace-icon";
 import { useLibrary } from "@/lib/library";
 import { cn } from "@/lib/utils";
 import {
   sourceNames,
   stateNames,
-  workspaceEmoji,
   type Download,
   type Workspace,
 } from "@/lib/model";
@@ -230,7 +230,9 @@ export default function App() {
                       className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground"
                     >
                       {location.kind === "workspace" && workspace && (
-                        <span aria-hidden>{workspaceEmoji(workspace)}</span>
+                        <span aria-hidden>
+                          <WorkspaceIcon workspace={workspace} />
+                        </span>
                       )}
                       <span className="truncate">{title}</span>
                     </h1>

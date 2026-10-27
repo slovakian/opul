@@ -205,6 +205,7 @@ pub struct MachineWorkspace {
     pub id: String,
     pub name: String,
     pub icon: MachineWorkspaceIcon,
+    pub appearance: WorkspaceAppearance,
     pub folders: Vec<MachineFolder>,
     pub default_format: MachineFormat,
     pub file_organization: MachineFileOrganization,
@@ -237,11 +238,20 @@ pub struct MachineWorkspaceRequest {
     pub workspace_id: String,
     pub name: String,
     pub icon: MachineWorkspaceIcon,
+    #[serde(default)]
+    pub appearance: WorkspaceAppearance,
     pub folder_id: String,
     pub folder_name: String,
     pub folder_path: String,
     pub default_format: MachineFormat,
     pub file_organization: MachineFileOrganization,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct MachineWorkspaceDraft {
+    pub workspace_id: String,
+    pub folder_id: String,
+    pub appearance: WorkspaceAppearance,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -368,6 +378,18 @@ impl OpulStateMachine {
         snapshot_view(self.actor.snapshot())
     }
 
+    pub fn workspace_draft(&self) -> Result<MachineWorkspaceDraft, StateMachineError> {
+        let id = WorkspaceId::new();
+        Ok(MachineWorkspaceDraft {
+            workspace_id: id.to_string(),
+            folder_id: FolderId::new().to_string(),
+            appearance: self
+                .actor
+                .propose_workspace_appearance(id)
+                .map_err(actor_error)?,
+        })
+    }
+
     pub fn wait_for_snapshot(
         &self,
         after_boot_id: Option<String>,
@@ -404,6 +426,7 @@ impl OpulStateMachine {
                 id: workspace_id,
                 name: request.name,
                 icon: icon_from_view(request.icon),
+                appearance: request.appearance,
                 folders: vec![SavedFolder {
                     id: folder_id,
                     name: request.folder_name,
@@ -451,6 +474,7 @@ impl OpulStateMachine {
                     id: workspace_id,
                     name: request.name,
                     icon: icon_from_view(request.icon),
+                    appearance: request.appearance,
                     folders: vec![SavedFolder {
                         id: folder_id,
                         name: request.folder_name,
@@ -1675,6 +1699,7 @@ fn workspace_view(workspace: WorkspaceProjection) -> MachineWorkspace {
     MachineWorkspace {
         id: workspace.id.to_string(),
         name: workspace.name,
+        appearance: workspace.appearance,
         icon: match workspace.icon {
             WorkspaceIcon::Symbol(value) => MachineWorkspaceIcon {
                 kind: MachineWorkspaceIconKind::Symbol,

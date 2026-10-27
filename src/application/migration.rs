@@ -112,6 +112,7 @@ pub(crate) fn import_legacy_library(
             id,
             name,
             icon,
+            appearance: super::WorkspaceAppearance::default(),
             folders: folders.into_iter().map(|(folder, _)| folder).collect(),
             default_folder,
             default_format: parse_format(value.get("defaultFormat")).unwrap_or(MediaFormat::Best),
@@ -136,6 +137,7 @@ pub(crate) fn import_legacy_library(
         imported_downloads,
         recovery_items: state.recovery.len() as u64,
     });
+    state.migrate_workspace_appearances();
     state
         .validate()
         .map_err(|error| format!("legacy migration violated an invariant: {error}"))?;
@@ -371,6 +373,42 @@ fn string(value: &Value, key: &str) -> Option<String> {
 mod tests {
     use super::*;
     use std::io::Write;
+
+    #[test]
+    fn legacy_missing_and_symbol_icons_receive_folder_treatments_without_changing_data() {
+        let directory =
+            std::env::temp_dir().join(format!("opul-legacy-appearance-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("library.json");
+        let icons = [
+            serde_json::Value::Null,
+            serde_json::json!({"symbol": "film"}),
+            serde_json::json!({"emoji": ""}),
+            serde_json::json!({"emoji": "🎬"}),
+        ];
+        let workspaces = icons.iter().enumerate().map(|(index, icon)| serde_json::json!({
+            "id": Uuid::from_u128(index as u128 + 1), "name": format!("Workspace {index}"), "icon": icon,
+            "savedFolders": [{"id": Uuid::from_u128(index as u128 + 101), "name": "Saved", "path": "/tmp/Legacy", "isDefault": true}],
+            "defaultFormat": "bestMp4", "downloads": [],
+        })).collect::<Vec<_>>();
+        fs::write(
+            &path,
+            serde_json::to_vec(&serde_json::json!({"workspaces": workspaces})).unwrap(),
+        )
+        .unwrap();
+        let state = import_legacy_library(&path, "/tmp/Unused".into()).unwrap();
+        for (index, workspace) in state.workspaces.iter().enumerate() {
+            assert_eq!(workspace.id.0, Uuid::from_u128(index as u128 + 1));
+            assert_eq!(
+                workspace.folders[0].id.0,
+                Uuid::from_u128(index as u128 + 101)
+            );
+            assert_eq!(workspace.folders[0].path, "/tmp/Legacy");
+            assert_eq!(workspace.default_format, MediaFormat::BestMp4);
+            assert_eq!(workspace.appearance.is_unassigned(), index == 3);
+        }
+        fs::remove_dir_all(directory).unwrap();
+    }
 
     #[test]
     fn migration_preserves_ids_and_decoder_omissions() {

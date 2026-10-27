@@ -9,13 +9,14 @@ pub mod meta;
 mod persistence;
 
 pub use application::{
-    MachineCapabilities, MachineCommandReceipt, MachineDownload, MachineDownloadCommand,
-    MachineDownloadState, MachineFileOrganization, MachineFolder, MachineFolderRequest,
-    MachineFormat, MachineGrouping, MachineHoldCause, MachineLayout, MachineMediaItem,
-    MachineMediaPolicy, MachineMediaRequest, MachinePlatformEffect, MachineSessionState,
-    MachineSnapshot, MachineSort, MachineSource, MachineTorrentFile, MachineTorrentRequest,
-    MachineWorkspace, MachineWorkspaceIcon, MachineWorkspaceIconKind, MachineWorkspaceRequest,
-    OpulMachineConfig, OpulStateMachine, StateMachineError,
+    FolderTreatment, MachineCapabilities, MachineCommandReceipt, MachineDownload,
+    MachineDownloadCommand, MachineDownloadState, MachineFileOrganization, MachineFolder,
+    MachineFolderRequest, MachineFormat, MachineGrouping, MachineHoldCause, MachineLayout,
+    MachineMediaItem, MachineMediaPolicy, MachineMediaRequest, MachinePlatformEffect,
+    MachineSessionState, MachineSnapshot, MachineSort, MachineSource, MachineTorrentFile,
+    MachineTorrentRequest, MachineWorkspace, MachineWorkspaceDraft, MachineWorkspaceIcon,
+    MachineWorkspaceIconKind, MachineWorkspaceRequest, OpulMachineConfig, OpulStateMachine,
+    StateMachineError, WorkspaceAppearance,
 };
 
 pub use destination::DownloadContentLayout;

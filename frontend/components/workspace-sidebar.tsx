@@ -38,16 +38,12 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { SidebarPopover } from "@/components/sidebar-popover";
+import { WorkspaceIcon } from "@/components/workspace-icon";
 import { useLibrary } from "@/lib/library";
 import { bridge, errorMessage } from "@/lib/bridge";
 import { toast } from "@/components/ui/toast";
 import opulLogo from "@/assets/opul-logo.png";
-import {
-  bytes,
-  workspaceEmoji,
-  type Folder,
-  type Workspace,
-} from "@/lib/model";
+import { bytes, type Folder, type Workspace } from "@/lib/model";
 
 export type Location =
   | { kind: "all" }
@@ -256,7 +252,7 @@ export function WorkspaceSidebar({
                       aria-hidden
                       className="flex size-4 shrink-0 items-center justify-center group-hover/workspace:invisible group-focus-within/workspace:invisible"
                     >
-                      {workspaceEmoji(workspace)}
+                      <WorkspaceIcon workspace={workspace} />
                     </span>
                     <span>{workspace.name}</span>
                   </SidebarMenuButton>

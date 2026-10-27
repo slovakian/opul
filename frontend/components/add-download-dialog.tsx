@@ -18,11 +18,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Choice } from "@/components/sidebar-popover";
 import { bridge, errorMessage } from "@/lib/bridge";
+import { WorkspaceIcon } from "@/components/workspace-icon";
 import { useLibrary } from "@/lib/library";
 import {
   formatNames,
   formatSchema,
-  workspaceEmoji,
   type Command,
   type Format,
   type Workspace,
@@ -164,7 +164,13 @@ export function AddDownloadDialog({
                   value={workspace.id}
                   options={workspaces.map((workspace) => ({
                     value: workspace.id,
-                    label: `${workspaceEmoji(workspace)} ${workspace.name}`,
+                    label: workspace.name,
+                    content: (
+                      <>
+                        <WorkspaceIcon workspace={workspace} />
+                        <span className="truncate">{workspace.name}</span>
+                      </>
+                    ),
                   }))}
                   onChange={(id) => {
                     setWorkspaceId(id);

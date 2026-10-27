@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { WorkspaceIcon } from "@/components/workspace-icon";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FolderOpen, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,7 +22,12 @@ import { Choice } from "@/components/sidebar-popover";
 import { useLibrary } from "@/lib/library";
 import { bridge, errorMessage } from "@/lib/bridge";
 import { toast } from "@/components/ui/toast";
-import { workspaceEmoji, type Workspace } from "@/lib/model";
+import {
+  workspaceEmoji,
+  type Workspace,
+  type WorkspaceDraft,
+  type WorkspaceRequest,
+} from "@/lib/model";
 
 const emojis = [
   "📁",
@@ -46,6 +53,34 @@ export function WorkspaceDialog({
   onCreated: (id: string) => void;
 }) {
   const { state, run, busy } = useLibrary();
+  const [draft, setDraft] = useState<WorkspaceDraft | null>(() =>
+    workspace
+      ? {
+          workspace_id: workspace.id,
+          folder_id:
+            workspace.folders.find((folder) => folder.is_default)?.id ?? "",
+          appearance: workspace.appearance,
+        }
+      : null,
+  );
+  const [draftError, setDraftError] = useState<string>();
+  const pendingDraft = useRef<Promise<WorkspaceDraft> | null>(null);
+  const lastSubmission = useRef<{ input: string; requestId: string } | null>(
+    null,
+  );
+  const loadDraft = useCallback(async () => {
+    setDraftError(undefined);
+    try {
+      pendingDraft.current ??= bridge.workspaceDraft();
+      setDraft(await pendingDraft.current);
+    } catch (error) {
+      pendingDraft.current = null;
+      setDraftError(errorMessage(error));
+    }
+  }, []);
+  useEffect(() => {
+    if (!workspace) void loadDraft();
+  }, [workspace, loadDraft]);
   const [name, setName] = useState(workspace?.name ?? "");
   const [emoji, setEmoji] = useState(
     workspace ? workspaceEmoji(workspace) : "📁",
@@ -70,22 +105,31 @@ export function WorkspaceDialog({
   }
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    const id = workspace?.id ?? crypto.randomUUID();
+    if (!draft) return;
+    const id = draft.workspace_id;
     const folder = workspace?.folders.find((folder) => folder.is_default);
+    const input = {
+      expected_revision: null,
+      workspace_id: id,
+      name: name.trim(),
+      icon: { kind: "Emoji", value: emoji },
+      appearance: draft.appearance,
+      folder_id: draft.folder_id,
+      folder_name: folder?.name ?? "Downloads",
+      folder_path: path.trim(),
+      default_format: workspace?.default_format ?? "Best",
+      file_organization: workspace?.file_organization ?? "Automatic",
+    } satisfies Omit<WorkspaceRequest, "request_id">;
+    const serialized = JSON.stringify(input);
+    if (lastSubmission.current?.input !== serialized) {
+      lastSubmission.current = {
+        input: serialized,
+        requestId: crypto.randomUUID(),
+      };
+    }
     const receipt = await run({
       kind: workspace ? "update_workspace" : "create_workspace",
-      request: {
-        request_id: crypto.randomUUID(),
-        expected_revision: null,
-        workspace_id: id,
-        name: name.trim(),
-        icon: { kind: "Emoji", value: emoji },
-        folder_id: folder?.id ?? crypto.randomUUID(),
-        folder_name: folder?.name ?? "Downloads",
-        folder_path: path.trim(),
-        default_format: workspace?.default_format ?? "Best",
-        file_organization: workspace?.file_organization ?? "Automatic",
-      },
+      request: { request_id: lastSubmission.current.requestId, ...input },
     });
     if (receipt) {
       onCreated(id);
@@ -118,7 +162,20 @@ export function WorkspaceDialog({
                 <Choice
                   label="Workspace emoji"
                   value={emoji}
-                  options={emojis.map((value) => ({ value, label: value }))}
+                  options={emojis.map((value) => ({
+                    value,
+                    label: value,
+                    content: (
+                      <WorkspaceIcon
+                        workspace={{
+                          icon: { kind: "Emoji", value },
+                          appearance: draft?.appearance ?? {
+                            automatic_folder: null,
+                          },
+                        }}
+                      />
+                    ),
+                  }))}
                   onChange={setEmoji}
                 />
               </Field>
@@ -163,6 +220,21 @@ export function WorkspaceDialog({
               </Field>
             )}
           </FieldGroup>
+          {draftError && (
+            <Alert>
+              <AlertDescription>
+                <p>{draftError}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void loadDraft()}
+                >
+                  Try again
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
           <DialogFooter>
             <Button
               type="button"
@@ -174,7 +246,7 @@ export function WorkspaceDialog({
             </Button>
             <Button
               type="submit"
-              disabled={busy || !name.trim() || !path.trim()}
+              disabled={busy || !draft || !name.trim() || !path.trim()}
             >
               {busy && (
                 <Loader2 className="animate-spin" data-icon="inline-start" />

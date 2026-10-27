@@ -1,3 +1,4 @@
+use super::WorkspaceAppearance;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -52,12 +53,13 @@ pub(crate) struct AppState {
 impl AppState {
     pub(crate) fn fresh(downloads_path: String) -> Self {
         let folder_id = FolderId::new();
-        Self {
+        let mut state = Self {
             schema_version: STATE_SCHEMA_VERSION,
             revision: 0,
             session: SessionPhase::Booting,
             workspaces: vec![Workspace {
                 id: WorkspaceId::new(),
+                appearance: WorkspaceAppearance::default(),
                 name: "Downloads".to_string(),
                 icon: WorkspaceIcon::Emoji("📁".to_string()),
                 folders: vec![SavedFolder {
@@ -76,7 +78,9 @@ impl AppState {
             receipts: BTreeMap::new(),
             recovery: Vec::new(),
             migration: None,
-        }
+        };
+        state.migrate_workspace_appearances();
+        state
     }
 
     pub(crate) fn validate(&self) -> Result<(), InvariantViolation> {
@@ -97,6 +101,9 @@ impl AppState {
             }
             if workspace.name.trim().is_empty() {
                 return Err(InvariantViolation::EmptyWorkspaceName(workspace.id));
+            }
+            if !workspace.appearance.valid() {
+                return Err(InvariantViolation::InvalidWorkspaceAppearance(workspace.id));
             }
             if workspace.folders.is_empty() {
                 return Err(InvariantViolation::NoFolder(workspace.id));
@@ -176,7 +183,8 @@ impl AppState {
                     .iter()
                     .map(|folder| folder.id)
                     .collect::<BTreeSet<_>>();
-                if replacement.name.trim().is_empty()
+                if !replacement.appearance.valid()
+                    || replacement.name.trim().is_empty()
                     || replacement.folders.is_empty()
                     || replacement_folders.len() != replacement.folders.len()
                     || !replacement_folders.contains(&replacement.default_folder)
@@ -277,6 +285,9 @@ pub(crate) enum SessionPhase {
 pub(crate) struct Workspace {
     pub(crate) id: WorkspaceId,
     pub(crate) name: String,
+    // Omitting the empty default preserves checksums of checkpoints written before appearances.
+    #[serde(default, skip_serializing_if = "WorkspaceAppearance::is_unassigned")]
+    pub(crate) appearance: WorkspaceAppearance,
     pub(crate) icon: WorkspaceIcon,
     pub(crate) folders: Vec<SavedFolder>,
     pub(crate) default_folder: FolderId,
@@ -713,6 +724,8 @@ pub(crate) struct MigrationRecord {
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub(crate) enum InvariantViolation {
+    #[error("workspace {0} has an invalid appearance")]
+    InvalidWorkspaceAppearance(WorkspaceId),
     #[error("unsupported application-state schema {0}")]
     UnsupportedSchema(u32),
     #[error("the application must contain at least one workspace")]

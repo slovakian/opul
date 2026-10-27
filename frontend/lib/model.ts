@@ -87,10 +87,28 @@ export const downloadSchema = z.object({
     can_move: z.boolean(),
   }),
 });
+export const appearanceSchema = z.object({
+  automatic_folder: z
+    .object({
+      preset_id: z.string().min(1).max(80),
+      version: z.number().int().positive(),
+      hue: z.number().int().min(0).max(359),
+      saturation: z.number().int().min(0).max(1000),
+      brightness: z.number().int().min(50).max(150),
+    })
+    .nullable(),
+});
+export const workspaceDraftSchema = z.object({
+  workspace_id: z.string(),
+  folder_id: z.string(),
+  appearance: appearanceSchema,
+});
+export type WorkspaceDraft = z.infer<typeof workspaceDraftSchema>;
 export const workspaceSchema = z.object({
   id: z.string(),
   name: z.string(),
   icon: z.object({ kind: z.enum(["Symbol", "Emoji"]), value: z.string() }),
+  appearance: appearanceSchema,
   folders: z.array(folderSchema),
   default_format: formatSchema,
   file_organization: z.enum([
@@ -158,6 +176,7 @@ export type WorkspaceRequest = {
   workspace_id: string;
   name: string;
   icon: Workspace["icon"];
+  appearance: Workspace["appearance"];
   folder_id: string;
   folder_name: string;
   folder_path: string;
@@ -238,7 +257,7 @@ export const sourceNames: Record<Download["source"], string> = {
   Guided: "Guided",
 };
 
-export function workspaceEmoji(workspace: Workspace) {
+export function workspaceEmoji(workspace: Pick<Workspace, "icon">) {
   return workspace.icon.kind === "Emoji" && workspace.icon.value.trim()
     ? workspace.icon.value
     : "📁";

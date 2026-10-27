@@ -310,6 +310,16 @@ pub fn snapshot(state: State<'_, Desktop>) -> Result<MachineSnapshot, String> {
 }
 
 #[tauri::command]
+pub fn workspace_draft(
+    state: State<'_, Desktop>,
+) -> Result<opul_core::MachineWorkspaceDraft, String> {
+    state
+        .machine()?
+        .workspace_draft()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn frontend_ready(
     window: tauri::WebviewWindow,
     state: State<'_, Desktop>,

@@ -1,9 +1,11 @@
 import type { Page } from "@playwright/test";
+import folderTreatments from "../../src/application/folder-treatments.json" with { type: "json" };
 import type {
   Command,
   Download,
   Preferences,
   Snapshot,
+  Receipt,
 } from "../../frontend/lib/model";
 
 export const baseDownload: Download = {
@@ -74,6 +76,7 @@ export const snapshot: Snapshot = {
       id: "workspace-1",
       name: "Downloads",
       icon: { kind: "Symbol", value: "arrow.down.circle" },
+      appearance: { automatic_folder: folderTreatments[0] },
       folders: [
         {
           id: "folder-1",
@@ -133,10 +136,19 @@ export async function mockDesktop(
     snapshot?: Snapshot;
     folderPickerPath?: string | null;
     folderPickerError?: string;
+    failFirstCreate?: boolean;
+    loseFirstCreateResponse?: boolean;
+    changeSnapshotDuringDraft?: boolean;
   } = {},
 ) {
   await page.addInitScript(
-    ({ initialSnapshot, initialPreferences, options, baseDownload }) => {
+    ({
+      initialSnapshot,
+      initialPreferences,
+      options,
+      baseDownload,
+      folderTreatments,
+    }) => {
       let snapshot = structuredClone(initialSnapshot);
       let preferences = structuredClone(initialPreferences);
       if (options.empty) snapshot.workspaces[0].downloads = [];
@@ -147,6 +159,9 @@ export async function mockDesktop(
         ];
       }
       let callbackId = 0;
+      let draftCalls = 0;
+      let createAttempts = 0;
+      const receipts = new Map<string, Receipt>();
       Object.defineProperty(window, "isTauri", { value: true });
       Object.defineProperty(window, "__TAURI_EVENT_PLUGIN_INTERNALS__", {
         value: { unregisterListener: () => {} },
@@ -169,6 +184,21 @@ export async function mockDesktop(
               return structuredClone(snapshot);
             }
             if (name === "get_preferences") return preferences;
+            if (name === "workspace_draft") {
+              draftCalls++;
+              const draft = {
+                workspace_id: `draft-workspace-${draftCalls}`,
+                folder_id: `draft-folder-${draftCalls}`,
+                appearance: { automatic_folder: folderTreatments[1] },
+              };
+              if (options.changeSnapshotDuringDraft) {
+                snapshot.workspaces[0].appearance.automatic_folder =
+                  folderTreatments[2];
+                snapshot.revision++;
+                snapshot.sequence++;
+              }
+              return draft;
+            }
             if (name === "save_preferences" && args.preferences) {
               preferences = args.preferences;
               return;
@@ -215,12 +245,25 @@ export async function mockDesktop(
                 }
               }
               if (command.kind === "create_workspace") {
+                const receipt = receipts.get(command.request.request_id);
+                if (receipt) return receipt;
+                if (
+                  snapshot.workspaces.some(
+                    (workspace) =>
+                      workspace.id === command.request.workspace_id,
+                  )
+                )
+                  throw new Error("That workspace already exists.");
+                createAttempts++;
+                if (options.failFirstCreate && createAttempts === 1)
+                  throw new Error("Couldn't save the checkpoint. Try again.");
                 const request = command.request;
                 snapshot.workspaces.push({
                   ...snapshot.workspaces[0],
                   id: request.workspace_id,
                   name: request.name,
                   icon: request.icon,
+                  appearance: request.appearance,
                   folders: [
                     {
                       id: request.folder_id,
@@ -276,7 +319,18 @@ export async function mockDesktop(
               }
               snapshot.revision++;
               snapshot.sequence++;
-              return { revision: snapshot.revision, created_download_ids: [] };
+              const receipt = {
+                revision: snapshot.revision,
+                created_download_ids: [],
+              };
+              if (command.kind === "create_workspace") {
+                receipts.set(command.request.request_id, receipt);
+                if (options.loseFirstCreateResponse && createAttempts === 1)
+                  throw new Error(
+                    "The response was lost after saving. Try again.",
+                  );
+              }
+              return receipt;
             }
             return null;
           },
@@ -288,6 +342,7 @@ export async function mockDesktop(
       initialPreferences: preferences,
       options,
       baseDownload,
+      folderTreatments,
     },
   );
 }
