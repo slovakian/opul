@@ -3,7 +3,9 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type Dispatch,
   type RefObject,
+  type SetStateAction,
 } from "react";
 import { EmojiPicker, type EmojiPickerListEmojiProps } from "frimousse";
 import { Check, Search } from "lucide-react";
@@ -99,7 +101,7 @@ export function WorkspaceIconPicker({
   onChange,
 }: {
   draft: IconDraft;
-  onChange: (draft: IconDraft) => void;
+  onChange: Dispatch<SetStateAction<IconDraft>>;
 }) {
   const { emoji, appearance } = draft;
   const preference = appearance.preference;
@@ -136,7 +138,9 @@ export function WorkspaceIconPicker({
         onPointerMoveCapture={() => {
           keyboardNavigation.current = false;
         }}
-        onEmojiSelect={({ emoji }) => onChange({ ...draft, emoji })}
+        onEmojiSelect={({ emoji }) =>
+          onChange((draft) => ({ ...draft, emoji }))
+        }
       >
         <InputGroup>
           <InputGroupInput
@@ -207,10 +211,10 @@ export function WorkspaceIconPicker({
           onValueChange={(values) => {
             const kind = values[0];
             if (kind === "Original" || kind === "Automatic")
-              onChange({
+              onChange((draft) => ({
                 ...draft,
-                appearance: { ...appearance, preference: { kind } },
-              });
+                appearance: { ...draft.appearance, preference: { kind } },
+              }));
           }}
         >
           <ToggleGroupItem value="Original">

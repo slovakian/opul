@@ -23,6 +23,7 @@ import {
   PopoverContent,
   PopoverTitle,
   PopoverDescription,
+  PopoverHeader,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { WorkspaceIconPicker } from "@/components/workspace-icon-picker";
@@ -64,13 +65,16 @@ export function WorkspaceDialog({
   const nameInput = useRef<HTMLInputElement>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [saveError, setSaveError] = useState<string>();
-  const [draft, setDraft] = useState<WorkspaceDraft | null>(() =>
+  const [draft, setDraft] = useState<
+    (WorkspaceDraft & { emoji: string }) | null
+  >(() =>
     workspace
       ? {
           workspace_id: workspace.id,
           folder_id:
             workspace.folders.find((folder) => folder.is_default)?.id ?? "",
           appearance: workspace.appearance,
+          emoji: workspaceEmoji(workspace),
         }
       : null,
   );
@@ -83,7 +87,7 @@ export function WorkspaceDialog({
     setDraftError(undefined);
     try {
       pendingDraft.current ??= bridge.workspaceDraft();
-      setDraft(await pendingDraft.current);
+      setDraft({ ...(await pendingDraft.current), emoji: "📁" });
     } catch (error) {
       pendingDraft.current = null;
       setDraftError(errorMessage(error));
@@ -93,9 +97,7 @@ export function WorkspaceDialog({
     if (!workspace) void loadDraft();
   }, [workspace, loadDraft]);
   const [name, setName] = useState(workspace?.name ?? "");
-  const [emoji, setEmoji] = useState(
-    workspace ? workspaceEmoji(workspace) : "📁",
-  );
+  const emoji = draft?.emoji ?? "📁";
   const [path, setPath] = useState(
     workspace?.folders.find((folder) => folder.is_default)?.path ??
       (state.kind === "ready"
@@ -195,7 +197,9 @@ export function WorkspaceDialog({
                         />
                       ),
                     }))}
-                    onChange={setEmoji}
+                    onChange={(emoji) =>
+                      setDraft((draft) => draft && { ...draft, emoji })
+                    }
                   />
                 ) : (
                   <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
@@ -225,19 +229,26 @@ export function WorkspaceDialog({
                       align="start"
                       className="h-[min(30rem,var(--available-height))] max-h-[calc(100svh-1rem)] w-80 max-w-[calc(100vw-1rem)] gap-3 overflow-hidden motion-reduce:animate-none motion-reduce:transition-none"
                     >
-                      <div className="flex shrink-0 flex-col gap-1">
+                      <PopoverHeader className="shrink-0">
                         <PopoverTitle>Choose workspace icon</PopoverTitle>
                         <PopoverDescription>
                           Saved when you create the workspace.
                         </PopoverDescription>
-                      </div>
+                      </PopoverHeader>
                       {draft && (
                         <WorkspaceIconPicker
                           draft={{ emoji, appearance: draft.appearance }}
-                          onChange={(icon) => {
-                            setEmoji(icon.emoji);
-                            setDraft({ ...draft, appearance: icon.appearance });
-                          }}
+                          onChange={(update) =>
+                            setDraft(
+                              (draft) =>
+                                draft && {
+                                  ...draft,
+                                  ...(typeof update === "function"
+                                    ? update(draft)
+                                    : update),
+                                },
+                            )
+                          }
                         />
                       )}
                       <div className="flex shrink-0 justify-end">

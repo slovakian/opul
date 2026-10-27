@@ -130,6 +130,9 @@ for (const lost of [false, true]) {
     await picker(page)
       .getByRole("button", { name: "Original", exact: true })
       .click();
+    await expect(
+      picker(page).getByRole("img", { name: "Icon preview: 👨‍👩‍👧‍👦" }),
+    ).toBeVisible();
     await picker(page)
       .getByRole("button", { name: "Done", exact: true })
       .click();
