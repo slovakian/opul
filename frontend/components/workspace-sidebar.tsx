@@ -236,6 +236,7 @@ export function WorkspaceSidebar({
               {workspaces.map((workspace) => (
                 <Collapsible
                   key={workspace.id}
+                  className="group/workspace"
                   defaultOpen
                   render={<SidebarMenuItem />}
                 >
@@ -250,13 +251,18 @@ export function WorkspaceSidebar({
                       go({ kind: "workspace", workspaceId: workspace.id })
                     }
                   >
-                    <span aria-hidden>{workspaceEmoji(workspace)}</span>
+                    <span
+                      aria-hidden
+                      className="flex size-4 shrink-0 items-center justify-center group-hover/workspace:invisible group-focus-within/workspace:invisible"
+                    >
+                      {workspaceEmoji(workspace)}
+                    </span>
                     <span>{workspace.name}</span>
                   </SidebarMenuButton>
                   <CollapsibleTrigger
                     render={
                       <SidebarMenuAction
-                        className="left-1 bg-sidebar-accent opacity-0 group-hover/menu-item:opacity-100 data-open:rotate-90"
+                        className="left-1.5 right-auto opacity-0 group-hover/workspace:opacity-100 group-focus-within/workspace:opacity-100 data-panel-open:rotate-90"
                         aria-label={`Toggle ${workspace.name} folders`}
                       />
                     }
