@@ -162,3 +162,18 @@ creation, saved resolved values, and reopening after process restart.
 For machines with limited resources, run the checks sequentially with
 `CARGO_BUILD_JOBS=2 CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 cargo test --workspace`,
 `npm run build`, and `OPUL_TEST_PORT=1541 npm test -- --workers=1`.
+
+## Integrated creation verification
+
+After integrating PR #8's color-suggestions commit `3872c9f`, all 102 Rust tests
+(99 core and 3 desktop), the TypeScript/production build, and 42 WebKit tests pass.
+`Scripts/package_app.sh debug` and `Scripts/smoke_test.sh` pass with strict bundle
+signature and icon checks and an isolated native launch connected to Rust.
+Standards and Spec reviews have no remaining findings.
+
+The creation regression first failed because the shared picker was absent. A full
+run then exposed a stale appearance callback restoring an earlier emoji. Emoji and
+appearance updates now apply to the latest draft, including color suggestions.
+The retry flow verifies the selected Unicode sequence before closing the picker
+and after saving. The keyboard scrolling test waits for the virtualized grid's
+single active cell before checking that it is fully visible.
