@@ -96,6 +96,7 @@ export const folderTreatmentSchema = treatmentParametersSchema.extend({
   preset_id: z.string().min(1).max(80),
   version: z.number().int().positive(),
 });
+export type TreatmentParameters = z.infer<typeof treatmentParametersSchema>;
 export const appearancePreferenceSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("Automatic") }),
   z.object({ kind: z.literal("Original") }),

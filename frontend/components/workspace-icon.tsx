@@ -1,11 +1,12 @@
-import { workspaceEmoji, type Workspace } from "@/lib/model";
+import {
+  workspaceEmoji,
+  type Workspace,
+  type TreatmentParameters,
+} from "@/lib/model";
 
 import { canTreatEmoji, emojiTreatment } from "@/lib/workspace-appearance";
 
-type Treatment = {
-  hue: number;
-  saturation: number;
-  brightness: number;
+type Treatment = TreatmentParameters & {
   preset_id?: string;
 };
 

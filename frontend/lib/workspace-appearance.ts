@@ -67,5 +67,9 @@ export function emojiTreatment(
       return preference.treatment;
     case "Custom":
       return preference;
+    default: {
+      const exhaustive: never = preference;
+      return exhaustive;
+    }
   }
 }

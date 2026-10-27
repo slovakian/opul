@@ -1,6 +1,12 @@
-import { useEffect, useRef, useState } from "react";
-import { EmojiPicker } from "frimousse";
-import { Check, Loader2, Search } from "lucide-react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
+import { EmojiPicker, type EmojiPickerListEmojiProps } from "frimousse";
+import { Check, Search } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +21,7 @@ import {
   PopoverTitle,
 } from "@/components/ui/popover";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Spinner } from "@/components/ui/spinner";
 import { WorkspaceIcon } from "@/components/workspace-icon";
 import { bridge, errorMessage } from "@/lib/bridge";
 import { resolveEmojiData } from "@/lib/emoji-data";
@@ -23,6 +30,68 @@ import { workspaceEmoji, type Workspace } from "@/lib/model";
 import { canTreatEmoji, isFolderEmoji } from "@/lib/workspace-appearance";
 
 export type IconDraft = { emoji: string; appearance: Workspace["appearance"] };
+
+function EmojiGridCell({
+  emoji,
+  chosen,
+  keyboardNavigation,
+  ...props
+}: EmojiPickerListEmojiProps & {
+  chosen: boolean;
+  keyboardNavigation: RefObject<boolean>;
+}) {
+  const ref = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => {
+    if (!emoji.isActive || !keyboardNavigation.current) return;
+    const cell = ref.current;
+    const viewport = cell?.closest<HTMLElement>("[frimousse-viewport]");
+    if (!cell || !viewport) return;
+    // Frimousse 0.4 also uses its zero-based ARIA row index as a scroll target.
+    // After correcting indices, keep the actual active cell visible, without
+    // scrolling on hover or depending on the library's private row numbering.
+    const bounds = cell.getBoundingClientRect();
+    const frame = viewport.getBoundingClientRect();
+    const header = viewport.querySelector<HTMLElement>(
+      "[frimousse-category-header]",
+    );
+    const top =
+      frame.top +
+      Math.max(
+        0,
+        Math.min(header?.offsetHeight ?? 0, frame.height - bounds.height),
+      );
+    const delta =
+      bounds.bottom > frame.bottom
+        ? bounds.bottom - frame.bottom
+        : bounds.top < top
+          ? bounds.top - top
+          : 0;
+    if (delta) viewport.scrollBy({ top: delta, behavior: "instant" });
+  }, [emoji.isActive, keyboardNavigation]);
+  return (
+    <button
+      {...props}
+      ref={ref}
+      type="button"
+      aria-colindex={
+        props["aria-colindex"] === undefined
+          ? undefined
+          : props["aria-colindex"] + 1
+      }
+      aria-description={chosen ? "Selected icon" : undefined}
+      data-chosen={chosen}
+      className="relative flex size-9 items-center justify-center rounded-md text-2xl outline-none hover:bg-accent data-active:bg-accent data-[chosen=true]:ring-1 data-[chosen=true]:ring-ring focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <span aria-hidden>{emoji.emoji}</span>
+      {chosen && (
+        <Check
+          aria-hidden
+          className="absolute bottom-0 right-0 size-3 rounded-sm bg-popover"
+        />
+      )}
+    </button>
+  );
+}
 
 // The browsing surface is controlled so creation can retain it in its own draft.
 export function WorkspaceIconPicker({
@@ -34,6 +103,7 @@ export function WorkspaceIconPicker({
 }) {
   const { emoji, appearance } = draft;
   const preference = appearance.preference;
+  const keyboardNavigation = useRef(false);
   return (
     <>
       <div className="flex items-center gap-3">
@@ -60,6 +130,12 @@ export function WorkspaceIconPicker({
         columns={8}
         locale="en"
         resolveEmojiData={resolveEmojiData}
+        onKeyDownCapture={(event) => {
+          if (event.key.startsWith("Arrow")) keyboardNavigation.current = true;
+        }}
+        onPointerMoveCapture={() => {
+          keyboardNavigation.current = false;
+        }}
         onEmojiSelect={({ emoji }) => onChange({ ...draft, emoji })}
       >
         <InputGroup>
@@ -111,28 +187,12 @@ export function WorkspaceIconPicker({
                 </div>
               ),
               Emoji: ({ emoji: item, ...props }) => (
-                <button
+                <EmojiGridCell
                   {...props}
-                  type="button"
-                  aria-colindex={
-                    props["aria-colindex"] === undefined
-                      ? undefined
-                      : props["aria-colindex"] + 1
-                  }
-                  aria-description={
-                    item.emoji === emoji ? "Selected icon" : undefined
-                  }
-                  data-chosen={item.emoji === emoji}
-                  className="relative flex size-9 items-center justify-center rounded-md text-2xl outline-none hover:bg-accent data-active:bg-accent data-[chosen=true]:ring-1 data-[chosen=true]:ring-ring focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <span aria-hidden>{item.emoji}</span>
-                  {item.emoji === emoji && (
-                    <Check
-                      aria-hidden
-                      className="absolute bottom-0 right-0 size-3 rounded-sm bg-popover"
-                    />
-                  )}
-                </button>
+                  emoji={item}
+                  chosen={item.emoji === emoji}
+                  keyboardNavigation={keyboardNavigation}
+                />
               ),
             }}
           />
@@ -281,8 +341,8 @@ export function WorkspaceIconEditor({
           </Button>
           <Button disabled={!ready || saving} onClick={() => void save()}>
             {saving && (
-              <Loader2
-                className="animate-spin motion-reduce:animate-none"
+              <Spinner
+                className="motion-reduce:animate-none"
                 data-icon="inline-start"
               />
             )}

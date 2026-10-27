@@ -38,6 +38,7 @@ Run `Scripts/test.sh`, `Scripts/package_app.sh debug`, and
 `Scripts/smoke_test.sh`. Appearance tests write `test-results/folders-light.png`,
 `folders-dark.png`, and `native-emoji.png`. If port 1420 belongs to another
 worktree, run Playwright with a dedicated Vite port and matching base URL.
+`OPUL_TEST_PORT=1531 Scripts/test.sh` starts an isolated server on that port.
 
 ## Existing workspace icons (#12)
 
@@ -63,7 +64,10 @@ an already assigned treatment.
 The shared controlled picker composes Frimousse 0.4 with shadcn Base UI popovers,
 input groups, buttons, and toggles. Browsing cells always show native colors.
 Frimousse's custom rendering API also corrects its zero-based ARIA grid indices
-to the required one-based indices. No dependency fork is needed.
+to the required one-based indices. Its internal keyboard scrolling uses those
+indices, so the cell renderer keeps the keyboard-active cell visible using its
+actual bounds, including after scrolling in either direction. Hover does not
+scroll. No dependency fork is needed.
 
 The English dataset is bundled from locked `emojibase-data` 18.0.0. Regenerate it
 with `node Scripts/bundle_emoji_data.mjs`; source licenses accompany the data in
@@ -78,6 +82,13 @@ checkpoint failure, restart, and idempotent retry. WebKit flows cover both menus
 offline first use, keyboard selection, cancellation and focus, polling, failures,
 Original and deliberate treatments, presentation variants, eligibility, and
 accessible controls at the 720×520 minimum, including save errors.
+
+Final automated verification: `OPUL_TEST_PORT=1531 Scripts/test.sh` passed 101 Rust
+tests (98 core and 3 desktop), the TypeScript/production build, and all 28 WebKit
+tests. The appearance-command regression first failed on the missing command;
+the keyboard-scrolling regression first reproduced a clipped active cell, then
+passed after the renderer correction. Standards and spec reviews have no
+remaining findings.
 
 Follow-up tickets retain their scope: creation composition (#13), treatment
 suggestions (#14), custom sliders (#15), and skin-tone controls and recents (#16).

@@ -1,10 +1,15 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const port = Number(process.env.OPUL_TEST_PORT ?? 1420);
+if (!Number.isInteger(port) || port < 1 || port > 65535)
+  throw new Error("OPUL_TEST_PORT must be a valid TCP port.");
+const baseURL = `http://localhost:${port}`;
+
 export default defineConfig({
   testDir: "./tests/ui",
   fullyParallel: true,
   use: {
-    baseURL: "http://localhost:1420",
+    baseURL,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     reducedMotion: "reduce",
@@ -19,8 +24,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npm run dev",
-    url: "http://localhost:1420",
-    reuseExistingServer: !process.env.CI,
+    command: `npm run dev -- --port ${port}`,
+    url: baseURL,
+    reuseExistingServer: !process.env.CI && !process.env.OPUL_TEST_PORT,
   },
 });

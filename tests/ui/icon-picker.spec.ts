@@ -227,10 +227,11 @@ test("manual treatment follows eligible emoji and suspends for excluded presenta
 test("first use has no emoji-data requests and supports keyboard selection at minimum size", async ({
   page,
   context,
+  baseURL,
 }) => {
   const external: string[] = [];
   page.on("request", (request) => {
-    if (!request.url().startsWith("http://localhost:1420"))
+    if (!request.url().startsWith(baseURL ?? "http://localhost:1420"))
       external.push(request.url());
   });
   const errors: string[] = [];
@@ -405,4 +406,29 @@ test("bundled resolver filters version ceilings and unsupported country flags", 
   expect(filtered.count).toBeGreaterThan(100);
   expect(filtered.flags).toBe(0);
   expect(Math.max(...filtered.versions)).toBeLessThanOrEqual(1);
+});
+
+test("keyboard browsing keeps the active emoji visible beyond the first rows in both directions", async ({
+  page,
+}) => {
+  await mockDesktop(page);
+  await page.goto("/");
+  await openPicker(page);
+  const active = editor(page).getByRole("gridcell", { selected: true });
+  for (let index = 0; index < 18; index++) {
+    await page.keyboard.press("ArrowDown");
+    await expect(active).toBeInViewport({ ratio: 1 });
+  }
+  for (let index = 0; index < 12; index++) {
+    await page.keyboard.press("ArrowUp");
+    await expect(active).toBeInViewport({ ratio: 1 });
+  }
+  const selected = await active.textContent();
+  await page.keyboard.press("Enter");
+  await expect(editor(page).getByRole("img").locator(artwork)).toHaveText(
+    selected?.trim() ?? "",
+  );
+  expect((await savedSnapshot(page)).workspaces[0]).toEqual(
+    snapshot.workspaces[0],
+  );
 });
