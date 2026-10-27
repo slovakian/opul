@@ -18,7 +18,13 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Choice } from "@/components/sidebar-popover";
+import { WorkspaceIconPicker } from "@/components/workspace-icon-picker";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useLibrary } from "@/lib/library";
 import { bridge, errorMessage } from "@/lib/bridge";
 import { toast } from "@/components/ui/toast";
@@ -29,20 +35,6 @@ import {
   type WorkspaceRequest,
 } from "@/lib/model";
 
-const emojis = [
-  "📁",
-  "🏠",
-  "💼",
-  "🎬",
-  "🎵",
-  "📚",
-  "🎮",
-  "🎨",
-  "📷",
-  "💻",
-  "🌱",
-  "✨",
-];
 export function WorkspaceDialog({
   workspace,
   onClose,
@@ -81,6 +73,7 @@ export function WorkspaceDialog({
   useEffect(() => {
     if (!workspace) void loadDraft();
   }, [workspace, loadDraft]);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [name, setName] = useState(workspace?.name ?? "");
   const [emoji, setEmoji] = useState(
     workspace ? workspaceEmoji(workspace) : "📁",
@@ -159,26 +152,53 @@ export function WorkspaceDialog({
             <div className="flex items-end gap-3">
               <Field className="w-24 shrink-0">
                 <FieldLabel>Emoji</FieldLabel>
-                <Choice
-                  label="Workspace emoji"
-                  value={emoji}
-                  options={emojis.map((value) => ({
-                    value,
-                    label: value,
-                    content: (
-                      <WorkspaceIcon
-                        workspace={{
-                          icon: { kind: "Emoji", value },
-                          appearance: draft?.appearance ?? {
-                            automatic_folder: null,
-                            preference: { kind: "Automatic" },
-                          },
+                <Popover open={pickerOpen} onOpenChange={setPickerOpen} modal>
+                  <PopoverTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={!draft}
+                        aria-label={`Workspace emoji: ${emoji}`}
+                      />
+                    }
+                  >
+                    <WorkspaceIcon
+                      workspace={{
+                        icon: { kind: "Emoji", value: emoji },
+                        appearance: draft?.appearance ?? {
+                          automatic_folder: null,
+                          preference: { kind: "Automatic" },
+                        },
+                      }}
+                    />
+                  </PopoverTrigger>
+                  <PopoverContent
+                    side="right"
+                    align="start"
+                    className="h-[min(34rem,var(--available-height))] max-h-[calc(100svh-1rem)] w-80 max-w-[calc(100vw-1rem)] gap-2 overflow-hidden p-3 motion-reduce:animate-none motion-reduce:transition-none"
+                  >
+                    <PopoverTitle>Change icon</PopoverTitle>
+                    {draft && (
+                      <WorkspaceIconPicker
+                        workspaceId={draft.workspace_id}
+                        draft={{ emoji, appearance: draft.appearance }}
+                        onChange={(next) => {
+                          setEmoji(next.emoji);
+                          setDraft({ ...draft, appearance: next.appearance });
                         }}
                       />
-                    ),
-                  }))}
-                  onChange={setEmoji}
-                />
+                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="shrink-0 self-end"
+                      onClick={() => setPickerOpen(false)}
+                    >
+                      Done
+                    </Button>
+                  </PopoverContent>
+                </Popover>
               </Field>
               <Field>
                 <FieldLabel htmlFor="workspace-name">Name</FieldLabel>

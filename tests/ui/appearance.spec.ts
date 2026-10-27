@@ -86,22 +86,23 @@ for (const loseResponse of [false, true]) {
     await page
       .getByRole("button", { name: "Workspace emoji: 📁", exact: true })
       .click();
-    await page
-      .locator('[data-slot="popover-content"]')
-      .getByRole("button", { name: "📚", exact: true })
+    const picker = page.getByRole("dialog", {
+      name: "Change icon",
+      exact: true,
+    });
+    await picker.getByRole("textbox", { name: "Search emoji" }).fill("books");
+    await picker.getByRole("gridcell", { name: "books", exact: true }).click();
+    await expect(picker.getByRole("img").locator(artwork)).toHaveCSS(
+      "filter",
+      "none",
+    );
+    await picker
+      .getByRole("textbox", { name: "Search emoji" })
+      .fill("file folder");
+    await picker
+      .getByRole("gridcell", { name: "file folder", exact: true })
       .click();
-    await expect(
-      page
-        .getByRole("button", { name: "Workspace emoji: 📚", exact: true })
-        .locator(artwork),
-    ).toHaveCSS("filter", "none");
-    await page
-      .getByRole("button", { name: "Workspace emoji: 📚", exact: true })
-      .click();
-    await page
-      .locator('[data-slot="popover-content"]')
-      .getByRole("button", { name: "📁", exact: true })
-      .click();
+    await picker.getByRole("button", { name: "Done", exact: true }).click();
     await expect(preview).toHaveCSS("filter", filter);
     await page
       .getByRole("button", { name: "Create workspace", exact: true })
