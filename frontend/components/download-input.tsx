@@ -91,7 +91,6 @@ export function DownloadInput({
             }
             groups={[
               {
-                label: `${workspace.name} · Save to`,
                 actions: [...workspace.folders]
                   .sort((a, b) => Number(b.is_default) - Number(a.is_default))
                   .map((option) => ({
