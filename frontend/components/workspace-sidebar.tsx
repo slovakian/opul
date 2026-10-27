@@ -214,7 +214,9 @@ export function WorkspaceSidebar({
                 <item.icon />
                 <span>{item.label}</span>
               </SidebarMenuButton>
-              <SidebarMenuBadge>{item.count}</SidebarMenuBadge>
+              {item.count > 0 && (
+                <SidebarMenuBadge>{item.count}</SidebarMenuBadge>
+              )}
             </SidebarMenuItem>
           ))}
         </SidebarMenu>
