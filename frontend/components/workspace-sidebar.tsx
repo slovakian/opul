@@ -2,7 +2,6 @@ import {
   ArrowDown,
   Check,
   ChevronRight,
-  Download,
   FolderClosed,
   FolderPlus,
   Inbox,
@@ -42,6 +41,7 @@ import { SidebarPopover } from "@/components/sidebar-popover";
 import { useLibrary } from "@/lib/library";
 import { bridge, errorMessage } from "@/lib/bridge";
 import { toast } from "@/components/ui/toast";
+import opulLogo from "@/assets/opul-logo.png";
 import {
   bytes,
   workspaceEmoji,
@@ -138,9 +138,7 @@ export function WorkspaceSidebar({
               title="Opul"
               trigger={
                 <SidebarMenuButton className="w-fit">
-                  <span className="flex size-6 items-center justify-center rounded-md bg-foreground text-background">
-                    <Download />
-                  </span>
+                  <img src={opulLogo} alt="" className="size-6 shrink-0" />
                   <span className="font-semibold">Opul</span>
                   <ChevronRight className="rotate-90 opacity-50" />
                 </SidebarMenuButton>

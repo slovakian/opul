@@ -31,6 +31,7 @@ import { bridge, errorMessage } from "@/lib/bridge";
 import { useLibrary } from "@/lib/library";
 import type { Preferences, ToolStatus } from "@/lib/model";
 import { Choice } from "@/components/sidebar-popover";
+import opulLogo from "@/assets/opul-logo.png";
 
 const sections = [
   { label: "Appearance", icon: Monitor },
@@ -313,9 +314,7 @@ function SettingsContent({
           )}
           {section === "About" && (
             <div className="flex flex-col items-start gap-4 py-4">
-              <div className="flex size-12 items-center justify-center rounded-xl bg-foreground text-background">
-                <Download />
-              </div>
+              <img src={opulLogo} alt="" className="size-12" />
               <div>
                 <h3 className="text-lg font-semibold">Opul</h3>
                 <p className="text-sm text-muted-foreground">
