@@ -1,13 +1,8 @@
 # Opul
 
-Opul is a download manager for macOS, built with Tauri, React, shadcn/ui on
-Base UI, and a Rust download core. Organize direct links, video pages, playlists,
-and BitTorrent downloads in emoji workspaces.
+Opul is a download manager for macOS, built with Tauri, React, shadcn/ui on Base UI, and a Rust download core. Organize direct links, video pages, playlists, and BitTorrent downloads in emoji workspaces.
 
-Folder workspaces receive one of 12 stable color treatments. Existing libraries
-receive their assignments on startup. Colors stay with each workspace through
-renames, reordering, theme changes, and restarts. Creation previews the exact
-appearance that will be saved. See [appearance behavior and verification](docs/workspace-appearances.md).
+Folder workspaces receive one of 12 stable color treatments. Existing libraries receive their assignments on startup. Colors stay with each workspace through renames, reordering, theme changes, and restarts. Creation previews the exact appearance that will be saved. See [appearance behavior and verification](docs/workspace-appearances.md).
 
 ## Develop
 
@@ -18,8 +13,7 @@ npm ci
 npm run tauri -- dev
 ```
 
-Video pages need [yt-dlp](https://github.com/yt-dlp/yt-dlp). Audio conversion needs
-[FFmpeg](https://ffmpeg.org). Direct files and torrents work without either.
+Video pages need [yt-dlp](https://github.com/yt-dlp/yt-dlp). Audio conversion needs [FFmpeg](https://ffmpeg.org). Direct files and torrents work without either.
 
 ```bash
 brew install yt-dlp ffmpeg
@@ -44,16 +38,11 @@ Scripts/package_app.sh release
 Scripts/package_dmg.sh
 ```
 
-The scripts use Tauri's bundler and copy the output to `Opul.app` and `Opul.dmg`.
-For development, use `npm run tauri -- dev`. `npm run dev` runs only the web
-interface; downloads require the native shell.
+The scripts use Tauri's bundler and copy the output to `Opul.app` and `Opul.dmg`. For development, use `npm run tauri -- dev`. `npm run dev` runs only the web interface; downloads require the native shell.
 
 ## Your library
 
-The Tauri app opens the existing `~/Library/Application Support/Opul` library.
-The Rust core imports legacy `library.json` files and retains its checkpoint,
-backup, recovery, and exclusive-lock behavior. Quit an older Opul before launching
-this version.
+The Tauri app opens the existing `~/Library/Application Support/Opul` library. The Rust core imports legacy `library.json` files and retains its checkpoint, backup, recovery, and exclusive-lock behavior. Quit an older Opul before launching this version.
 
 Development and smoke tests can use isolated data:
 
@@ -61,11 +50,7 @@ Development and smoke tests can use isolated data:
 OPUL_DATA_DIR=/tmp/opul-dev-state OPUL_DOWNLOAD_DIR=/tmp/opul-dev-downloads npm run tauri -- dev
 ```
 
-The new shell stores settings in `desktop-preferences.json`. Old Swift
-preferences are not imported. This migration replaces the Swift interface and
-Sparkle updater. Updates currently require a manual download from
-[GitHub Releases](https://github.com/slovakian/opul/releases). The former guided
-browser extraction interface is not included; its Rust implementation remains.
+The new shell stores settings in `desktop-preferences.json`. Old Swift preferences are not imported. This migration replaces the Swift interface and Sparkle updater. Updates currently require a manual download from [GitHub Releases](https://github.com/slovakian/opul/releases). The former guided browser extraction interface is not included; its Rust implementation remains.
 
 ## Project structure
 
@@ -76,9 +61,6 @@ browser extraction interface is not included; its Rust implementation remains.
 - `Scripts/`: test, package, and launch entrypoints
 - `.agents/skills/shadcn/`: official shadcn skill installed for this repository
 
-The interface follows sidebar-15 for workspaces, sidebar-10 for all popover menus,
-and sidebar-13 for settings. See [the migration decision](docs/adr/0004-tauri-interface.md).
-The desktop setup takes reference from [tauri-ui](https://github.com/agmmnn/tauri-ui).
+The interface follows sidebar-15 for workspaces, sidebar-10 for all popover menus, and sidebar-13 for settings. See [the migration decision](docs/adr/0004-tauri-interface.md). The desktop setup takes reference from [tauri-ui](https://github.com/agmmnn/tauri-ui).
 
-Opul is free and open source under the MIT License.
-[Support development](https://github.com/sponsors/slovakian).
+Opul is free and open source under the MIT License. [Support development](https://github.com/sponsors/slovakian).

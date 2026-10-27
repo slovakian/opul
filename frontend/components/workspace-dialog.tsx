@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { WorkspaceIcon } from "@/components/workspace-icon";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FolderOpen, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import { Choice } from "@/components/sidebar-popover";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -26,11 +27,11 @@ import {
   PopoverHeader,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { WorkspaceIconPicker } from "@/components/workspace-icon-picker";
-import { Choice } from "@/components/sidebar-popover";
-import { useLibrary } from "@/lib/library";
-import { bridge, errorMessage } from "@/lib/bridge";
 import { toast } from "@/components/ui/toast";
+import { WorkspaceIcon } from "@/components/workspace-icon";
+import { WorkspaceIconPicker } from "@/components/workspace-icon-picker";
+import { bridge, errorMessage } from "@/lib/bridge";
+import { useLibrary } from "@/lib/library";
 import {
   workspaceEmoji,
   type Workspace,
@@ -76,12 +77,12 @@ export function WorkspaceDialog({
           appearance: workspace.appearance,
           emoji: workspaceEmoji(workspace),
         }
-      : null,
+      : null
   );
   const [draftError, setDraftError] = useState<string>();
   const pendingDraft = useRef<Promise<WorkspaceDraft> | null>(null);
   const lastSubmission = useRef<{ input: string; requestId: string } | null>(
-    null,
+    null
   );
   const loadDraft = useCallback(async () => {
     setDraftError(undefined);
@@ -102,7 +103,7 @@ export function WorkspaceDialog({
     workspace?.folders.find((folder) => folder.is_default)?.path ??
       (state.kind === "ready"
         ? (state.snapshot.workspaces[0]?.folders[0]?.path ?? "")
-        : ""),
+        : "")
   );
   async function chooseFolder() {
     try {
@@ -150,7 +151,7 @@ export function WorkspaceDialog({
       onClose();
     } else
       setSaveError(
-        "Couldn't save the workspace. Your changes are kept here; try again.",
+        "Couldn't save the workspace. Your changes are kept here; try again."
       );
   }
   return (
@@ -162,7 +163,7 @@ export function WorkspaceDialog({
     >
       <DialogContent
         initialFocus={nameInput}
-        className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-md motion-reduce:animate-none motion-reduce:transition-none"
+        className="max-h-[calc(100svh-2rem)] overflow-y-auto motion-reduce:animate-none motion-reduce:transition-none sm:max-w-md"
       >
         <form className="flex flex-col gap-6" onSubmit={submit}>
           <DialogHeader>
@@ -227,7 +228,7 @@ export function WorkspaceDialog({
                     <PopoverContent
                       side="right"
                       align="start"
-                      className="h-[min(34rem,var(--available-height))] max-h-[calc(100svh-1rem)] w-80 max-w-[calc(100vw-1rem)] gap-2 overflow-hidden p-3 motion-reduce:data-open:animate-none motion-reduce:data-closed:animate-none motion-reduce:transition-none"
+                      className="h-[min(34rem,var(--available-height))] max-h-[calc(100svh-1rem)] w-80 max-w-[calc(100vw-1rem)] gap-2 overflow-hidden p-3 motion-reduce:transition-none motion-reduce:data-closed:animate-none motion-reduce:data-open:animate-none"
                     >
                       <PopoverHeader className="shrink-0">
                         <PopoverTitle>Choose workspace icon</PopoverTitle>
@@ -247,7 +248,7 @@ export function WorkspaceDialog({
                                   ...(typeof update === "function"
                                     ? update(draft)
                                     : update),
-                                },
+                                }
                             )
                           }
                         />

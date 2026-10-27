@@ -1,5 +1,8 @@
-import { useState } from "react";
 import { Copy, FolderOpen, X } from "lucide-react";
+import { useState } from "react";
+
+import { DownloadActions, reveal } from "@/components/download-actions";
+import { DownloadStatus, fileIcon } from "@/components/downloads";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -9,13 +12,6 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarHeader,
-} from "@/components/ui/sidebar";
 import {
   Item,
   ItemContent,
@@ -23,19 +19,18 @@ import {
   ItemGroup,
   ItemTitle,
 } from "@/components/ui/item";
-import { DownloadActions, reveal } from "@/components/download-actions";
-import { DownloadStatus, fileIcon } from "@/components/downloads";
-import { useLibrary } from "@/lib/library";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
 import {
-  bytes,
-  formatNames,
-  sourceNames,
-  timeRemaining,
-  type Download,
-  type Workspace,
-} from "@/lib/model";
+  Sidebar,
+  SidebarContent,
+  SidebarHeader,
+} from "@/components/ui/sidebar";
 import { toast } from "@/components/ui/toast";
 import { errorMessage } from "@/lib/bridge";
+import { useLibrary } from "@/lib/library";
+import { bytes, formatNames, sourceNames, timeRemaining } from "@/lib/model";
+import type { Download, Workspace } from "@/lib/model";
 
 export function DownloadInspector({
   download,
@@ -49,19 +44,23 @@ export function DownloadInspector({
   onRemove: () => void;
 }) {
   const { run, busy } = useLibrary();
+
   const [ratio, setRatio] = useState(
-    download.seed_ratio_limit?.toString() ?? "",
+    download.seed_ratio_limit?.toString() ?? ""
   );
+
   const Icon = fileIcon(download);
   const percent = Math.min(100, download.progress_millionths / 10_000);
+
   const folder = workspace.folders.find(
-    (folder) => folder.id === download.folder_id,
+    (folder) => folder.id === download.folder_id
   );
+
   return (
     <Sidebar
       side="right"
       collapsible="none"
-      className="inspector w-80 shrink-0 border-l bg-background"
+      className="inspector bg-background w-80 shrink-0 border-l"
       role="complementary"
       aria-label="Download details"
     >
@@ -78,10 +77,10 @@ export function DownloadInspector({
       </SidebarHeader>
       <SidebarContent className="gap-6 px-5 pb-6">
         <div className="flex flex-col items-start gap-4 pt-4">
-          <div className="flex size-14 items-center justify-center rounded-xl bg-muted">
-            <Icon className="size-6 text-muted-foreground" />
+          <div className="bg-muted flex size-14 items-center justify-center rounded-xl">
+            <Icon className="text-muted-foreground size-6" />
           </div>
-          <h3 className="max-w-full break-words text-base font-medium">
+          <h3 className="max-w-full text-base font-medium break-words">
             {download.name}
           </h3>
           <div className="flex w-full items-center justify-between">
@@ -97,7 +96,7 @@ export function DownloadInspector({
             value={percent}
             aria-label="Download progress"
           />
-          <p className="text-xs tabular-nums text-muted-foreground">
+          <p className="text-muted-foreground text-xs tabular-nums">
             {bytes(download.bytes_downloaded)} of{" "}
             {download.total_size ? bytes(download.total_size) : "unknown size"}{" "}
             · {Math.round(percent)}%
@@ -105,7 +104,7 @@ export function DownloadInspector({
         </div>
         {download.error_message && (
           <p
-            className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive"
+            className="bg-destructive/10 text-destructive rounded-lg p-3 text-sm"
             role="alert"
           >
             {download.error_message}
@@ -124,7 +123,7 @@ export function DownloadInspector({
             </>
           )}
           <dt>Save location</dt>
-          <dd className="select-text break-all" title={folder?.path}>
+          <dd className="break-all select-text" title={folder?.path}>
             {folder?.name ?? "Unknown"}
           </dd>
           {download.download_rate > 0 && (
@@ -159,7 +158,7 @@ export function DownloadInspector({
         <FieldGroup>
           <Field>
             <FieldLabel>Original link</FieldLabel>
-            <p className="select-text break-all text-xs leading-relaxed text-muted-foreground">
+            <p className="text-muted-foreground text-xs leading-relaxed break-all select-text">
               {download.source_url}
             </p>
             <Button
@@ -172,10 +171,10 @@ export function DownloadInspector({
                   .then(() => toast.add({ title: "Link copied" }))
                   .catch((error) =>
                     toast.add({
-                      title: "Couldn't copy link",
                       description: errorMessage(error),
+                      title: "Couldn't copy link",
                       type: "error",
-                    }),
+                    })
                   );
               }}
             >
@@ -191,8 +190,8 @@ export function DownloadInspector({
               onSubmit={(event) => {
                 event.preventDefault();
                 void run({
-                  kind: "seed_ratio",
                   download_id: download.id,
+                  kind: "seed_ratio",
                   limit: ratio.trim() ? Number(ratio) : null,
                 });
               }}
@@ -251,7 +250,6 @@ export function DownloadInspector({
                       }
                       onCheckedChange={(checked) =>
                         void run({
-                          kind: "torrent_files",
                           download_id: download.id,
                           files: download.files.map((current) =>
                             current.index === file.index
@@ -259,8 +257,9 @@ export function DownloadInspector({
                                   ...current,
                                   priority: checked ? "normal" : "skip",
                                 }
-                              : current,
+                              : current
                           ),
+                          kind: "torrent_files",
                         })
                       }
                     />
@@ -289,7 +288,7 @@ export function DownloadInspector({
               {download.trackers.map((tracker) => (
                 <p
                   key={tracker}
-                  className="select-text break-all text-xs text-muted-foreground"
+                  className="text-muted-foreground text-xs break-all select-text"
                 >
                   {tracker}
                 </p>

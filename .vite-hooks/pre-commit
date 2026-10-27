@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -e
+
+# Prevent staged files over 5,000 tokens (bytes/4)
+"$(git rev-parse --show-toplevel)/Scripts/check_token_limit.sh"
+
+# Run Vite+ staged checks
+vp staged

@@ -1,16 +1,17 @@
 {
   "name": "opul",
-  "private": true,
   "version": "0.1.0",
+  "private": true,
   "type": "module",
-  "packageManager": "npm@11.19.1",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "preview": "vite preview",
+    "dev": "vp dev",
+    "build": "tsc --noEmit && vp build",
+    "preview": "vp preview",
     "tauri": "tauri",
     "test": "playwright test",
-    "format": "prettier --write frontend src-tauri/*.json vite.config.ts tsconfig.json package.json"
+    "format": "vp fmt",
+    "prepare": "vp config",
+    "check": "vp check"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -29,6 +30,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",
+    "@oxlint/plugins": "^1.89.0",
     "@playwright/test": "^1.64.1",
     "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/cli": "^2.12.4",
@@ -37,9 +39,16 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
     "emojibase-data": "18.0.0",
-    "prettier": "^3.9.10",
+    "oxfmt": "^0.74.0",
+    "oxlint": "^1.90.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
-    "vite": "^8.3.5"
-  }
+    "ultracite": "^8.1.0",
+    "vite": "npm:@voidzero-dev/vite-plus-core@1.4.0",
+    "vite-plus": "1.4.0"
+  },
+  "overrides": {
+    "vite": "npm:@voidzero-dev/vite-plus-core@1.4.0"
+  },
+  "packageManager": "npm@11.19.1"
 }

@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -10,14 +9,23 @@ import {
   Smile,
   Trash2,
 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+
+import { AddDownloadDialog } from "@/components/add-download-dialog";
+import { DownloadInput } from "@/components/download-input";
+import { DownloadInspector } from "@/components/download-inspector";
+import { DownloadToolbar } from "@/components/download-toolbar";
+import { Downloads } from "@/components/downloads";
+import { SettingsDialog } from "@/components/settings-dialog";
+import { SidebarPopover } from "@/components/sidebar-popover";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import {
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbList,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -33,29 +41,15 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DownloadInput } from "@/components/download-input";
-import { DownloadToolbar } from "@/components/download-toolbar";
-import { AddDownloadDialog } from "@/components/add-download-dialog";
-import { DownloadInspector } from "@/components/download-inspector";
-import { Downloads } from "@/components/downloads";
-import { SettingsDialog } from "@/components/settings-dialog";
-import { SidebarPopover } from "@/components/sidebar-popover";
-import { WorkspaceIconEditor } from "@/components/workspace-icon-picker";
 import { WorkspaceDialog } from "@/components/workspace-dialog";
-import {
-  WorkspaceSidebar,
-  type Location,
-  type StatusFilter,
-} from "@/components/workspace-sidebar";
 import { WorkspaceIcon } from "@/components/workspace-icon";
+import { WorkspaceIconEditor } from "@/components/workspace-icon-picker";
+import { WorkspaceSidebar } from "@/components/workspace-sidebar";
+import type { Location, StatusFilter } from "@/components/workspace-sidebar";
 import { useLibrary } from "@/lib/library";
+import { sourceNames, stateNames } from "@/lib/model";
+import type { Download, Workspace } from "@/lib/model";
 import { cn } from "@/lib/utils";
-import {
-  sourceNames,
-  stateNames,
-  type Download,
-  type Workspace,
-} from "@/lib/model";
 
 type Modal =
   | { kind: "icon"; workspace: Workspace; anchor: HTMLButtonElement | null }
@@ -68,8 +62,9 @@ type Modal =
 export default function App() {
   const { state, busy, refresh, run } = useLibrary();
   useEffect(() => {
-    if (state.kind !== "loading" && isTauri())
+    if (state.kind !== "loading" && isTauri()) {
       void invoke("frontend_ready").catch(() => {});
+    }
   }, [state.kind]);
   const [location, setLocation] = useState<Location>({ kind: "all" });
   const [filter, setFilter] = useState<StatusFilter>("all");
@@ -78,21 +73,28 @@ export default function App() {
   const [modal, setModal] = useState<Modal | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const workspaces = state.kind === "ready" ? state.snapshot.workspaces : [];
+
   const workspace =
     (location.kind === "workspace"
       ? workspaces.find((workspace) => workspace.id === location.workspaceId)
       : undefined) ?? workspaces[0];
+
   const folderId =
     location.kind === "workspace" ? location.folderId : undefined;
+
   const folder = workspace?.folders.find((folder) => folder.id === folderId);
+
   const selectedWorkspace = workspaces.find((workspace) =>
-    workspace.downloads.some((download) => download.id === selectedId),
+    workspace.downloads.some((download) => download.id === selectedId)
   );
+
   const selected = selectedWorkspace?.downloads.find(
-    (download) => download.id === selectedId,
+    (download) => download.id === selectedId
   );
+
   const canEdit =
     state.kind === "ready" && state.snapshot.session === "Running";
+
   const title =
     location.kind === "all"
       ? filter === "active"
@@ -101,32 +103,46 @@ export default function App() {
           ? "Completed"
           : "All downloads"
       : (folder?.name ?? workspace?.name ?? "Downloads");
+
   const downloads = (
     location.kind === "all"
       ? workspaces.flatMap((workspace) => workspace.downloads)
       : (workspace?.downloads ?? [])
   ).filter((download) => {
-    if (folderId && download.folder_id !== folderId) return false;
+    if (folderId && download.folder_id !== folderId) {
+      return false;
+    }
     if (
       !`${download.name} ${download.source_url}`
         .toLowerCase()
         .includes(query.toLowerCase())
-    )
+    ) {
       return false;
-    if (filter === "active")
+    }
+    if (filter === "active") {
       return download.capabilities.can_pause || download.state === "Pausing";
-    if (filter === "finished") return download.state === "Finished";
-    if (filter === "paused") return download.state === "Paused";
-    if (filter === "failed") return download.state === "Failed";
+    }
+    if (filter === "finished") {
+      return download.state === "Finished";
+    }
+    if (filter === "paused") {
+      return download.state === "Paused";
+    }
+    if (filter === "failed") {
+      return download.state === "Failed";
+    }
     return true;
   });
-  if (workspace?.sort === "Name")
+
+  if (workspace?.sort === "Name") {
     downloads.sort((a, b) => a.name.localeCompare(b.name));
-  else if (workspace?.sort === "State")
+  } else if (workspace?.sort === "State") {
     downloads.sort((a, b) => a.state.localeCompare(b.state));
-  else if (workspace?.sort === "Source")
+  } else if (workspace?.sort === "Source") {
     downloads.sort((a, b) => a.source.localeCompare(b.source));
+  }
   const groups = new Map<string, Download[]>();
+
   for (const download of downloads) {
     const group =
       workspace?.grouping === "State"
@@ -141,19 +157,26 @@ export default function App() {
                   .find((folder) => folder.id === download.folder_id)?.name ??
                 "Other")
               : "";
+
     const existing = groups.get(group);
-    if (existing) existing.push(download);
-    else groups.set(group, [download]);
+
+    if (existing) {
+      existing.push(download);
+    } else {
+      groups.set(group, [download]);
+    }
   }
+
   function navigate(next: Location) {
     setLocation(next);
     setQuery("");
     setSelectedId(undefined);
   }
+
   function view(
-    change: Partial<Pick<Workspace, "layout" | "sort" | "grouping">>,
+    change: Partial<Pick<Workspace, "layout" | "sort" | "grouping">>
   ) {
-    if (workspace)
+    if (workspace) {
       void run({
         kind: "view",
         workspace_id: workspace.id,
@@ -162,35 +185,49 @@ export default function App() {
         grouping: workspace.grouping,
         ...change,
       });
+    }
   }
+
   useEffect(() => {
     function keydown(event: KeyboardEvent) {
-      if (!(event.metaKey || event.ctrlKey)) return;
+      if (!(event.metaKey || event.ctrlKey)) {
+        return;
+      }
       if (event.key === "n") {
         event.preventDefault();
         setModal({ kind: "add" });
       }
+
       if (event.key === ",") {
         event.preventDefault();
         setModal({ kind: "settings" });
       }
+
       if (event.key === "f") {
         event.preventDefault();
         searchRef.current?.focus();
       }
     }
+
     window.addEventListener("keydown", keydown);
-    if (!isTauri()) return () => window.removeEventListener("keydown", keydown);
+
+    if (!isTauri()) {
+      return () => window.removeEventListener("keydown", keydown);
+    }
     const subscriptions = [
       listen("settings", () => setModal({ kind: "settings" })),
       listen("new-download", () => setModal({ kind: "add" })),
     ];
+
     return () => {
       window.removeEventListener("keydown", keydown);
-      for (const subscription of subscriptions)
+
+      for (const subscription of subscriptions) {
         void subscription.then((unlisten) => unlisten());
+      }
     };
   }, []);
+
   return (
     <SidebarProvider className="h-svh min-h-0 overflow-hidden">
       <WorkspaceSidebar
@@ -202,7 +239,7 @@ export default function App() {
         onCreate={() => setModal({ kind: "workspace", workspace: null })}
         onEdit={(workspace) => setModal({ kind: "workspace", workspace })}
         onChangeIcon={(workspace, anchor) =>
-          setModal({ kind: "icon", workspace, anchor })
+          setModal({ anchor, kind: "icon", workspace })
         }
         onSettings={() => setModal({ kind: "settings" })}
         onNew={() => setModal({ kind: "add" })}
@@ -233,7 +270,7 @@ export default function App() {
                     <h1
                       aria-label={title}
                       aria-current="page"
-                      className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground"
+                      className="text-foreground flex min-w-0 items-center gap-2 text-sm font-medium"
                     >
                       {location.kind === "workspace" && workspace && (
                         <span aria-hidden>
@@ -271,14 +308,14 @@ export default function App() {
                 {
                   actions: [
                     {
-                      label: "New download",
-                      icon: Plus,
-                      onClick: () => setModal({ kind: "add" }),
                       disabled: !canEdit,
+                      icon: Plus,
+                      label: "New download",
+                      onClick: () => setModal({ kind: "add" }),
                     },
                     {
-                      label: "Settings",
                       icon: Settings2,
+                      label: "Settings",
                       onClick: () => setModal({ kind: "settings" }),
                     },
                   ],
@@ -288,23 +325,23 @@ export default function App() {
                       {
                         actions: [
                           {
-                            label: "Change icon…",
-                            icon: Smile,
                             disabled: !canEdit || busy,
+                            icon: Smile,
+                            label: "Change icon…",
                             onClick: (anchor: HTMLButtonElement | null) =>
                               setModal({ kind: "icon", workspace, anchor }),
                           },
                           {
-                            label: "Edit workspace",
                             icon: FolderOpen,
+                            label: "Edit workspace",
                             onClick: () =>
                               setModal({ kind: "workspace", workspace }),
                           },
                           {
-                            label: "Delete workspace",
-                            icon: Trash2,
                             destructive: true,
                             disabled: workspaces.length === 1 || !canEdit,
+                            icon: Trash2,
+                            label: "Delete workspace",
                             onClick: () =>
                               setModal({ kind: "delete-workspace", workspace }),
                           },
@@ -321,7 +358,7 @@ export default function App() {
               workspace={workspace}
               disabled={!canEdit || busy}
               onOptions={(url, folderId) =>
-                setModal({ kind: "add", url, folderId })
+                setModal({ folderId, kind: "add", url })
               }
             />
           )}
@@ -329,7 +366,7 @@ export default function App() {
         <div
           className={cn(
             "flex min-h-0 flex-1 flex-col overflow-y-auto",
-            workspace?.layout !== "Table" && "scroll-fade",
+            workspace?.layout !== "Table" && "scroll-fade"
           )}
         >
           <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6 lg:px-10">
@@ -388,7 +425,7 @@ export default function App() {
                 {Array.from(groups, ([label, downloads]) => (
                   <section key={label} className="flex flex-col gap-2">
                     {label && (
-                      <h2 className="px-3 text-xs font-medium text-muted-foreground">
+                      <h2 className="text-muted-foreground px-3 text-xs font-medium">
                         {label} · {downloads.length}
                       </h2>
                     )}
@@ -398,7 +435,7 @@ export default function App() {
                       selectedId={selectedId}
                       onInspect={(download) => setSelectedId(download.id)}
                       onRemove={(download) =>
-                        setModal({ kind: "remove", download })
+                        setModal({ download, kind: "remove" })
                       }
                       onNew={() => setModal({ kind: "add" })}
                       filtered={Boolean(query) || filter !== "all"}
@@ -417,7 +454,7 @@ export default function App() {
               />
             )}
             {downloads.length > 0 && (
-              <p className="px-3 text-xs text-muted-foreground">
+              <p className="text-muted-foreground px-3 text-xs">
                 {downloads.length}{" "}
                 {downloads.length === 1 ? "download" : "downloads"}
               </p>
@@ -431,7 +468,7 @@ export default function App() {
           download={selected}
           workspace={selectedWorkspace}
           onClose={() => setSelectedId(undefined)}
-          onRemove={() => setModal({ kind: "remove", download: selected })}
+          onRemove={() => setModal({ download: selected, kind: "remove" })}
         />
       )}
       {modal?.kind === "settings" && (
@@ -466,7 +503,9 @@ export default function App() {
         <Dialog
           open
           onOpenChange={(open) => {
-            if (!open) setModal(null);
+            if (!open) {
+              setModal(null);
+            }
           }}
         >
           <DialogContent>
@@ -493,17 +532,19 @@ export default function App() {
                   const receipt = await run(
                     modal.kind === "remove"
                       ? {
-                          kind: "remove_downloads",
                           download_ids: [modal.download.id],
+                          kind: "remove_downloads",
                         }
                       : {
                           kind: "delete_workspace",
                           workspace_id: modal.workspace.id,
-                        },
+                        }
                   );
+
                   if (receipt) {
-                    if (modal.kind === "delete-workspace")
+                    if (modal.kind === "delete-workspace") {
                       navigate({ kind: "all" });
+                    }
                     setModal(null);
                   }
                 }}

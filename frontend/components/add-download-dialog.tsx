@@ -1,5 +1,7 @@
-import { useState } from "react";
 import { FileUp, Loader2 } from "lucide-react";
+import { useState } from "react";
+
+import { Choice } from "@/components/sidebar-popover";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,20 +18,15 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Choice } from "@/components/sidebar-popover";
-import { bridge, errorMessage } from "@/lib/bridge";
-import { WorkspaceIcon } from "@/components/workspace-icon";
-import { useLibrary } from "@/lib/library";
-import {
-  formatNames,
-  formatSchema,
-  type Command,
-  type Format,
-  type Workspace,
-} from "@/lib/model";
 import { toast } from "@/components/ui/toast";
+import { WorkspaceIcon } from "@/components/workspace-icon";
+import { bridge, errorMessage } from "@/lib/bridge";
+import { useLibrary } from "@/lib/library";
+import { formatNames, formatSchema } from "@/lib/model";
+import type { Command, Format, Workspace } from "@/lib/model";
 
 type Mode = Extract<Command, { kind: "add_url" }>["mode"];
+
 export function AddDownloadDialog({
   workspaces,
   initialWorkspace,
@@ -45,57 +42,76 @@ export function AddDownloadDialog({
 }) {
   const { run, busy } = useLibrary();
   const [workspaceId, setWorkspaceId] = useState(initialWorkspace.id);
+
   const workspace =
     workspaces.find((workspace) => workspace.id === workspaceId) ??
     initialWorkspace;
+
   const [folderId, setFolderId] = useState(
     initialFolder ??
       workspace.folders.find((folder) => folder.is_default)?.id ??
-      "",
+      ""
   );
+
   const [url, setUrl] = useState(initialUrl);
+
   const [mode, setMode] = useState<Mode>(
-    initialUrl.startsWith("magnet:") ? "Torrent" : "Direct",
+    initialUrl.startsWith("magnet:") ? "Torrent" : "Direct"
   );
+
   const [format, setFormat] = useState<Format>(workspace.default_format);
+
   async function importTorrent() {
     try {
       const path = await bridge.chooseTorrent();
-      if (!path) return;
+
+      if (!path) {
+        return;
+      }
+
       if (
         await run({
-          kind: "add_torrent_file",
-          workspace_id: workspace.id,
           folder_id: folderId,
+          kind: "add_torrent_file",
           path,
+          workspace_id: workspace.id,
         })
-      )
+      ) {
         onClose();
+      }
     } catch (error) {
       toast.add({
-        title: "Couldn't open torrent",
         description: errorMessage(error),
+        title: "Couldn't open torrent",
         type: "error",
       });
     }
   }
+
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+
     const receipt = await run({
-      kind: "add_url",
-      workspace_id: workspace.id,
       folder_id: folderId,
-      url: url.trim(),
-      mode: url.trim().startsWith("magnet:") ? "Torrent" : mode,
       format,
+      kind: "add_url",
+      mode: url.trim().startsWith("magnet:") ? "Torrent" : mode,
+      url: url.trim(),
+      workspace_id: workspace.id,
     });
-    if (receipt) onClose();
+
+    if (receipt) {
+      onClose();
+    }
   }
+
   return (
     <Dialog
       open
       onOpenChange={(open) => {
-        if (!open && !busy) onClose();
+        if (!open && !busy) {
+          onClose();
+        }
       }}
     >
       <DialogContent className="sm:max-w-lg">
@@ -116,11 +132,13 @@ export function AddDownloadDialog({
                 value={url}
                 onChange={(event) => {
                   setUrl(event.target.value);
+
                   if (
                     event.target.value.startsWith("magnet:") ||
                     /\.torrent(\?|$)/i.test(event.target.value)
-                  )
+                  ) {
                     setMode("Torrent");
+                  }
                 }}
                 required
               />
@@ -134,9 +152,9 @@ export function AddDownloadDialog({
                 label="Download type"
                 value={mode}
                 options={[
-                  { value: "Direct", label: "Original file" },
-                  { value: "Page", label: "Video page or playlist" },
-                  { value: "Torrent", label: "Torrent or magnet link" },
+                  { label: "Original file", value: "Direct" },
+                  { label: "Video page or playlist", value: "Page" },
+                  { label: "Torrent or magnet link", value: "Torrent" },
                 ]}
                 onChange={setMode}
                 disabled={busy}
@@ -149,8 +167,8 @@ export function AddDownloadDialog({
                   label="Video format"
                   value={format}
                   options={formatSchema.options.map((value) => ({
-                    value,
                     label: formatNames[value],
+                    value,
                   }))}
                   onChange={setFormat}
                 />
@@ -163,21 +181,21 @@ export function AddDownloadDialog({
                   label="Download workspace"
                   value={workspace.id}
                   options={workspaces.map((workspace) => ({
-                    value: workspace.id,
-                    label: workspace.name,
                     content: (
                       <>
                         <WorkspaceIcon workspace={workspace} />
                         <span className="truncate">{workspace.name}</span>
                       </>
                     ),
+                    label: workspace.name,
+                    value: workspace.id,
                   }))}
                   onChange={(id) => {
                     setWorkspaceId(id);
                     setFolderId(
                       workspaces
                         .find((workspace) => workspace.id === id)
-                        ?.folders.find((folder) => folder.is_default)?.id ?? "",
+                        ?.folders.find((folder) => folder.is_default)?.id ?? ""
                     );
                   }}
                 />
@@ -188,8 +206,8 @@ export function AddDownloadDialog({
                   label="Save location"
                   value={folderId}
                   options={workspace.folders.map((folder) => ({
-                    value: folder.id,
                     label: folder.name,
+                    value: folder.id,
                   }))}
                   onChange={setFolderId}
                 />

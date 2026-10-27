@@ -1,3 +1,6 @@
+import { Toggle as TogglePrimitive } from "@base-ui/react/toggle";
+import { EmojiPicker, type EmojiPickerListEmojiProps } from "frimousse";
+import { Search } from "lucide-react";
 import {
   useEffect,
   useLayoutEffect,
@@ -8,9 +11,7 @@ import {
   type RefObject,
   type SetStateAction,
 } from "react";
-import { EmojiPicker, type EmojiPickerListEmojiProps } from "frimousse";
-import { Toggle as TogglePrimitive } from "@base-ui/react/toggle";
-import { Search } from "lucide-react";
+
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { EmojiFrame, emojiOptionClassName } from "@/components/ui/emoji-frame";
@@ -25,17 +26,17 @@ import {
   PopoverDescription,
   PopoverTitle,
 } from "@/components/ui/popover";
-import { WorkspaceColorSuggestions } from "@/components/workspace-color-suggestions";
-import { WorkspaceCustomTreatment } from "@/components/workspace-custom-treatment";
 import { Spinner } from "@/components/ui/spinner";
 import { ToggleGroup } from "@/components/ui/toggle-group";
+import { WorkspaceColorSuggestions } from "@/components/workspace-color-suggestions";
+import { WorkspaceCustomTreatment } from "@/components/workspace-custom-treatment";
 import { WorkspaceIcon } from "@/components/workspace-icon";
 import { bridge, errorMessage } from "@/lib/bridge";
 import { emojiDataWithRecents, skinToneChoices } from "@/lib/emoji-data";
 import { useLibrary } from "@/lib/library";
 import { workspaceEmoji, type Workspace } from "@/lib/model";
-import { canTreatEmoji, emojiTreatment } from "@/lib/workspace-appearance";
 import { cn } from "@/lib/utils";
+import { canTreatEmoji, emojiTreatment } from "@/lib/workspace-appearance";
 
 export type IconDraft = { emoji: string; appearance: Workspace["appearance"] };
 
@@ -60,13 +61,13 @@ function EmojiGridCell({
     const bounds = cell.getBoundingClientRect();
     const frame = viewport.getBoundingClientRect();
     const header = viewport.querySelector<HTMLElement>(
-      "[frimousse-category-header]",
+      "[frimousse-category-header]"
     );
     const top =
       frame.top +
       Math.max(
         0,
-        Math.min(header?.offsetHeight ?? 0, frame.height - bounds.height),
+        Math.min(header?.offsetHeight ?? 0, frame.height - bounds.height)
       );
     const delta =
       bounds.bottom > frame.bottom
@@ -91,7 +92,7 @@ function EmojiGridCell({
       data-keyboard-active={emoji.isActive && keyboardNavigation.current}
       className={cn(
         emojiOptionClassName,
-        "data-[keyboard-active=true]:outline-2 data-[keyboard-active=true]:outline-ring",
+        "data-[keyboard-active=true]:outline-ring data-[keyboard-active=true]:outline-2"
       )}
     >
       <EmojiFrame selected={chosen}>{emoji.emoji}</EmojiFrame>
@@ -113,8 +114,8 @@ export function WorkspaceIconPicker({
   const { state } = useLibrary();
   const [resolveEmojiData] = useState(() =>
     emojiDataWithRecents(
-      state.kind === "ready" ? state.snapshot.recent_emoji : [],
-    ),
+      state.kind === "ready" ? state.snapshot.recent_emoji : []
+    )
   );
   const tones = useMemo(() => skinToneChoices(emoji), [emoji]);
   const keyboardNavigation = useRef(false);
@@ -141,7 +142,7 @@ export function WorkspaceIconPicker({
         </div>
         <div className="flex min-w-0 flex-col gap-1">
           <span className="text-sm font-medium">Selected icon</span>
-          <span className="text-xs text-muted-foreground" role="status">
+          <span className="text-muted-foreground text-xs" role="status">
             {canTreatEmoji(emoji)
               ? "Changes are previewed until you save."
               : "This emoji uses its original colors."}
@@ -153,7 +154,7 @@ export function WorkspaceIconPicker({
           inert={custom}
           className={cn(
             "col-start-1 row-start-1 flex min-h-0 flex-col gap-2",
-            custom && "invisible",
+            custom && "invisible"
           )}
         >
           {tones.length > 1 && (
@@ -213,13 +214,13 @@ export function WorkspaceIconPicker({
               </InputGroupAddon>
             </InputGroup>
             <EmojiPicker.Viewport
-              className="relative min-h-[4.5rem] flex-1 overscroll-contain scroll-fade-b scroll-fade-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="scroll-fade-b scroll-fade-2 focus-visible:ring-ring relative min-h-[4.5rem] flex-1 overscroll-contain rounded-md outline-none focus-visible:ring-2"
               aria-label="Emoji categories"
             >
-              <EmojiPicker.Loading className="p-4 text-sm text-muted-foreground">
+              <EmojiPicker.Loading className="text-muted-foreground p-4 text-sm">
                 Loading emoji…
               </EmojiPicker.Loading>
-              <EmojiPicker.Empty className="p-4 text-sm text-muted-foreground">
+              <EmojiPicker.Empty className="text-muted-foreground p-4 text-sm">
                 No emoji found.
               </EmojiPicker.Empty>
               <EmojiPicker.List
@@ -229,10 +230,10 @@ export function WorkspaceIconPicker({
                     <div
                       {...props}
                       // Fade through the sticky header's bottom padding at the same depth as the viewport's bottom fade.
-                      className="bg-linear-to-b from-popover from-[calc(100%_-_var(--scroll-fade-size))] to-transparent px-1 py-2 text-xs font-medium text-muted-foreground"
+                      className="from-popover text-muted-foreground bg-linear-to-b from-[calc(100%_-_var(--scroll-fade-size))] to-transparent px-1 py-2 text-xs font-medium"
                     >
                       {category.label.replace(/\b[a-z]/g, (letter) =>
-                        letter.toUpperCase(),
+                        letter.toUpperCase()
                       )}
                     </div>
                   ),
@@ -361,7 +362,7 @@ export function WorkspaceIconEditor({
     if (receipt) onClose();
     else
       setError(
-        "Couldn't save the icon. Your changes are kept here; try again.",
+        "Couldn't save the icon. Your changes are kept here; try again."
       );
   }
 
@@ -377,7 +378,7 @@ export function WorkspaceIconEditor({
         anchor={anchor}
         align="start"
         finalFocus={anchor ? () => anchor : true}
-        className="h-[min(34rem,var(--available-height))] max-h-[calc(100svh-1rem)] w-80 max-w-[calc(100vw-1rem)] gap-2 overflow-hidden p-3 motion-reduce:data-open:animate-none motion-reduce:data-closed:animate-none motion-reduce:transition-none"
+        className="h-[min(34rem,var(--available-height))] max-h-[calc(100svh-1rem)] w-80 max-w-[calc(100vw-1rem)] gap-2 overflow-hidden p-3 motion-reduce:transition-none motion-reduce:data-closed:animate-none motion-reduce:data-open:animate-none"
       >
         <div className="flex shrink-0 flex-col gap-1">
           <PopoverTitle>Change icon</PopoverTitle>
@@ -390,7 +391,7 @@ export function WorkspaceIconEditor({
             onChange={setDraft}
           />
         ) : (
-          <div role="status" className="flex-1 text-sm text-muted-foreground">
+          <div role="status" className="text-muted-foreground flex-1 text-sm">
             Preparing icon…
           </div>
         )}

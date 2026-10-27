@@ -12,7 +12,17 @@ import {
   Pause,
   CircleAlert,
 } from "lucide-react";
+
+import { DownloadActions } from "@/components/download-actions";
 import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import {
   Item,
   ItemActions,
@@ -31,51 +41,53 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
-import { DownloadActions } from "@/components/download-actions";
-import {
-  bytes,
-  sourceHost,
-  stateNames,
-  timeRemaining,
-  type Download,
-  type Workspace,
-} from "@/lib/model";
+import { bytes, sourceHost, stateNames, timeRemaining } from "@/lib/model";
+import type { Download, Workspace } from "@/lib/model";
 import { cn } from "@/lib/utils";
 
 export function fileIcon(download: Download) {
   const extension = download.name.split(".").pop()?.toLowerCase();
-  if (extension && ["zip", "rar", "7z", "gz", "tar"].includes(extension))
+
+  if (extension && ["zip", "rar", "7z", "gz", "tar"].includes(extension)) {
     return Archive;
+  }
+
   if (
     (extension && ["mp4", "mkv", "mov", "webm"].includes(extension)) ||
     download.source === "VideoPage"
-  )
+  ) {
     return Film;
-  if (extension && ["mp3", "m4a", "wav", "flac"].includes(extension))
+  }
+
+  if (extension && ["mp3", "m4a", "wav", "flac"].includes(extension)) {
     return FileAudio;
+  }
+
   if (
     extension &&
     ["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(extension)
-  )
+  ) {
     return FileImage;
+  }
+
   if (
     extension &&
     ["js", "ts", "rs", "json", "html", "css"].includes(extension)
-  )
+  ) {
     return FileCode;
-  if (extension && ["pdf", "txt", "md", "epub", "docx"].includes(extension))
+  }
+
+  if (extension && ["pdf", "txt", "md", "epub", "docx"].includes(extension)) {
     return FileText;
-  if (download.source === "Torrent") return HardDriveDownload;
+  }
+
+  if (download.source === "Torrent") {
+    return HardDriveDownload;
+  }
+
   return File;
 }
+
 export function DownloadStatus({ download }: { download: Download }) {
   const Icon =
     download.state === "Finished"
@@ -85,11 +97,12 @@ export function DownloadStatus({ download }: { download: Download }) {
         : download.state === "Paused"
           ? Pause
           : ArrowDown;
+
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 text-xs text-muted-foreground",
-        download.state === "Failed" && "text-destructive",
+        "text-muted-foreground inline-flex items-center gap-1.5 text-xs",
+        download.state === "Failed" && "text-destructive"
       )}
     >
       <Icon className="size-3" />
@@ -97,9 +110,11 @@ export function DownloadStatus({ download }: { download: Download }) {
     </span>
   );
 }
+
 function progress(download: Download) {
   return Math.min(100, Math.max(0, download.progress_millionths / 10_000));
 }
+
 export function Downloads({
   downloads,
   layout,
@@ -117,7 +132,7 @@ export function Downloads({
   onNew: () => void;
   filtered: boolean;
 }) {
-  if (!downloads.length)
+  if (!downloads.length) {
     return (
       <Empty className="min-h-80 border-0">
         <EmptyHeader>
@@ -136,12 +151,14 @@ export function Downloads({
         {!filtered && (
           <EmptyContent>
             <Button onClick={onNew}>Add your first download</Button>
-            <p className="text-xs text-muted-foreground">or press ⌘N</p>
+            <p className="text-muted-foreground text-xs">or press ⌘N</p>
           </EmptyContent>
         )}
       </Empty>
     );
-  if (layout === "Table")
+  }
+
+  if (layout === "Table") {
     return (
       <Table className="[&_tr]:border-0">
         <TableHeader>
@@ -159,6 +176,7 @@ export function Downloads({
         <TableBody>
           {downloads.map((download) => {
             const Icon = fileIcon(download);
+
             return (
               <TableRow
                 key={download.id}
@@ -170,20 +188,20 @@ export function Downloads({
                     className="flex max-w-full items-center gap-3 py-2 text-left outline-none hover:underline focus-visible:underline"
                     onClick={() => onInspect(download)}
                   >
-                    <Icon className="size-4 shrink-0 text-muted-foreground" />
+                    <Icon className="text-muted-foreground size-4 shrink-0" />
                     <span className="truncate">{download.name}</span>
                   </button>
                 </TableCell>
                 <TableCell>
                   <DownloadStatus download={download} />
                 </TableCell>
-                <TableCell className="hidden text-muted-foreground lg:table-cell">
+                <TableCell className="text-muted-foreground hidden lg:table-cell">
                   {sourceHost(download)}
                 </TableCell>
-                <TableCell className="text-right tabular-nums text-muted-foreground">
+                <TableCell className="text-muted-foreground text-right tabular-nums">
                   {download.total_size ? bytes(download.total_size) : "—"}
                 </TableCell>
-                <TableCell className="text-right tabular-nums text-muted-foreground">
+                <TableCell className="text-muted-foreground text-right tabular-nums">
                   {download.download_rate
                     ? `${bytes(download.download_rate)}/s`
                     : "—"}
@@ -201,10 +219,13 @@ export function Downloads({
         </TableBody>
       </Table>
     );
+  }
+
   return (
     <ItemGroup className="gap-1">
       {downloads.map((download) => {
         const Icon = fileIcon(download);
+
         const transferring = [
           "Fetching",
           "Starting",
@@ -213,6 +234,7 @@ export function Downloads({
           "Paused",
           "Pausing",
         ].includes(download.state);
+
         return (
           <Item
             key={download.id}
@@ -223,7 +245,7 @@ export function Downloads({
           >
             <ItemMedia
               variant="icon"
-              className="flex size-10 items-center justify-center rounded-lg bg-muted"
+              className="bg-muted flex size-10 items-center justify-center rounded-lg"
             >
               <Icon />
             </ItemMedia>
@@ -247,7 +269,7 @@ export function Downloads({
                 </span>
                 {download.error_message && (
                   <span
-                    className="truncate text-destructive"
+                    className="text-destructive truncate"
                     title={download.error_message}
                   >
                     {download.error_message}
@@ -265,7 +287,7 @@ export function Downloads({
             <ItemActions className="gap-4">
               <div className="hidden min-w-28 flex-col items-end gap-1 sm:flex">
                 <DownloadStatus download={download} />
-                <span className="text-xs tabular-nums text-muted-foreground">
+                <span className="text-muted-foreground text-xs tabular-nums">
                   {download.download_rate
                     ? `${bytes(download.download_rate)}/s · ${timeRemaining(download.eta_seconds)}`
                     : transferring

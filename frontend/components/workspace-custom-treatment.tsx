@@ -1,3 +1,4 @@
+import { ArrowLeft } from "lucide-react";
 import {
   useId,
   useEffect,
@@ -5,7 +6,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { ArrowLeft } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Slider } from "@/components/ui/slider";
@@ -43,7 +44,7 @@ export function WorkspaceCustomTreatment({
   return (
     <div
       ref={container}
-      className="col-start-1 row-start-1 flex min-h-0 flex-col gap-3 overflow-y-auto overscroll-contain scroll-fade scroll-fade-2 p-1"
+      className="scroll-fade scroll-fade-2 col-start-1 row-start-1 flex min-h-0 flex-col gap-3 overflow-y-auto overscroll-contain p-1"
     >
       <div className="flex shrink-0 items-center gap-2">
         <Button

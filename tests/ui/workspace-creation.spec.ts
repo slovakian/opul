@@ -1,8 +1,9 @@
-import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { mockDesktop } from "./fixture";
+import { expect, test, type Page } from "@playwright/test";
+
 import { snapshotSchema } from "../../frontend/lib/model";
 import treatments from "../../src/application/folder-treatments.json" with { type: "json" };
+import { mockDesktop } from "./fixture";
 
 const artwork = '[data-slot="emoji-artwork"]';
 const dialog = (page: Page) =>
@@ -18,7 +19,7 @@ async function openCreation(page: Page) {
     .last()
     .click();
   await expect(
-    dialog(page).getByRole("textbox", { name: "Name", exact: true }),
+    dialog(page).getByRole("textbox", { name: "Name", exact: true })
   ).toBeFocused();
 }
 
@@ -38,7 +39,7 @@ async function savedSnapshot(page: Page) {
       const path = "/frontend/lib/bridge.ts";
       const { bridge } = await import(path);
       return bridge.snapshot();
-    }),
+    })
   );
 }
 
@@ -50,7 +51,7 @@ test("nested Escape retains icon choices and restores focus before canceling the
   await openCreation(page);
   await iconButton(page).click();
   await expect(
-    picker(page).getByRole("textbox", { name: "Search emoji" }),
+    picker(page).getByRole("textbox", { name: "Search emoji" })
   ).toBeFocused();
   await choose(page, "family", "family: man, woman, girl, boy");
   await picker(page)
@@ -63,7 +64,7 @@ test("nested Escape retains icon choices and restores focus before canceling the
   await expect(iconButton(page).locator(artwork)).toHaveText("👨‍👩‍👧‍👦");
   await iconButton(page).click();
   await expect(
-    picker(page).getByRole("button", { name: "Original", exact: true }),
+    picker(page).getByRole("button", { name: "Original", exact: true })
   ).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("Escape");
   await page.keyboard.press("Escape");
@@ -73,7 +74,7 @@ test("nested Escape retains icon choices and restores focus before canceling the
   await expect(iconButton(page).locator(artwork)).toHaveText("📁");
   await expect(iconButton(page).locator(artwork)).toHaveAttribute(
     "data-preset",
-    "coral",
+    "coral"
   );
 });
 
@@ -85,7 +86,7 @@ test("creation without opening the picker saves the frozen folder preview", asyn
   await openCreation(page);
   await expect(iconButton(page).locator(artwork)).toHaveAttribute(
     "data-preset",
-    "coral",
+    "coral"
   );
   const filter = await iconButton(page)
     .locator(artwork)
@@ -100,10 +101,10 @@ test("creation without opening the picker saves the frozen folder preview", asyn
   await expect(
     page
       .getByRole("button", { name: "Quick workspace workspace", exact: true })
-      .locator(artwork),
+      .locator(artwork)
   ).toHaveCSS("filter", filter);
   const created = (await savedSnapshot(page)).workspaces.find(
-    (workspace) => workspace.name === "Quick workspace",
+    (workspace) => workspace.name === "Quick workspace"
   );
   expect(created?.appearance).toEqual({
     automatic_folder: treatments[1],
@@ -131,7 +132,7 @@ for (const lost of [false, true]) {
       .getByRole("button", { name: "Original", exact: true })
       .click();
     await expect(
-      picker(page).getByRole("img", { name: "Icon preview: 👨‍👩‍👧‍👦" }),
+      picker(page).getByRole("img", { name: "Icon preview: 👨‍👩‍👧‍👦" })
     ).toBeVisible();
     await picker(page)
       .getByRole("button", { name: "Done", exact: true })
@@ -145,12 +146,12 @@ for (const lost of [false, true]) {
       .getByRole("button", { name: "Create workspace", exact: true })
       .click();
     await expect(dialog(page).getByRole("alert")).toContainText(
-      "Your changes are kept here",
+      "Your changes are kept here"
     );
     await expect(iconButton(page).locator(artwork)).toHaveText("👨‍👩‍👧‍👦");
     await iconButton(page).click();
     await expect(
-      picker(page).getByRole("button", { name: "Original", exact: true }),
+      picker(page).getByRole("button", { name: "Original", exact: true })
     ).toHaveAttribute("aria-pressed", "true");
     await picker(page)
       .getByRole("button", { name: "Done", exact: true })
@@ -162,15 +163,15 @@ for (const lost of [false, true]) {
     await expect(
       page
         .getByRole("button", { name: "Family workspace", exact: true })
-        .locator(artwork),
+        .locator(artwork)
     ).toHaveCSS("filter", filter);
     await expect(
       page
         .getByRole("heading", { name: "Family", exact: true })
-        .locator(artwork),
+        .locator(artwork)
     ).toHaveText("👨‍👩‍👧‍👦");
     const created = (await savedSnapshot(page)).workspaces.filter(
-      (workspace) => workspace.name === "Family",
+      (workspace) => workspace.name === "Family"
     );
     expect(created).toHaveLength(1);
     expect(created[0].id).toBe("draft-workspace-1");
@@ -211,8 +212,8 @@ test("outside close retains choices, Cancel discards them, and the next creation
   await expect(dialog(page)).toHaveCount(0);
   expect(
     (await savedSnapshot(page)).workspaces.find(
-      (workspace) => workspace.name === "Fresh",
-    )?.id,
+      (workspace) => workspace.name === "Fresh"
+    )?.id
   ).toBe("draft-workspace-2");
 });
 
@@ -233,16 +234,16 @@ test("nested picker is keyboard accessible and contained in the minimum window",
   await expect(search).toBeFocused();
   await search.fill("panda");
   await expect(
-    picker(page).getByRole("gridcell", { name: "panda", exact: true }),
+    picker(page).getByRole("gridcell", { name: "panda", exact: true })
   ).toBeVisible();
   await search.press("ArrowDown");
   await page.keyboard.press("Enter");
   await expect(
-    picker(page).getByRole("img", { name: "Icon preview: 🐼" }),
+    picker(page).getByRole("img", { name: "Icon preview: 🐼" })
   ).toBeVisible();
   await expect(search).toBeInViewport();
   await expect(
-    picker(page).getByRole("button", { name: "Done", exact: true }),
+    picker(page).getByRole("button", { name: "Done", exact: true })
   ).toBeInViewport();
   const bounds = await picker(page).boundingBox();
   expect(bounds).not.toBeNull();
@@ -264,6 +265,6 @@ test("nested picker is keyboard accessible and contained in the minimum window",
   await page.keyboard.press("Escape");
   await expect(iconButton(page)).toBeFocused();
   await expect(
-    dialog(page).getByRole("button", { name: "Create workspace", exact: true }),
+    dialog(page).getByRole("button", { name: "Create workspace", exact: true })
   ).toBeInViewport();
 });

@@ -1,3 +1,5 @@
+import { Toggle as TogglePrimitive } from "@base-ui/react/toggle";
+import { Check } from "lucide-react";
 import {
   useLayoutEffect,
   useRef,
@@ -6,16 +8,15 @@ import {
   type RefObject,
   type SetStateAction,
 } from "react";
-import { Check } from "lucide-react";
-import { Toggle as TogglePrimitive } from "@base-ui/react/toggle";
+
 import { Button } from "@/components/ui/button";
 import { EmojiFrame, emojiOptionClassName } from "@/components/ui/emoji-frame";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { EmojiArtwork } from "@/components/workspace-icon";
 import type { IconDraft } from "@/components/workspace-icon-picker";
 import { createColorSuggestions } from "@/lib/color-suggestions";
-import { canTreatEmoji, isFolderEmoji } from "@/lib/workspace-appearance";
 import { cn } from "@/lib/utils";
+import { canTreatEmoji, isFolderEmoji } from "@/lib/workspace-appearance";
 
 export function WorkspaceColorSuggestions({
   workspaceId,
@@ -31,7 +32,7 @@ export function WorkspaceColorSuggestions({
   customButton: RefObject<HTMLButtonElement | null>;
 }) {
   const [{ folder, other }] = useState(() =>
-    createColorSuggestions({ workspaceId, appearance: draft.appearance }),
+    createColorSuggestions({ workspaceId, appearance: draft.appearance })
   );
   const [savedPreference] = useState(draft.appearance.preference);
   const [expanded, setExpanded] = useState(false);
@@ -58,12 +59,12 @@ export function WorkspaceColorSuggestions({
   if (!canTreatEmoji(emoji)) return null;
   return (
     <div
-      className="flex h-44 min-h-20 shrink flex-col gap-2 overflow-y-auto overscroll-contain scroll-fade scroll-fade-2 p-1"
+      className="scroll-fade scroll-fade-2 flex h-44 min-h-20 shrink flex-col gap-2 overflow-y-auto overscroll-contain p-1"
       role="group"
       aria-label="Icon appearance"
     >
       <div className="-mb-1 flex h-6 shrink-0 items-center justify-between gap-2">
-        <span className="text-xs font-medium text-muted-foreground">
+        <span className="text-muted-foreground text-xs font-medium">
           Color suggestions
         </span>
         {remaining > 0 && (
@@ -92,7 +93,7 @@ export function WorkspaceColorSuggestions({
           }
           onValueChange={(values) => {
             const treatment = choices.find(
-              (item) => item.preset_id === values[0],
+              (item) => item.preset_id === values[0]
             );
             if (treatment) select({ kind: "Preset", treatment });
           }}
@@ -110,7 +111,7 @@ export function WorkspaceColorSuggestions({
                 title={folderEmoji ? label : undefined}
                 className={cn(
                   emojiOptionClassName,
-                  "aspect-square size-auto w-full",
+                  "aspect-square size-auto w-full"
                 )}
               >
                 <EmojiFrame

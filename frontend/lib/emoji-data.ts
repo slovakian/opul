@@ -1,4 +1,5 @@
 import type { EmojiData, EmojiDataResolver, EmojiDetails } from "frimousse";
+
 import bundled from "@/assets/emoji/data.json";
 
 const data: EmojiData = {
@@ -39,7 +40,7 @@ const toneLabels = new Map<string, string>(
   tones.map((tone, index) => [
     String.fromCodePoint(0x1f3fb + index),
     data.skinTones[tone].replace(/^./u, (letter) => letter.toUpperCase()),
-  ]),
+  ])
 );
 
 export function skinToneChoices(emoji: string) {
@@ -52,7 +53,7 @@ export function skinToneChoices(emoji: string) {
     ...tones.map((tone) => ({
       emoji: skins[tone],
       label: data.skinTones[tone].replace(/^./u, (letter) =>
-        letter.toUpperCase(),
+        letter.toUpperCase()
       ),
     })),
   ].filter((choice) => probe(choice.emoji));
@@ -61,7 +62,7 @@ export function skinToneChoices(emoji: string) {
 // Freeze recent choices for one browsing session, so polling cannot reset search,
 // keyboard position, or scroll. This resolver still uses the offline support filter.
 export function emojiDataWithRecents(
-  recent: readonly string[],
+  recent: readonly string[]
 ): EmojiDataResolver {
   return async (locale, options) => {
     const supported = await resolveEmojiData(locale, options);
@@ -108,14 +109,20 @@ function nativeSupportProbe() {
   const context = document.createElement("canvas").getContext("2d", {
     willReadFrequently: true,
   });
+
   return (emoji: string) => {
-    if (!context) return false;
+    if (!context) {
+      return false;
+    }
     context.canvas.width = 2;
     context.canvas.height = 2;
     context.font =
       '2px "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Emoji", sans-serif';
     context.textBaseline = "middle";
-    if (context.measureText(emoji).width >= 4) return false;
+
+    if (context.measureText(emoji).width >= 4) {
+      return false;
+    }
     context.fillStyle = "#00f";
     context.fillText(emoji, 0, 0);
     const blue = context.getImageData(0, 0, 2, 2).data;
@@ -123,6 +130,7 @@ function nativeSupportProbe() {
     context.fillStyle = "#f00";
     context.fillText(emoji, 0, 0);
     const red = context.getImageData(0, 0, 2, 2).data;
+
     return (
       blue.some((value, index) => index % 4 === 3 && value > 0) &&
       blue.every((value, index) => value === red[index])
@@ -134,26 +142,33 @@ let support: { version: number; flags: boolean } | undefined;
 
 export const resolveEmojiData: EmojiDataResolver = (_locale, options) => {
   options.signal?.throwIfAborted();
+
   if (!support) {
     const probe = nativeSupportProbe();
     const versions = new Map<number, string>();
+
     for (const emoji of data.emojis) {
-      if (!versions.has(emoji.version))
+      if (!versions.has(emoji.version)) {
         versions.set(emoji.version, emoji.emoji);
+      }
     }
+
     const supported = [...versions]
       .sort(([a], [b]) => b - a)
       .find(([, emoji]) => probe(emoji));
-    support = { version: supported?.[0] ?? 0, flags: probe("🇪🇺") };
+
+    support = { flags: probe("🇪🇺"), version: supported?.[0] ?? 0 };
   }
+
   const current = support;
+
   return {
     ...data,
     emojis: data.emojis.filter(
       (emoji) =>
         emoji.version <=
           Math.min(options.emojiVersion ?? current.version, current.version) &&
-        (!emoji.countryFlag || current.flags),
+        (!emoji.countryFlag || current.flags)
     ),
   };
 };

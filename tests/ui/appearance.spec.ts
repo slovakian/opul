@@ -1,7 +1,8 @@
 import { expect, test } from "@playwright/test";
-import { mockDesktop, snapshot } from "./fixture";
+
 import { snapshotSchema } from "../../frontend/lib/model";
 import treatments from "../../src/application/folder-treatments.json" with { type: "json" };
+import { mockDesktop, snapshot } from "./fixture";
 
 const artwork = '[data-slot="emoji-artwork"]';
 
@@ -17,17 +18,17 @@ test("folder appearance is identical across navigation, heading, and download ch
   const icon = workspace.locator(artwork);
   await expect(icon).toHaveAttribute("data-preset", "gold");
   const filter = await icon.evaluate(
-    (element) => getComputedStyle(element).filter,
+    (element) => getComputedStyle(element).filter
   );
   await workspace.click();
   await expect(
     page
       .getByRole("heading", { name: "Downloads", exact: true })
-      .locator(artwork),
+      .locator(artwork)
   ).toHaveCSS("filter", filter);
   await page.getByRole("button", { name: "Toggle Downloads folders" }).click();
   await expect(
-    page.getByRole("button", { name: "Toggle Downloads folders" }),
+    page.getByRole("button", { name: "Toggle Downloads folders" })
   ).toHaveAttribute("aria-expanded", "false");
   await expect(icon).toHaveCSS("filter", filter);
   await page.getByRole("button", { name: "Toggle Downloads folders" }).click();
@@ -70,7 +71,7 @@ for (const loseResponse of [false, true]) {
       .locator(artwork);
     await expect(preview).toHaveAttribute("data-preset", "coral");
     const filter = await preview.evaluate(
-      (element) => getComputedStyle(element).filter,
+      (element) => getComputedStyle(element).filter
     );
     // Observe a later polled snapshot without using a timing-based sleep.
     await expect(
@@ -80,7 +81,7 @@ for (const loseResponse of [false, true]) {
           exact: true,
           includeHidden: true,
         })
-        .locator(artwork),
+        .locator(artwork)
     ).toHaveAttribute("data-preset", "rose");
     await expect(preview).toHaveCSS("filter", filter);
     await page
@@ -95,7 +96,7 @@ for (const loseResponse of [false, true]) {
     await expect(
       page
         .getByRole("button", { name: "Workspace emoji: 📚", exact: true })
-        .locator(artwork),
+        .locator(artwork)
     ).toHaveCSS("filter", "none");
     await page
       .getByRole("button", { name: "Workspace emoji: 📚", exact: true })
@@ -116,8 +117,8 @@ for (const loseResponse of [false, true]) {
       page.getByText(
         loseResponse
           ? "The response was lost after saving. Try again."
-          : "Couldn't save the checkpoint. Try again.",
-      ),
+          : "Couldn't save the checkpoint. Try again."
+      )
     ).toBeVisible();
     await expect(preview).toHaveCSS("filter", filter);
     await expect(name).toHaveValue("Research");
@@ -127,25 +128,25 @@ for (const loseResponse of [false, true]) {
     await expect(
       page
         .getByRole("heading", { name: "Research", exact: true })
-        .locator(artwork),
+        .locator(artwork)
     ).toHaveCSS("filter", filter);
     await expect(
       page
         .getByRole("button", { name: "Research workspace", exact: true })
-        .locator(artwork),
+        .locator(artwork)
     ).toHaveCSS("filter", filter);
     await expect(
-      page.getByRole("button", { name: "Research workspace", exact: true }),
+      page.getByRole("button", { name: "Research workspace", exact: true })
     ).toHaveCount(1);
     const saved = snapshotSchema.parse(
       await page.evaluate(async () => {
         const modulePath = "/frontend/lib/bridge.ts";
         const { bridge } = await import(modulePath);
         return bridge.snapshot();
-      }),
+      })
     );
     const created = saved.workspaces.find(
-      (workspace) => workspace.name === "Research",
+      (workspace) => workspace.name === "Research"
     );
     expect(created?.id).toBe("draft-workspace-1");
     expect(created?.folders[0].id).toBe("draft-folder-1");
@@ -178,7 +179,7 @@ test("all twelve treatments render at sidebar size in light and dark themes", as
     });
     await expect(button.locator(artwork)).toHaveAttribute(
       "data-preset",
-      treatment.preset_id,
+      treatment.preset_id
     );
     await expect(button).toHaveCSS("filter", "none");
   }

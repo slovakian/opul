@@ -1,5 +1,6 @@
-import palette from "../../src/application/folder-treatments.json";
 import type { Workspace } from "@/lib/model";
+
+import palette from "../../src/application/folder-treatments.json";
 
 type Treatment = NonNullable<Workspace["appearance"]["automatic_folder"]>;
 
@@ -13,7 +14,7 @@ function identitySeed(identity: string) {
 
 function sample({ seed, saved }: { seed: number; saved: Treatment | null }) {
   const remaining = palette.filter(
-    (item) => item.preset_id !== saved?.preset_id,
+    (item) => item.preset_id !== saved?.preset_id
   );
   // Fisher-Yates samples identities without replacement. The seed belongs to
   // the workspace for folders, and to one picker opening for other emoji.

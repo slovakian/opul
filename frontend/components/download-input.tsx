@@ -1,4 +1,3 @@
-import { useState, type FormEvent } from "react";
 import {
   ChevronDown,
   Download,
@@ -8,17 +7,20 @@ import {
   Loader2,
   Settings2,
 } from "lucide-react";
+import { useState } from "react";
+import type { FormEvent } from "react";
+
+import { SidebarPopover } from "@/components/sidebar-popover";
+import { Button } from "@/components/ui/button";
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupInput,
 } from "@/components/ui/input-group";
-import { Button } from "@/components/ui/button";
-import { SidebarPopover } from "@/components/sidebar-popover";
-import { useLibrary } from "@/lib/library";
-import { bridge, errorMessage } from "@/lib/bridge";
 import { toast } from "@/components/ui/toast";
+import { bridge, errorMessage } from "@/lib/bridge";
+import { useLibrary } from "@/lib/library";
 import type { Workspace } from "@/lib/model";
 
 export function DownloadInput({
@@ -34,6 +36,7 @@ export function DownloadInput({
   const [url, setUrl] = useState("");
   const [selectedFolderId, setSelectedFolderId] = useState<string>();
   const [adding, setAdding] = useState(false);
+
   const folder =
     workspace.folders.find((folder) => folder.id === selectedFolderId) ??
     workspace.folders.find((folder) => folder.is_default);
@@ -41,24 +44,32 @@ export function DownloadInput({
   async function addLocation() {
     try {
       const path = await bridge.chooseFolder();
-      if (!path) return;
+
+      if (!path) {
+        return;
+      }
+
       const folderId = crypto.randomUUID();
+
       const receipt = await run({
         kind: "add_folder",
         request: {
-          request_id: crypto.randomUUID(),
           expected_revision: null,
-          workspace_id: workspace.id,
           folder_id: folderId,
           name: path.split("/").filter(Boolean).pop() || "Folder",
           path,
+          request_id: crypto.randomUUID(),
+          workspace_id: workspace.id,
         },
       });
-      if (receipt) setSelectedFolderId(folderId);
+
+      if (receipt) {
+        setSelectedFolderId(folderId);
+      }
     } catch (error) {
       toast.add({
-        title: "Couldn't add location",
         description: errorMessage(error),
+        title: "Couldn't add location",
         type: "error",
       });
     }
@@ -66,21 +77,30 @@ export function DownloadInput({
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!folder || disabled || adding || !url.trim()) return;
+
+    if (!folder || disabled || adding || !url.trim()) {
+      return;
+    }
+
     setAdding(true);
     const link = url.trim();
+
     const receipt = await run({
-      kind: "add_url",
-      workspace_id: workspace.id,
       folder_id: folder.id,
-      url: link,
+      format: workspace.default_format,
+      kind: "add_url",
       mode:
         link.startsWith("magnet:") || /\.torrent(\?|$)/i.test(link)
           ? "Torrent"
           : "Direct",
-      format: workspace.default_format,
+      url: link,
+      workspace_id: workspace.id,
     });
-    if (receipt) setUrl("");
+
+    if (receipt) {
+      setUrl("");
+    }
+
     setAdding(false);
   }
 
@@ -123,17 +143,17 @@ export function DownloadInput({
                 actions: [...workspace.folders]
                   .sort((a, b) => Number(b.is_default) - Number(a.is_default))
                   .map((option) => ({
-                    label: `${option.name}${option.is_default ? " (Default)" : ""}`,
-                    selected: option.id === folder?.id,
                     icon: FolderClosed,
+                    label: `${option.name}${option.is_default ? " (Default)" : ""}`,
                     onClick: () => setSelectedFolderId(option.id),
+                    selected: option.id === folder?.id,
                   })),
               },
               {
                 actions: [
                   {
-                    label: "Add new location…",
                     icon: FolderPlus,
+                    label: "Add new location…",
                     onClick: () => void addLocation(),
                   },
                 ],
@@ -165,7 +185,9 @@ export function DownloadInput({
         title="Video pages, formats, and torrent files"
         disabled={disabled || adding || !folder}
         onClick={() => {
-          if (folder) onOptions(url, folder.id);
+          if (folder) {
+            onOptions(url, folder.id);
+          }
         }}
       >
         <Settings2 />

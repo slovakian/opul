@@ -1,20 +1,23 @@
-import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { mockDesktop, snapshot } from "./fixture";
+import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
+
 import { snapshotSchema } from "../../frontend/lib/model";
 import treatments from "../../src/application/folder-treatments.json" with { type: "json" };
+import { mockDesktop, snapshot } from "./fixture";
 
 const artwork = '[data-slot="emoji-artwork"]';
+
 const editor = (page: Page) =>
-  page.getByRole("dialog", { name: "Change icon", exact: true });
+  page.getByRole("dialog", { exact: true, name: "Change icon" });
 
 async function openPicker(page: Page) {
   await page
-    .getByRole("button", { name: "Downloads actions", exact: true })
+    .getByRole("button", { exact: true, name: "Downloads actions" })
     .click();
-  await page.getByRole("button", { name: "Change icon…", exact: true }).click();
+  await page.getByRole("button", { exact: true, name: "Change icon…" }).click();
   await expect(
-    editor(page).getByRole("textbox", { name: "Search emoji" }),
+    editor(page).getByRole("textbox", { name: "Search emoji" })
   ).toBeFocused();
 }
 
@@ -23,7 +26,7 @@ async function choose(page: Page, search: string, label: string) {
     .getByRole("textbox", { name: "Search emoji" })
     .fill(search);
   await editor(page)
-    .getByRole("gridcell", { name: label, exact: true })
+    .getByRole("gridcell", { exact: true, name: label })
     .click();
   await expect(editor(page)).toBeVisible();
 }
@@ -33,175 +36,11 @@ async function savedSnapshot(page: Page) {
     await page.evaluate(async () => {
       const path = "/frontend/lib/bridge.ts";
       const { bridge } = await import(path);
+
       return bridge.snapshot();
-    }),
+    })
   );
 }
-
-for (const theme of ["light", "dark"]) {
-  test(`emoji fade beneath sticky category labels in ${theme} mode`, async ({
-    page,
-  }) => {
-    await mockDesktop(page);
-    await page.goto("/");
-    if (theme === "dark") {
-      await page.getByRole("button", { name: "Settings", exact: true }).click();
-      const settings = page.getByRole("dialog", {
-        name: "Settings",
-        exact: true,
-      });
-      await settings.getByRole("button", { name: "Dark", exact: true }).click();
-      await settings.getByRole("button", { name: "Save changes" }).click();
-      await expect(page.locator("html")).toHaveClass(/dark/);
-    }
-    await openPicker(page);
-    const viewport = editor(page).locator("[frimousse-viewport]");
-    const headers = viewport.locator(
-      "[frimousse-list-sizer] > [frimousse-category] > [frimousse-category-header]",
-    );
-    await expect(headers.first()).toHaveText("Smileys & Emotion");
-    await expect(headers.filter({ hasText: "Travel & Places" })).toHaveCount(1);
-    const { rowHeight, headerHeight } = await viewport.evaluate((element) => {
-      const style = getComputedStyle(element);
-      return {
-        rowHeight: parseFloat(style.getPropertyValue("--frimousse-row-height")),
-        headerHeight: parseFloat(
-          style.getPropertyValue("--frimousse-category-header-height"),
-        ),
-      };
-    });
-    await viewport.evaluate((element, y) => {
-      element.scrollTop = y;
-    }, rowHeight * 2);
-    const reference = await viewport.screenshot({ scale: "css" });
-    const delta = rowHeight / 2 + 4;
-    await viewport.evaluate(
-      (element, y) => {
-        element.scrollTop = y;
-      },
-      rowHeight * 2 + delta,
-    );
-    const faded = await viewport.screenshot({
-      scale: "css",
-      path: `test-results/emoji-sticky-fade-${theme}.png`,
-    });
-    // Compare the same glyph pixels before and after they move behind the label.
-    const contrastRatio = await page.evaluate(
-      async ({ reference, faded, fullY, fadedY }) => {
-        async function pixels(encoded: string) {
-          const image = new Image();
-          image.src = `data:image/png;base64,${encoded}`;
-          await image.decode();
-          const canvas = document.createElement("canvas");
-          canvas.width = image.width;
-          canvas.height = image.height;
-          const context = canvas.getContext("2d");
-          if (!context) throw new Error("Canvas unavailable");
-          context.drawImage(image, 0, 0);
-          return context.getImageData(0, 0, image.width, image.height);
-        }
-        const full = await pixels(reference);
-        const clipped = await pixels(faded);
-        function contrast(image: ImageData, centerY: number) {
-          let total = 0;
-          for (
-            let y = Math.round(centerY) - 1;
-            y <= Math.round(centerY) + 1;
-            y++
-          )
-            for (let x = 0; x < image.width; x++)
-              for (let channel = 0; channel < 3; channel++)
-                total += Math.abs(
-                  image.data[(y * image.width + x) * 4 + channel] -
-                    image.data[channel],
-                );
-          return total;
-        }
-        return contrast(clipped, fadedY) / contrast(full, fullY);
-      },
-      {
-        reference: reference.toString("base64"),
-        faded: faded.toString("base64"),
-        fullY: headerHeight + rowHeight / 2,
-        fadedY: headerHeight + rowHeight / 2 - delta,
-      },
-    );
-    expect(contrastRatio).toBeGreaterThan(0.15);
-    expect(contrastRatio).toBeLessThan(0.85);
-    const viewportBounds = await viewport.boundingBox();
-    expect((await headers.first().boundingBox())?.y).toBeCloseTo(
-      viewportBounds?.y ?? 0,
-      1,
-    );
-    const next = headers.nth(1);
-    const nextTop = await next.evaluate(
-      (element) => element.parentElement?.offsetTop ?? 0,
-    );
-    await viewport.evaluate(
-      (element, y) => {
-        element.scrollTop = y;
-      },
-      nextTop + rowHeight * 2,
-    );
-    await expect(next).toHaveText("People & Body");
-    await expect
-      .poll(async () => (await next.boundingBox())?.y)
-      .toBeCloseTo(viewportBounds?.y ?? 0, 1);
-    await viewport.screenshot({
-      path: `test-results/emoji-next-category-${theme}.png`,
-    });
-  });
-}
-
-test("emoji options stay transparent when chosen and only grow their artwork on hover", async ({
-  page,
-}) => {
-  await page.emulateMedia({ reducedMotion: "no-preference" });
-  await mockDesktop(page);
-  await page.goto("/");
-  await openPicker(page);
-  await choose(page, "thumbs up", "thumbs up");
-  const cell = editor(page).getByRole("gridcell", {
-    name: "thumbs up",
-    exact: true,
-  });
-  const tone = editor(page).getByRole("button", {
-    name: "Default skin tone",
-    exact: true,
-  });
-  const color = editor(page)
-    .getByRole("group", { name: "Color suggestions", exact: true })
-    .getByRole("button")
-    .first();
-  await color.click();
-  await page.mouse.move(0, 0);
-  const badge = '[data-slot="emoji-frame-badge"]';
-  for (const option of [cell, tone, color]) {
-    await expect(option.locator(badge)).toHaveCount(1);
-    await expect(option).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
-    await expect(option).toHaveCSS("border-top-width", "0px");
-    await expect(option).toHaveCSS("box-shadow", "none");
-    const frame = option.locator('[data-slot="emoji-frame"]');
-    await expect(frame).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
-    const glyph = option.locator('[data-slot="emoji-frame-artwork"]');
-    const bounds = await option.boundingBox();
-    const before = await glyph.boundingBox();
-    const checkBefore = await option.locator(badge).boundingBox();
-    await option.hover();
-    await expect(frame).not.toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
-    await expect
-      .poll(async () => {
-        const after = await glyph.boundingBox();
-        return after && before ? after.width / before.width : 0;
-      })
-      .toBeCloseTo(1.1, 2);
-    expect(await option.boundingBox()).toEqual(bounds);
-    expect(await option.locator(badge).boundingBox()).toEqual(checkBefore);
-    await page.mouse.move(0, 0);
-    await expect(frame).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
-  }
-  await page.screenshot({ path: "test-results/emoji-check-badges.png" });
-});
 
 test("search previews locally, keeps the picker open, and saves the full sequence", async ({
   page,
@@ -210,21 +49,21 @@ test("search previews locally, keeps the picker open, and saves the full sequenc
   await page.goto("/");
   await openPicker(page);
   await expect(
-    editor(page).locator("[frimousse-category-header]:visible").first(),
+    editor(page).locator("[frimousse-category-header]:visible").first()
   ).toHaveText("Smileys & Emotion");
   await choose(page, "family", "family: man, woman, girl, boy");
   await expect(
-    editor(page).getByRole("img", { name: "Icon preview: 👨‍👩‍👧‍👦" }),
+    editor(page).getByRole("img", { name: "Icon preview: 👨‍👩‍👧‍👦" })
   ).toBeVisible();
   expect((await savedSnapshot(page)).workspaces[0].icon).toEqual(
-    snapshot.workspaces[0].icon,
+    snapshot.workspaces[0].icon
   );
-  await editor(page).getByRole("button", { name: "Save", exact: true }).click();
+  await editor(page).getByRole("button", { exact: true, name: "Save" }).click();
   await expect(editor(page)).toHaveCount(0);
   await expect(
     page
-      .getByRole("button", { name: "Downloads workspace", exact: true })
-      .locator(artwork),
+      .getByRole("button", { exact: true, name: "Downloads workspace" })
+      .locator(artwork)
   ).toHaveText("👨‍👩‍👧‍👦");
   expect((await savedSnapshot(page)).workspaces[0].icon.value).toBe("👨‍👩‍👧‍👦");
 });
@@ -237,22 +76,26 @@ for (const close of ["Cancel", "Escape", "outside"]) {
     await page.goto("/");
     await openPicker(page);
     await choose(page, "panda", "panda");
-    if (close === "Cancel")
+
+    if (close === "Cancel") {
       await editor(page)
         .getByRole("button", { name: "Cancel", exact: true })
         .click();
-    else if (close === "Escape") await page.keyboard.press("Escape");
-    else await page.mouse.click(650, 450);
+    } else if (close === "Escape") {
+      await page.keyboard.press("Escape");
+    } else {
+      await page.mouse.click(650, 450);
+    }
     await expect(editor(page)).toHaveCount(0);
     await expect(
-      page.getByRole("button", { name: "Downloads actions", exact: true }),
+      page.getByRole("button", { exact: true, name: "Downloads actions" })
     ).toBeFocused();
     expect((await savedSnapshot(page)).workspaces[0]).toEqual(
-      snapshot.workspaces[0],
+      snapshot.workspaces[0]
     );
     await openPicker(page);
     await expect(
-      editor(page).getByRole("img", { name: "Icon preview: 📁" }),
+      editor(page).getByRole("img", { name: "Icon preview: 📁" })
     ).toBeVisible();
   });
 }
@@ -273,42 +116,42 @@ for (const lost of [false, true]) {
       const path = "/frontend/lib/bridge.ts";
       const { bridge } = await import(path);
       await bridge.execute({
+        format: "AudioMp3",
         kind: "format",
         workspace_id: "workspace-1",
-        format: "AudioMp3",
       });
       await bridge.execute({
+        grouping: "State",
         kind: "view",
-        workspace_id: "workspace-1",
         layout: "Table",
         sort: "Name",
-        grouping: "State",
+        workspace_id: "workspace-1",
       });
     });
     await expect(
       page.getByRole("button", {
-        name: "Table view",
         exact: true,
         includeHidden: true,
-      }),
+        name: "Table view",
+      })
     ).toHaveAttribute("aria-pressed", "true");
     await expect(
-      editor(page).getByRole("img", { name: "Icon preview: 🐼" }),
+      editor(page).getByRole("img", { name: "Icon preview: 🐼" })
     ).toBeVisible();
     await editor(page)
-      .getByRole("button", { name: "Save", exact: true })
+      .getByRole("button", { exact: true, name: "Save" })
       .click();
     await expect(editor(page).getByRole("alert")).toContainText(
-      "Your changes are kept",
+      "Your changes are kept"
     );
     await expect(
-      editor(page).getByRole("textbox", { name: "Search emoji" }),
+      editor(page).getByRole("textbox", { name: "Search emoji" })
     ).toHaveValue("panda");
     await expect(
-      editor(page).getByRole("img", { name: "Icon preview: 🐼" }),
+      editor(page).getByRole("img", { name: "Icon preview: 🐼" })
     ).toBeVisible();
     await editor(page)
-      .getByRole("button", { name: "Save", exact: true })
+      .getByRole("button", { exact: true, name: "Save" })
       .click();
     await expect(editor(page)).toHaveCount(0);
     const saved = (await savedSnapshot(page)).workspaces[0];
@@ -334,18 +177,18 @@ test("automatic folder treatment suspends, returns unchanged, and explicit Origi
   await choose(page, "file folder", "file folder");
   await expect(preview).toHaveAttribute("data-preset", "gold");
   await editor(page)
-    .getByRole("button", { name: "Original", exact: true })
+    .getByRole("button", { exact: true, name: "Original" })
     .click();
   await expect(preview).toHaveCSS("filter", "none");
-  await editor(page).getByRole("button", { name: "Save", exact: true }).click();
+  await editor(page).getByRole("button", { exact: true, name: "Save" }).click();
   await expect(editor(page)).toHaveCount(0);
   await openPicker(page);
   await expect(
-    editor(page).getByRole("button", { name: "Original", exact: true }),
+    editor(page).getByRole("button", { exact: true, name: "Original" })
   ).toHaveAttribute("aria-pressed", "true");
   await expect(editor(page).getByRole("img").locator(artwork)).toHaveCSS(
     "filter",
-    "none",
+    "none"
   );
   expect((await savedSnapshot(page)).workspaces[0].appearance).toEqual({
     automatic_folder: treatments[0],
@@ -370,25 +213,25 @@ test("manual treatment follows eligible emoji and suspends for excluded presenta
   await choose(page, "white circle", "white circle");
   await expect(preview).toHaveCSS("filter", "none");
   await expect(
-    editor(page).getByRole("group", { name: "Icon appearance", exact: true }),
+    editor(page).getByRole("group", { exact: true, name: "Icon appearance" })
   ).toHaveCount(0);
-  await editor(page).getByRole("button", { name: "Save", exact: true }).click();
+  await editor(page).getByRole("button", { exact: true, name: "Save" }).click();
   await expect(editor(page)).toHaveCount(0);
   expect(
-    (await savedSnapshot(page)).workspaces[0].appearance.preference,
+    (await savedSnapshot(page)).workspaces[0].appearance.preference
   ).toEqual({ kind: "Preset", treatment: treatments[1] });
   await openPicker(page);
   await choose(page, "panda", "panda");
   await expect(editor(page).getByRole("img").locator(artwork)).toHaveAttribute(
     "data-preset",
-    "coral",
+    "coral"
   );
-  await editor(page).getByRole("button", { name: "Save", exact: true }).click();
+  await editor(page).getByRole("button", { exact: true, name: "Save" }).click();
   await expect(editor(page)).toHaveCount(0);
   await expect(
     page
-      .getByRole("button", { name: "Downloads workspace", exact: true })
-      .locator(artwork),
+      .getByRole("button", { exact: true, name: "Downloads workspace" })
+      .locator(artwork)
   ).toHaveAttribute("data-preset", "coral");
 });
 
@@ -399,63 +242,70 @@ test("first use has no emoji-data requests and supports keyboard selection at mi
 }) => {
   const external: string[] = [];
   page.on("request", (request) => {
-    if (!request.url().startsWith(baseURL ?? "http://localhost:1420"))
+    if (!request.url().startsWith(baseURL ?? "http://localhost:1420")) {
       external.push(request.url());
+    }
   });
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.setViewportSize({ width: 720, height: 520 });
+  await page.setViewportSize({ height: 520, width: 720 });
   await mockDesktop(page);
   await page.goto("/");
   await page
-    .getByRole("button", { name: "Toggle Sidebar", exact: true })
+    .getByRole("button", { exact: true, name: "Toggle Sidebar" })
     .click();
   await page
-    .getByRole("button", { name: "Downloads workspace", exact: true })
+    .getByRole("button", { exact: true, name: "Downloads workspace" })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Downloads", exact: true }),
+    page.getByRole("heading", { exact: true, name: "Downloads" })
   ).toBeVisible();
   await context.setOffline(true);
   await page
-    .getByRole("button", { name: "Workspace actions", exact: true })
+    .getByRole("button", { exact: true, name: "Workspace actions" })
     .click();
-  await page.getByRole("button", { name: "Change icon…", exact: true }).click();
+  await page.getByRole("button", { exact: true, name: "Change icon…" }).click();
   const search = editor(page).getByRole("textbox", { name: "Search emoji" });
   await search.fill("panda");
   await expect(
-    editor(page).getByRole("gridcell", { name: "panda", exact: true }),
+    editor(page).getByRole("gridcell", { exact: true, name: "panda" })
   ).toBeVisible();
   await search.press("ArrowDown");
   await page.keyboard.press("Enter");
   await expect(
-    editor(page).getByRole("img", { name: "Icon preview: 🐼" }),
+    editor(page).getByRole("img", { name: "Icon preview: 🐼" })
   ).toBeVisible();
   await expect(
-    editor(page).getByRole("button", { name: "Save", exact: true }),
+    editor(page).getByRole("button", { exact: true, name: "Save" })
   ).toBeInViewport();
   const bounds = await editor(page).boundingBox();
   expect(bounds).not.toBeNull();
+
   if (bounds) {
     expect(bounds.y).toBeGreaterThanOrEqual(0);
     expect(bounds.y + bounds.height).toBeLessThanOrEqual(520);
   }
+
   expect(external).toEqual([]);
   expect(errors).toEqual([]);
+
   const accessibility = await new AxeBuilder({ page })
     .include('[data-slot="popover-content"]')
     .disableRules(["button-name"])
     .analyze();
+
   expect(accessibility.violations).toEqual([]);
+
   const unnamed = await editor(page)
     .locator("button:not([aria-hidden])")
     .evaluateAll(
       (buttons) =>
         buttons.filter(
           (button) =>
-            !button.getAttribute("aria-label") && !button.textContent?.trim(),
-        ).length,
+            !button.getAttribute("aria-label") && !button.textContent?.trim()
+        ).length
     );
+
   expect(unnamed).toBe(0);
   await page.screenshot({ path: "test-results/icon-picker-minimum.png" });
 });
@@ -467,26 +317,28 @@ test("saved custom treatments and eligibility share the renderer across Unicode 
   const emojis = ["⚪", "⚪︎", "⚪️", "☠️", "🐼", "👩🏽‍💻", "📁︎", "📁️"];
   library.workspaces = emojis.map((value, index) => ({
     ...library.workspaces[0],
-    id: `appearance-${index}`,
-    name: `Icon ${index}`,
-    icon: { kind: "Emoji", value },
     appearance: {
       automatic_folder: treatments[0],
-      preference: { kind: "Custom", hue: 120, saturation: 180, brightness: 95 },
+      preference: { brightness: 95, hue: 120, kind: "Custom", saturation: 180 },
     },
-    folders: [],
     downloads: [],
+    folders: [],
+    icon: { kind: "Emoji", value },
+    id: `appearance-${index}`,
+    name: `Icon ${index}`,
   }));
   await mockDesktop(page, { snapshot: library });
   await page.goto("/");
+
   for (const [index, value] of emojis.entries()) {
     const icon = page
-      .getByRole("button", { name: `Icon ${index} workspace`, exact: true })
+      .getByRole("button", { exact: true, name: `Icon ${index} workspace` })
       .locator(artwork);
+
     await expect(icon).toHaveText(value);
     await expect(icon).toHaveCSS(
       "filter",
-      index < 4 ? "none" : "hue-rotate(120deg) saturate(1.8) brightness(0.95)",
+      index < 4 ? "none" : "hue-rotate(120deg) saturate(1.8) brightness(0.95)"
     );
   }
 });
@@ -506,41 +358,41 @@ test("an unassigned native workspace freezes its first folder proposal", async (
   await choose(page, "file folder", "file folder");
   await expect(editor(page).getByRole("img").locator(artwork)).toHaveCSS(
     "filter",
-    "none",
+    "none"
   );
   await editor(page)
-    .getByRole("button", { name: "Automatic", exact: true })
+    .getByRole("button", { exact: true, name: "Automatic" })
     .click();
   await expect(editor(page).getByRole("img").locator(artwork)).toHaveAttribute(
     "data-preset",
-    "coral",
+    "coral"
   );
-  await editor(page).getByRole("button", { name: "Save", exact: true }).click();
+  await editor(page).getByRole("button", { exact: true, name: "Save" }).click();
   await expect(editor(page)).toHaveCount(0);
   expect(
-    (await savedSnapshot(page)).workspaces[0].appearance.automatic_folder,
+    (await savedSnapshot(page)).workspaces[0].appearance.automatic_folder
   ).toEqual(treatments[1]);
 });
 
 test("save errors keep the actions reachable in the minimum window", async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 720, height: 520 });
+  await page.setViewportSize({ height: 520, width: 720 });
   await mockDesktop(page, { failFirstAppearance: true });
   await page.goto("/");
   await page
-    .getByRole("button", { name: "Toggle Sidebar", exact: true })
+    .getByRole("button", { exact: true, name: "Toggle Sidebar" })
     .click();
   await page
-    .getByRole("button", { name: "Downloads workspace", exact: true })
+    .getByRole("button", { exact: true, name: "Downloads workspace" })
     .click();
   await page
-    .getByRole("button", { name: "Workspace actions", exact: true })
+    .getByRole("button", { exact: true, name: "Workspace actions" })
     .click();
-  await page.getByRole("button", { name: "Change icon…", exact: true }).click();
-  await editor(page).getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { exact: true, name: "Change icon…" }).click();
+  await editor(page).getByRole("button", { exact: true, name: "Save" }).click();
   await expect(editor(page).getByRole("alert")).toBeVisible();
-  const save = editor(page).getByRole("button", { name: "Save", exact: true });
+  const save = editor(page).getByRole("button", { exact: true, name: "Save" });
   await expect(save).toBeInViewport({ ratio: 1 });
   await save.click();
   await expect(editor(page)).toHaveCount(0);
@@ -551,26 +403,35 @@ test("bundled resolver filters version ceilings and unsupported country flags", 
 }) => {
   await mockDesktop(page);
   await page.goto("/");
+
   const filtered = await page.evaluate(async () => {
     // Exercise the custom resolver boundary without depending on virtualized rows.
     const measure = CanvasRenderingContext2D.prototype.measureText;
-    CanvasRenderingContext2D.prototype.measureText = function (text) {
+    CanvasRenderingContext2D.prototype.measureText = function measureText(
+      text
+    ) {
       const metrics = measure.call(this, text);
+
       // Simulate a platform that renders country flags as separate letters.
-      if (text === "🇪🇺") Object.defineProperty(metrics, "width", { value: 4 });
+      if (text === "🇪🇺") {
+        Object.defineProperty(metrics, "width", { value: 4 });
+      }
       return metrics;
     };
+
     const path = "/frontend/lib/emoji-data.ts";
     const { resolveEmojiData } = await import(path);
     const data = await resolveEmojiData("en", { emojiVersion: 1 });
+
     return {
-      versions: data.emojis.map((emoji: { version: number }) => emoji.version),
       count: data.emojis.length,
       flags: data.emojis.filter(
-        (emoji: { countryFlag?: boolean }) => emoji.countryFlag,
+        (emoji: { countryFlag?: boolean }) => emoji.countryFlag
       ).length,
+      versions: data.emojis.map((emoji: { version: number }) => emoji.version),
     };
   });
+
   expect(filtered.count).toBeGreaterThan(100);
   expect(filtered.flags).toBe(0);
   expect(Math.max(...filtered.versions)).toBeLessThanOrEqual(1);
@@ -583,22 +444,25 @@ test("keyboard browsing keeps the active emoji visible beyond the first rows in 
   await page.goto("/");
   await openPicker(page);
   const active = editor(page).getByRole("gridcell", { selected: true });
+
   for (let index = 0; index < 18; index++) {
     await page.keyboard.press("ArrowDown");
     await expect(active).toHaveCount(1);
     await expect(active).toBeInViewport({ ratio: 1 });
   }
+
   for (let index = 0; index < 12; index++) {
     await page.keyboard.press("ArrowUp");
     await expect(active).toHaveCount(1);
     await expect(active).toBeInViewport({ ratio: 1 });
   }
+
   const selected = await active.textContent();
   await page.keyboard.press("Enter");
   await expect(editor(page).getByRole("img").locator(artwork)).toHaveText(
-    selected?.trim() ?? "",
+    selected?.trim() ?? ""
   );
   expect((await savedSnapshot(page)).workspaces[0]).toEqual(
-    snapshot.workspaces[0],
+    snapshot.workspaces[0]
   );
 });

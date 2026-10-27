@@ -1,7 +1,8 @@
-import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { mockDesktop, snapshot } from "./fixture";
+import { expect, test, type Page } from "@playwright/test";
+
 import { snapshotSchema } from "../../frontend/lib/model";
+import { mockDesktop, snapshot } from "./fixture";
 
 const artwork = '[data-slot="emoji-artwork"]';
 const picker = (page: Page) =>
@@ -22,7 +23,7 @@ async function saved(page: Page) {
       const path = "/frontend/lib/bridge.ts";
       const { bridge } = await import(path);
       return bridge.snapshot();
-    }),
+    })
   );
 }
 async function choose(page: Page, name: string) {
@@ -54,16 +55,16 @@ test("Custom replaces browsing, starts from the preview, and back preserves the 
     .getByRole("group", { name: "Color suggestions", exact: true })
     .locator(artwork)
     .evaluateAll((nodes) =>
-      nodes.map((node) => node.getAttribute("data-preset")),
+      nodes.map((node) => node.getAttribute("data-preset"))
     );
   const before = await preview(page).evaluate(
-    (node) => getComputedStyle(node).filter,
+    (node) => getComputedStyle(node).filter
   );
   await picker(page)
     .getByRole("textbox", { name: "Search emoji" })
     .fill("face");
   await expect(
-    picker(page).getByRole("gridcell", { name: "grinning face", exact: true }),
+    picker(page).getByRole("gridcell", { name: "grinning face", exact: true })
   ).toBeVisible();
   await picker(page).locator("[frimousse-viewport]").hover();
   await page.mouse.wheel(0, 220);
@@ -71,7 +72,7 @@ test("Custom replaces browsing, starts from the preview, and back preserves the 
     .poll(() =>
       picker(page)
         .locator("[frimousse-viewport]")
-        .evaluate((node) => node.scrollTop),
+        .evaluate((node) => node.scrollTop)
     )
     .toBeGreaterThan(0);
   const scroll = await picker(page)
@@ -80,10 +81,10 @@ test("Custom replaces browsing, starts from the preview, and back preserves the 
   expect(scroll).toBeGreaterThan(0);
   await customize(page);
   await expect(
-    picker(page).getByRole("textbox", { name: "Search emoji" }),
+    picker(page).getByRole("textbox", { name: "Search emoji" })
   ).toBeHidden();
   await expect(
-    picker(page).getByRole("group", { name: "Color suggestions", exact: true }),
+    picker(page).getByRole("group", { name: "Color suggestions", exact: true })
   ).toBeHidden();
   await expect(preview(page)).toHaveCSS("filter", before);
   const hue = picker(page).getByRole("slider", { name: "Hue", exact: true });
@@ -93,35 +94,35 @@ test("Custom replaces browsing, starts from the preview, and back preserves the 
   await expect(hue).toHaveAttribute("aria-valuenow", "1");
   for (const name of ["Saturation", "Brightness"])
     await expect(
-      picker(page).getByRole("slider", { name, exact: true }),
+      picker(page).getByRole("slider", { name, exact: true })
     ).toBeVisible();
   const edited = await preview(page).evaluate(
-    (node) => getComputedStyle(node).filter,
+    (node) => getComputedStyle(node).filter
   );
   expect((await saved(page)).workspaces[0].appearance.preference.kind).toBe(
-    "Automatic",
+    "Automatic"
   );
   await picker(page)
     .getByRole("button", { name: "Back to emoji browsing" })
     .click();
   await expect(
-    picker(page).getByRole("button", { name: "Custom", exact: true }),
+    picker(page).getByRole("button", { name: "Custom", exact: true })
   ).toBeFocused();
   await expect(
-    picker(page).getByRole("textbox", { name: "Search emoji" }),
+    picker(page).getByRole("textbox", { name: "Search emoji" })
   ).toHaveValue("face");
   expect(
     await picker(page)
       .locator("[frimousse-viewport]")
-      .evaluate((node) => node.scrollTop),
+      .evaluate((node) => node.scrollTop)
   ).toBe(scroll);
   expect(
     await picker(page)
       .getByRole("group", { name: "Color suggestions", exact: true })
       .locator(artwork)
       .evaluateAll((nodes) =>
-        nodes.map((node) => node.getAttribute("data-preset")),
-      ),
+        nodes.map((node) => node.getAttribute("data-preset"))
+      )
   ).toEqual(identities);
   await customize(page);
   await expect(hue).toHaveAttribute("aria-valuenow", "1");
@@ -150,12 +151,12 @@ test("custom save matches every workspace surface and a fresh page; exclusions s
   await choose(page, "white circle");
   await expect(preview(page)).toHaveCSS("filter", "none");
   await expect(
-    picker(page).getByRole("button", { name: "Custom", exact: true }),
+    picker(page).getByRole("button", { name: "Custom", exact: true })
   ).toHaveCount(0);
   await picker(page).getByRole("button", { name: "Save", exact: true }).click();
   const custom = { kind: "Custom", hue: 359, saturation: 0, brightness: 150 };
   expect((await saved(page)).workspaces[0].appearance.preference).toEqual(
-    custom,
+    custom
   );
   const reopened = await context.newPage();
   await mockDesktop(reopened, { snapshot: await saved(page) });
@@ -164,7 +165,7 @@ test("custom save matches every workspace surface and a fresh page; exclusions s
   await choose(reopened, "rainbow");
   await customize(reopened);
   await expect(
-    reopened.getByRole("slider", { name: "Hue", exact: true }),
+    reopened.getByRole("slider", { name: "Hue", exact: true })
   ).toHaveAttribute("aria-valuenow", "359");
   const filter = "hue-rotate(359deg) saturate(0) brightness(1.5)";
   await expect(preview(reopened)).toHaveCSS("filter", filter);
@@ -177,12 +178,12 @@ test("custom save matches every workspace surface and a fresh page; exclusions s
   await expect(
     reopened
       .getByRole("button", { name: "Downloads workspace", exact: true })
-      .locator(artwork),
+      .locator(artwork)
   ).toHaveCSS("filter", filter);
   await expect(
     reopened
       .getByRole("heading", { name: "Downloads", exact: true })
-      .locator(artwork),
+      .locator(artwork)
   ).toHaveCSS("filter", filter);
   await reopened
     .getByRole("button", { name: "Download options", exact: true })
@@ -219,10 +220,10 @@ test("custom mode stays accessible in the minimum window and retains edits on fa
   await expect(picker(page).getByRole("alert")).toBeVisible();
   for (const name of ["Hue", "Saturation", "Brightness"])
     await expect(
-      picker(page).getByRole("slider", { name, exact: true }),
+      picker(page).getByRole("slider", { name, exact: true })
     ).toBeInViewport({ ratio: 1 });
   await expect(
-    picker(page).getByRole("button", { name: "Save", exact: true }),
+    picker(page).getByRole("button", { name: "Save", exact: true })
   ).toBeInViewport({ ratio: 1 });
   await expect(picker(page)).toHaveCSS("animation-name", "none");
   const accessibility = await new AxeBuilder({ page })
@@ -234,7 +235,7 @@ test("custom mode stays accessible in the minimum window and retains edits on fa
     .getByRole("button", { name: "Cancel", exact: true })
     .click();
   expect((await saved(page)).workspaces[0].appearance.preference.kind).toBe(
-    "Automatic",
+    "Automatic"
   );
 });
 
@@ -259,7 +260,7 @@ test("creation retains custom edits through inner close and saves exact paramete
     .getByRole("slider", { name: "Saturation", exact: true })
     .press("End");
   const filter = await preview(page).evaluate(
-    (node) => getComputedStyle(node).filter,
+    (node) => getComputedStyle(node).filter
   );
   await page.keyboard.press("Escape");
   const trigger = page.getByRole("button", {
@@ -271,7 +272,7 @@ test("creation retains custom edits through inner close and saves exact paramete
   await trigger.click();
   await customize(page);
   await expect(
-    picker(page).getByRole("slider", { name: "Saturation", exact: true }),
+    picker(page).getByRole("slider", { name: "Saturation", exact: true })
   ).toHaveAttribute("aria-valuenow", "1000");
   await picker(page).getByRole("button", { name: "Done", exact: true }).click();
   await page
@@ -279,13 +280,13 @@ test("creation retains custom edits through inner close and saves exact paramete
     .click();
   expect(
     (await saved(page)).workspaces.find(
-      (workspace) => workspace.name === "Custom workspace",
-    )?.appearance.preference,
+      (workspace) => workspace.name === "Custom workspace"
+    )?.appearance.preference
   ).toMatchObject({ kind: "Custom", saturation: 1000 });
   await expect(
     page
       .getByRole("button", { name: "Custom workspace workspace", exact: true })
-      .locator(artwork),
+      .locator(artwork)
   ).toHaveCSS("filter", filter);
 });
 
@@ -307,7 +308,7 @@ test("dragging updates only the local preview, survives polling, and Escape disc
     ["Brightness", "100"],
   ]) {
     await expect(
-      picker(page).getByRole("slider", { name, exact: true }),
+      picker(page).getByRole("slider", { name, exact: true })
     ).toHaveAttribute("aria-valuenow", value);
   }
   const before = await saved(page);
@@ -318,23 +319,23 @@ test("dragging updates only the local preview, survives polling, and Escape disc
   if (!bounds) throw new Error("The hue track must be visible");
   await page.mouse.move(
     bounds.x + bounds.width / 4,
-    bounds.y + bounds.height / 2,
+    bounds.y + bounds.height / 2
   );
   await page.mouse.down();
   await page.mouse.move(
     bounds.x + (bounds.width * 3) / 4,
     bounds.y + bounds.height / 2,
-    { steps: 30 },
+    { steps: 30 }
   );
   await page.mouse.up();
   const hue = picker(page).getByRole("slider", { name: "Hue", exact: true });
   expect(Number(await hue.getAttribute("aria-valuenow"))).toBeGreaterThan(250);
   const filter = await preview(page).evaluate(
-    (node) => getComputedStyle(node).filter,
+    (node) => getComputedStyle(node).filter
   );
   expect((await saved(page)).revision).toBe(before.revision);
   expect((await saved(page)).workspaces[0].appearance).toEqual(
-    before.workspaces[0].appearance,
+    before.workspaces[0].appearance
   );
   await page.evaluate(async () => {
     const path = "/frontend/lib/bridge.ts";
@@ -352,20 +353,20 @@ test("dragging updates only the local preview, survives polling, and Escape disc
       name: "Table view",
       exact: true,
       includeHidden: true,
-    }),
+    })
   ).toHaveAttribute("aria-pressed", "true");
   await expect(preview(page)).toHaveCSS("filter", filter);
   await expect(
-    picker(page).getByRole("button", { name: "Back to emoji browsing" }),
+    picker(page).getByRole("button", { name: "Back to emoji browsing" })
   ).toHaveCSS("filter", "none");
   await page.keyboard.press("Escape");
   await expect(picker(page)).toHaveCount(0);
   await expect(
-    page.getByRole("button", { name: "Downloads actions", exact: true }),
+    page.getByRole("button", { name: "Downloads actions", exact: true })
   ).toBeFocused();
   await openPicker(page);
   await expect(
-    picker(page).getByRole("button", { name: "Automatic", exact: true }),
+    picker(page).getByRole("button", { name: "Automatic", exact: true })
   ).toHaveAttribute("aria-pressed", "true");
   expect(errors).toEqual([]);
 });
@@ -380,17 +381,17 @@ test("failed custom save retries without losing slider values", async ({
   const hue = picker(page).getByRole("slider", { name: "Hue", exact: true });
   await hue.press("End");
   const filter = await preview(page).evaluate(
-    (node) => getComputedStyle(node).filter,
+    (node) => getComputedStyle(node).filter
   );
   await picker(page).getByRole("button", { name: "Save", exact: true }).click();
   await expect(picker(page).getByRole("alert")).toBeVisible();
   await expect(hue).toHaveAttribute("aria-valuenow", "359");
   expect((await saved(page)).workspaces[0].appearance.preference.kind).toBe(
-    "Automatic",
+    "Automatic"
   );
   await picker(page).getByRole("button", { name: "Save", exact: true }).click();
   expect((await saved(page)).workspaces[0].appearance.preference).toMatchObject(
-    { kind: "Custom", hue: 359 },
+    { kind: "Custom", hue: 359 }
   );
   await openPicker(page);
   await expect(preview(page)).toHaveCSS("filter", filter);

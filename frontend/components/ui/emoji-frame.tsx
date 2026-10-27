@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
 import { Check } from "lucide-react";
+import type { ReactNode } from "react";
 
 export const emojiOptionClassName =
   "group/emoji-option relative flex size-9 shrink-0 items-center justify-center rounded-md outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
@@ -16,7 +16,7 @@ export function EmojiFrame({
     <span
       aria-hidden
       data-slot="emoji-frame"
-      className="pointer-events-none relative flex size-full items-center justify-center rounded-[inherit] text-2xl group-hover/emoji-option:bg-muted"
+      className="group-hover/emoji-option:bg-muted pointer-events-none relative flex size-full items-center justify-center rounded-[inherit] text-2xl"
     >
       <span
         data-slot="emoji-frame-artwork"
@@ -27,7 +27,7 @@ export function EmojiFrame({
       {selected && (
         <span
           data-slot="emoji-frame-badge"
-          className="absolute right-0 bottom-0 inline-flex size-3 items-center justify-center rounded-full bg-primary text-primary-foreground ring-2 ring-popover [&>svg]:size-2"
+          className="bg-primary text-primary-foreground ring-popover absolute right-0 bottom-0 inline-flex size-3 items-center justify-center rounded-full ring-2 [&>svg]:size-2"
         >
           <Check strokeWidth={3} />
         </span>

@@ -1,11 +1,8 @@
-import {
-  Fragment,
-  useRef,
-  useState,
-  type ReactElement,
-  type ReactNode,
-} from "react";
-import { Check, ChevronDown, type LucideIcon } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { Fragment, useRef, useState } from "react";
+import type { ReactElement, ReactNode } from "react";
+
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -24,7 +21,7 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar";
 
-export type MenuAction = {
+export interface MenuAction {
   label: string;
   content?: ReactNode;
   icon?: LucideIcon;
@@ -33,8 +30,11 @@ export type MenuAction = {
   selected?: boolean;
   hint?: string;
   destructive?: boolean;
-};
-type MenuGroup = { label?: string; actions: MenuAction[] };
+}
+interface MenuGroup {
+  label?: string;
+  actions: MenuAction[];
+}
 
 export function SidebarPopover({
   trigger,
@@ -49,6 +49,7 @@ export function SidebarPopover({
 }) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger ref={triggerRef} render={trigger} />
@@ -56,18 +57,24 @@ export function SidebarPopover({
         align={align}
         className="w-60 overflow-hidden p-0"
         onKeyDown={(event) => {
-          if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key))
+          if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
             return;
-          const buttons = Array.from(
-            event.currentTarget.querySelectorAll<HTMLButtonElement>(
-              "button:not(:disabled)",
+          }
+          const buttons = [
+            ...event.currentTarget.querySelectorAll<HTMLButtonElement>(
+              "button:not(:disabled)"
             ),
-          );
-          if (!buttons.length) return;
+          ];
+
+          if (!buttons.length) {
+            return;
+          }
           event.preventDefault();
+
           const index = buttons.findIndex(
-            (button) => button === document.activeElement,
+            (button) => button === document.activeElement
           );
+
           buttons[
             event.key === "Home"
               ? 0
@@ -114,7 +121,7 @@ export function SidebarPopover({
                             <Check className="ml-auto" />
                           ) : (
                             action.hint && (
-                              <span className="ml-auto text-xs text-muted-foreground">
+                              <span className="text-muted-foreground ml-auto text-xs">
                                 {action.hint}
                               </span>
                             )
@@ -147,6 +154,7 @@ export function Choice<T extends string>({
   disabled?: boolean;
 }) {
   const selected = options.find((option) => option.value === value);
+
   return (
     <SidebarPopover
       title={label}
@@ -169,13 +177,13 @@ export function Choice<T extends string>({
       }
       groups={[
         {
-          label,
           actions: options.map((option) => ({
             label: option.label,
             content: option.content,
             selected: value === option.value,
             onClick: () => onChange(option.value),
           })),
+          label,
         },
       ]}
     />

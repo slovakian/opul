@@ -1,9 +1,5 @@
-import {
-  workspaceEmoji,
-  type Workspace,
-  type TreatmentParameters,
-} from "@/lib/model";
-
+import { workspaceEmoji } from "@/lib/model";
+import type { Workspace, TreatmentParameters } from "@/lib/model";
 import { canTreatEmoji, emojiTreatment } from "@/lib/workspace-appearance";
 
 type Treatment = TreatmentParameters & {
@@ -18,6 +14,7 @@ export function EmojiArtwork({
   treatment?: Treatment | null;
 }) {
   const applied = canTreatEmoji(emoji) ? treatment : null;
+
   return (
     <span
       aria-hidden
@@ -43,6 +40,7 @@ export function WorkspaceIcon({
   workspace: Pick<Workspace, "icon" | "appearance">;
 }) {
   const emoji = workspaceEmoji(workspace);
+
   return (
     <EmojiArtwork
       emoji={emoji}

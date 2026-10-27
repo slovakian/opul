@@ -1,5 +1,8 @@
-import { useEffect, useState } from "react";
 import { Download, Info, Monitor, Network, Wrench } from "lucide-react";
+import { useEffect, useState } from "react";
+
+import opulLogo from "@/assets/opul-logo.png";
+import { Choice } from "@/components/sidebar-popover";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,8 +19,6 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Sidebar,
   SidebarContent,
@@ -27,26 +28,30 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { Switch } from "@/components/ui/switch";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { bridge, errorMessage } from "@/lib/bridge";
 import { useLibrary } from "@/lib/library";
 import type { Preferences, ToolStatus } from "@/lib/model";
-import { Choice } from "@/components/sidebar-popover";
-import opulLogo from "@/assets/opul-logo.png";
 
 const sections = [
-  { label: "Appearance", icon: Monitor },
-  { label: "Downloads", icon: Download },
-  { label: "BitTorrent", icon: Network },
-  { label: "Tools", icon: Wrench },
-  { label: "About", icon: Info },
+  { icon: Monitor, label: "Appearance" },
+  { icon: Download, label: "Downloads" },
+  { icon: Network, label: "BitTorrent" },
+  { icon: Wrench, label: "Tools" },
+  { icon: Info, label: "About" },
 ];
+
 export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const { preferences } = useLibrary();
+
   return (
     <Dialog
       open
       onOpenChange={(open) => {
-        if (!open) onClose();
+        if (!open) {
+          onClose();
+        }
       }}
     >
       <DialogContent className="overflow-hidden p-0 sm:max-w-3xl">
@@ -85,12 +90,18 @@ function SettingsContent({
       .then(setTools)
       .catch((error) => setToolError(errorMessage(error)));
   }, []);
+
   async function save(event: React.FormEvent) {
     event.preventDefault();
     setSaving(true);
-    if (await savePreferences(draft)) onClose();
+
+    if (await savePreferences(draft)) {
+      onClose();
+    }
+
     setSaving(false);
   }
+
   function numberField(
     key:
       | "max_download_kbps"
@@ -99,7 +110,7 @@ function SettingsContent({
       | "max_connections",
     label: string,
     min = 0,
-    max = 1_000_000,
+    max = 1_000_000
   ) {
     return (
       <Field>
@@ -118,11 +129,12 @@ function SettingsContent({
       </Field>
     );
   }
+
   return (
     <form onSubmit={save} className="flex h-[32rem] max-h-[85svh] min-w-0">
       <Sidebar
         collapsible="none"
-        className="w-40 shrink-0 border-r border-sidebar-border sm:w-48"
+        className="border-sidebar-border w-40 shrink-0 border-r sm:w-48"
       >
         <SidebarContent>
           <SidebarGroup className="pt-5">
@@ -151,7 +163,7 @@ function SettingsContent({
         <div className="flex flex-1 flex-col gap-6 overflow-y-auto px-6 pb-6">
           {section === "Appearance" && (
             <>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 Make yourself at home.
               </p>
               <FieldGroup>
@@ -164,12 +176,14 @@ function SettingsContent({
                     value={[draft.theme]}
                     onValueChange={(values) => {
                       const theme = values[0];
+
                       if (
                         theme === "system" ||
                         theme === "light" ||
                         theme === "dark"
-                      )
+                      ) {
                         setDraft({ ...draft, theme });
+                      }
                     }}
                   >
                     <ToggleGroupItem value="system">System</ToggleGroupItem>
@@ -185,7 +199,7 @@ function SettingsContent({
           )}
           {section === "Downloads" && (
             <>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 Limits apply as soon as you save.
               </p>
               <FieldGroup>
@@ -195,8 +209,8 @@ function SettingsContent({
                     label="Concurrent downloads"
                     value={String(draft.concurrent_downloads)}
                     options={["1", "2", "3", "4", "5", "8"].map((value) => ({
-                      value,
                       label: `${value} at a time`,
+                      value,
                     }))}
                     onChange={(value) =>
                       setDraft({
@@ -217,7 +231,7 @@ function SettingsContent({
           )}
           {section === "BitTorrent" && (
             <>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 Connection changes take effect when you restart Opul.
               </p>
               <FieldGroup>
@@ -251,23 +265,23 @@ function SettingsContent({
                   />
                 </Field>
                 {!draft.randomize_port &&
-                  numberField("listen_port", "Listen port", 1, 65535)}
+                  numberField("listen_port", "Listen port", 1, 65_535)}
                 {numberField(
                   "max_connections",
                   "Maximum connections",
                   1,
-                  10_000,
+                  10_000
                 )}
               </FieldGroup>
             </>
           )}
           {section === "Tools" && (
             <>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 Direct files and torrents work on their own. Video pages use
                 yt-dlp; audio conversion uses FFmpeg.
               </p>
-              <div className="rounded-lg bg-muted p-3 text-sm" role="status">
+              <div className="bg-muted rounded-lg p-3 text-sm" role="status">
                 {toolError || tools?.message || "Checking installed tools…"}
               </div>
               <FieldGroup>
@@ -307,7 +321,7 @@ function SettingsContent({
                   </FieldDescription>
                 </Field>
               </FieldGroup>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 Restart Opul after changing tool paths.
               </p>
             </>
@@ -317,16 +331,16 @@ function SettingsContent({
               <img src={opulLogo} alt="" className="size-12" />
               <div>
                 <h3 className="text-lg font-semibold">Opul</h3>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-muted-foreground text-sm">
                   A quiet home for your downloads.
                 </p>
               </div>
               <Separator />
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 Built with Tauri, Base UI, and the Opul Rust core. Free and open
                 source under the MIT license.
               </p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 Version 0.1.0 · Updates are available on GitHub.
               </p>
             </div>

@@ -41,7 +41,7 @@ const excluded = new Set([
 ]);
 
 function presentationKey(emoji: string) {
-  return emoji.replace(/[\uFE0E\uFE0F]/gu, "");
+  return emoji.replaceAll(/[\uFE0E\uFE0F]/gu, "");
 }
 
 export function isFolderEmoji(emoji: string) {
@@ -54,21 +54,29 @@ export function canTreatEmoji(emoji: string) {
 
 export function emojiTreatment(
   emoji: string,
-  appearance: Workspace["appearance"],
+  appearance: Workspace["appearance"]
 ) {
-  if (!canTreatEmoji(emoji)) return null;
-  const preference = appearance.preference;
+  if (!canTreatEmoji(emoji)) {
+    return null;
+  }
+  const { preference } = appearance;
+
   switch (preference.kind) {
-    case "Automatic":
+    case "Automatic": {
       return isFolderEmoji(emoji) ? appearance.automatic_folder : null;
-    case "Original":
+    }
+    case "Original": {
       return null;
-    case "Preset":
+    }
+    case "Preset": {
       return preference.treatment;
-    case "Custom":
+    }
+    case "Custom": {
       return preference;
+    }
     default: {
       const exhaustive: never = preference;
+
       return exhaustive;
     }
   }

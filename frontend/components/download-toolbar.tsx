@@ -1,5 +1,7 @@
-import type { Ref } from "react";
 import { ArrowUpDown, List, ListFilter, Search, Table2 } from "lucide-react";
+import type { Ref } from "react";
+
+import { SidebarPopover } from "@/components/sidebar-popover";
 import { Button } from "@/components/ui/button";
 import {
   InputGroup,
@@ -7,28 +9,31 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { SidebarPopover } from "@/components/sidebar-popover";
-import { groupingSchema, sortSchema, type Workspace } from "@/lib/model";
 import type { StatusFilter } from "@/components/workspace-sidebar";
+import { groupingSchema, sortSchema } from "@/lib/model";
+import type { Workspace } from "@/lib/model";
+
 const filterOptions: { value: StatusFilter; label: string }[] = [
-  { value: "all", label: "All downloads" },
-  { value: "active", label: "In progress" },
-  { value: "finished", label: "Completed" },
-  { value: "paused", label: "Paused" },
-  { value: "failed", label: "Failed" },
+  { label: "All downloads", value: "all" },
+  { label: "In progress", value: "active" },
+  { label: "Completed", value: "finished" },
+  { label: "Paused", value: "paused" },
+  { label: "Failed", value: "failed" },
 ];
+
 const sortNames: Record<Workspace["sort"], string> = {
-  Order: "Date added",
   Name: "Name",
-  State: "Status",
+  Order: "Date added",
   Source: "Source",
-};
-const groupNames: Record<Workspace["grouping"], string> = {
-  None: "No grouping",
   State: "Status",
+};
+
+const groupNames: Record<Workspace["grouping"], string> = {
   Folder: "Save location",
   Kind: "File type",
+  None: "No grouping",
   Source: "Source",
+  State: "Status",
 };
 
 export function DownloadToolbar({
@@ -48,7 +53,7 @@ export function DownloadToolbar({
   setFilter: (filter: StatusFilter) => void;
   workspace?: Workspace;
   view: (
-    change: Partial<Pick<Workspace, "layout" | "sort" | "grouping">>,
+    change: Partial<Pick<Workspace, "layout" | "sort" | "grouping">>
   ) => void;
   disabled: boolean;
 }) {
@@ -85,12 +90,12 @@ export function DownloadToolbar({
         }
         groups={[
           {
-            label: "Status",
             actions: filterOptions.map((option) => ({
               label: option.label,
-              selected: filter === option.value,
               onClick: () => setFilter(option.value),
+              selected: filter === option.value,
             })),
+            label: "Status",
           },
         ]}
       />
@@ -108,22 +113,22 @@ export function DownloadToolbar({
         }
         groups={[
           {
-            label: "Sort by",
             actions: sortSchema.options.map((value) => ({
+              disabled,
               label: sortNames[value],
-              selected: workspace?.sort === value,
-              disabled: disabled,
               onClick: () => view({ sort: value }),
+              selected: workspace?.sort === value,
             })),
+            label: "Sort by",
           },
           {
-            label: "Group by",
             actions: groupingSchema.options.map((value) => ({
+              disabled,
               label: groupNames[value],
-              selected: workspace?.grouping === value,
-              disabled: disabled,
               onClick: () => view({ grouping: value }),
+              selected: workspace?.grouping === value,
             })),
+            label: "Group by",
           },
         ]}
       />
@@ -131,7 +136,10 @@ export function DownloadToolbar({
         value={[workspace?.layout ?? "List"]}
         onValueChange={(values) => {
           const layout = values[0];
-          if (layout === "List" || layout === "Table") view({ layout });
+
+          if (layout === "List" || layout === "Table") {
+            view({ layout });
+          }
         }}
         spacing={0}
         size="sm"

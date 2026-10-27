@@ -12,6 +12,9 @@ import {
   Settings2,
   Trash2,
 } from "lucide-react";
+
+import opulLogo from "@/assets/opul-logo.png";
+import { SidebarPopover } from "@/components/sidebar-popover";
 import {
   Collapsible,
   CollapsibleContent,
@@ -38,17 +41,17 @@ import {
   SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { SidebarPopover } from "@/components/sidebar-popover";
-import { WorkspaceIcon } from "@/components/workspace-icon";
-import { useLibrary } from "@/lib/library";
-import { bridge, errorMessage } from "@/lib/bridge";
 import { toast } from "@/components/ui/toast";
-import opulLogo from "@/assets/opul-logo.png";
-import { bytes, type Folder, type Workspace } from "@/lib/model";
+import { WorkspaceIcon } from "@/components/workspace-icon";
+import { bridge, errorMessage } from "@/lib/bridge";
+import { useLibrary } from "@/lib/library";
+import { bytes } from "@/lib/model";
+import type { Folder, Workspace } from "@/lib/model";
 
 export type Location =
   | { kind: "all" }
   | { kind: "workspace"; workspaceId: string; folderId?: string };
+
 export type StatusFilter = "all" | "active" | "finished" | "paused" | "failed";
 
 export function WorkspaceSidebar({
@@ -72,7 +75,7 @@ export function WorkspaceSidebar({
   onEdit: (workspace: Workspace) => void;
   onChangeIcon: (
     workspace: Workspace,
-    anchor: HTMLButtonElement | null,
+    anchor: HTMLButtonElement | null
   ) => void;
   onSettings: () => void;
   onNew: () => void;
@@ -80,59 +83,71 @@ export function WorkspaceSidebar({
   const { run, busy, state } = useLibrary();
   const { isMobile, setOpenMobile } = useSidebar();
   const allDownloads = workspaces.flatMap((workspace) => workspace.downloads);
+
   const active = allDownloads.filter(
     (download) =>
-      download.capabilities.can_pause || download.state === "Pausing",
+      download.capabilities.can_pause || download.state === "Pausing"
   );
+
   const downloadRate = allDownloads.reduce(
     (sum, download) => sum + download.download_rate,
-    0,
+    0
   );
+
   function go(next: Location, status: StatusFilter = "all") {
     navigate(next);
     setFilter(status);
-    if (isMobile) setOpenMobile(false);
+
+    if (isMobile) {
+      setOpenMobile(false);
+    }
   }
+
   async function addFolder(workspace: Workspace) {
     try {
       const path = await bridge.chooseFolder();
-      if (!path) return;
+
+      if (!path) {
+        return;
+      }
       await run({
         kind: "add_folder",
         request: {
-          request_id: crypto.randomUUID(),
           expected_revision: null,
-          workspace_id: workspace.id,
           folder_id: crypto.randomUUID(),
           name: path.split("/").filter(Boolean).pop() || "Folder",
           path,
+          request_id: crypto.randomUUID(),
+          workspace_id: workspace.id,
         },
       });
     } catch (error) {
       toast.add({
-        title: "Couldn't add folder",
         description: errorMessage(error),
+        title: "Couldn't add folder",
         type: "error",
       });
     }
   }
+
   function folderRequest(workspace: Workspace, folder: Folder) {
     return {
-      request_id: crypto.randomUUID(),
       expected_revision: null,
-      workspace_id: workspace.id,
       folder_id: folder.id,
       name: folder.name,
       path: folder.path,
+      request_id: crypto.randomUUID(),
+      workspace_id: workspace.id,
     };
   }
+
   return (
     <Sidebar
       className="border-r-0"
       role="navigation"
       aria-label="Workspace navigation"
     >
-      <SidebarHeader className="gap-4 px-3 pb-3 pt-12">
+      <SidebarHeader className="gap-4 px-3 pt-12 pb-3">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarPopover
@@ -149,14 +164,14 @@ export function WorkspaceSidebar({
                 {
                   actions: [
                     {
-                      label: "New download",
-                      icon: Plus,
-                      onClick: onNew,
                       hint: "⌘N",
+                      icon: Plus,
+                      label: "New download",
+                      onClick: onNew,
                     },
                     {
-                      label: "New workspace",
                       icon: FolderPlus,
+                      label: "New workspace",
                       onClick: onCreate,
                     },
                   ],
@@ -164,10 +179,10 @@ export function WorkspaceSidebar({
                 {
                   actions: [
                     {
-                      label: "Settings",
-                      icon: Settings2,
-                      onClick: onSettings,
                       hint: "⌘,",
+                      icon: Settings2,
+                      label: "Settings",
+                      onClick: onSettings,
                     },
                   ],
                 },
@@ -179,24 +194,24 @@ export function WorkspaceSidebar({
         <SidebarMenu>
           {[
             {
-              label: "All downloads",
-              icon: Inbox,
-              status: "all",
               count: allDownloads.length,
+              icon: Inbox,
+              label: "All downloads",
+              status: "all",
             },
             {
-              label: "In progress",
-              icon: ArrowDown,
-              status: "active",
               count: active.length,
+              icon: ArrowDown,
+              label: "In progress",
+              status: "active",
             },
             {
-              label: "Completed",
-              icon: Check,
-              status: "finished",
               count: allDownloads.filter(
-                (download) => download.state === "Finished",
+                (download) => download.state === "Finished"
               ).length,
+              icon: Check,
+              label: "Completed",
+              status: "finished",
             },
           ].map((item) => (
             <SidebarMenuItem key={item.label}>
@@ -209,7 +224,7 @@ export function WorkspaceSidebar({
                       ? "active"
                       : item.status === "finished"
                         ? "finished"
-                        : "all",
+                        : "all"
                   )
                 }
               >
@@ -256,7 +271,7 @@ export function WorkspaceSidebar({
                   >
                     <span
                       aria-hidden
-                      className="flex size-4 shrink-0 items-center justify-center group-hover/workspace:invisible group-focus-within/workspace:invisible"
+                      className="flex size-4 shrink-0 items-center justify-center group-focus-within/workspace:invisible group-hover/workspace:invisible"
                     >
                       <WorkspaceIcon workspace={workspace} />
                     </span>
@@ -265,7 +280,7 @@ export function WorkspaceSidebar({
                   <CollapsibleTrigger
                     render={
                       <SidebarMenuAction
-                        className="left-1.5 right-auto opacity-0 group-hover/workspace:opacity-100 group-focus-within/workspace:opacity-100 data-panel-open:rotate-90"
+                        className="right-auto left-1.5 opacity-0 group-focus-within/workspace:opacity-100 group-hover/workspace:opacity-100 data-panel-open:rotate-90"
                         aria-label={`Toggle ${workspace.name} folders`}
                       />
                     }
@@ -286,25 +301,25 @@ export function WorkspaceSidebar({
                       {
                         actions: [
                           {
-                            label: "Change icon…",
-                            icon: Smile,
                             disabled:
                               busy ||
                               state.kind !== "ready" ||
                               state.snapshot.session !== "Running",
+                            icon: Smile,
+                            label: "Change icon…",
                             onClick: (anchor) =>
                               onChangeIcon(workspace, anchor),
                           },
                           {
-                            label: "Edit workspace",
                             icon: Pencil,
+                            label: "Edit workspace",
                             onClick: () => onEdit(workspace),
                           },
                           {
-                            label: "Add saved folder",
-                            icon: FolderPlus,
-                            onClick: () => void addFolder(workspace),
                             disabled: busy,
+                            icon: FolderPlus,
+                            label: "Add saved folder",
+                            onClick: () => void addFolder(workspace),
                           },
                         ],
                       },
@@ -325,9 +340,9 @@ export function WorkspaceSidebar({
                             }
                             onClick={() =>
                               go({
+                                folderId: folder.id,
                                 kind: "workspace",
                                 workspaceId: workspace.id,
-                                folderId: folder.id,
                               })
                             }
                             title={folder.path}
@@ -347,9 +362,6 @@ export function WorkspaceSidebar({
                             }
                             groups={[
                               {
-                                label: folder.is_default
-                                  ? "Default save location"
-                                  : "Save location",
                                 actions: [
                                   {
                                     label: "Set as default",
@@ -360,7 +372,7 @@ export function WorkspaceSidebar({
                                         kind: "default_folder",
                                         request: folderRequest(
                                           workspace,
-                                          folder,
+                                          folder
                                         ),
                                       }),
                                   },
@@ -375,11 +387,14 @@ export function WorkspaceSidebar({
                                         kind: "remove_folder",
                                         request: folderRequest(
                                           workspace,
-                                          folder,
+                                          folder
                                         ),
                                       }),
                                   },
                                 ],
+                                label: folder.is_default
+                                  ? "Default save location"
+                                  : "Save location",
                               },
                             ]}
                           />
@@ -410,7 +425,7 @@ export function WorkspaceSidebar({
           </SidebarMenuItem>
         </SidebarMenu>
         <div
-          className="flex items-center gap-2 px-2 pb-1 text-xs text-muted-foreground"
+          className="text-muted-foreground flex items-center gap-2 px-2 pb-1 text-xs"
           aria-live="polite"
         >
           <ArrowDown className="size-3" />

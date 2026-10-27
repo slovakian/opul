@@ -9,11 +9,13 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+
+import { SidebarPopover } from "@/components/sidebar-popover";
+import type { MenuAction } from "@/components/sidebar-popover";
 import { Button } from "@/components/ui/button";
-import { SidebarPopover, type MenuAction } from "@/components/sidebar-popover";
-import { useLibrary } from "@/lib/library";
-import { bridge, errorMessage } from "@/lib/bridge";
 import { toast } from "@/components/ui/toast";
+import { bridge, errorMessage } from "@/lib/bridge";
+import { useLibrary } from "@/lib/library";
 import type { Download, DownloadAction } from "@/lib/model";
 
 export function DownloadActions({
@@ -27,53 +29,68 @@ export function DownloadActions({
 }) {
   const { run, busy } = useLibrary();
   const caps = download.capabilities;
+
   function act(action: DownloadAction) {
-    void run({ kind: "download", download_id: download.id, action });
+    void run({ action, download_id: download.id, kind: "download" });
   }
+
   const actions: MenuAction[] = [
-    { label: "Show details", icon: Info, onClick: onInspect },
+    { icon: Info, label: "Show details", onClick: onInspect },
   ];
-  if (caps.can_reveal_output)
+
+  if (caps.can_reveal_output) {
     actions.push({
-      label: "Show in Finder",
       icon: FolderOpen,
+      label: "Show in Finder",
       onClick: () => void reveal(download.id),
     });
-  if (caps.can_pause)
+  }
+
+  if (caps.can_pause) {
     actions.push({
-      label: "Pause download",
+      disabled: busy,
       icon: Pause,
+      label: "Pause download",
       onClick: () => act("Pause"),
-      disabled: busy,
     });
-  if (caps.can_resume)
+  }
+
+  if (caps.can_resume) {
     actions.push({
-      label: "Resume download",
+      disabled: busy,
       icon: Play,
+      label: "Resume download",
       onClick: () => act("Resume"),
-      disabled: busy,
     });
-  if (caps.can_retry)
+  }
+
+  if (caps.can_retry) {
     actions.push({
-      label: "Retry download",
+      disabled: busy,
       icon: RotateCcw,
+      label: "Retry download",
       onClick: () => act("Retry"),
-      disabled: busy,
     });
-  if (caps.can_stop_seeding)
+  }
+
+  if (caps.can_stop_seeding) {
     actions.push({
-      label: "Stop seeding",
+      disabled: busy,
       icon: CircleStop,
+      label: "Stop seeding",
       onClick: () => act("StopSeeding"),
-      disabled: busy,
     });
-  if (caps.can_cancel)
+  }
+
+  if (caps.can_cancel) {
     actions.push({
-      label: "Cancel download",
-      icon: X,
-      onClick: () => act("Cancel"),
       disabled: busy,
+      icon: X,
+      label: "Cancel download",
+      onClick: () => act("Cancel"),
     });
+  }
+
   return (
     <div className="flex items-center gap-1">
       {caps.can_pause ? (
@@ -136,10 +153,10 @@ export function DownloadActions({
           {
             actions: [
               {
-                label: "Remove from library",
-                icon: Trash2,
-                onClick: onRemove,
                 disabled: busy || !caps.can_remove,
+                icon: Trash2,
+                label: "Remove from library",
+                onClick: onRemove,
               },
             ],
           },
@@ -148,13 +165,14 @@ export function DownloadActions({
     </div>
   );
 }
+
 export async function reveal(id: string) {
   try {
     await bridge.reveal(id);
   } catch (error) {
     toast.add({
-      title: "Couldn't reveal this download",
       description: errorMessage(error),
+      title: "Couldn't reveal this download",
       type: "error",
     });
   }
