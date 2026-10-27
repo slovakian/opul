@@ -46,6 +46,7 @@ import {
   type StatusFilter,
 } from "@/components/workspace-sidebar";
 import { useLibrary } from "@/lib/library";
+import { cn } from "@/lib/utils";
 import {
   sourceNames,
   stateNames,
@@ -201,7 +202,7 @@ export default function App() {
         onNew={() => setModal({ kind: "add" })}
       />
       <SidebarInset className="h-svh min-w-0 overflow-hidden">
-        <header className="shrink-0 border-b">
+        <header className="shrink-0">
           <div
             data-tauri-drag-region
             className="flex min-h-14 flex-wrap items-center gap-x-2 gap-y-2 px-4 py-3"
@@ -310,7 +311,12 @@ export default function App() {
             />
           )}
         </header>
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div
+          className={cn(
+            "flex min-h-0 flex-1 flex-col overflow-y-auto",
+            workspace?.layout !== "Table" && "scroll-fade",
+          )}
+        >
           <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6 lg:px-10">
             {state.kind === "ready" && state.snapshot.session !== "Running" && (
               <Alert>
