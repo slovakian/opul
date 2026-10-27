@@ -113,8 +113,8 @@ and console checks. A Rust actor test verifies canceled proposals do not write,
 failed creation checkpoints publish neither field, and both fields survive restart
 and an idempotent retry.
 
-The integrated color suggestions from #14 also apply to creation. Custom sliders
-(#15) and skin-tone controls and recents (#16) remain separate follow-ups.
+The integrated color suggestions from #14 also apply to creation. Skin-tone
+controls and recents (#16) remain a separate follow-up.
 
 ## Color suggestions (#14)
 
@@ -134,8 +134,8 @@ and pressed state identify deliberate selections; choosing the automatic look as
 preset still records a deliberate preference.
 
 Original, Automatic for folders, Custom, and a saved custom treatment are independent
-of the six suggestions. Custom starts a resolved preference from the current preview;
-sliders and custom-mode navigation remain in #15. The saved custom choice remains
+of the six suggestions. Custom starts a resolved preference from the current preview.
+The saved custom choice remains
 available after selecting Original or another preset. Excluded emoji hide the entire
 color section and suspend the preference without deleting it.
 
@@ -177,3 +177,50 @@ appearance updates now apply to the latest draft, including color suggestions.
 The retry flow verifies the selected Unicode sequence before closing the picker
 and after saving. The keyboard scrolling test waits for the virtualized grid's
 single active cell before checking that it is fully visible.
+
+## Custom treatments (#15)
+
+Custom replaces browsing with a large native emoji preview and Hue, Saturation,
+and Brightness sliders. Initial values are resolved from the actual preview,
+including automatic folder assignments, presets, Original, and saved custom
+parameters. The back arrow restores browsing and focuses Custom, keeping the
+draft, search, emoji scroll, suggestion order, and expansion. The browsing tree
+stays mounted, invisible and inert in the same grid area, so its session is not
+resampled and its viewport dimensions and scroll position remain intact.
+
+Slider changes update the local draft and artwork filter. They do not call Rust,
+write storage, or animate the treatment. Save or Create workspace persists the
+resolved parameters through the existing atomic commands. Cancel and Escape
+discard existing-workspace edits; inner dismissal during creation retains them
+until Create or outer Cancel. Excluded emoji hide color controls and suspend
+the saved preference; selecting an eligible emoji restores it.
+
+The sliders use the official shadcn Base UI component, with visible labels,
+keyboard operation, and focus rings. Entry focuses Hue after Base UI positions
+the thumb. Both picker entry points suppress open/close animations under reduced
+motion, and slider focus transitions also respect that preference. The custom
+section scrolls within the bounded picker when needed, leaving save actions usable.
+Slider ranges match Rust validation: hue 0–359, saturation 0–1000, brightness
+50–150. These values are not displayed as numeric controls or readouts.
+
+`tests/ui/custom-treatment.spec.ts` covers entry, initialization, back navigation,
+pointer dragging without persistence, polling, keyboard edits, failure/retry,
+cancellation, creation, exclusions, all workspace surfaces, fresh-page reopening,
+minimum-window accessibility, and reduced motion. The Rust actor test
+`resolved_custom_treatment_survives_restart_for_eligible_and_excluded_emoji`
+checks exact custom values across checkpoint recovery and idempotent retry for
+folders, multicolored emoji, Unicode sequences, and excluded emoji.
+
+Validation passed: 103 Rust tests, TypeScript/production build, and 48 WebKit
+tests. The Custom-mode regression failed before implementation because browsing
+remained visible. Standards and Spec reviews have no remaining findings.
+Signed debug packaging and isolated native smoke tests also passed.
+
+Native inspection used an isolated library and the macOS accessibility tree.
+The three named sliders changed the live artwork without changing the checkpoint;
+Back retained their values, Save persisted exactly hue 187, saturation 401, and
+brightness 109, and the restarted process restored those values and matching
+artwork in the sidebar, heading, and picker. Cancel preserved the saved treatment.
+WebKit additionally exercised pointer dragging, excluded emoji, creation,
+minimum-window layout, and emulated reduced motion. The native system motion
+preference was not changed during validation.

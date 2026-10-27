@@ -3,6 +3,7 @@ import {
   useRef,
   useState,
   type Dispatch,
+  type RefObject,
   type SetStateAction,
 } from "react";
 import { Check } from "lucide-react";
@@ -11,20 +12,20 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { EmojiArtwork } from "@/components/workspace-icon";
 import type { IconDraft } from "@/components/workspace-icon-picker";
 import { createColorSuggestions } from "@/lib/color-suggestions";
-import {
-  canTreatEmoji,
-  emojiTreatment,
-  isFolderEmoji,
-} from "@/lib/workspace-appearance";
+import { canTreatEmoji, isFolderEmoji } from "@/lib/workspace-appearance";
 
 export function WorkspaceColorSuggestions({
   workspaceId,
   draft,
   onChange,
+  onCustomize,
+  customButton,
 }: {
   workspaceId: string;
   draft: IconDraft;
   onChange: Dispatch<SetStateAction<IconDraft>>;
+  onCustomize: () => void;
+  customButton: RefObject<HTMLButtonElement | null>;
 }) {
   const [{ folder, other }] = useState(() =>
     createColorSuggestions({ workspaceId, appearance: draft.appearance }),
@@ -123,15 +124,6 @@ export function WorkspaceColorSuggestions({
         onValueChange={(values) => {
           const kind = values[0];
           if (kind === "Original" || kind === "Automatic") select({ kind });
-          if (kind === "Custom") {
-            const current = emojiTreatment(emoji, appearance);
-            select({
-              kind: "Custom",
-              hue: current?.hue ?? 0,
-              saturation: current?.saturation ?? 100,
-              brightness: current?.brightness ?? 100,
-            });
-          }
         }}
       >
         <ToggleGroupItem value="Original">
@@ -142,7 +134,11 @@ export function WorkspaceColorSuggestions({
             {preference.kind === "Automatic" && <Check aria-hidden />}Automatic
           </ToggleGroupItem>
         )}
-        <ToggleGroupItem value="Custom">
+        <ToggleGroupItem
+          value="Custom"
+          ref={customButton}
+          onClick={onCustomize}
+        >
           {preference.kind === "Custom" && <Check aria-hidden />}Custom
         </ToggleGroupItem>
       </ToggleGroup>

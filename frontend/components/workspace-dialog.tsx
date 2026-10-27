@@ -227,7 +227,7 @@ export function WorkspaceDialog({
                     <PopoverContent
                       side="right"
                       align="start"
-                      className="h-[min(34rem,var(--available-height))] max-h-[calc(100svh-1rem)] w-80 max-w-[calc(100vw-1rem)] gap-2 overflow-hidden p-3 motion-reduce:animate-none motion-reduce:transition-none"
+                      className="h-[min(34rem,var(--available-height))] max-h-[calc(100svh-1rem)] w-80 max-w-[calc(100vw-1rem)] gap-2 overflow-hidden p-3 motion-reduce:data-open:animate-none motion-reduce:data-closed:animate-none motion-reduce:transition-none"
                     >
                       <PopoverHeader className="shrink-0">
                         <PopoverTitle>Choose workspace icon</PopoverTitle>

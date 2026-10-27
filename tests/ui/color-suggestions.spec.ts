@@ -363,6 +363,12 @@ test("Custom starts from the actual preview and canceling creation discards its 
     .click();
   await expect(preview).toHaveCSS("filter", automaticFilter);
   await expect(
+    picker(page).getByRole("slider", { name: "Hue", exact: true }),
+  ).toBeVisible();
+  await picker(page)
+    .getByRole("button", { name: "Back to emoji browsing" })
+    .click();
+  await expect(
     picker(page).getByRole("button", { name: "Custom", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   await choose(page, "rainbow", "rainbow");

@@ -23,13 +23,15 @@ import {
   PopoverTitle,
 } from "@/components/ui/popover";
 import { WorkspaceColorSuggestions } from "@/components/workspace-color-suggestions";
+import { WorkspaceCustomTreatment } from "@/components/workspace-custom-treatment";
 import { Spinner } from "@/components/ui/spinner";
 import { WorkspaceIcon } from "@/components/workspace-icon";
 import { bridge, errorMessage } from "@/lib/bridge";
 import { resolveEmojiData } from "@/lib/emoji-data";
 import { useLibrary } from "@/lib/library";
 import { workspaceEmoji, type Workspace } from "@/lib/model";
-import { canTreatEmoji } from "@/lib/workspace-appearance";
+import { canTreatEmoji, emojiTreatment } from "@/lib/workspace-appearance";
+import { cn } from "@/lib/utils";
 
 export type IconDraft = { emoji: string; appearance: Workspace["appearance"] };
 
@@ -107,6 +109,15 @@ export function WorkspaceIconPicker({
 }) {
   const { emoji, appearance } = draft;
   const keyboardNavigation = useRef(false);
+  const [custom, setCustom] = useState(false);
+  const customButton = useRef<HTMLButtonElement>(null);
+  const restoreFocus = useRef(false);
+  useLayoutEffect(() => {
+    if (!custom && restoreFocus.current) {
+      customButton.current?.focus({ preventScroll: true });
+      restoreFocus.current = false;
+    }
+  }, [custom]);
   return (
     <>
       <div className="flex shrink-0 items-center gap-3">
@@ -128,86 +139,129 @@ export function WorkspaceIconPicker({
           </span>
         </div>
       </div>
-      <EmojiPicker.Root
-        className="flex min-h-[7.25rem] flex-1 flex-col gap-2"
-        columns={8}
-        locale="en"
-        resolveEmojiData={resolveEmojiData}
-        onKeyDownCapture={(event) => {
-          if (event.key.startsWith("Arrow")) keyboardNavigation.current = true;
-        }}
-        onPointerMoveCapture={() => {
-          keyboardNavigation.current = false;
-        }}
-        onEmojiSelect={({ emoji }) =>
-          onChange((draft) => ({ ...draft, emoji }))
-        }
-      >
-        <InputGroup>
-          <InputGroupInput
-            render={
-              <EmojiPicker.Search
-                autoFocus
-                aria-label="Search emoji"
-                placeholder="Search emoji…"
-              />
-            }
-          />
-          <InputGroupAddon>
-            <Search />
-          </InputGroupAddon>
-        </InputGroup>
-        <EmojiPicker.Viewport
-          className="relative min-h-[4.5rem] flex-1 overscroll-contain rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          aria-label="Emoji categories"
+      <div className="grid min-h-0 flex-1">
+        <div
+          inert={custom}
+          className={cn(
+            "col-start-1 row-start-1 flex min-h-0 flex-col gap-2",
+            custom && "invisible",
+          )}
         >
-          <EmojiPicker.Loading className="p-4 text-sm text-muted-foreground">
-            Loading emoji…
-          </EmojiPicker.Loading>
-          <EmojiPicker.Empty className="p-4 text-sm text-muted-foreground">
-            No emoji found.
-          </EmojiPicker.Empty>
-          <EmojiPicker.List
-            // Frimousse 0.4 emits zero-based ARIA indices; ARIA requires one-based indices.
-            components={{
-              CategoryHeader: ({ category, ...props }) => (
-                <div
-                  {...props}
-                  className="bg-popover px-1 py-2 text-xs font-medium text-muted-foreground"
-                >
-                  {category.label}
-                </div>
-              ),
-              Row: ({ children, ...props }) => (
-                <div
-                  {...props}
-                  aria-rowindex={
-                    props["aria-rowindex"] === undefined
-                      ? undefined
-                      : props["aria-rowindex"] + 1
-                  }
-                  className="scroll-my-1"
-                >
-                  {children}
-                </div>
-              ),
-              Emoji: ({ emoji: item, ...props }) => (
-                <EmojiGridCell
-                  {...props}
-                  emoji={item}
-                  chosen={item.emoji === emoji}
-                  keyboardNavigation={keyboardNavigation}
-                />
-              ),
+          <EmojiPicker.Root
+            className="flex min-h-[7.25rem] flex-1 flex-col gap-2"
+            columns={8}
+            locale="en"
+            resolveEmojiData={resolveEmojiData}
+            onKeyDownCapture={(event) => {
+              if (event.key.startsWith("Arrow"))
+                keyboardNavigation.current = true;
+            }}
+            onPointerMoveCapture={() => {
+              keyboardNavigation.current = false;
+            }}
+            onEmojiSelect={({ emoji }) =>
+              onChange((draft) => ({ ...draft, emoji }))
+            }
+          >
+            <InputGroup>
+              <InputGroupInput
+                render={
+                  <EmojiPicker.Search
+                    autoFocus
+                    aria-label="Search emoji"
+                    placeholder="Search emoji…"
+                  />
+                }
+              />
+              <InputGroupAddon>
+                <Search />
+              </InputGroupAddon>
+            </InputGroup>
+            <EmojiPicker.Viewport
+              className="relative min-h-[4.5rem] flex-1 overscroll-contain rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label="Emoji categories"
+            >
+              <EmojiPicker.Loading className="p-4 text-sm text-muted-foreground">
+                Loading emoji…
+              </EmojiPicker.Loading>
+              <EmojiPicker.Empty className="p-4 text-sm text-muted-foreground">
+                No emoji found.
+              </EmojiPicker.Empty>
+              <EmojiPicker.List
+                // Frimousse 0.4 emits zero-based ARIA indices; ARIA requires one-based indices.
+                components={{
+                  CategoryHeader: ({ category, ...props }) => (
+                    <div
+                      {...props}
+                      className="bg-popover px-1 py-2 text-xs font-medium text-muted-foreground"
+                    >
+                      {category.label}
+                    </div>
+                  ),
+                  Row: ({ children, ...props }) => (
+                    <div
+                      {...props}
+                      aria-rowindex={
+                        props["aria-rowindex"] === undefined
+                          ? undefined
+                          : props["aria-rowindex"] + 1
+                      }
+                      className="scroll-my-1"
+                    >
+                      {children}
+                    </div>
+                  ),
+                  Emoji: ({ emoji: item, ...props }) => (
+                    <EmojiGridCell
+                      {...props}
+                      emoji={item}
+                      chosen={item.emoji === emoji}
+                      keyboardNavigation={keyboardNavigation}
+                    />
+                  ),
+                }}
+              />
+            </EmojiPicker.Viewport>
+          </EmojiPicker.Root>
+          <WorkspaceColorSuggestions
+            workspaceId={workspaceId}
+            draft={draft}
+            onChange={onChange}
+            customButton={customButton}
+            onCustomize={() => {
+              onChange((draft) => {
+                const current = emojiTreatment(draft.emoji, draft.appearance);
+                return {
+                  ...draft,
+                  appearance: {
+                    ...draft.appearance,
+                    preference: {
+                      kind: "Custom",
+                      hue: current?.hue ?? 0,
+                      saturation: current?.saturation ?? 100,
+                      brightness: current?.brightness ?? 100,
+                    },
+                  },
+                };
+              });
+              setCustom(true);
             }}
           />
-        </EmojiPicker.Viewport>
-      </EmojiPicker.Root>
-      <WorkspaceColorSuggestions
-        workspaceId={workspaceId}
-        draft={draft}
-        onChange={onChange}
-      />
+        </div>
+        {custom &&
+          canTreatEmoji(emoji) &&
+          appearance.preference.kind === "Custom" && (
+            <WorkspaceCustomTreatment
+              emoji={emoji}
+              treatment={appearance.preference}
+              onChange={onChange}
+              onBack={() => {
+                restoreFocus.current = true;
+                setCustom(false);
+              }}
+            />
+          )}
+      </div>
     </>
   );
 }
@@ -285,7 +339,7 @@ export function WorkspaceIconEditor({
         anchor={anchor}
         align="start"
         finalFocus={anchor ? () => anchor : true}
-        className="h-[min(34rem,var(--available-height))] max-h-[calc(100svh-1rem)] w-80 max-w-[calc(100vw-1rem)] gap-2 overflow-hidden p-3 motion-reduce:animate-none motion-reduce:transition-none"
+        className="h-[min(34rem,var(--available-height))] max-h-[calc(100svh-1rem)] w-80 max-w-[calc(100vw-1rem)] gap-2 overflow-hidden p-3 motion-reduce:data-open:animate-none motion-reduce:data-closed:animate-none motion-reduce:transition-none"
       >
         <div className="flex shrink-0 flex-col gap-1">
           <PopoverTitle>Change icon</PopoverTitle>

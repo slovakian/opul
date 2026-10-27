@@ -793,6 +793,44 @@ mod tests {
     }
 
     #[test]
+    fn resolved_custom_treatment_survives_restart_for_eligible_and_excluded_emoji() {
+        for emoji in ["📁", "🌈", "⚪️", "👩🏽‍💻"] {
+            let folder = temp_dir();
+            let actor = ApplicationActor::open(folder.clone(), "/tmp/Downloads".into()).unwrap();
+            make_running(&actor);
+            let before = actor.snapshot().workspaces[0].clone();
+            let preference = crate::AppearancePreference::Custom {
+                hue: 359,
+                saturation: 1000,
+                brightness: 50,
+            };
+            let request = envelope(Command::SetWorkspaceAppearance {
+                workspace: before.id,
+                emoji: emoji.into(),
+                appearance: crate::WorkspaceAppearance {
+                    automatic_folder: None,
+                    preference: preference.clone(),
+                },
+            });
+            actor.dispatch(request.clone()).unwrap();
+            let saved = actor.snapshot().workspaces[0].clone();
+            assert_eq!(saved.appearance.preference, preference);
+            assert_eq!(
+                saved.appearance.automatic_folder,
+                before.appearance.automatic_folder
+            );
+            assert_eq!(saved.icon, super::super::WorkspaceIcon::Emoji(emoji.into()));
+            drop(actor);
+            let actor = ApplicationActor::open(folder.clone(), "/tmp/Unused".into()).unwrap();
+            assert_eq!(actor.snapshot().workspaces[0], saved);
+            actor.dispatch(request).unwrap();
+            assert_eq!(actor.snapshot().workspaces[0], saved);
+            drop(actor);
+            fs::remove_dir_all(folder).unwrap();
+        }
+    }
+
+    #[test]
     fn failed_appearance_checkpoint_never_publishes_a_partial_icon() {
         let folder = temp_dir();
         let actor = ApplicationActor::open(folder.clone(), "/tmp/Downloads".into()).unwrap();
