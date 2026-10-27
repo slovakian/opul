@@ -12,8 +12,10 @@ const data: EmojiData = {
 };
 
 const withoutPresentation = (emoji: string) =>
-  emoji.replace(/[\uFE0E\uFE0F]/gu, "");
+  emoji.replaceAll(/[\uFE0E\uFE0F]/gu, "");
+
 const detailsBySequence = new Map<string, EmojiDetails>();
+
 for (const item of data.emojis) {
   for (const sequence of [
     item.emoji,
@@ -36,9 +38,10 @@ const tones: (keyof EmojiData["skinTones"])[] = [
   "medium-dark",
   "dark",
 ];
+
 const toneLabels = new Map<string, string>(
   tones.map((tone, index) => [
-    String.fromCodePoint(0x1f3fb + index),
+    String.fromCodePoint(0x1_f3_fb + index),
     data.skinTones[tone].replace(/^./u, (letter) => letter.toUpperCase()),
   ])
 );
@@ -46,8 +49,12 @@ const toneLabels = new Map<string, string>(
 export function skinToneChoices(emoji: string) {
   const item = details(emoji);
   const skins = item?.skins;
-  if (!item || !skins) return [];
+
+  if (!item || !skins) {
+    return [];
+  }
   const probe = nativeSupportProbe();
+
   return [
     { emoji: item.emoji, label: "Default skin tone" },
     ...tones.map((tone) => ({
@@ -69,17 +76,23 @@ export function emojiDataWithRecents(
     const supportedBase = new Set(supported.emojis.map((item) => item.emoji));
     const probe = nativeSupportProbe();
     const saved: EmojiDetails[] = [];
+
     for (const emoji of new Set(recent)) {
       const item = details(emoji);
-      if (!item || !supportedBase.has(item.emoji) || !probe(emoji)) continue;
-      const labels = Array.from(emoji).flatMap((character) => {
+
+      if (!item || !supportedBase.has(item.emoji) || !probe(emoji)) {
+        continue;
+      }
+      const labels = [...emoji].flatMap((character) => {
         const label = toneLabels.get(character);
+
         return label ? [label] : [];
       });
+
       saved.push({
         ...item,
-        emoji,
         category: -1,
+        emoji,
         label:
           emoji !== item.emoji
             ? [item.label, ...labels, emoji].join(", ")
@@ -87,7 +100,9 @@ export function emojiDataWithRecents(
         skins: undefined,
       });
     }
+
     const sequences = new Set(saved.map((item) => item.emoji));
+
     return {
       ...supported,
       categories: [
@@ -114,6 +129,7 @@ function nativeSupportProbe() {
     if (!context) {
       return false;
     }
+
     context.canvas.width = 2;
     context.canvas.height = 2;
     context.font =
@@ -123,6 +139,7 @@ function nativeSupportProbe() {
     if (context.measureText(emoji).width >= 4) {
       return false;
     }
+
     context.fillStyle = "#00f";
     context.fillText(emoji, 0, 0);
     const blue = context.getImageData(0, 0, 2, 2).data;

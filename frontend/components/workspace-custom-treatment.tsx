@@ -1,11 +1,6 @@
 import { ArrowLeft } from "lucide-react";
-import {
-  useId,
-  useEffect,
-  useRef,
-  type Dispatch,
-  type SetStateAction,
-} from "react";
+import { useId, useEffect, useRef } from "react";
+import type { Dispatch, SetStateAction } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -14,9 +9,9 @@ import { EmojiArtwork } from "@/components/workspace-icon";
 import type { IconDraft } from "@/components/workspace-icon-picker";
 
 const controls = [
-  { key: "hue", label: "Hue", min: 0, max: 359 },
-  { key: "saturation", label: "Saturation", min: 0, max: 1000 },
-  { key: "brightness", label: "Brightness", min: 50, max: 150 },
+  { key: "hue", label: "Hue", max: 359, min: 0 },
+  { key: "saturation", label: "Saturation", max: 1000, min: 0 },
+  { key: "brightness", label: "Brightness", max: 150, min: 50 },
 ] as const;
 
 export function WorkspaceCustomTreatment({
@@ -39,8 +34,10 @@ export function WorkspaceCustomTreatment({
         ?.querySelector<HTMLInputElement>('input[type="range"]')
         ?.focus({ preventScroll: true });
     });
+
     return () => cancelAnimationFrame(frame);
   }, []);
+
   return (
     <div
       ref={container}
@@ -74,7 +71,8 @@ export function WorkspaceCustomTreatment({
               onValueChange={(values) => {
                 const value = Array.isArray(values) ? values[0] : values;
                 onChange((draft) => {
-                  const preference = draft.appearance.preference;
+                  const { preference } = draft.appearance;
+
                   return preference.kind === "Custom"
                     ? {
                         ...draft,

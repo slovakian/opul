@@ -20,14 +20,11 @@ const flags = new Set(
     .filter(({ key }) => ["country-flag", "subdivision-flag"].includes(key))
     .map(({ order }) => order)
 );
+
 const data = {
-  locale: "en",
   categories: messages.groups
     .filter(({ key }) => key !== "component")
     .map(({ order, message }) => ({ index: order, label: message })),
-  skinTones: Object.fromEntries(
-    messages.skinTones.map(({ key, message }) => [key, message])
-  ),
   emojis: emojis
     .filter((emoji) => "group" in emoji)
     .map((emoji) => ({
@@ -49,6 +46,10 @@ const data = {
           ?.filter(({ tone }) => Array.isArray(tone))
           .map(({ emoji }) => emoji) ?? [],
     })),
+  locale: "en",
+  skinTones: Object.fromEntries(
+    messages.skinTones.map(({ key, message }) => [key, message])
+  ),
 };
 
 writeFileSync(

@@ -18,7 +18,7 @@ const ToggleGroupContext = React.createContext<
   variant: "default",
 });
 
-function ToggleGroup({
+const ToggleGroup = ({
   className,
   variant,
   size,
@@ -30,7 +30,15 @@ function ToggleGroup({
   VariantProps<typeof toggleVariants> & {
     spacing?: number;
     orientation?: "horizontal" | "vertical";
-  }) {
+  }) => {
+  const value = React.useMemo(
+    () => ({ orientation, size, spacing, variant }),
+    [orientation, size, spacing, variant]
+  );
+
+  // SAFETY: CSS custom property --gap is valid in CSSProperties style object
+  const style = { "--gap": spacing } as React.CSSProperties;
+
   return (
     <ToggleGroupPrimitive
       data-slot="toggle-group"
@@ -38,29 +46,27 @@ function ToggleGroup({
       data-size={size}
       data-spacing={spacing}
       data-orientation={orientation}
-      style={{ "--gap": spacing } as React.CSSProperties}
+      style={style}
       className={cn(
         "group/toggle-group flex w-fit flex-row items-center gap-[--spacing(var(--gap))] rounded-md data-vertical:flex-col data-vertical:items-stretch data-[spacing=0]:data-[variant=outline]:shadow-xs",
         className
       )}
       {...props}
     >
-      <ToggleGroupContext.Provider
-        value={{ orientation, size, spacing, variant }}
-      >
+      <ToggleGroupContext.Provider value={value}>
         {children}
       </ToggleGroupContext.Provider>
     </ToggleGroupPrimitive>
   );
-}
+};
 
-function ToggleGroupItem({
+const ToggleGroupItem = ({
   className,
   children,
   variant = "default",
   size = "default",
   ...props
-}: TogglePrimitive.Props & VariantProps<typeof toggleVariants>) {
+}: TogglePrimitive.Props & VariantProps<typeof toggleVariants>) => {
   const context = React.useContext(ToggleGroupContext);
 
   return (
@@ -82,6 +88,6 @@ function ToggleGroupItem({
       {children}
     </TogglePrimitive>
   );
-}
+};
 
 export { ToggleGroup, ToggleGroupItem };

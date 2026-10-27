@@ -59,21 +59,26 @@ export function emojiTreatment(
   if (!canTreatEmoji(emoji)) {
     return null;
   }
+
   const { preference } = appearance;
 
   switch (preference.kind) {
     case "Automatic": {
       return isFolderEmoji(emoji) ? appearance.automatic_folder : null;
     }
+
     case "Original": {
       return null;
     }
+
     case "Preset": {
       return preference.treatment;
     }
+
     case "Custom": {
       return preference;
     }
+
     default: {
       const exhaustive: never = preference;
 

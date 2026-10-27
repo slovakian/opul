@@ -1,16 +1,9 @@
 import { Toggle as TogglePrimitive } from "@base-ui/react/toggle";
-import { EmojiPicker, type EmojiPickerListEmojiProps } from "frimousse";
+import { EmojiPicker } from "frimousse";
+import type { EmojiPickerListEmojiProps } from "frimousse";
 import { Search } from "lucide-react";
-import {
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type Dispatch,
-  type RefObject,
-  type SetStateAction,
-} from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { Dispatch, RefObject, SetStateAction } from "react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -34,11 +27,15 @@ import { WorkspaceIcon } from "@/components/workspace-icon";
 import { bridge, errorMessage } from "@/lib/bridge";
 import { emojiDataWithRecents, skinToneChoices } from "@/lib/emoji-data";
 import { useLibrary } from "@/lib/library";
-import { workspaceEmoji, type Workspace } from "@/lib/model";
+import { workspaceEmoji } from "@/lib/model";
+import type { Workspace } from "@/lib/model";
 import { cn } from "@/lib/utils";
 import { canTreatEmoji, emojiTreatment } from "@/lib/workspace-appearance";
 
-export type IconDraft = { emoji: string; appearance: Workspace["appearance"] };
+export interface IconDraft {
+  emoji: string;
+  appearance: Workspace["appearance"];
+}
 
 function EmojiGridCell({
   emoji,
@@ -51,32 +48,44 @@ function EmojiGridCell({
 }) {
   const ref = useRef<HTMLButtonElement>(null);
   useLayoutEffect(() => {
-    if (!emoji.isActive || !keyboardNavigation.current) return;
+    if (!emoji.isActive || !keyboardNavigation.current) {
+      return;
+    }
     const cell = ref.current;
     const viewport = cell?.closest<HTMLElement>("[frimousse-viewport]");
-    if (!cell || !viewport) return;
+
+    if (!cell || !viewport) {
+      return;
+    }
     // Frimousse 0.4 also uses its zero-based ARIA row index as a scroll target.
     // After correcting indices, keep the actual active cell visible, without
     // scrolling on hover or depending on the library's private row numbering.
     const bounds = cell.getBoundingClientRect();
     const frame = viewport.getBoundingClientRect();
+
     const header = viewport.querySelector<HTMLElement>(
       "[frimousse-category-header]"
     );
+
     const top =
       frame.top +
       Math.max(
         0,
         Math.min(header?.offsetHeight ?? 0, frame.height - bounds.height)
       );
+
     const delta =
       bounds.bottom > frame.bottom
         ? bounds.bottom - frame.bottom
         : bounds.top < top
           ? bounds.top - top
           : 0;
-    if (delta) viewport.scrollBy({ top: delta, behavior: "instant" });
+
+    if (delta) {
+      viewport.scrollBy({ top: delta, behavior: "instant" });
+    }
   }, [emoji.isActive, keyboardNavigation]);
+
   return (
     <button
       {...props}
@@ -112,11 +121,13 @@ export function WorkspaceIconPicker({
 }) {
   const { emoji, appearance } = draft;
   const { state } = useLibrary();
+
   const [resolveEmojiData] = useState(() =>
     emojiDataWithRecents(
       state.kind === "ready" ? state.snapshot.recent_emoji : []
     )
   );
+
   const tones = useMemo(() => skinToneChoices(emoji), [emoji]);
   const keyboardNavigation = useRef(false);
   const [custom, setCustom] = useState(false);
@@ -128,6 +139,7 @@ export function WorkspaceIconPicker({
       restoreFocus.current = false;
     }
   }, [custom]);
+
   return (
     <>
       <div className="flex shrink-0 items-center gap-3">
@@ -137,7 +149,7 @@ export function WorkspaceIconPicker({
           aria-label={`Icon preview: ${emoji}`}
         >
           <WorkspaceIcon
-            workspace={{ icon: { kind: "Emoji", value: emoji }, appearance }}
+            workspace={{ appearance, icon: { kind: "Emoji", value: emoji } }}
           />
         </div>
         <div className="flex min-w-0 flex-col gap-1">
@@ -164,8 +176,10 @@ export function WorkspaceIconPicker({
               value={[emoji]}
               onValueChange={(values) => {
                 const selected = values[0];
-                if (typeof selected === "string")
+
+                if (typeof selected === "string") {
                   onChange((draft) => ({ ...draft, emoji: selected }));
+                }
               }}
             >
               {tones.map((tone) => (
@@ -189,8 +203,9 @@ export function WorkspaceIconPicker({
             locale="en"
             resolveEmojiData={resolveEmojiData}
             onKeyDownCapture={(event) => {
-              if (event.key.startsWith("Arrow"))
+              if (event.key.startsWith("Arrow")) {
                 keyboardNavigation.current = true;
+              }
             }}
             onPointerMoveCapture={() => {
               keyboardNavigation.current = false;
@@ -237,6 +252,14 @@ export function WorkspaceIconPicker({
                       )}
                     </div>
                   ),
+                  Emoji: ({ emoji: item, ...props }) => (
+                    <EmojiGridCell
+                      {...props}
+                      emoji={item}
+                      chosen={item.emoji === emoji}
+                      keyboardNavigation={keyboardNavigation}
+                    />
+                  ),
                   Row: ({ children, ...props }) => (
                     <div
                       {...props}
@@ -250,14 +273,6 @@ export function WorkspaceIconPicker({
                       {children}
                     </div>
                   ),
-                  Emoji: ({ emoji: item, ...props }) => (
-                    <EmojiGridCell
-                      {...props}
-                      emoji={item}
-                      chosen={item.emoji === emoji}
-                      keyboardNavigation={keyboardNavigation}
-                    />
-                  ),
                 }}
               />
             </EmojiPicker.Viewport>
@@ -270,15 +285,16 @@ export function WorkspaceIconPicker({
             onCustomize={() => {
               onChange((draft) => {
                 const current = emojiTreatment(draft.emoji, draft.appearance);
+
                 return {
                   ...draft,
                   appearance: {
                     ...draft.appearance,
                     preference: {
-                      kind: "Custom",
-                      hue: current?.hue ?? 0,
-                      saturation: current?.saturation ?? 100,
                       brightness: current?.brightness ?? 100,
+                      hue: current?.hue ?? 0,
+                      kind: "Custom",
+                      saturation: current?.saturation ?? 100,
                     },
                   },
                 };
@@ -315,17 +331,21 @@ export function WorkspaceIconEditor({
   onClose: () => void;
 }) {
   const { run } = useLibrary();
+
   const [draft, setDraft] = useState<IconDraft>({
-    emoji: workspaceEmoji(workspace),
     appearance: workspace.appearance,
+    emoji: workspaceEmoji(workspace),
   });
+
   const [ready, setReady] = useState(!!workspace.appearance.automatic_folder);
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const submission = useRef<{ input: string; requestId: string } | null>(null);
   useEffect(() => {
-    if (workspace.appearance.automatic_folder) return;
+    if (workspace.appearance.automatic_folder) {
+      return;
+    }
     let canceled = false;
     void bridge
       .workspaceAppearanceDraft(workspace.id)
@@ -336,8 +356,11 @@ export function WorkspaceIconEditor({
         }
       })
       .catch((error) => {
-        if (!canceled) setError(errorMessage(error));
+        if (!canceled) {
+          setError(errorMessage(error));
+        }
       });
+
     return () => {
       canceled = true;
     };
@@ -345,25 +368,32 @@ export function WorkspaceIconEditor({
 
   async function save() {
     const input = JSON.stringify(draft);
-    if (submission.current?.input !== input)
+
+    if (submission.current?.input !== input) {
       submission.current = { input, requestId: crypto.randomUUID() };
+    }
     setSaving(true);
     setError(undefined);
+
     const receipt = await run({
       kind: "set_workspace_appearance",
       request: {
+        appearance: draft.appearance,
+        emoji: draft.emoji,
         request_id: submission.current.requestId,
         workspace_id: workspace.id,
-        emoji: draft.emoji,
-        appearance: draft.appearance,
       },
     });
+
     setSaving(false);
-    if (receipt) onClose();
-    else
+
+    if (receipt) {
+      onClose();
+    } else {
       setError(
         "Couldn't save the icon. Your changes are kept here; try again."
       );
+    }
   }
 
   return (
@@ -371,7 +401,9 @@ export function WorkspaceIconEditor({
       open
       modal
       onOpenChange={(open) => {
-        if (!open && !saving) onClose();
+        if (!open && !saving) {
+          onClose();
+        }
       }}
     >
       <PopoverContent

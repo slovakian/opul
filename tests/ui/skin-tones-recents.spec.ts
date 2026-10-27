@@ -1,17 +1,18 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
 import { snapshotSchema } from "../../frontend/lib/model";
 import { mockDesktop, snapshot } from "./fixture";
 
 const editor = (page: Page) =>
-  page.getByRole("dialog", { name: "Change icon", exact: true });
+  page.getByRole("dialog", { exact: true, name: "Change icon" });
 
 async function openPicker(page: Page, workspace = "Downloads") {
   await page
-    .getByRole("button", { name: `${workspace} actions`, exact: true })
+    .getByRole("button", { exact: true, name: `${workspace} actions` })
     .click();
-  await page.getByRole("button", { name: "Change icon…", exact: true }).click();
+  await page.getByRole("button", { exact: true, name: "Change icon…" }).click();
   await expect(
     editor(page).getByRole("textbox", { name: "Search emoji" })
   ).toBeFocused();
@@ -22,6 +23,7 @@ async function savedSnapshot(page: Page) {
     await page.evaluate(async () => {
       const path = "/frontend/lib/bridge.ts";
       const { bridge } = await import(path);
+
       return bridge.snapshot();
     })
   );
@@ -29,7 +31,7 @@ async function savedSnapshot(page: Page) {
 
 async function choose(page: Page, search: string, label: string) {
   await page.getByRole("textbox", { name: "Search emoji" }).fill(search);
-  await page.getByRole("gridcell", { name: label, exact: true }).click();
+  await page.getByRole("gridcell", { exact: true, name: label }).click();
 }
 
 test("skin tones change the selected sequence and recents start with successful saves", async ({
@@ -39,21 +41,21 @@ test("skin tones change the selected sequence and recents start with successful 
   await page.goto("/");
   await openPicker(page);
   await expect(
-    editor(page).getByRole("group", { name: "Skin tone", exact: true })
+    editor(page).getByRole("group", { exact: true, name: "Skin tone" })
   ).toHaveCount(0);
   await editor(page)
     .getByRole("textbox", { name: "Search emoji" })
     .fill("woman technologist");
   await editor(page)
-    .getByRole("gridcell", { name: "woman technologist", exact: true })
+    .getByRole("gridcell", { exact: true, name: "woman technologist" })
     .click();
   await editor(page)
-    .getByRole("button", { name: "Medium skin tone", exact: true })
+    .getByRole("button", { exact: true, name: "Medium skin tone" })
     .click();
   await expect(
     editor(page).getByRole("img", { name: "Icon preview: 👩🏽‍💻" })
   ).toBeVisible();
-  await editor(page).getByRole("button", { name: "Save", exact: true }).click();
+  await editor(page).getByRole("button", { exact: true, name: "Save" }).click();
   await expect(editor(page)).toHaveCount(0);
   await openPicker(page);
   await expect(
@@ -61,7 +63,7 @@ test("skin tones change the selected sequence and recents start with successful 
   ).toHaveText("Recently Used");
   await expect(editor(page).getByRole("gridcell").first()).toHaveText("👩🏽‍💻");
   await expect(
-    editor(page).getByRole("button", { name: "Medium skin tone", exact: true })
+    editor(page).getByRole("button", { exact: true, name: "Medium skin tone" })
   ).toHaveAttribute("aria-pressed", "true");
 });
 
@@ -71,47 +73,51 @@ test("only supported selections have tones and keyboard tone choices stay local 
   await mockDesktop(page);
   await page.goto("/");
   await openPicker(page);
+
   for (const [search, label] of [
     ["panda", "panda"],
     ["family", "family: man, woman, girl, boy"],
   ]) {
     await choose(page, search, label);
     await expect(
-      editor(page).getByRole("group", { name: "Skin tone", exact: true })
+      editor(page).getByRole("group", { exact: true, name: "Skin tone" })
     ).toHaveCount(0);
   }
+
   await choose(page, "thumbs up", "thumbs up");
+
   const tones = editor(page).getByRole("group", {
-    name: "Skin tone",
     exact: true,
+    name: "Skin tone",
   });
+
   await expect(tones.getByRole("button")).toHaveCount(6);
   await tones
-    .getByRole("button", { name: "Default skin tone", exact: true })
+    .getByRole("button", { exact: true, name: "Default skin tone" })
     .focus();
   await page.keyboard.press("ArrowRight");
   await expect(
-    tones.getByRole("button", { name: "Light skin tone", exact: true })
+    tones.getByRole("button", { exact: true, name: "Light skin tone" })
   ).toBeFocused();
   await page.keyboard.press("Space");
   await expect(
     editor(page).getByRole("img", { name: "Icon preview: 👍🏻" })
   ).toBeVisible();
   await editor(page)
-    .getByRole("button", { name: "Custom", exact: true })
+    .getByRole("button", { exact: true, name: "Custom" })
     .click();
   await editor(page)
-    .getByRole("button", { name: "Back to emoji browsing", exact: true })
+    .getByRole("button", { exact: true, name: "Back to emoji browsing" })
     .click();
   await expect(
     editor(page).getByRole("textbox", { name: "Search emoji" })
   ).toHaveValue("thumbs up");
   await expect(
-    tones.getByRole("button", { name: "Light skin tone", exact: true })
+    tones.getByRole("button", { exact: true, name: "Light skin tone" })
   ).toHaveAttribute("aria-pressed", "true");
   expect((await savedSnapshot(page)).recent_emoji).toEqual([]);
   await editor(page)
-    .getByRole("button", { name: "Cancel", exact: true })
+    .getByRole("button", { exact: true, name: "Cancel" })
     .click();
   expect((await savedSnapshot(page)).recent_emoji).toEqual([]);
 });
@@ -129,10 +135,10 @@ for (const lost of [false, true]) {
     await openPicker(page);
     await choose(page, "woman technologist", "woman technologist");
     await editor(page)
-      .getByRole("button", { name: "Dark skin tone", exact: true })
+      .getByRole("button", { exact: true, name: "Dark skin tone" })
       .click();
     await editor(page)
-      .getByRole("button", { name: "Save", exact: true })
+      .getByRole("button", { exact: true, name: "Save" })
       .click();
     await expect(editor(page).getByRole("alert")).toContainText(
       "Couldn't save the icon"
@@ -144,7 +150,7 @@ for (const lost of [false, true]) {
       editor(page).getByRole("img", { name: "Icon preview: 👩🏿‍💻" })
     ).toBeVisible();
     await editor(page)
-      .getByRole("button", { name: "Save", exact: true })
+      .getByRole("button", { exact: true, name: "Save" })
       .click();
     await expect(editor(page)).toHaveCount(0);
     const saved = await savedSnapshot(page);
@@ -157,7 +163,7 @@ for (const lost of [false, true]) {
       "👩🏿‍💻"
     );
     await editor(reopened)
-      .getByRole("button", { name: "Save", exact: true })
+      .getByRole("button", { exact: true, name: "Save" })
       .click();
     await expect(editor(reopened)).toHaveCount(0);
     expect((await savedSnapshot(reopened)).recent_emoji).toEqual(["👩🏿‍💻"]);
@@ -170,43 +176,46 @@ test("creation cancels drafts, retains nested choices, and records only the succ
 }) => {
   await mockDesktop(page, { failFirstCreate: true });
   await page.goto("/");
+
   const dialog = page.getByRole("dialog", {
     name: "A place for your downloads",
   });
+
   async function start() {
     await page
-      .getByRole("button", { name: "New workspace", exact: true })
+      .getByRole("button", { exact: true, name: "New workspace" })
       .first()
       .click();
     await dialog
-      .getByRole("textbox", { name: "Name", exact: true })
+      .getByRole("textbox", { exact: true, name: "Name" })
       .fill("Hands");
     await dialog
-      .getByRole("button", { name: "Workspace emoji: 📁", exact: true })
+      .getByRole("button", { exact: true, name: "Workspace emoji: 📁" })
       .click();
     await choose(page, "thumbs up", "thumbs up");
     await page
-      .getByRole("button", { name: "Medium-dark skin tone", exact: true })
+      .getByRole("button", { exact: true, name: "Medium-dark skin tone" })
       .click();
     await page.keyboard.press("Escape");
     await expect(
-      dialog.getByRole("button", { name: "Workspace emoji: 👍🏾", exact: true })
+      dialog.getByRole("button", { exact: true, name: "Workspace emoji: 👍🏾" })
     ).toBeFocused();
     expect((await savedSnapshot(page)).recent_emoji).toEqual([]);
   }
+
   await start();
-  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await dialog.getByRole("button", { exact: true, name: "Cancel" }).click();
   expect((await savedSnapshot(page)).recent_emoji).toEqual([]);
   await start();
   await dialog
-    .getByRole("button", { name: "Create workspace", exact: true })
+    .getByRole("button", { exact: true, name: "Create workspace" })
     .click();
   await expect(dialog.getByRole("alert")).toContainText(
     "Couldn't save the workspace"
   );
   expect((await savedSnapshot(page)).recent_emoji).toEqual([]);
   await dialog
-    .getByRole("button", { name: "Create workspace", exact: true })
+    .getByRole("button", { exact: true, name: "Create workspace" })
     .click();
   await expect(dialog).toHaveCount(0);
   const saved = await savedSnapshot(page);
@@ -219,8 +228,8 @@ test("creation cancels drafts, retains nested choices, and records only the succ
   await expect(editor(reopened).getByRole("gridcell").first()).toHaveText("👍🏾");
   await expect(
     editor(reopened).getByRole("button", {
-      name: "Medium-dark skin tone",
       exact: true,
+      name: "Medium-dark skin tone",
     })
   ).toHaveAttribute("aria-pressed", "true");
 });
@@ -246,8 +255,8 @@ test("recent variants and joined sequences are searchable, keyboard selectable, 
   ).toBeVisible();
   await editor(page)
     .getByRole("gridcell", {
-      name: "handshake, Dark skin tone, Light skin tone, 🫱🏿‍🫲🏻",
       exact: true,
+      name: "handshake, Dark skin tone, Light skin tone, 🫱🏿‍🫲🏻",
     })
     .click();
   await expect(
@@ -259,7 +268,7 @@ test("recent variants and joined sequences are searchable, keyboard selectable, 
   await expect(
     editor(page).getByRole("img", { name: "Icon preview: 👩🏽‍💻" })
   ).toBeVisible();
-  await editor(page).getByRole("button", { name: "Save", exact: true }).click();
+  await editor(page).getByRole("button", { exact: true, name: "Save" }).click();
   await expect(editor(page)).toHaveCount(0);
   expect((await savedSnapshot(page)).recent_emoji).toEqual(
     initial.recent_emoji
@@ -299,31 +308,33 @@ test("a full recent section is bounded and remains accessible at the minimum win
     "🐹",
   ];
   initial.workspaces[0].icon = { kind: "Emoji", value: "👩🏽‍💻" };
-  await mockDesktop(page, { snapshot: initial, failFirstAppearance: true });
+  await mockDesktop(page, { failFirstAppearance: true, snapshot: initial });
   await page.goto("/");
   await openPicker(page);
-  await page.setViewportSize({ width: 720, height: 520 });
+  await page.setViewportSize({ height: 520, width: 720 });
   await expect(
     editor(page).getByRole("textbox", { name: "Search emoji" })
   ).toBeInViewport();
   await expect(
-    editor(page).getByRole("button", { name: "Dark skin tone", exact: true })
+    editor(page).getByRole("button", { exact: true, name: "Dark skin tone" })
   ).toBeInViewport();
   await choose(page, "rocket", "rocket");
-  await editor(page).getByRole("button", { name: "Save", exact: true }).click();
+  await editor(page).getByRole("button", { exact: true, name: "Save" }).click();
   await expect(editor(page).getByRole("alert")).toBeVisible();
   await expect(
-    editor(page).getByRole("button", { name: "Save", exact: true })
+    editor(page).getByRole("button", { exact: true, name: "Save" })
   ).toBeInViewport();
+
   const accessibility = await new AxeBuilder({ page })
     .include('[data-slot="popover-content"]')
     .disableRules(["button-name"])
     .analyze();
+
   expect(accessibility.violations).toEqual([]);
   await page.screenshot({
     path: "test-results/skin-tones-recents-minimum.png",
   });
-  await editor(page).getByRole("button", { name: "Save", exact: true }).click();
+  await editor(page).getByRole("button", { exact: true, name: "Save" }).click();
   await expect(editor(page)).toHaveCount(0);
   expect((await savedSnapshot(page)).recent_emoji).toEqual([
     "🚀",

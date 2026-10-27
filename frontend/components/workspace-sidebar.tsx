@@ -105,6 +105,7 @@ export function WorkspaceSidebar({
       if (!path) {
         return;
       }
+
       await run({
         kind: "add_folder",
         request: {
@@ -350,9 +351,9 @@ export function WorkspaceSidebar({
                               {
                                 actions: [
                                   {
-                                    label: "Set as default",
-                                    icon: Check,
                                     disabled: folder.is_default || busy,
+                                    icon: Check,
+                                    label: "Set as default",
                                     onClick: () =>
                                       void run({
                                         kind: "default_folder",
@@ -363,11 +364,11 @@ export function WorkspaceSidebar({
                                       }),
                                   },
                                   {
-                                    label: "Remove saved folder",
-                                    icon: Trash2,
                                     destructive: true,
                                     disabled:
                                       workspace.folders.length === 1 || busy,
+                                    icon: Trash2,
+                                    label: "Remove saved folder",
                                     onClick: () =>
                                       void run({
                                         kind: "remove_folder",

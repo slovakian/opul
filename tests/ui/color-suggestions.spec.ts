@@ -1,43 +1,49 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
 import { snapshotSchema } from "../../frontend/lib/model";
 import treatments from "../../src/application/folder-treatments.json" with { type: "json" };
 import { mockDesktop, snapshot } from "./fixture";
 
 const artwork = '[data-slot="emoji-artwork"]';
+
 const picker = (page: Page) =>
   page.getByRole("dialog", {
-    name: /^(Change icon|Choose workspace icon)$/,
     exact: true,
+    name: /^(Change icon|Choose workspace icon)$/,
   });
+
 const suggestions = (page: Page) =>
-  picker(page).getByRole("group", { name: "Color suggestions", exact: true });
+  picker(page).getByRole("group", { exact: true, name: "Color suggestions" });
+
 async function openPicker(page: Page) {
   await page
-    .getByRole("button", { name: "Downloads actions", exact: true })
+    .getByRole("button", { exact: true, name: "Downloads actions" })
     .click();
-  await page.getByRole("button", { name: "Change icon…", exact: true }).click();
+  await page.getByRole("button", { exact: true, name: "Change icon…" }).click();
 }
+
 async function choose(page: Page, search: string, label: string) {
   await picker(page)
     .getByRole("textbox", { name: "Search emoji" })
     .fill(search);
   await picker(page)
-    .getByRole("gridcell", { name: label, exact: true })
+    .getByRole("gridcell", { exact: true, name: label })
     .click();
 }
+
 async function identities(page: Page) {
   return suggestions(page)
     .locator(artwork)
-    .evaluateAll((nodes) =>
-      nodes.map((node) => node.getAttribute("data-preset"))
-    );
+    .evaluateAll((nodes) => nodes.map((node) => node.dataset.preset));
 }
+
 async function saved(page: Page) {
   return snapshotSchema.parse(
     await page.evaluate(async () => {
       const path = "/frontend/lib/bridge.ts";
       const { bridge } = await import(path);
+
       return bridge.snapshot();
     })
   );
@@ -50,30 +56,37 @@ test("color suggestions have square targets and equal spacing in both directions
   await page.goto("/");
   await openPicker(page);
   await picker(page)
-    .getByRole("button", { name: "Show 6 more color suggestions", exact: true })
+    .getByRole("button", { exact: true, name: "Show 6 more color suggestions" })
     .click();
+
   const cells = await suggestions(page)
     .getByRole("button")
     .evaluateAll((nodes) =>
       nodes.map((node) => {
         const { x, y, width, height } = node.getBoundingClientRect();
-        return { x, y, width, height };
+
+        return { height, width, x, y };
       })
     );
+
   expect(cells).toHaveLength(12);
   const horizontalGap = cells[1].x - cells[0].x - cells[0].width;
   const verticalGap = cells[6].y - cells[0].y - cells[0].height;
   expect(horizontalGap).toBeGreaterThan(0);
   expect(horizontalGap).toBeCloseTo(verticalGap, 1);
+
   for (const [index, cell] of cells.entries()) {
     expect(cell.width).toBeCloseTo(cell.height, 1);
     expect(cell.x).toBeCloseTo(cells[index % 6].x, 1);
-    if (index % 6 > 0)
+
+    if (index % 6 > 0) {
       expect(cell.x - cells[index - 1].x - cells[index - 1].width).toBeCloseTo(
         horizontalGap,
         1
       );
+    }
   }
+
   const grid = await suggestions(page).boundingBox();
   expect(cells[0].x).toBeCloseTo(grid?.x ?? 0, 1);
   expect(cells[5].x + cells[5].width).toBeCloseTo(
@@ -98,19 +111,26 @@ test("six unique suggestions include a saved preset; expansion preserves selecti
   expect(initial).toHaveLength(6);
   expect(new Set(initial).size).toBe(6);
   expect(initial).toContain("lime");
+
   const selected = suggestions(page).getByRole("button", {
-    name: "Preview Lime Treatment",
     exact: true,
+    name: "Preview Lime Treatment",
   });
+
   await expect(selected).toHaveAttribute("aria-pressed", "true");
-  for (let i = 0; i < 10; i++) await page.keyboard.press("ArrowDown");
+
+  for (let i = 0; i < 10; i++) {
+    await page.keyboard.press("ArrowDown");
+  }
   const viewport = picker(page).locator("[frimousse-viewport]");
   const scroll = await viewport.evaluate((node) => node.scrollTop);
   expect(scroll).toBeGreaterThan(0);
+
   const more = picker(page).getByRole("button", {
-    name: "Show 6 more color suggestions",
     exact: true,
+    name: "Show 6 more color suggestions",
   });
+
   await expect(more).toHaveText("+6");
   await more.focus();
   await page.keyboard.press("Enter");
@@ -134,11 +154,13 @@ test("choosing the automatic look records a deliberate preset that follows eligi
   await page.goto("/");
   await openPicker(page);
   await suggestions(page)
-    .getByRole("button", { name: "Preview Gold Treatment", exact: true })
+    .getByRole("button", { exact: true, name: "Preview Gold Treatment" })
     .click();
+
   const preview = picker(page)
     .getByRole("img", { name: "Icon preview: 📁" })
     .locator(artwork);
+
   await expect(preview).toHaveAttribute("data-preset", "gold");
   await choose(page, "panda", "panda");
   await expect(picker(page).getByRole("img").locator(artwork)).toHaveAttribute(
@@ -152,7 +174,7 @@ test("choosing the automatic look records a deliberate preset that follows eligi
     "none"
   );
   await choose(page, "panda", "panda");
-  await picker(page).getByRole("button", { name: "Save", exact: true }).click();
+  await picker(page).getByRole("button", { exact: true, name: "Save" }).click();
   expect((await saved(page)).workspaces[0].appearance.preference).toEqual({
     kind: "Preset",
     treatment: treatments[0],
@@ -163,8 +185,8 @@ test("choosing the automatic look records a deliberate preset that follows eligi
   await openPicker(reopened);
   await expect(
     suggestions(reopened).getByRole("button", {
-      name: "Preview color suggestion 1",
       exact: true,
+      name: "Preview color suggestion 1",
     })
   ).toHaveAttribute("aria-pressed", "true");
 });
@@ -176,6 +198,7 @@ test("treatment names are title case for folders and hidden for other emoji", as
   await page.goto("/");
   await openPicker(page);
   const options = suggestions(page).getByRole("button");
+
   const checkFolderLabels = async () => {
     for (const option of await options.all()) {
       const preset = await option.locator(artwork).getAttribute("data-preset");
@@ -185,13 +208,16 @@ test("treatment names are title case for folders and hidden for other emoji", as
       await expect(option).toHaveAccessibleName(`Preview ${label}`);
     }
   };
+
   await checkFolderLabels();
+
   for (const [search, label] of [
     ["panda", "panda"],
     ["rainbow", "rainbow"],
   ]) {
     await choose(page, search, label);
     await expect(options).toHaveCount(6);
+
     for (const [index, option] of (await options.all()).entries()) {
       await expect(option).not.toHaveAttribute("title");
       await expect(option).toHaveAccessibleName(
@@ -199,6 +225,7 @@ test("treatment names are title case for folders and hidden for other emoji", as
       );
     }
   }
+
   await choose(page, "file folder", "file folder");
   await checkFolderLabels();
 });
@@ -216,24 +243,24 @@ test("folder suggestions stay stable across changes, polling and reopening; othe
   await choose(page, "panda", "panda");
   const sampled = await identities(page);
   await picker(page)
-    .getByRole("button", { name: "Original", exact: true })
+    .getByRole("button", { exact: true, name: "Original" })
     .click();
   await page.evaluate(async () => {
     const path = "/frontend/lib/bridge.ts";
     const { bridge } = await import(path);
     await bridge.execute({
+      grouping: "State",
       kind: "view",
-      workspace_id: "workspace-1",
       layout: "Table",
       sort: "Name",
-      grouping: "State",
+      workspace_id: "workspace-1",
     });
   });
   await expect(
     page.getByRole("button", {
-      name: "Table view",
       exact: true,
       includeHidden: true,
+      name: "Table view",
     })
   ).toHaveAttribute("aria-pressed", "true");
   expect(await identities(page)).toEqual(sampled);
@@ -252,26 +279,30 @@ test("saved custom remains independently selectable after Original and preset ch
   page,
 }) => {
   const library = structuredClone(snapshot);
+
   const custom = {
-    kind: "Custom",
-    hue: 120,
-    saturation: 180,
     brightness: 95,
+    hue: 120,
+    kind: "Custom",
+    saturation: 180,
   } satisfies (typeof library.workspaces)[number]["appearance"]["preference"];
+
   library.workspaces[0].appearance.preference = custom;
   await mockDesktop(page, { snapshot: library });
   await page.goto("/");
   await openPicker(page);
   expect(await identities(page)).toHaveLength(6);
   await expect(
-    picker(page).getByRole("button", { name: "Custom", exact: true })
+    picker(page).getByRole("button", { exact: true, name: "Custom" })
   ).toBeVisible();
+
   const savedCustom = picker(page).getByRole("button", {
-    name: "Saved custom treatment",
     exact: true,
+    name: "Saved custom treatment",
   });
+
   await picker(page)
-    .getByRole("button", { name: "Original", exact: true })
+    .getByRole("button", { exact: true, name: "Original" })
     .click();
   await suggestions(page).getByRole("button").first().click();
   await savedCustom.click();
@@ -279,7 +310,7 @@ test("saved custom remains independently selectable after Original and preset ch
     "filter",
     "hue-rotate(120deg) saturate(1.8) brightness(0.95)"
   );
-  await picker(page).getByRole("button", { name: "Save", exact: true }).click();
+  await picker(page).getByRole("button", { exact: true, name: "Save" }).click();
   expect((await saved(page)).workspaces[0].appearance.preference).toEqual(
     custom
   );
@@ -289,43 +320,49 @@ for (const fail of [false, true]) {
   test(`creation previews and retains a deliberate treatment through nested close and ${fail ? "retry" : "save"}`, async ({
     page,
   }) => {
-    await page.setViewportSize({ width: 720, height: 520 });
+    await page.setViewportSize({ height: 520, width: 720 });
     await mockDesktop(page, { failFirstCreate: fail });
     await page.goto("/");
     await page
-      .getByRole("button", { name: "Toggle Sidebar", exact: true })
+      .getByRole("button", { exact: true, name: "Toggle Sidebar" })
       .click();
     await page
-      .getByRole("button", { name: "New workspace", exact: true })
+      .getByRole("button", { exact: true, name: "New workspace" })
       .last()
       .click();
-    const name = page.getByRole("textbox", { name: "Name", exact: true });
+    const name = page.getByRole("textbox", { exact: true, name: "Name" });
     await expect(name).toBeFocused();
     await name.fill("Research");
+
     const trigger = page.getByRole("button", {
-      name: "Workspace emoji: 📁",
       exact: true,
+      name: "Workspace emoji: 📁",
     });
+
     await trigger.click();
     await expect(
       picker(page).getByRole("textbox", { name: "Search emoji" })
     ).toBeFocused();
     expect(await identities(page)).toHaveLength(6);
     await suggestions(page)
-      .getByRole("button", { name: "Preview Coral Treatment", exact: true })
+      .getByRole("button", { exact: true, name: "Preview Coral Treatment" })
       .click();
     await choose(page, "panda", "panda");
+
     const more = picker(page).getByRole("button", {
-      name: "Show 6 more color suggestions",
       exact: true,
+      name: "Show 6 more color suggestions",
     });
+
     await more.click();
+
     for (const treatment of treatments) {
       const option = suggestions(page)
         .getByRole("button")
         .filter({
           has: page.locator(`[data-preset="${treatment.preset_id}"]`),
         });
+
       await expect(option.locator(artwork)).toHaveText("🐼");
       await expect(option).toHaveCSS("filter", "none");
       await expect(option.locator(artwork)).toHaveCSS(
@@ -333,10 +370,12 @@ for (const fail of [false, true]) {
         `hue-rotate(${treatment.hue}deg) saturate(${treatment.saturation / 100}) brightness(${treatment.brightness / 100})`
       );
     }
+
     const done = picker(page).getByRole("button", {
-      name: "Done",
       exact: true,
+      name: "Done",
     });
+
     await expect(done).toBeInViewport({ ratio: 1 });
     await page.screenshot({
       path: `test-results/color-suggestions-creation-${fail}.png`,
@@ -344,36 +383,40 @@ for (const fail of [false, true]) {
     await page.keyboard.press("Escape");
     await expect(picker(page)).toHaveCount(0);
     await expect(
-      page.getByRole("button", { name: "Workspace emoji: 🐼", exact: true })
+      page.getByRole("button", { exact: true, name: "Workspace emoji: 🐼" })
     ).toBeFocused();
     await expect(name).toHaveValue("Research");
     await expect(
       page
-        .getByRole("button", { name: "Workspace emoji: 🐼", exact: true })
+        .getByRole("button", { exact: true, name: "Workspace emoji: 🐼" })
         .locator(artwork)
     ).toHaveAttribute("data-preset", "coral");
     await page
-      .getByRole("button", { name: "Create workspace", exact: true })
+      .getByRole("button", { exact: true, name: "Create workspace" })
       .click();
+
     if (fail) {
       await expect(
         page.getByText("Couldn't save the checkpoint. Try again.")
       ).toBeVisible();
       await page
-        .getByRole("button", { name: "Create workspace", exact: true })
+        .getByRole("button", { exact: true, name: "Create workspace" })
         .click();
     }
+
     await page
-      .getByRole("button", { name: "Research workspace", exact: true })
+      .getByRole("button", { exact: true, name: "Research workspace" })
       .click();
     await expect(
       page
-        .getByRole("heading", { name: "Research", exact: true })
+        .getByRole("heading", { exact: true, name: "Research" })
         .locator(artwork)
     ).toHaveText("🐼");
+
     const created = (await saved(page)).workspaces.find(
       (workspace) => workspace.name === "Research"
     );
+
     expect(created?.appearance.preference).toEqual({
       kind: "Preset",
       treatment: treatments[1],
@@ -385,35 +428,37 @@ test("expanded suggestions stay accessible and bounded in the minimum window, in
   page,
 }) => {
   const { default: AxeBuilder } = await import("@axe-core/playwright");
-  await page.setViewportSize({ width: 720, height: 520 });
+  await page.setViewportSize({ height: 520, width: 720 });
   await mockDesktop(page, { failFirstAppearance: true });
   await page.goto("/");
   await page
-    .getByRole("button", { name: "Toggle Sidebar", exact: true })
+    .getByRole("button", { exact: true, name: "Toggle Sidebar" })
     .click();
   await page
-    .getByRole("button", { name: "Downloads workspace", exact: true })
+    .getByRole("button", { exact: true, name: "Downloads workspace" })
     .click();
   await page
-    .getByRole("button", { name: "Workspace actions", exact: true })
+    .getByRole("button", { exact: true, name: "Workspace actions" })
     .click();
-  await page.getByRole("button", { name: "Change icon…", exact: true }).click();
+  await page.getByRole("button", { exact: true, name: "Change icon…" }).click();
   await picker(page)
-    .getByRole("button", { name: "Show 6 more color suggestions", exact: true })
+    .getByRole("button", { exact: true, name: "Show 6 more color suggestions" })
     .click();
   await suggestions(page).getByRole("button").last().click();
-  await picker(page).getByRole("button", { name: "Save", exact: true }).click();
+  await picker(page).getByRole("button", { exact: true, name: "Save" }).click();
   await expect(picker(page).getByRole("alert")).toBeVisible();
   await expect(
     picker(page).getByRole("textbox", { name: "Search emoji" })
   ).toBeInViewport({ ratio: 1 });
   await expect(
-    picker(page).getByRole("button", { name: "Save", exact: true })
+    picker(page).getByRole("button", { exact: true, name: "Save" })
   ).toBeInViewport({ ratio: 1 });
+
   const accessibility = await new AxeBuilder({ page })
     .include('[data-slot="popover-content"]')
     .disableRules(["button-name"])
     .analyze();
+
   expect(accessibility.violations).toEqual([]);
   await page.screenshot({ path: "test-results/color-suggestions-minimum.png" });
 });
@@ -424,48 +469,50 @@ test("Custom starts from the actual preview and canceling creation discards its 
   await mockDesktop(page);
   await page.goto("/");
   await page
-    .getByRole("button", { name: "New workspace", exact: true })
+    .getByRole("button", { exact: true, name: "New workspace" })
     .last()
     .click();
   await page
-    .getByRole("textbox", { name: "Name", exact: true })
+    .getByRole("textbox", { exact: true, name: "Name" })
     .fill("Canceled draft");
   await page
-    .getByRole("button", { name: "Workspace emoji: 📁", exact: true })
+    .getByRole("button", { exact: true, name: "Workspace emoji: 📁" })
     .click();
   const preview = picker(page).getByRole("img").locator(artwork);
+
   const automaticFilter = await preview.evaluate(
     (node) => getComputedStyle(node).filter
   );
+
   await picker(page)
-    .getByRole("button", { name: "Custom", exact: true })
+    .getByRole("button", { exact: true, name: "Custom" })
     .click();
   await expect(preview).toHaveCSS("filter", automaticFilter);
   await expect(
-    picker(page).getByRole("slider", { name: "Hue", exact: true })
+    picker(page).getByRole("slider", { exact: true, name: "Hue" })
   ).toBeVisible();
   await picker(page)
     .getByRole("button", { name: "Back to emoji browsing" })
     .click();
   await expect(
-    picker(page).getByRole("button", { name: "Custom", exact: true })
+    picker(page).getByRole("button", { exact: true, name: "Custom" })
   ).toHaveAttribute("aria-pressed", "true");
   await choose(page, "rainbow", "rainbow");
-  await picker(page).getByRole("button", { name: "Done", exact: true }).click();
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await picker(page).getByRole("button", { exact: true, name: "Done" }).click();
+  await page.getByRole("button", { exact: true, name: "Cancel" }).click();
   expect((await saved(page)).workspaces).toHaveLength(1);
   await page
-    .getByRole("button", { name: "New workspace", exact: true })
+    .getByRole("button", { exact: true, name: "New workspace" })
     .last()
     .click();
   await expect(
-    page.getByRole("textbox", { name: "Name", exact: true })
+    page.getByRole("textbox", { exact: true, name: "Name" })
   ).toHaveValue("");
   await page
-    .getByRole("button", { name: "Workspace emoji: 📁", exact: true })
+    .getByRole("button", { exact: true, name: "Workspace emoji: 📁" })
     .click();
   await expect(
-    picker(page).getByRole("button", { name: "Automatic", exact: true })
+    picker(page).getByRole("button", { exact: true, name: "Automatic" })
   ).toHaveAttribute("aria-pressed", "true");
   await expect(picker(page).getByRole("img").locator(artwork)).toHaveCSS(
     "filter",

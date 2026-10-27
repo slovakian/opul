@@ -32,12 +32,8 @@ import { WorkspaceIcon } from "@/components/workspace-icon";
 import { WorkspaceIconPicker } from "@/components/workspace-icon-picker";
 import { bridge, errorMessage } from "@/lib/bridge";
 import { useLibrary } from "@/lib/library";
-import {
-  workspaceEmoji,
-  type Workspace,
-  type WorkspaceDraft,
-  type WorkspaceRequest,
-} from "@/lib/model";
+import { workspaceEmoji } from "@/lib/model";
+import type { Workspace, WorkspaceDraft, WorkspaceRequest } from "@/lib/model";
 
 const emojis = [
   "📁",
@@ -53,6 +49,7 @@ const emojis = [
   "🌱",
   "✨",
 ];
+
 export function WorkspaceDialog({
   workspace,
   onClose,
@@ -66,26 +63,31 @@ export function WorkspaceDialog({
   const nameInput = useRef<HTMLInputElement>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [saveError, setSaveError] = useState<string>();
+
   const [draft, setDraft] = useState<
     (WorkspaceDraft & { emoji: string }) | null
   >(() =>
     workspace
       ? {
-          workspace_id: workspace.id,
-          folder_id:
-            workspace.folders.find((folder) => folder.is_default)?.id ?? "",
           appearance: workspace.appearance,
           emoji: workspaceEmoji(workspace),
+          folder_id:
+            workspace.folders.find((folder) => folder.is_default)?.id ?? "",
+          workspace_id: workspace.id,
         }
       : null
   );
+
   const [draftError, setDraftError] = useState<string>();
   const pendingDraft = useRef<Promise<WorkspaceDraft> | null>(null);
+
   const lastSubmission = useRef<{ input: string; requestId: string } | null>(
     null
   );
+
   const loadDraft = useCallback(async () => {
     setDraftError(undefined);
+
     try {
       pendingDraft.current ??= bridge.workspaceDraft();
       setDraft({ ...(await pendingDraft.current), emoji: "📁" });
@@ -94,71 +96,92 @@ export function WorkspaceDialog({
       setDraftError(errorMessage(error));
     }
   }, []);
+
   useEffect(() => {
-    if (!workspace) void loadDraft();
+    if (!workspace) {
+      void loadDraft();
+    }
   }, [workspace, loadDraft]);
   const [name, setName] = useState(workspace?.name ?? "");
   const emoji = draft?.emoji ?? "📁";
+
   const [path, setPath] = useState(
     workspace?.folders.find((folder) => folder.is_default)?.path ??
       (state.kind === "ready"
         ? (state.snapshot.workspaces[0]?.folders[0]?.path ?? "")
         : "")
   );
+
   async function chooseFolder() {
     try {
       const selected = await bridge.chooseFolder();
-      if (selected) setPath(selected);
+
+      if (selected) {
+        setPath(selected);
+      }
     } catch (error) {
       toast.add({
-        title: "Couldn't open folder picker",
         description: errorMessage(error),
+        title: "Couldn't open folder picker",
         type: "error",
       });
     }
   }
+
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!draft) return;
+
+    if (!draft) {
+      return;
+    }
     setSaveError(undefined);
     const id = draft.workspace_id;
     const folder = workspace?.folders.find((folder) => folder.is_default);
+
     const input = {
-      expected_revision: null,
-      workspace_id: id,
-      name: name.trim(),
-      icon: { kind: "Emoji", value: emoji },
       appearance: draft.appearance,
+      default_format: workspace?.default_format ?? "Best",
+      expected_revision: null,
+      file_organization: workspace?.file_organization ?? "Automatic",
       folder_id: draft.folder_id,
       folder_name: folder?.name ?? "Downloads",
       folder_path: path.trim(),
-      default_format: workspace?.default_format ?? "Best",
-      file_organization: workspace?.file_organization ?? "Automatic",
+      icon: { kind: "Emoji", value: emoji },
+      name: name.trim(),
+      workspace_id: id,
     } satisfies Omit<WorkspaceRequest, "request_id">;
+
     const serialized = JSON.stringify(input);
+
     if (lastSubmission.current?.input !== serialized) {
       lastSubmission.current = {
         input: serialized,
         requestId: crypto.randomUUID(),
       };
     }
+
     const receipt = await run({
       kind: workspace ? "update_workspace" : "create_workspace",
       request: { request_id: lastSubmission.current.requestId, ...input },
     });
+
     if (receipt) {
       onCreated(id);
       onClose();
-    } else
+    } else {
       setSaveError(
         "Couldn't save the workspace. Your changes are kept here; try again."
       );
+    }
   }
+
   return (
     <Dialog
       open
       onOpenChange={(open) => {
-        if (!open && !busy) onClose();
+        if (!open && !busy) {
+          onClose();
+        }
       }}
     >
       <DialogContent
@@ -187,8 +210,6 @@ export function WorkspaceDialog({
                     label="Workspace emoji"
                     value={emoji}
                     options={emojis.map((value) => ({
-                      value,
-                      label: value,
                       content: (
                         <WorkspaceIcon
                           workspace={{
@@ -197,6 +218,8 @@ export function WorkspaceDialog({
                           }}
                         />
                       ),
+                      label: value,
+                      value,
                     }))}
                     onChange={(emoji) =>
                       setDraft((draft) => draft && { ...draft, emoji })
@@ -217,11 +240,11 @@ export function WorkspaceDialog({
                     >
                       <WorkspaceIcon
                         workspace={{
-                          icon: { kind: "Emoji", value: emoji },
                           appearance: draft?.appearance ?? {
                             automatic_folder: null,
                             preference: { kind: "Automatic" },
                           },
+                          icon: { kind: "Emoji", value: emoji },
                         }}
                       />
                     </PopoverTrigger>
@@ -239,7 +262,7 @@ export function WorkspaceDialog({
                       {draft && (
                         <WorkspaceIconPicker
                           workspaceId={draft.workspace_id}
-                          draft={{ emoji, appearance: draft.appearance }}
+                          draft={{ appearance: draft.appearance, emoji }}
                           onChange={(update) =>
                             setDraft(
                               (draft) =>

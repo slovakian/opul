@@ -65,15 +65,15 @@ export const downloadSchema = z.object({
   bytes_downloaded: z.number(),
   bytes_uploaded: z.number(),
   capabilities: z.object({
+    can_cancel: z.boolean(),
+    can_change_file_selection: z.boolean(),
+    can_move: z.boolean(),
     can_pause: z.boolean(),
+    can_remove: z.boolean(),
     can_resume: z.boolean(),
     can_retry: z.boolean(),
-    can_cancel: z.boolean(),
-    can_stop_seeding: z.boolean(),
-    can_change_file_selection: z.boolean(),
-    can_remove: z.boolean(),
     can_reveal_output: z.boolean(),
-    can_move: z.boolean(),
+    can_stop_seeding: z.boolean(),
   }),
   comment: z.string().nullable(),
   content_folder: z.string().nullable(),
@@ -251,6 +251,7 @@ export interface WorkspaceRequest {
   default_format: Format;
   file_organization: Workspace["file_organization"];
 }
+
 export interface FolderRequest {
   request_id: string;
   expected_revision: number | null;
@@ -259,6 +260,7 @@ export interface FolderRequest {
   name: string;
   path: string;
 }
+
 export type DownloadAction =
   | "Pause"
   | "Resume"
@@ -272,6 +274,7 @@ export interface WorkspaceAppearanceRequest {
   emoji: string;
   appearance: Workspace["appearance"];
 }
+
 export type Command =
   | { kind: "set_workspace_appearance"; request: WorkspaceAppearanceRequest }
   | { kind: "create_workspace" | "update_workspace"; request: WorkspaceRequest }
@@ -349,6 +352,7 @@ export function bytes(value: number) {
   if (value === 0) {
     return "0 B";
   }
+
   const unit = Math.min(Math.floor(Math.log(value) / Math.log(1024)), 4);
 
   return `${(value / 1024 ** unit).toLocaleString(undefined, { maximumFractionDigits: 1 })} ${["B", "KB", "MB", "GB", "TB"][unit]}`;
@@ -358,12 +362,15 @@ export function timeRemaining(seconds: number | null) {
   if (seconds === null) {
     return "Calculating…";
   }
+
   if (seconds < 60) {
     return `${seconds}s left`;
   }
+
   if (seconds < 3600) {
     return `${Math.ceil(seconds / 60)}m left`;
   }
+
   return `${Math.floor(seconds / 3600)}h ${Math.ceil((seconds % 3600) / 60)}m left`;
 }
 
@@ -371,6 +378,7 @@ export function sourceHost(download: Download) {
   if (download.source === "Torrent") {
     return "BitTorrent";
   }
+
   try {
     return new URL(download.page_url || download.source_url).hostname.replace(
       /^www\./,

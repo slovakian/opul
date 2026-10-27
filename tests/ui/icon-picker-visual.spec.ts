@@ -32,32 +32,41 @@ for (const theme of ["light", "dark"]) {
   }) => {
     await mockDesktop(page);
     await page.goto("/");
+
     if (theme === "dark") {
-      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await page.getByRole("button", { exact: true, name: "Settings" }).click();
+
       const settings = page.getByRole("dialog", {
-        name: "Settings",
         exact: true,
+        name: "Settings",
       });
-      await settings.getByRole("button", { name: "Dark", exact: true }).click();
+
+      await settings.getByRole("button", { exact: true, name: "Dark" }).click();
       await settings.getByRole("button", { name: "Save changes" }).click();
       await expect(page.locator("html")).toHaveClass(/dark/);
     }
+
     await openPicker(page);
     const viewport = editor(page).locator("[frimousse-viewport]");
+
     const headers = viewport.locator(
       "[frimousse-list-sizer] > [frimousse-category] > [frimousse-category-header]"
     );
+
     await expect(headers.first()).toHaveText("Smileys & Emotion");
     await expect(headers.filter({ hasText: "Travel & Places" })).toHaveCount(1);
+
     const { rowHeight, headerHeight } = await viewport.evaluate((element) => {
       const style = getComputedStyle(element);
+
       return {
-        rowHeight: parseFloat(style.getPropertyValue("--frimousse-row-height")),
         headerHeight: parseFloat(
           style.getPropertyValue("--frimousse-category-header-height")
         ),
+        rowHeight: parseFloat(style.getPropertyValue("--frimousse-row-height")),
       };
     });
+
     await viewport.evaluate((element, y) => {
       element.scrollTop = y;
     }, rowHeight * 2);
@@ -69,10 +78,12 @@ for (const theme of ["light", "dark"]) {
       },
       rowHeight * 2 + delta
     );
+
     const faded = await viewport.screenshot({
-      scale: "css",
       path: `test-results/emoji-sticky-fade-${theme}.png`,
+      scale: "css",
     });
+
     // Compare the same glyph pixels before and after they move behind the label.
     const contrastRatio = await page.evaluate(
       async ({ reference, faded, fullY, fadedY }) => {
@@ -84,36 +95,46 @@ for (const theme of ["light", "dark"]) {
           canvas.width = image.width;
           canvas.height = image.height;
           const context = canvas.getContext("2d");
-          if (!context) throw new Error("Canvas unavailable");
+
+          if (!context) {
+            throw new Error("Canvas unavailable");
+          }
           context.drawImage(image, 0, 0);
+
           return context.getImageData(0, 0, image.width, image.height);
         }
+
         const full = await pixels(reference);
         const clipped = await pixels(faded);
+
         function contrast(image: ImageData, centerY: number) {
           let total = 0;
+
           for (
             let y = Math.round(centerY) - 1;
             y <= Math.round(centerY) + 1;
             y++
-          )
+          ) {
             for (let x = 0; x < image.width; x++)
               for (let channel = 0; channel < 3; channel++)
                 total += Math.abs(
                   image.data[(y * image.width + x) * 4 + channel] -
                     image.data[channel]
                 );
+          }
           return total;
         }
+
         return contrast(clipped, fadedY) / contrast(full, fullY);
       },
       {
-        reference: reference.toString("base64"),
         faded: faded.toString("base64"),
-        fullY: headerHeight + rowHeight / 2,
         fadedY: headerHeight + rowHeight / 2 - delta,
+        fullY: headerHeight + rowHeight / 2,
+        reference: reference.toString("base64"),
       }
     );
+
     expect(contrastRatio).toBeGreaterThan(0.15);
     expect(contrastRatio).toBeLessThan(0.85);
     const viewportBounds = await viewport.boundingBox();
@@ -122,9 +143,11 @@ for (const theme of ["light", "dark"]) {
       1
     );
     const next = headers.nth(1);
+
     const nextTop = await next.evaluate(
       (element) => element.parentElement?.offsetTop ?? 0
     );
+
     await viewport.evaluate(
       (element, y) => {
         element.scrollTop = y;
@@ -149,21 +172,26 @@ test("emoji options stay transparent when chosen and only grow their artwork on 
   await page.goto("/");
   await openPicker(page);
   await choose(page, "thumbs up", "thumbs up");
+
   const cell = editor(page).getByRole("gridcell", {
+    exact: true,
     name: "thumbs up",
-    exact: true,
   });
+
   const tone = editor(page).getByRole("button", {
-    name: "Default skin tone",
     exact: true,
+    name: "Default skin tone",
   });
+
   const color = editor(page)
-    .getByRole("group", { name: "Color suggestions", exact: true })
+    .getByRole("group", { exact: true, name: "Color suggestions" })
     .getByRole("button")
     .first();
+
   await color.click();
   await page.mouse.move(0, 0);
   const badge = '[data-slot="emoji-frame-badge"]';
+
   for (const option of [cell, tone, color]) {
     await expect(option.locator(badge)).toHaveCount(1);
     await expect(option).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
@@ -180,6 +208,7 @@ test("emoji options stay transparent when chosen and only grow their artwork on 
     await expect
       .poll(async () => {
         const after = await glyph.boundingBox();
+
         return after && before ? after.width / before.width : 0;
       })
       .toBeCloseTo(1.1, 2);
@@ -188,5 +217,6 @@ test("emoji options stay transparent when chosen and only grow their artwork on 
     await page.mouse.move(0, 0);
     await expect(frame).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   }
+
   await page.screenshot({ path: "test-results/emoji-check-badges.png" });
 });

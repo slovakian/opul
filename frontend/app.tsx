@@ -117,6 +117,7 @@ export default function App() {
     if (folderId && download.folder_id !== folderId) {
       return false;
     }
+
     if (
       !`${download.name} ${download.source_url}`
         .toLowerCase()
@@ -124,18 +125,23 @@ export default function App() {
     ) {
       return false;
     }
+
     if (effectiveFilter === "active") {
       return download.capabilities.can_pause || download.state === "Pausing";
     }
+
     if (effectiveFilter === "finished") {
       return download.state === "Finished";
     }
+
     if (effectiveFilter === "paused") {
       return download.state === "Paused";
     }
+
     if (effectiveFilter === "failed") {
       return download.state === "Failed";
     }
+
     return true;
   });
 
@@ -146,6 +152,7 @@ export default function App() {
   } else if (display.sort === "Source") {
     downloads.sort((a, b) => a.source.localeCompare(b.source));
   }
+
   const groups = new Map<string, Download[]>();
 
   for (const download of downloads) {
@@ -184,11 +191,11 @@ export default function App() {
       void saveAggregateView(location.kind, { ...display, ...change });
     } else if (workspace) {
       void run({
+        grouping: workspace.grouping,
         kind: "view",
-        workspace_id: workspace.id,
         layout: workspace.layout,
         sort: workspace.sort,
-        grouping: workspace.grouping,
+        workspace_id: workspace.id,
         ...change,
       });
     }
@@ -216,6 +223,7 @@ export default function App() {
       if (!(event.metaKey || event.ctrlKey)) {
         return;
       }
+
       if (event.key === "n") {
         event.preventDefault();
         newDownload();
@@ -237,6 +245,7 @@ export default function App() {
     if (!isTauri()) {
       return () => window.removeEventListener("keydown", keydown);
     }
+
     const subscriptions = [
       listen("settings", () => setModal({ kind: "settings" })),
       listen("new-download", () => {
@@ -344,7 +353,7 @@ export default function App() {
                           icon: Smile,
                           label: "Change icon…",
                           onClick: (anchor: HTMLButtonElement | null) =>
-                            setModal({ kind: "icon", workspace, anchor }),
+                            setModal({ anchor, kind: "icon", workspace }),
                         },
                         {
                           icon: FolderOpen,
@@ -552,6 +561,7 @@ export default function App() {
                     if (modal.kind === "delete-workspace") {
                       navigate({ kind: "all" });
                     }
+
                     setModal(null);
                   }
                 }}

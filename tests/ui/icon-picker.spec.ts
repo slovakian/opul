@@ -79,13 +79,14 @@ for (const close of ["Cancel", "Escape", "outside"]) {
 
     if (close === "Cancel") {
       await editor(page)
-        .getByRole("button", { name: "Cancel", exact: true })
+        .getByRole("button", { exact: true, name: "Cancel" })
         .click();
     } else if (close === "Escape") {
       await page.keyboard.press("Escape");
     } else {
       await page.mouse.click(650, 450);
     }
+
     await expect(editor(page)).toHaveCount(0);
     await expect(
       page.getByRole("button", { exact: true, name: "Downloads actions" })
@@ -419,6 +420,7 @@ test("bundled resolver filters version ceilings and unsupported country flags", 
       if (text === "🇪🇺") {
         Object.defineProperty(metrics, "width", { value: 4 });
       }
+
       return metrics;
     };
 

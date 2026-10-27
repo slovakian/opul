@@ -1,13 +1,7 @@
 import { Toggle as TogglePrimitive } from "@base-ui/react/toggle";
 import { Check } from "lucide-react";
-import {
-  useLayoutEffect,
-  useRef,
-  useState,
-  type Dispatch,
-  type RefObject,
-  type SetStateAction,
-} from "react";
+import { useLayoutEffect, useRef, useState } from "react";
+import type { Dispatch, RefObject, SetStateAction } from "react";
 
 import { Button } from "@/components/ui/button";
 import { EmojiFrame, emojiOptionClassName } from "@/components/ui/emoji-frame";
@@ -32,8 +26,9 @@ export function WorkspaceColorSuggestions({
   customButton: RefObject<HTMLButtonElement | null>;
 }) {
   const [{ folder, other }] = useState(() =>
-    createColorSuggestions({ workspaceId, appearance: draft.appearance })
+    createColorSuggestions({ appearance: draft.appearance, workspaceId })
   );
+
   const [savedPreference] = useState(draft.appearance.preference);
   const [expanded, setExpanded] = useState(false);
   const firstRevealed = useRef<HTMLButtonElement>(null);
@@ -45,18 +40,22 @@ export function WorkspaceColorSuggestions({
     }
   }, [expanded]);
   const { emoji, appearance } = draft;
-  const preference = appearance.preference;
+  const { preference } = appearance;
   const folderEmoji = isFolderEmoji(emoji);
   const choices = folderEmoji ? folder : other;
   const visible = expanded ? choices : choices.slice(0, 6);
   const remaining = choices.length - visible.length;
+
   function select(preference: typeof appearance.preference) {
     onChange((draft) => ({
       ...draft,
       appearance: { ...draft.appearance, preference },
     }));
   }
-  if (!canTreatEmoji(emoji)) return null;
+
+  if (!canTreatEmoji(emoji)) {
+    return null;
+  }
   return (
     <div
       className="scroll-fade scroll-fade-2 flex h-44 min-h-20 shrink flex-col gap-2 overflow-y-auto overscroll-contain p-1"
@@ -95,13 +94,17 @@ export function WorkspaceColorSuggestions({
             const treatment = choices.find(
               (item) => item.preset_id === values[0]
             );
-            if (treatment) select({ kind: "Preset", treatment });
+
+            if (treatment) {
+              select({ kind: "Preset", treatment });
+            }
           }}
         >
           {visible.map((treatment, index) => {
             const label = folderEmoji
               ? `${treatment.preset_id.charAt(0).toUpperCase()}${treatment.preset_id.slice(1)} Treatment`
               : `color suggestion ${index + 1}`;
+
             return (
               <TogglePrimitive
                 key={treatment.preset_id}
@@ -135,7 +138,10 @@ export function WorkspaceColorSuggestions({
         value={[preference.kind]}
         onValueChange={(values) => {
           const kind = values[0];
-          if (kind === "Original" || kind === "Automatic") select({ kind });
+
+          if (kind === "Original" || kind === "Automatic") {
+            select({ kind });
+          }
         }}
       >
         <ToggleGroupItem value="Original">

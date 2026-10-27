@@ -14,38 +14,38 @@ test("search, transfer actions, table view, inspector, and removal", async ({
     page.getByRole("heading", { name: "All downloads" })
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Design resources.zip", exact: true })
+    page.getByRole("button", { exact: true, name: "Design resources.zip" })
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "Pause Design resources.zip", exact: true })
+    .getByRole("button", { exact: true, name: "Pause Design resources.zip" })
     .click();
   await expect(
     page.getByRole("button", {
-      name: "Resume Design resources.zip",
       exact: true,
+      name: "Resume Design resources.zip",
     })
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "Resume Design resources.zip", exact: true })
+    .getByRole("button", { exact: true, name: "Resume Design resources.zip" })
     .click();
   await page
     .getByRole("searchbox", { name: "Search downloads or paste a link" })
     .fill("Field notes");
   await expect(
-    page.getByRole("button", { name: "Design resources.zip", exact: true })
+    page.getByRole("button", { exact: true, name: "Design resources.zip" })
   ).toHaveCount(0);
   await page
     .getByRole("searchbox", { name: "Search downloads or paste a link" })
     .clear();
   await page
-    .getByRole("button", { name: "Design resources.zip", exact: true })
+    .getByRole("button", { exact: true, name: "Design resources.zip" })
     .click();
   await expect(
     page.getByRole("complementary", { name: "Download details" })
   ).toBeVisible();
   await page.screenshot({ path: "test-results/inspector.png" });
   await page.getByRole("button", { name: "Close details" }).click();
-  await page.getByRole("button", { name: "Table view", exact: true }).click();
+  await page.getByRole("button", { exact: true, name: "Table view" }).click();
   await expect(page.getByRole("table")).toBeVisible();
   await page.screenshot({ path: "test-results/table.png" });
   await page
@@ -55,10 +55,10 @@ test("search, transfer actions, table view, inspector, and removal", async ({
   await expect(menu.locator('[data-slot="sidebar"]')).toBeVisible();
   await menu.getByRole("button", { name: "Remove from library" }).click();
   await page
-    .getByRole("button", { name: "Remove download", exact: true })
+    .getByRole("button", { exact: true, name: "Remove download" })
     .click();
   await expect(
-    page.getByRole("button", { name: "Field notes.pdf", exact: true })
+    page.getByRole("button", { exact: true, name: "Field notes.pdf" })
   ).toHaveCount(0);
   expect(errors).toEqual([]);
 });
@@ -69,10 +69,10 @@ test("emoji workspace creation and Base UI settings dialog", async ({
   await mockDesktop(page);
   await page.goto("/");
   await expect(
-    page.getByRole("button", { name: "Downloads workspace", exact: true })
+    page.getByRole("button", { exact: true, name: "Downloads workspace" })
   ).toContainText("📁");
   await page
-    .getByRole("button", { name: "New workspace", exact: true })
+    .getByRole("button", { exact: true, name: "New workspace" })
     .last()
     .click();
   await page.getByLabel("Name", { exact: true }).fill("Research");
@@ -80,22 +80,22 @@ test("emoji workspace creation and Base UI settings dialog", async ({
   await page.getByRole("textbox", { name: "Search emoji" }).fill("books");
   await page
     .locator('[data-slot="popover-content"]')
-    .getByRole("gridcell", { name: "books", exact: true })
+    .getByRole("gridcell", { exact: true, name: "books" })
     .click();
-  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await page.getByRole("button", { exact: true, name: "Done" }).click();
   await page
-    .getByRole("button", { name: "Create workspace", exact: true })
+    .getByRole("button", { exact: true, name: "Create workspace" })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Research", exact: true })
+    page.getByRole("heading", { exact: true, name: "Research" })
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Research workspace", exact: true })
+    page.getByRole("button", { exact: true, name: "Research workspace" })
   ).toContainText("📚");
-  await page.getByRole("button", { name: "Settings", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Settings", exact: true });
+  await page.getByRole("button", { exact: true, name: "Settings" }).click();
+  const dialog = page.getByRole("dialog", { exact: true, name: "Settings" });
   await expect(dialog.locator('[data-slot="sidebar"]')).toBeVisible();
-  await dialog.getByRole("button", { name: "Dark", exact: true }).click();
+  await dialog.getByRole("button", { exact: true, name: "Dark" }).click();
   await page.screenshot({ path: "test-results/settings.png" });
   await dialog.getByRole("button", { name: "Save changes" }).click();
   await expect(page.locator("html")).toHaveClass(/dark/);
@@ -108,15 +108,17 @@ test("imports retain errors, close on success, and use sidebar choices", async (
   await mockDesktop(page);
   await page.goto("/");
   await page
-    .getByRole("button", { name: "Download options", exact: true })
+    .getByRole("button", { exact: true, name: "Download options" })
     .click();
+
   const dialog = page.getByRole("dialog", {
-    name: "New download",
     exact: true,
+    name: "New download",
   });
+
   await dialog.getByLabel("Link", { exact: true }).fill("file:///private/file");
   await dialog
-    .getByRole("button", { name: "Add download", exact: true })
+    .getByRole("button", { exact: true, name: "Add download" })
     .click();
   await expect(dialog).toBeVisible();
   await expect(
@@ -131,11 +133,11 @@ test("imports retain errors, close on success, and use sidebar choices", async (
   ).toBeVisible();
   await page.keyboard.press("Escape");
   await dialog
-    .getByRole("button", { name: "Add download", exact: true })
+    .getByRole("button", { exact: true, name: "Add download" })
     .click();
   await expect(dialog).toHaveCount(0);
   await expect(
-    page.getByRole("button", { name: "new-file.zip", exact: true })
+    page.getByRole("button", { exact: true, name: "new-file.zip" })
   ).toBeVisible();
 });
 
@@ -148,21 +150,20 @@ test("header downloads use the workspace default and selected saved folder", asy
   workspace.folders.push(
     {
       id: "folder-2",
+      is_default: true,
       name: "Research",
       path: "/Users/test/Research",
-      is_default: true,
     },
     {
       id: "folder-3",
+      is_default: false,
       name: "Archive",
       path: "/Users/test/Archive",
-      is_default: false,
     }
   );
   library.workspaces.push({
     ...workspace,
-    id: "workspace-2",
-    name: "Media",
+    downloads: [],
     folders: [
       {
         id: "folder-4",
@@ -171,7 +172,8 @@ test("header downloads use the workspace default and selected saved folder", asy
         is_default: true,
       },
     ],
-    downloads: [],
+    id: "workspace-2",
+    name: "Media",
   });
   await mockDesktop(page, { snapshot: library });
   await page.goto("/");
@@ -184,25 +186,27 @@ test("header downloads use the workspace default and selected saved folder", asy
   ).toBeVisible();
   await expect(
     header.getByRole("button", {
-      name: "Save location: Research",
       exact: true,
+      name: "Save location: Research",
     })
   ).toBeVisible();
   await header
-    .getByRole("button", { name: "Save location: Research", exact: true })
+    .getByRole("button", { exact: true, name: "Save location: Research" })
     .click();
   const folders = page.locator('[data-slot="popover-content"]');
   await expect(folders.getByRole("button").first()).toHaveText(
     "Research (Default)"
   );
-  await folders.getByRole("button", { name: "Archive", exact: true }).click();
+  await folders.getByRole("button", { exact: true, name: "Archive" }).click();
+
   const link = header.getByRole("searchbox", {
-    name: "Search downloads or paste a link",
     exact: true,
+    name: "Search downloads or paste a link",
   });
+
   await link.fill("file:///private/file");
   await expect(
-    header.getByRole("button", { name: "Download link", exact: true })
+    header.getByRole("button", { exact: true, name: "Download link" })
   ).toBeDisabled();
   await link.press("Enter");
   await expect(
@@ -211,42 +215,44 @@ test("header downloads use the workspace default and selected saved folder", asy
   await expect(link).toHaveValue("file:///private/file");
   await link.fill("https://example.com/new-file.zip");
   await header
-    .getByRole("button", { name: "Download options", exact: true })
+    .getByRole("button", { exact: true, name: "Download options" })
     .click();
+
   const dialog = page.getByRole("dialog", {
-    name: "New download",
     exact: true,
+    name: "New download",
   });
+
   await expect(dialog.getByLabel("Link", { exact: true })).toHaveValue(
     "https://example.com/new-file.zip"
   );
   await expect(
-    dialog.getByRole("button", { name: "Save location: Archive", exact: true })
+    dialog.getByRole("button", { exact: true, name: "Save location: Archive" })
   ).toBeVisible();
   await page.keyboard.press("Escape");
   await link.press("Enter");
   await expect(link).toHaveValue("");
-  await page.getByRole("button", { name: "new-file.zip", exact: true }).click();
+  await page.getByRole("button", { exact: true, name: "new-file.zip" }).click();
   const details = page.getByRole("complementary", { name: "Download details" });
   await expect(
     details.locator("dd").filter({ hasText: /^Archive$/ })
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "Close details", exact: true })
+    .getByRole("button", { exact: true, name: "Close details" })
     .click();
   await page
-    .getByRole("button", { name: "Media workspace", exact: true })
+    .getByRole("button", { exact: true, name: "Media workspace" })
     .click();
   await expect(
-    header.getByRole("button", { name: "Save location: Videos", exact: true })
+    header.getByRole("button", { exact: true, name: "Save location: Videos" })
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "Downloads workspace", exact: true })
+    .getByRole("button", { exact: true, name: "Downloads workspace" })
     .click();
   await expect(
     header.getByRole("button", {
-      name: "Save location: Research",
       exact: true,
+      name: "Save location: Research",
     })
   ).toBeVisible();
 });
@@ -257,32 +263,34 @@ test("add a saved location from the download input without changing the default"
   await mockDesktop(page, { folderPickerPath: "/Users/test/Research" });
   await page.goto("/");
   const header = page.locator("main > header");
+
   const link = header.getByRole("searchbox", {
-    name: "Search downloads or paste a link",
     exact: true,
+    name: "Search downloads or paste a link",
   });
+
   await link.fill("https://example.com/new-file.zip");
   await header
     .getByRole("button", {
-      name: "Save location: Downloads › Downloads",
       exact: true,
+      name: "Save location: Downloads › Downloads",
     })
     .click();
   const menu = page.locator('[data-slot="popover-content"]');
   await menu
-    .getByRole("button", { name: "Add new location…", exact: true })
+    .getByRole("button", { exact: true, name: "Add new location…" })
     .click();
   await expect(
     header.getByRole("button", {
-      name: "Save location: Downloads › Research",
       exact: true,
+      name: "Save location: Downloads › Research",
     })
   ).toBeVisible();
   await expect(link).toHaveValue("https://example.com/new-file.zip");
   await header
     .getByRole("button", {
-      name: "Save location: Downloads › Research",
       exact: true,
+      name: "Save location: Downloads › Research",
     })
     .click();
   await expect(menu.locator('[data-slot="sidebar-group-label"]')).toHaveText(
@@ -292,12 +300,12 @@ test("add a saved location from the download input without changing the default"
     "Downloads (Default)"
   );
   await expect(
-    menu.getByRole("button", { name: "Research", exact: true })
+    menu.getByRole("button", { exact: true, name: "Research" })
   ).toHaveAttribute("data-active");
   await page.screenshot({ path: "test-results/location-menu.png" });
   await page.keyboard.press("Escape");
   await link.press("Enter");
-  await page.getByRole("button", { name: "new-file.zip", exact: true }).click();
+  await page.getByRole("button", { exact: true, name: "new-file.zip" }).click();
   await expect(
     page
       .getByRole("complementary", { name: "Download details" })
@@ -305,13 +313,13 @@ test("add a saved location from the download input without changing the default"
       .filter({ hasText: /^Research$/ })
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "Close details", exact: true })
+    .getByRole("button", { exact: true, name: "Close details" })
     .click();
   await page
-    .getByRole("button", { name: "All downloads", exact: true })
+    .getByRole("button", { exact: true, name: "All downloads" })
     .click();
   await expect(
-    page.getByRole("button", { name: "Research", exact: true })
+    page.getByRole("button", { exact: true, name: "Research" })
   ).toBeVisible();
 });
 
@@ -320,33 +328,37 @@ for (const outcome of ["cancelled", "failed"]) {
     page,
   }) => {
     await mockDesktop(page, {
-      folderPickerPath: null,
       folderPickerError:
         outcome === "failed" ? "Folder picker unavailable" : undefined,
+      folderPickerPath: null,
     });
     await page.goto("/");
     const header = page.locator("main > header");
+
     const link = header.getByRole("searchbox", {
-      name: "Search downloads or paste a link",
       exact: true,
+      name: "Search downloads or paste a link",
     });
+
     await link.fill("https://example.com/new-file.zip");
     await header
       .getByRole("button", {
-        name: "Save location: Downloads › Downloads",
         exact: true,
+        name: "Save location: Downloads › Downloads",
       })
       .click();
     await page
       .locator('[data-slot="popover-content"]')
-      .getByRole("button", { name: "Add new location…", exact: true })
+      .getByRole("button", { exact: true, name: "Add new location…" })
       .click();
-    if (outcome === "failed")
+
+    if (outcome === "failed") {
       await expect(page.getByText("Folder picker unavailable")).toBeVisible();
+    }
     await expect(
       header.getByRole("button", {
-        name: "Save location: Downloads › Downloads",
         exact: true,
+        name: "Save location: Downloads › Downloads",
       })
     ).toBeVisible();
     await expect(link).toHaveValue("https://example.com/new-file.zip");
@@ -358,14 +370,16 @@ test("empty, recovery, and startup failure states", async ({ browser }) => {
     const page = await browser.newPage();
     await mockDesktop(page, {
       empty: state === "empty",
-      recovery: state === "recovery",
       fail: state === "fail",
+      recovery: state === "recovery",
     });
     await page.goto("/");
+
     if (state === "empty") {
       await expect(page.getByText("No downloads yet")).toBeVisible();
       await page.screenshot({ path: "test-results/empty.png" });
     }
+
     if (state === "recovery") {
       await expect(
         page.getByText("Your library needs attention")
@@ -375,10 +389,12 @@ test("empty, recovery, and startup failure states", async ({ browser }) => {
         0
       );
     }
-    if (state === "fail")
+
+    if (state === "fail") {
       await expect(
         page.getByText("The state directory is already in use")
       ).toBeVisible();
+    }
     await page.close();
   }
 });
@@ -393,23 +409,25 @@ test("keyboard navigation, accessibility, and narrow layout", async ({
   ).toBeVisible();
   const result = await new AxeBuilder({ page }).analyze();
   expect(result.violations).toEqual([]);
-  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { exact: true, name: "Settings" }).click();
+
   // Base UI's WebKit VoiceOver focus sentinels are not user controls.
   const dialogResult = await new AxeBuilder({ page })
     .exclude("[data-base-ui-focus-guard]")
     .analyze();
+
   expect(dialogResult.violations).toEqual([]);
   await page.keyboard.press("Escape");
-  await page.setViewportSize({ width: 768, height: 800 });
+  await page.setViewportSize({ height: 800, width: 768 });
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth
     )
   ).toBe(true);
   await page.screenshot({ path: "test-results/narrow.png" });
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ height: 844, width: 390 });
   await page.getByRole("button", { name: "Toggle Sidebar" }).click();
   await expect(
-    page.getByRole("button", { name: "Downloads workspace", exact: true })
+    page.getByRole("button", { exact: true, name: "Downloads workspace" })
   ).toBeVisible();
 });

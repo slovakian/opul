@@ -1,3 +1,4 @@
+/* oxlint-disable no-barrel-file */
 import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
 import { cn } from "cn";
@@ -20,7 +21,7 @@ export * from "@/components/ui/sidebar-context";
 
 export * from "@/components/ui/sidebar-menu";
 
-function Sidebar({
+const Sidebar = ({
   side = "left",
   variant = "sidebar",
   collapsible = "offcanvas",
@@ -31,7 +32,7 @@ function Sidebar({
   side?: "left" | "right";
   variant?: "sidebar" | "floating" | "inset";
   collapsible?: "offcanvas" | "icon" | "none";
-}) {
+}) => {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
 
   if (collapsible === "none") {
@@ -50,6 +51,11 @@ function Sidebar({
   }
 
   if (isMobile) {
+    // SAFETY: Custom CSS property --sidebar-width is valid in React.CSSProperties
+    const mobileStyle = {
+      "--sidebar-width": "18rem",
+    } as React.CSSProperties;
+
     return (
       <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
         <SheetHeader className="sr-only">
@@ -61,11 +67,7 @@ function Sidebar({
           data-slot="sidebar"
           data-mobile="true"
           className="bg-sidebar text-sidebar-foreground w-(--sidebar-width) p-0 [&>button]:hidden"
-          style={
-            {
-              "--sidebar-width": "18rem",
-            } as React.CSSProperties
-          }
+          style={mobileStyle}
           side={side}
         >
           <div className="flex h-full w-full flex-col">{children}</div>
@@ -117,13 +119,13 @@ function Sidebar({
       </div>
     </div>
   );
-}
+};
 
-function SidebarTrigger({
+const SidebarTrigger = ({
   className,
   onClick,
   ...props
-}: React.ComponentProps<typeof Button>) {
+}: React.ComponentProps<typeof Button>) => {
   const { toggleSidebar } = useSidebar();
 
   return (
@@ -143,13 +145,17 @@ function SidebarTrigger({
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   );
-}
+};
 
-function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
+const SidebarRail = ({
+  className,
+  ...props
+}: React.ComponentProps<"button">) => {
   const { toggleSidebar } = useSidebar();
 
   return (
     <button
+      type="button"
       data-sidebar="rail"
       data-slot="sidebar-rail"
       aria-label="Toggle Sidebar"
@@ -168,103 +174,101 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
       {...props}
     />
   );
-}
+};
 
-function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
-  return (
-    <main
-      data-slot="sidebar-inset"
-      className={cn(
-        "bg-background relative flex w-full flex-1 flex-col",
-        "md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow-sm md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-2",
-        className
-      )}
-      {...props}
-    />
-  );
-}
-
-function SidebarInput({
+const SidebarInset = ({
   className,
   ...props
-}: React.ComponentProps<typeof Input>) {
-  return (
-    <Input
-      data-slot="sidebar-input"
-      data-sidebar="input"
-      className={cn("bg-background h-8 w-full shadow-none", className)}
-      {...props}
-    />
-  );
-}
+}: React.ComponentProps<"main">) => (
+  <main
+    data-slot="sidebar-inset"
+    className={cn(
+      "bg-background relative flex w-full flex-1 flex-col",
+      "md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow-sm md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-2",
+      className
+    )}
+    {...props}
+  />
+);
 
-function SidebarHeader({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="sidebar-header"
-      data-sidebar="header"
-      className={cn("flex flex-col gap-2 p-2", className)}
-      {...props}
-    />
-  );
-}
-
-function SidebarFooter({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="sidebar-footer"
-      data-sidebar="footer"
-      className={cn("flex flex-col gap-2 p-2", className)}
-      {...props}
-    />
-  );
-}
-
-function SidebarSeparator({
+const SidebarInput = ({
   className,
   ...props
-}: React.ComponentProps<typeof Separator>) {
-  return (
-    <Separator
-      data-slot="sidebar-separator"
-      data-sidebar="separator"
-      className={cn("bg-sidebar-border mx-2 data-horizontal:w-auto", className)}
-      {...props}
-    />
-  );
-}
+}: React.ComponentProps<typeof Input>) => (
+  <Input
+    data-slot="sidebar-input"
+    data-sidebar="input"
+    className={cn("bg-background h-8 w-full shadow-none", className)}
+    {...props}
+  />
+);
 
-function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="sidebar-content"
-      data-sidebar="content"
-      className={cn(
-        "no-scrollbar flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
-        className
-      )}
-      {...props}
-    />
-  );
-}
+const SidebarHeader = ({
+  className,
+  ...props
+}: React.ComponentProps<"div">) => (
+  <div
+    data-slot="sidebar-header"
+    data-sidebar="header"
+    className={cn("flex flex-col gap-2 p-2", className)}
+    {...props}
+  />
+);
 
-function SidebarGroup({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="sidebar-group"
-      data-sidebar="group"
-      className={cn("relative flex w-full min-w-0 flex-col p-2", className)}
-      {...props}
-    />
-  );
-}
+const SidebarFooter = ({
+  className,
+  ...props
+}: React.ComponentProps<"div">) => (
+  <div
+    data-slot="sidebar-footer"
+    data-sidebar="footer"
+    className={cn("flex flex-col gap-2 p-2", className)}
+    {...props}
+  />
+);
 
-function SidebarGroupLabel({
+const SidebarSeparator = ({
+  className,
+  ...props
+}: React.ComponentProps<typeof Separator>) => (
+  <Separator
+    data-slot="sidebar-separator"
+    data-sidebar="separator"
+    className={cn("bg-sidebar-border mx-2 data-horizontal:w-auto", className)}
+    {...props}
+  />
+);
+
+const SidebarContent = ({
+  className,
+  ...props
+}: React.ComponentProps<"div">) => (
+  <div
+    data-slot="sidebar-content"
+    data-sidebar="content"
+    className={cn(
+      "no-scrollbar flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
+      className
+    )}
+    {...props}
+  />
+);
+
+const SidebarGroup = ({ className, ...props }: React.ComponentProps<"div">) => (
+  <div
+    data-slot="sidebar-group"
+    data-sidebar="group"
+    className={cn("relative flex w-full min-w-0 flex-col p-2", className)}
+    {...props}
+  />
+);
+
+const SidebarGroupLabel = ({
   className,
   render,
   ...props
-}: useRender.ComponentProps<"div"> & React.ComponentProps<"div">) {
-  return useRender({
+}: useRender.ComponentProps<"div"> & React.ComponentProps<"div">) =>
+  useRender({
     defaultTagName: "div",
     props: mergeProps<"div">(
       {
@@ -281,14 +285,13 @@ function SidebarGroupLabel({
       slot: "sidebar-group-label",
     },
   });
-}
 
-function SidebarGroupAction({
+const SidebarGroupAction = ({
   className,
   render,
   ...props
-}: useRender.ComponentProps<"button"> & React.ComponentProps<"button">) {
-  return useRender({
+}: useRender.ComponentProps<"button"> & React.ComponentProps<"button">) =>
+  useRender({
     defaultTagName: "button",
     props: mergeProps<"button">(
       {
@@ -305,21 +308,18 @@ function SidebarGroupAction({
       slot: "sidebar-group-action",
     },
   });
-}
 
-function SidebarGroupContent({
+const SidebarGroupContent = ({
   className,
   ...props
-}: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="sidebar-group-content"
-      data-sidebar="group-content"
-      className={cn("w-full text-sm", className)}
-      {...props}
-    />
-  );
-}
+}: React.ComponentProps<"div">) => (
+  <div
+    data-slot="sidebar-group-content"
+    data-sidebar="group-content"
+    className={cn("w-full text-sm", className)}
+    {...props}
+  />
+);
 
 export {
   Sidebar,

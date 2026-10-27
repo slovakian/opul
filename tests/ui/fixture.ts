@@ -78,6 +78,7 @@ export const preferences: Preferences = {
 
 export const snapshot: Snapshot = {
   boot_id: "boot-1",
+  recent_emoji: [],
   recovery_notices: [],
   revision: 1,
   sequence: 1,
@@ -139,7 +140,6 @@ export const snapshot: Snapshot = {
       ],
     },
   ],
-  recent_emoji: [],
 };
 
 export async function mockDesktop(
@@ -191,6 +191,7 @@ export async function mockDesktop(
       if (options.empty) {
         snapshot.workspaces[0].downloads = [];
       }
+
       if (options.recovery) {
         snapshot.session = "RecoveryRequired";
         snapshot.recovery_notices = [
@@ -222,10 +223,12 @@ export async function mockDesktop(
             } = {}
           ) => {
             if (name === "snapshot") {
-              if (options.fail)
+              if (options.fail) {
                 throw new Error("The state directory is already in use");
+              }
               return structuredClone(snapshot);
             }
+
             if (name === "get_preferences") {
               if (options.failPreferencesRead) {
                 throw new Error("Preferences are unavailable");
@@ -233,36 +236,44 @@ export async function mockDesktop(
 
               return preferences;
             }
+
             if (name === "workspace_appearance_draft") {
               const workspace = snapshot.workspaces.find(
                 (workspace) => workspace.id === args.workspaceId
               );
-              if (!workspace)
+
+              if (!workspace) {
                 throw new Error("That workspace no longer exists.");
+              }
               return {
                 ...workspace.appearance,
                 automatic_folder:
                   workspace.appearance.automatic_folder ?? folderTreatments[1],
               };
             }
+
             if (name === "workspace_draft") {
               draftCalls++;
+
               const draft = {
-                workspace_id: `draft-workspace-${draftCalls}`,
-                folder_id: `draft-folder-${draftCalls}`,
                 appearance: {
                   automatic_folder: folderTreatments[1],
                   preference: { kind: "Automatic" },
                 },
+                folder_id: `draft-folder-${draftCalls}`,
+                workspace_id: `draft-workspace-${draftCalls}`,
               };
+
               if (options.changeSnapshotDuringDraft) {
                 snapshot.workspaces[0].appearance.automatic_folder =
                   folderTreatments[2];
                 snapshot.revision++;
                 snapshot.sequence++;
               }
+
               return draft;
             }
+
             if (
               name === "save_preferences" &&
               args.preferences &&
@@ -288,6 +299,7 @@ export async function mockDesktop(
 
               return structuredClone(preferences);
             }
+
             if (
               name === "save_aggregate_view" &&
               args.view &&
@@ -313,7 +325,8 @@ export async function mockDesktop(
 
               return structuredClone(preferences);
             }
-            if (name === "tool_status")
+
+            if (name === "tool_status") {
               return {
                 ready: true,
                 message: "yt-dlp and FFmpeg are available.",
@@ -322,62 +335,84 @@ export async function mockDesktop(
                 ffmpeg_path: "/opt/homebrew/bin/ffmpeg",
                 ffmpeg_version: "8.0",
               };
+            }
             if (name === "plugin:dialog|open") {
-              if (options.folderPickerError)
+              if (options.folderPickerError) {
                 throw new Error(options.folderPickerError);
+              }
               return options.folderPickerPath === undefined
                 ? "/Users/test/Downloads"
                 : options.folderPickerPath;
             }
+
             if (name === "execute") {
-              const command = args.command;
-              if (!command) throw new Error("Missing command");
+              const { command } = args;
+
+              if (!command) {
+                throw new Error("Missing command");
+              }
               if (command.kind === "set_workspace_appearance") {
                 const cached = receipts.get(command.request.request_id);
-                if (cached) return cached;
+
+                if (cached) {
+                  return cached;
+                }
                 appearanceAttempts++;
-                if (options.failFirstAppearance && appearanceAttempts === 1)
+
+                if (options.failFirstAppearance && appearanceAttempts === 1) {
                   throw new Error("Couldn't save the checkpoint. Try again.");
+                }
                 const workspace = snapshot.workspaces.find(
                   (workspace) => workspace.id === command.request.workspace_id
                 );
-                if (!workspace)
+
+                if (!workspace) {
                   throw new Error("That workspace no longer exists.");
+                }
                 workspace.icon = {
                   kind: "Emoji",
                   value: command.request.emoji,
                 };
                 workspace.appearance = {
-                  preference: command.request.appearance.preference,
                   automatic_folder:
                     workspace.appearance.automatic_folder ??
                     (command.request.emoji.replace(/[\uFE0E\uFE0F]/gu, "") ===
                     "📁"
                       ? command.request.appearance.automatic_folder
                       : null),
+                  preference: command.request.appearance.preference,
                 };
               }
+
               if (command.kind === "format") {
                 const workspace = snapshot.workspaces.find(
                   (workspace) => workspace.id === command.workspace_id
                 );
-                if (workspace) workspace.default_format = command.format;
+
+                if (workspace) {
+                  workspace.default_format = command.format;
+                }
               }
+
               if (command.kind === "view") {
                 const workspace = snapshot.workspaces.find(
                   (workspace) => workspace.id === command.workspace_id
                 );
-                if (workspace)
+
+                if (workspace) {
                   Object.assign(workspace, {
                     layout: command.layout,
                     sort: command.sort,
                     grouping: command.grouping,
                   });
+                }
               }
+
               if (command.kind === "download") {
                 const download = snapshot.workspaces
                   .flatMap((workspace) => workspace.downloads)
                   .find((download) => download.id === command.download_id);
+
                 if (download) {
                   download.state =
                     command.action === "Pause" ? "Paused" : "Fetching";
@@ -385,25 +420,30 @@ export async function mockDesktop(
                   download.capabilities.can_resume = command.action === "Pause";
                 }
               }
+
               if (command.kind === "create_workspace") {
                 const receipt = receipts.get(command.request.request_id);
-                if (receipt) return receipt;
+
+                if (receipt) {
+                  return receipt;
+                }
                 if (
                   snapshot.workspaces.some(
                     (workspace) => workspace.id === command.request.workspace_id
                   )
-                )
+                ) {
                   throw new Error("That workspace already exists.");
+                }
                 createAttempts++;
-                if (options.failFirstCreate && createAttempts === 1)
+
+                if (options.failFirstCreate && createAttempts === 1) {
                   throw new Error("Couldn't save the checkpoint. Try again.");
-                const request = command.request;
+                }
+                const { request } = command;
                 snapshot.workspaces.push({
                   ...snapshot.workspaces[0],
-                  id: request.workspace_id,
-                  name: request.name,
-                  icon: request.icon,
                   appearance: request.appearance,
+                  downloads: [],
                   folders: [
                     {
                       id: request.folder_id,
@@ -412,9 +452,12 @@ export async function mockDesktop(
                       is_default: true,
                     },
                   ],
-                  downloads: [],
+                  icon: request.icon,
+                  id: request.workspace_id,
+                  name: request.name,
                 });
               }
+
               const savedEmoji =
                 command.kind === "set_workspace_appearance"
                   ? command.request.emoji
@@ -422,38 +465,45 @@ export async function mockDesktop(
                       command.request.icon.kind === "Emoji"
                     ? command.request.icon.value
                     : null;
-              if (savedEmoji)
+
+              if (savedEmoji) {
                 snapshot.recent_emoji = [
                   savedEmoji,
                   ...snapshot.recent_emoji.filter(
                     (emoji) => emoji !== savedEmoji
                   ),
                 ].slice(0, 24);
+              }
               if (command.kind === "update_workspace") {
                 const workspace = snapshot.workspaces.find(
                   (workspace) => workspace.id === command.request.workspace_id
                 );
+
                 if (workspace) {
                   workspace.name = command.request.name;
                   workspace.icon = command.request.icon;
                 }
               }
+
               if (command.kind === "add_folder") {
                 const workspace = snapshot.workspaces.find(
                   (workspace) => workspace.id === command.request.workspace_id
                 );
+
                 workspace?.folders.push({
                   id: command.request.folder_id,
+                  is_default: false,
                   name: command.request.name,
                   path: command.request.path,
-                  is_default: false,
                 });
               }
-              if (command.kind === "remove_downloads")
+
+              if (command.kind === "remove_downloads") {
                 for (const workspace of snapshot.workspaces)
                   workspace.downloads = workspace.downloads.filter(
                     (download) => !command.download_ids.includes(download.id)
                   );
+              }
               if (command.kind === "add_url") {
                 addAttempts += 1;
 
@@ -461,45 +511,56 @@ export async function mockDesktop(
                   throw new Error("Couldn't add download. Try again.");
                 }
 
-                if (!/^https?:\/\//.test(command.url))
+                if (!/^https?:\/\//.test(command.url)) {
                   throw new Error("Use an HTTP, HTTPS, or magnet link.");
+                }
                 snapshot.workspaces
                   .find((workspace) => workspace.id === command.workspace_id)
                   ?.downloads.push({
                     ...baseDownload,
+                    folder_id: command.folder_id,
                     id: `imported-${snapshot.sequence}`,
                     name: "new-file.zip",
                     source_url: command.url,
-                    folder_id: command.folder_id,
                   });
               }
+
               if (command.kind === "acknowledge_recovery") {
                 snapshot.session = "Running";
                 snapshot.recovery_notices = [];
               }
+
               snapshot.revision++;
               snapshot.sequence++;
+
               const receipt = {
-                revision: snapshot.revision,
                 created_download_ids: [],
+                revision: snapshot.revision,
               };
+
               if (command.kind === "create_workspace") {
                 receipts.set(command.request.request_id, receipt);
-                if (options.loseFirstCreateResponse && createAttempts === 1)
+
+                if (options.loseFirstCreateResponse && createAttempts === 1) {
                   throw new Error(
                     "The response was lost after saving. Try again."
                   );
+                }
               }
+
               if (command.kind === "set_workspace_appearance") {
                 receipts.set(command.request.request_id, receipt);
+
                 if (
                   options.loseFirstAppearanceResponse &&
                   appearanceAttempts === 1
-                )
+                ) {
                   throw new Error(
                     "The response was lost after saving. Try again."
                   );
+                }
               }
+
               if (options.persist) {
                 sessionStorage.setItem(
                   "test-snapshot",
@@ -509,6 +570,7 @@ export async function mockDesktop(
 
               return receipt;
             }
+
             return null;
           },
           metadata: {

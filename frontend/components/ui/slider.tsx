@@ -1,19 +1,21 @@
 import { Slider as SliderPrimitive } from "@base-ui/react/slider";
 import { cn } from "cn";
 
-function Slider({
+const Slider = ({
   className,
   defaultValue,
   value,
   min = 0,
   max = 100,
   ...props
-}: SliderPrimitive.Root.Props) {
-  const _values = Array.isArray(value)
-    ? value
-    : Array.isArray(defaultValue)
-      ? defaultValue
-      : [min, max];
+}: SliderPrimitive.Root.Props) => {
+  let _values = [min, max];
+
+  if (Array.isArray(value)) {
+    _values = value;
+  } else if (Array.isArray(defaultValue)) {
+    _values = defaultValue;
+  }
 
   return (
     <SliderPrimitive.Root
@@ -46,6 +48,6 @@ function Slider({
       </SliderPrimitive.Control>
     </SliderPrimitive.Root>
   );
-}
+};
 
 export { Slider };

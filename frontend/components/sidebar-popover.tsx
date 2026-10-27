@@ -31,6 +31,7 @@ export interface MenuAction {
   hint?: string;
   destructive?: boolean;
 }
+
 interface MenuGroup {
   label?: string;
   actions: MenuAction[];
@@ -60,6 +61,7 @@ export function SidebarPopover({
           if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
             return;
           }
+
           const buttons = [
             ...event.currentTarget.querySelectorAll<HTMLButtonElement>(
               "button:not(:disabled)"
@@ -69,6 +71,7 @@ export function SidebarPopover({
           if (!buttons.length) {
             return;
           }
+
           event.preventDefault();
 
           const index = buttons.findIndex(
@@ -178,10 +181,10 @@ export function Choice<T extends string>({
       groups={[
         {
           actions: options.map((option) => ({
-            label: option.label,
             content: option.content,
-            selected: value === option.value,
+            label: option.label,
             onClick: () => onChange(option.value),
+            selected: value === option.value,
           })),
           label,
         },

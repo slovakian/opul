@@ -24,7 +24,7 @@ export const SidebarContext = React.createContext<SidebarContextProps | null>(
   null
 );
 
-export function useSidebar() {
+export const useSidebar = () => {
   const context = React.useContext(SidebarContext);
 
   if (!context) {
@@ -32,9 +32,9 @@ export function useSidebar() {
   }
 
   return context;
-}
+};
 
-export function SidebarProvider({
+export const SidebarProvider = ({
   defaultOpen = true,
   open: openProp,
   onOpenChange: setOpenProp,
@@ -46,26 +46,28 @@ export function SidebarProvider({
   defaultOpen?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-}) {
+}) => {
   const isMobile = useIsMobile();
   const [openMobile, setOpenMobile] = React.useState(false);
 
   // This is the internal state of the sidebar.
   // We use openProp and setOpenProp for control from outside the component.
-  const [_open, _setOpen] = React.useState(defaultOpen);
-  const open = openProp ?? _open;
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen);
+  const open = openProp ?? uncontrolledOpen;
 
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
+      // oxlint-disable-next-line anti-slop/no-runtime-typeof
       const openState = typeof value === "function" ? value(open) : value;
 
       if (setOpenProp) {
         setOpenProp(openState);
       } else {
-        _setOpen(openState);
+        setUncontrolledOpen(openState);
       }
 
       // This sets the cookie to keep the sidebar state.
+      // oxlint-disable-next-line no-document-cookie
       document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
     },
     [setOpenProp, open]
@@ -74,7 +76,7 @@ export function SidebarProvider({
   // Helper to toggle the sidebar.
   const toggleSidebar = React.useCallback(
     () =>
-      isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open),
+      isMobile ? setOpenMobile((prev) => !prev) : setOpen((prev) => !prev),
     [isMobile, setOpen, setOpenMobile]
   );
 
@@ -112,17 +114,18 @@ export function SidebarProvider({
     [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
   );
 
+  // SAFETY: Custom CSS properties are valid in React.CSSProperties
+  const customStyle = {
+    "--sidebar-width": SIDEBAR_WIDTH,
+    "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
+    ...style,
+  } as React.CSSProperties;
+
   return (
     <SidebarContext.Provider value={contextValue}>
       <div
         data-slot="sidebar-wrapper"
-        style={
-          {
-            "--sidebar-width": SIDEBAR_WIDTH,
-            "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
-            ...style,
-          } as React.CSSProperties
-        }
+        style={customStyle}
         className={cn(
           "group/sidebar-wrapper has-data-[variant=inset]:bg-sidebar flex min-h-svh w-full",
           className
@@ -133,4 +136,4 @@ export function SidebarProvider({
       </div>
     </SidebarContext.Provider>
   );
-}
+};
