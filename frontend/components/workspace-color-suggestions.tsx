@@ -7,7 +7,9 @@ import {
   type SetStateAction,
 } from "react";
 import { Check } from "lucide-react";
+import { Toggle as TogglePrimitive } from "@base-ui/react/toggle";
 import { Button } from "@/components/ui/button";
+import { EmojiFrame, emojiOptionClassName } from "@/components/ui/emoji-frame";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { EmojiArtwork } from "@/components/workspace-icon";
 import type { IconDraft } from "@/components/workspace-icon-picker";
@@ -79,7 +81,6 @@ export function WorkspaceColorSuggestions({
       <div className="shrink-0">
         <ToggleGroup
           aria-label="Color suggestions"
-          variant="outline"
           size="sm"
           className="grid w-full grid-cols-6 gap-1"
           value={
@@ -93,25 +94,23 @@ export function WorkspaceColorSuggestions({
           }}
         >
           {visible.map((treatment, index) => (
-            <ToggleGroupItem
+            <TogglePrimitive
               key={treatment.preset_id}
               value={treatment.preset_id}
               ref={index === 6 ? firstRevealed : undefined}
               aria-label={`Preview ${treatment.preset_id} treatment`}
               title={`${treatment.preset_id} treatment`}
-              className="relative size-9 p-0"
+              className={emojiOptionClassName}
             >
-              <span className="text-2xl">
+              <EmojiFrame
+                selected={
+                  preference.kind === "Preset" &&
+                  preference.treatment.preset_id === treatment.preset_id
+                }
+              >
                 <EmojiArtwork emoji={emoji} treatment={treatment} />
-              </span>
-              {preference.kind === "Preset" &&
-                preference.treatment.preset_id === treatment.preset_id && (
-                  <Check
-                    aria-hidden
-                    className="absolute bottom-0 right-0 rounded-sm bg-popover"
-                  />
-                )}
-            </ToggleGroupItem>
+              </EmojiFrame>
+            </TogglePrimitive>
           ))}
         </ToggleGroup>
       </div>

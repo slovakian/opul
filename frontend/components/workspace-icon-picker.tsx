@@ -9,9 +9,11 @@ import {
   type SetStateAction,
 } from "react";
 import { EmojiPicker, type EmojiPickerListEmojiProps } from "frimousse";
-import { Check, Search } from "lucide-react";
+import { Toggle as TogglePrimitive } from "@base-ui/react/toggle";
+import { Search } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { EmojiFrame, emojiOptionClassName } from "@/components/ui/emoji-frame";
 import {
   InputGroup,
   InputGroupAddon,
@@ -26,7 +28,7 @@ import {
 import { WorkspaceColorSuggestions } from "@/components/workspace-color-suggestions";
 import { WorkspaceCustomTreatment } from "@/components/workspace-custom-treatment";
 import { Spinner } from "@/components/ui/spinner";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { ToggleGroup } from "@/components/ui/toggle-group";
 import { WorkspaceIcon } from "@/components/workspace-icon";
 import { bridge, errorMessage } from "@/lib/bridge";
 import { emojiDataWithRecents, skinToneChoices } from "@/lib/emoji-data";
@@ -86,15 +88,13 @@ function EmojiGridCell({
       }
       aria-description={chosen ? "Selected icon" : undefined}
       data-chosen={chosen}
-      className="relative flex size-9 items-center justify-center rounded-md text-2xl outline-none hover:bg-accent data-active:bg-accent data-[chosen=true]:ring-1 data-[chosen=true]:ring-ring focus-visible:ring-2 focus-visible:ring-ring"
-    >
-      <span aria-hidden>{emoji.emoji}</span>
-      {chosen && (
-        <Check
-          aria-hidden
-          className="absolute bottom-0 right-0 size-3 rounded-sm bg-popover"
-        />
+      data-keyboard-active={emoji.isActive && keyboardNavigation.current}
+      className={cn(
+        emojiOptionClassName,
+        "data-[keyboard-active=true]:outline-2 data-[keyboard-active=true]:outline-ring",
       )}
+    >
+      <EmojiFrame selected={chosen}>{emoji.emoji}</EmojiFrame>
     </button>
   );
 }
@@ -168,18 +168,17 @@ export function WorkspaceIconPicker({
               }}
             >
               {tones.map((tone) => (
-                <ToggleGroupItem
+                <TogglePrimitive
                   key={tone.emoji}
                   value={tone.emoji}
                   aria-label={tone.label}
                   title={tone.label}
-                  className="relative"
+                  className={emojiOptionClassName}
                 >
-                  <span aria-hidden>{tone.emoji}</span>
-                  {tone.emoji === emoji && (
-                    <Check aria-hidden className="absolute bottom-0 right-0" />
-                  )}
-                </ToggleGroupItem>
+                  <EmojiFrame selected={tone.emoji === emoji}>
+                    {tone.emoji}
+                  </EmojiFrame>
+                </TogglePrimitive>
               ))}
             </ToggleGroup>
           )}

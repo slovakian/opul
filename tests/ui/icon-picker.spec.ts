@@ -38,6 +38,56 @@ async function savedSnapshot(page: Page) {
   );
 }
 
+test("emoji options stay transparent when chosen and only grow their artwork on hover", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await mockDesktop(page);
+  await page.goto("/");
+  await openPicker(page);
+  await choose(page, "thumbs up", "thumbs up");
+  const cell = editor(page).getByRole("gridcell", {
+    name: "thumbs up",
+    exact: true,
+  });
+  const tone = editor(page).getByRole("button", {
+    name: "Default skin tone",
+    exact: true,
+  });
+  const color = editor(page)
+    .getByRole("group", { name: "Color suggestions", exact: true })
+    .getByRole("button")
+    .first();
+  await color.click();
+  await page.mouse.move(0, 0);
+  const badge = '[data-slot="emoji-frame-badge"]';
+  for (const option of [cell, tone, color]) {
+    await expect(option.locator(badge)).toHaveCount(1);
+    await expect(option).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    await expect(option).toHaveCSS("border-top-width", "0px");
+    await expect(option).toHaveCSS("box-shadow", "none");
+    const frame = option.locator('[data-slot="emoji-frame"]');
+    await expect(frame).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    const glyph = option.locator('[data-slot="emoji-frame-artwork"]');
+    const bounds = await option.boundingBox();
+    const before = await glyph.boundingBox();
+    const checkBefore = await option.locator(badge).boundingBox();
+    await option.hover();
+    await expect(frame).not.toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    await expect
+      .poll(async () => {
+        const after = await glyph.boundingBox();
+        return after && before ? after.width / before.width : 0;
+      })
+      .toBeCloseTo(1.1, 2);
+    expect(await option.boundingBox()).toEqual(bounds);
+    expect(await option.locator(badge).boundingBox()).toEqual(checkBefore);
+    await page.mouse.move(0, 0);
+    await expect(frame).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  }
+  await page.screenshot({ path: "test-results/emoji-check-badges.png" });
+});
+
 test("search previews locally, keeps the picker open, and saves the full sequence", async ({
   page,
 }) => {
