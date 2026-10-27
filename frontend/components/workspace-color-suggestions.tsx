@@ -62,13 +62,15 @@ export function WorkspaceColorSuggestions({
       role="group"
       aria-label="Icon appearance"
     >
-      <div className="flex h-8 shrink-0 items-center justify-between gap-2">
-        <span className="text-xs text-muted-foreground">Color suggestions</span>
+      <div className="-mb-1 flex h-6 shrink-0 items-center justify-between gap-2">
+        <span className="text-xs font-medium text-muted-foreground">
+          Color suggestions
+        </span>
         {remaining > 0 && (
           <Button
             type="button"
             variant="ghost"
-            size="sm"
+            size="xs"
             aria-label={`Show ${remaining} more color suggestions`}
             onClick={(event) => {
               restoreFocus.current =
