@@ -417,10 +417,12 @@ test("keyboard browsing keeps the active emoji visible beyond the first rows in 
   const active = editor(page).getByRole("gridcell", { selected: true });
   for (let index = 0; index < 18; index++) {
     await page.keyboard.press("ArrowDown");
+    await expect(active).toHaveCount(1);
     await expect(active).toBeInViewport({ ratio: 1 });
   }
   for (let index = 0; index < 12; index++) {
     await page.keyboard.press("ArrowUp");
+    await expect(active).toHaveCount(1);
     await expect(active).toBeInViewport({ ratio: 1 });
   }
   const selected = await active.textContent();
