@@ -189,6 +189,12 @@ export const snapshotSchema = z.object({
 });
 
 export const preferencesSchema = z.object({
+  aggregate_destination: z
+    .discriminatedUnion("kind", [
+      z.object({ kind: z.literal("prompt") }),
+      z.object({ kind: z.literal("workspace"), workspace_id: z.string() }),
+    ])
+    .default({ kind: "prompt" }),
   aggregate_views: aggregateViewsSchema.prefault({}),
   concurrent_downloads: z.number(),
   enable_dht: z.boolean(),

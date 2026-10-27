@@ -1,18 +1,9 @@
-import {
-  ChevronDown,
-  Download,
-  FolderClosed,
-  FolderPlus,
-  Link,
-  Loader2,
-  Search,
-  Settings2,
-  X,
-} from "lucide-react";
+import { Download, Link, Loader2, Search, Settings2, X } from "lucide-react";
 import { useState } from "react";
 import type { FormEvent, RefObject } from "react";
 
-import { SidebarPopover } from "@/components/sidebar-popover";
+import { DestinationDialog } from "@/components/destination-dialog";
+import { DestinationPicker } from "@/components/destination-picker";
 import { Button } from "@/components/ui/button";
 import {
   InputGroup,
@@ -21,37 +12,74 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import { toast } from "@/components/ui/toast";
+import type { Location } from "@/components/workspace-sidebar";
 import { bridge, errorMessage } from "@/lib/bridge";
+import { naturalDestination, recommendedWorkspace } from "@/lib/destination";
+import type { Destination } from "@/lib/destination";
 import { isDownloadLink } from "@/lib/download-link";
 import { useLibrary } from "@/lib/library";
 import type { Workspace } from "@/lib/model";
 
-export function DownloadInput({
-  workspace,
+export const DownloadInput = ({
+  workspaces,
+  location,
+  lastUsed,
+  onUsed,
   disabled,
   onOptions,
   query,
   setQuery,
   inputRef,
 }: {
-  workspace: Workspace;
+  workspaces: Workspace[];
+  location: Location;
+  lastUsed?: string;
+  onUsed: (workspaceId: string) => void;
   disabled: boolean;
-  onOptions: (url: string, folderId: string) => void;
+  onOptions: (url: string, folderId: string, workspaceId: string) => void;
   query: string;
   setQuery: (query: string) => void;
   inputRef: RefObject<HTMLInputElement | null>;
-}) {
-  const { run } = useLibrary();
-  const [selectedFolderId, setSelectedFolderId] = useState<string>();
-  const [adding, setAdding] = useState(false);
+}) => {
+  const { run, preferences, savePreferences } = useLibrary();
 
-  const folder =
-    workspace.folders.find((option) => option.id === selectedFolderId) ??
-    workspace.folders.find((option) => option.is_default);
+  const [override, setOverride] = useState<{
+    workspaceId: string;
+    folderId: string;
+  }>();
+
+  const [adding, setAdding] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+
+  const overrideWorkspace = workspaces.find(
+    (item) => item.id === override?.workspaceId
+  );
+
+  const overrideFolder = overrideWorkspace?.folders.find(
+    (item) => item.id === override?.folderId
+  );
+
+  const destination =
+    overrideWorkspace && overrideFolder
+      ? { folder: overrideFolder, workspace: overrideWorkspace }
+      : naturalDestination(workspaces, location, preferences);
+
+  const recommended = recommendedWorkspace(workspaces, preferences, lastUsed);
+
+  const selectDestination = (next: Destination) => {
+    setOverride({ folderId: next.folder.id, workspaceId: next.workspace.id });
+  };
 
   const isLink = isDownloadLink(query);
+  const locked = disabled || adding;
 
-  async function addLocation() {
+  const addLocation = async () => {
+    const workspace = destination?.workspace ?? recommended;
+
+    if (!workspace) {
+      return;
+    }
+
     try {
       const path = await bridge.chooseFolder();
 
@@ -74,7 +102,7 @@ export function DownloadInput({
       });
 
       if (receipt) {
-        setSelectedFolderId(folderId);
+        setOverride({ folderId, workspaceId: workspace.id });
       }
     } catch (error) {
       toast.add({
@@ -83,16 +111,32 @@ export function DownloadInput({
         type: "error",
       });
     }
-  }
+  };
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-
-    if (!folder || disabled || adding || !isLink) {
+  const download = async (next: Destination, automatic = false) => {
+    if (locked || !isLink) {
       return;
     }
 
     setAdding(true);
+
+    if (
+      automatic &&
+      (!preferences ||
+        !(await savePreferences({
+          ...preferences,
+          aggregate_destination: {
+            kind: "workspace",
+            workspace_id: next.workspace.id,
+          },
+        })))
+    ) {
+      setAdding(false);
+
+      return;
+    }
+
+    const { workspace, folder } = next;
     const link = query.trim();
 
     const receipt = await run({
@@ -108,127 +152,140 @@ export function DownloadInput({
     });
 
     if (receipt) {
+      selectDestination(next);
+      onUsed(workspace.id);
+      setConfirming(false);
       setQuery("");
     }
 
     setAdding(false);
-  }
+  };
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+
+    if (locked || !isLink) {
+      return;
+    }
+
+    if (!destination) {
+      setConfirming(true);
+
+      return;
+    }
+
+    await download(destination);
+  };
 
   return (
-    <form
-      onSubmit={submit}
-      aria-label="Search or add a download"
-      className="flex min-w-0 flex-1 items-center gap-1"
-    >
-      <InputGroup>
-        <InputGroupAddon>
-          {isLink ? <Link aria-hidden /> : <Search aria-hidden />}
-          <span className="sr-only">
-            {isLink ? "Download link recognized" : "Search query"}
-          </span>
-        </InputGroupAddon>
-        <InputGroupInput
-          ref={inputRef}
-          type="search"
-          aria-label="Search downloads or paste a link"
-          placeholder="Search or paste a link…"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          onKeyDown={(event) => {
-            if (
-              event.key === "Escape" &&
-              !event.defaultPrevented &&
-              !document.querySelector(
-                '[data-slot="popover-content"]:not([data-closed]), [role="dialog"]:not([data-closed])'
-              )
-            ) {
-              event.preventDefault();
-              setQuery("");
+    <>
+      <form
+        onSubmit={submit}
+        aria-label="Search or add a download"
+        className="flex min-w-0 flex-1 items-center gap-1"
+      >
+        <InputGroup>
+          <InputGroupAddon>
+            {isLink ? <Link aria-hidden /> : <Search aria-hidden />}
+            <span className="sr-only">
+              {isLink ? "Download link recognized" : "Search query"}
+            </span>
+          </InputGroupAddon>
+          <InputGroupInput
+            ref={inputRef}
+            type="search"
+            aria-label="Search downloads or paste a link"
+            placeholder="Search or paste a link…"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (
+                event.key === "Escape" &&
+                !event.defaultPrevented &&
+                !document.querySelector(
+                  '[data-slot="popover-content"]:not([data-closed]), [role="dialog"]:not([data-closed])'
+                )
+              ) {
+                event.preventDefault();
+                setQuery("");
+              }
+            }}
+          />
+          <InputGroupAddon align="inline-end">
+            {query && (
+              <InputGroupButton
+                size="icon-xs"
+                aria-label="Clear input"
+                onClick={() => {
+                  setQuery("");
+                  inputRef.current?.focus();
+                }}
+              >
+                <X data-icon="inline-start" />
+              </InputGroupButton>
+            )}
+            <DestinationPicker
+              workspaces={workspaces}
+              destination={destination}
+              viewedWorkspaceId={
+                location.kind === "workspace" ? location.workspaceId : undefined
+              }
+              disabled={locked}
+              onSelect={selectDestination}
+              onAdd={() => void addLocation()}
+            />
+            <InputGroupButton
+              type="submit"
+              variant={isLink ? "default" : "ghost"}
+              disabled={locked || !isLink || !workspaces.length}
+              aria-label="Download link"
+            >
+              {adding ? (
+                <Loader2 className="animate-spin" data-icon="inline-start" />
+              ) : (
+                <Download data-icon="inline-start" />
+              )}
+              <span className="header-download-label">
+                {adding ? "Adding…" : "Download"}
+              </span>
+            </InputGroupButton>
+          </InputGroupAddon>
+        </InputGroup>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Download options"
+          title="Video pages, formats, and torrent files"
+          disabled={locked || !workspaces.length}
+          onClick={() => {
+            const target =
+              destination ??
+              naturalDestination(
+                workspaces,
+                { kind: "workspace", workspaceId: recommended?.id ?? "" },
+                preferences
+              );
+
+            if (target) {
+              onOptions(query, target.folder.id, target.workspace.id);
             }
           }}
+        >
+          <Settings2 />
+        </Button>
+      </form>
+      {confirming && recommended && (
+        <DestinationDialog
+          workspaces={workspaces}
+          recommended={recommended}
+          canSaveDefault={preferences !== null}
+          disabled={locked}
+          onConfirm={download}
+          onClose={() => setConfirming(false)}
+          inputRef={inputRef}
         />
-        <InputGroupAddon align="inline-end">
-          {query && (
-            <InputGroupButton
-              size="icon-xs"
-              aria-label="Clear input"
-              onClick={() => {
-                setQuery("");
-                inputRef.current?.focus();
-              }}
-            >
-              <X data-icon="inline-start" />
-            </InputGroupButton>
-          )}
-          <SidebarPopover
-            title="Save location"
-            trigger={
-              <InputGroupButton
-                aria-label={`Save location: ${folder?.name ?? "Choose"}`}
-                title={folder?.path}
-                disabled={disabled || adding}
-              >
-                <FolderClosed data-icon="inline-start" />
-                <span className="header-location max-w-24 truncate">
-                  {folder?.name ?? "Save to"}
-                </span>
-                <ChevronDown data-icon="inline-end" />
-              </InputGroupButton>
-            }
-            groups={[
-              {
-                actions: [...workspace.folders]
-                  .sort((a, b) => Number(b.is_default) - Number(a.is_default))
-                  .map((option) => ({
-                    icon: FolderClosed,
-                    label: `${option.name}${option.is_default ? " (Default)" : ""}`,
-                    onClick: () => setSelectedFolderId(option.id),
-                    selected: option.id === folder?.id,
-                  })),
-              },
-              {
-                actions: [
-                  {
-                    icon: FolderPlus,
-                    label: "Add new location…",
-                    onClick: () => void addLocation(),
-                  },
-                ],
-              },
-            ]}
-          />
-          <InputGroupButton
-            type="submit"
-            variant={isLink ? "default" : "ghost"}
-            disabled={disabled || adding || !isLink || !folder}
-            aria-label="Download link"
-          >
-            {adding ? (
-              <Loader2 className="animate-spin" data-icon="inline-start" />
-            ) : (
-              <Download data-icon="inline-start" />
-            )}
-            <span className="header-download-label">
-              {adding ? "Adding…" : "Download"}
-            </span>
-          </InputGroupButton>
-        </InputGroupAddon>
-      </InputGroup>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        aria-label="Download options"
-        title="Video pages, formats, and torrent files"
-        disabled={disabled || adding || !folder}
-        onClick={() => {
-          if (folder) {
-            onOptions(query, folder.id);
-          }
-        }}
-      >
-        <Settings2 />
-      </Button>
-    </form>
+      )}
+    </>
   );
-}
+};

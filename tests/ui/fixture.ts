@@ -58,6 +58,7 @@ export const baseDownload: Download = {
 };
 
 export const preferences: Preferences = {
+  aggregate_destination: { kind: "prompt" },
   aggregate_views: {
     active: { grouping: "None", layout: "List", sort: "Order" },
     all: { grouping: "None", layout: "List", sort: "Order" },
@@ -147,6 +148,10 @@ export async function mockDesktop(
     empty?: boolean;
     persist?: boolean;
     failFirstView?: boolean;
+    failFirstAdd?: boolean;
+    failFirstPreferences?: boolean;
+    failPreferencesRead?: boolean;
+    preferences?: Preferences;
     fail?: boolean;
     recovery?: boolean;
     snapshot?: Snapshot;
@@ -194,6 +199,8 @@ export async function mockDesktop(
       }
 
       let viewAttempts = 0;
+      let addAttempts = 0;
+      let preferenceAttempts = 0;
       let callbackId = 0;
       let draftCalls = 0;
       let createAttempts = 0;
@@ -219,7 +226,13 @@ export async function mockDesktop(
                 throw new Error("The state directory is already in use");
               return structuredClone(snapshot);
             }
-            if (name === "get_preferences") return preferences;
+            if (name === "get_preferences") {
+              if (options.failPreferencesRead) {
+                throw new Error("Preferences are unavailable");
+              }
+
+              return preferences;
+            }
             if (name === "workspace_appearance_draft") {
               const workspace = snapshot.workspaces.find(
                 (workspace) => workspace.id === args.workspaceId
@@ -255,6 +268,12 @@ export async function mockDesktop(
               args.preferences &&
               "theme" in args.preferences
             ) {
+              preferenceAttempts += 1;
+
+              if (options.failFirstPreferences && preferenceAttempts === 1) {
+                throw new Error("Couldn't write preferences. Try again.");
+              }
+
               preferences = {
                 ...args.preferences,
                 aggregate_views: preferences.aggregate_views,
@@ -436,13 +455,19 @@ export async function mockDesktop(
                     (download) => !command.download_ids.includes(download.id)
                   );
               if (command.kind === "add_url") {
+                addAttempts += 1;
+
+                if (options.failFirstAdd && addAttempts === 1) {
+                  throw new Error("Couldn't add download. Try again.");
+                }
+
                 if (!/^https?:\/\//.test(command.url))
                   throw new Error("Use an HTTP, HTTPS, or magnet link.");
                 snapshot.workspaces
                   .find((workspace) => workspace.id === command.workspace_id)
                   ?.downloads.push({
                     ...baseDownload,
-                    id: "imported",
+                    id: `imported-${snapshot.sequence}`,
                     name: "new-file.zip",
                     source_url: command.url,
                     folder_id: command.folder_id,
@@ -498,7 +523,7 @@ export async function mockDesktop(
     {
       baseDownload,
       folderTreatments,
-      initialPreferences: preferences,
+      initialPreferences: options.preferences ?? preferences,
       initialSnapshot: options.snapshot ?? snapshot,
       options,
     }

@@ -142,7 +142,7 @@ test("Escape dismisses overlays before clearing the unified input", async ({
   for (const name of [
     "Filter downloads",
     "Date added: sort and group",
-    "Save location: Downloads",
+    "Save location: Downloads › Downloads",
     "Workspace actions",
   ]) {
     await page.getByRole("button", { exact: true, name }).click();

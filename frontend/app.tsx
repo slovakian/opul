@@ -47,7 +47,7 @@ import { cn } from "@/lib/utils";
 
 type Modal =
   | { kind: "icon"; workspace: Workspace; anchor: HTMLButtonElement | null }
-  | { kind: "add"; url?: string; folderId?: string }
+  | { kind: "add"; url?: string; folderId?: string; workspaceId: string }
   | { kind: "settings" }
   | { kind: "workspace"; workspace: Workspace | null }
   | { kind: "remove"; download: Download }
@@ -63,6 +63,8 @@ export default function App() {
     }
   }, [state.kind]);
   const [location, setLocation] = useState<Location>({ kind: "all" });
+  const [navigation, setNavigation] = useState(0);
+  const [lastDestination, setLastDestination] = useState<string>();
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string>();
@@ -172,6 +174,7 @@ export default function App() {
 
   function navigate(next: Location) {
     setLocation(next);
+    setNavigation((count) => count + 1);
     setFilter("all");
     setSelectedId(undefined);
   }
@@ -277,14 +280,17 @@ export default function App() {
         >
           {workspace && (
             <DownloadInput
-              key={workspace?.id}
-              workspace={workspace}
+              key={navigation}
+              workspaces={workspaces}
+              location={location}
+              lastUsed={lastDestination}
+              onUsed={setLastDestination}
               disabled={!canEdit || busy}
               query={query}
               setQuery={setQuery}
               inputRef={searchRef}
-              onOptions={(url, folderId) =>
-                setModal({ folderId, kind: "add", url })
+              onOptions={(url, folderId, workspaceId) =>
+                setModal({ folderId, kind: "add", url, workspaceId })
               }
             />
           )}
@@ -491,7 +497,10 @@ export default function App() {
       {modal?.kind === "add" && workspace && (
         <AddDownloadDialog
           workspaces={workspaces}
-          initialWorkspace={workspace}
+          initialWorkspace={
+            workspaces.find((item) => item.id === modal.workspaceId) ??
+            workspace
+          }
           initialFolder={modal.folderId ?? folderId}
           initialUrl={modal.url}
           onClose={() => setModal(null)}

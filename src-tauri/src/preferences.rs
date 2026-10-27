@@ -10,6 +10,7 @@ use std::sync::Mutex;
 pub struct Preferences {
     pub theme: Theme,
     pub aggregate_views: AggregateViews,
+    pub aggregate_destination: AggregateDestination,
     pub max_download_kbps: u32,
     pub max_upload_kbps: u32,
     pub concurrent_downloads: u32,
@@ -19,6 +20,16 @@ pub struct Preferences {
     pub max_connections: u32,
     pub yt_dlp_path: Option<String>,
     pub ffmpeg_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum AggregateDestination {
+    #[default]
+    Prompt,
+    Workspace {
+        workspace_id: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -69,6 +80,7 @@ impl Default for Preferences {
         Self {
             theme: Theme::System,
             aggregate_views: AggregateViews::default(),
+            aggregate_destination: AggregateDestination::default(),
             max_download_kbps: 0,
             max_upload_kbps: 0,
             concurrent_downloads: 3,
@@ -175,6 +187,51 @@ impl PreferenceStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn aggregate_destination_defaults_and_round_trips_without_changing_display_preferences() {
+        let directory =
+            std::env::temp_dir().join(format!("opul-destination-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(
+            directory.join("desktop-preferences.json"),
+            br#"{"theme":"dark"}"#,
+        )
+        .unwrap();
+        let store = PreferenceStore::open(&directory).unwrap();
+        assert_eq!(
+            store.get().aggregate_destination,
+            AggregateDestination::Prompt
+        );
+        let mut preferences = store.get();
+        preferences.aggregate_destination = AggregateDestination::Workspace {
+            workspace_id: "media".into(),
+        };
+        store.save(preferences).unwrap();
+        store
+            .save_aggregate_view(
+                AggregateView::All,
+                DisplayPreferences {
+                    layout: MachineLayout::Table,
+                    ..DisplayPreferences::default()
+                },
+            )
+            .unwrap();
+        let reopened = PreferenceStore::open(&directory).unwrap();
+        assert_eq!(
+            reopened.get().aggregate_destination,
+            AggregateDestination::Workspace {
+                workspace_id: "media".into()
+            }
+        );
+        let mut preferences = reopened.get();
+        preferences.aggregate_destination = AggregateDestination::Prompt;
+        reopened.save(preferences).unwrap();
+        let restored = PreferenceStore::open(&directory).unwrap().get();
+        assert_eq!(restored.aggregate_destination, AggregateDestination::Prompt);
+        assert_eq!(restored.aggregate_views.all.layout, MachineLayout::Table);
+        fs::remove_dir_all(directory).unwrap();
+    }
 
     #[test]
     fn aggregate_views_persist_independently_and_old_settings_get_defaults() {

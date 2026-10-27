@@ -175,6 +175,9 @@ test("header downloads use the workspace default and selected saved folder", asy
   });
   await mockDesktop(page, { snapshot: library });
   await page.goto("/");
+  await page
+    .getByRole("button", { exact: true, name: "Downloads workspace" })
+    .click();
   const header = page.locator("main > header");
   await expect(
     header.getByRole("searchbox", { name: "Search downloads or paste a link" })
@@ -260,7 +263,10 @@ test("add a saved location from the download input without changing the default"
   });
   await link.fill("https://example.com/new-file.zip");
   await header
-    .getByRole("button", { name: "Save location: Downloads", exact: true })
+    .getByRole("button", {
+      name: "Save location: Downloads › Downloads",
+      exact: true,
+    })
     .click();
   const menu = page.locator('[data-slot="popover-content"]');
   await menu
@@ -268,16 +274,19 @@ test("add a saved location from the download input without changing the default"
     .click();
   await expect(
     header.getByRole("button", {
-      name: "Save location: Research",
+      name: "Save location: Downloads › Research",
       exact: true,
     })
   ).toBeVisible();
   await expect(link).toHaveValue("https://example.com/new-file.zip");
   await header
-    .getByRole("button", { name: "Save location: Research", exact: true })
+    .getByRole("button", {
+      name: "Save location: Downloads › Research",
+      exact: true,
+    })
     .click();
-  await expect(menu.locator('[data-slot="sidebar-group-label"]')).toHaveCount(
-    0
+  await expect(menu.locator('[data-slot="sidebar-group-label"]')).toHaveText(
+    "Downloads"
   );
   await expect(menu.getByRole("button").first()).toHaveText(
     "Downloads (Default)"
@@ -323,7 +332,10 @@ for (const outcome of ["cancelled", "failed"]) {
     });
     await link.fill("https://example.com/new-file.zip");
     await header
-      .getByRole("button", { name: "Save location: Downloads", exact: true })
+      .getByRole("button", {
+        name: "Save location: Downloads › Downloads",
+        exact: true,
+      })
       .click();
     await page
       .locator('[data-slot="popover-content"]')
@@ -333,7 +345,7 @@ for (const outcome of ["cancelled", "failed"]) {
       await expect(page.getByText("Folder picker unavailable")).toBeVisible();
     await expect(
       header.getByRole("button", {
-        name: "Save location: Downloads",
+        name: "Save location: Downloads › Downloads",
         exact: true,
       })
     ).toBeVisible();

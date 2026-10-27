@@ -78,7 +78,8 @@ function SettingsContent({
   initial: Preferences;
   onClose: () => void;
 }) {
-  const { savePreferences } = useLibrary();
+  const { savePreferences, state } = useLibrary();
+  const workspaces = state.kind === "ready" ? state.snapshot.workspaces : [];
   const [section, setSection] = useState("Appearance");
   const [draft, setDraft] = useState(initial);
   const [saving, setSaving] = useState(false);
@@ -203,6 +204,70 @@ function SettingsContent({
                 Limits apply as soon as you save.
               </p>
               <FieldGroup>
+                <Field>
+                  <FieldLabel>Destination in aggregate views</FieldLabel>
+                  <Choice
+                    label="Aggregate destination"
+                    value={draft.aggregate_destination.kind}
+                    options={[
+                      { label: "Ask each time", value: "prompt" },
+                      { label: "Use a default workspace", value: "workspace" },
+                    ]}
+                    onChange={(kind) => {
+                      if (kind === "prompt") {
+                        setDraft({
+                          ...draft,
+                          aggregate_destination: { kind: "prompt" },
+                        });
+                      } else if (workspaces[0]) {
+                        setDraft({
+                          ...draft,
+                          aggregate_destination: {
+                            kind: "workspace",
+                            workspace_id: workspaces[0].id,
+                          },
+                        });
+                      }
+                    }}
+                  />
+                  <FieldDescription>
+                    Applies to All downloads, In progress, and Completed when
+                    you have multiple workspaces.
+                  </FieldDescription>
+                </Field>
+                {draft.aggregate_destination.kind === "workspace" && (
+                  <Field>
+                    <FieldLabel>Default workspace</FieldLabel>
+                    <Choice
+                      label="Default workspace"
+                      value={draft.aggregate_destination.workspace_id}
+                      options={workspaces.map((workspace) => ({
+                        label: workspace.name,
+                        value: workspace.id,
+                      }))}
+                      onChange={(workspace_id) =>
+                        setDraft({
+                          ...draft,
+                          aggregate_destination: {
+                            kind: "workspace",
+                            workspace_id,
+                          },
+                        })
+                      }
+                    />
+                    {!workspaces.some(
+                      (workspace) =>
+                        draft.aggregate_destination.kind === "workspace" &&
+                        workspace.id ===
+                          draft.aggregate_destination.workspace_id
+                    ) && (
+                      <FieldDescription>
+                        Choose a workspace. The previous default is unavailable;
+                        downloads will ask for a destination.
+                      </FieldDescription>
+                    )}
+                  </Field>
+                )}
                 <Field>
                   <FieldLabel>Concurrent media downloads</FieldLabel>
                   <Choice
