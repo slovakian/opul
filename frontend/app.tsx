@@ -15,7 +15,6 @@ import {
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbList,
-  BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import {
@@ -33,6 +32,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DownloadInput } from "@/components/download-input";
 import { DownloadToolbar } from "@/components/download-toolbar";
 import { AddDownloadDialog } from "@/components/add-download-dialog";
 import { DownloadInspector } from "@/components/download-inspector";
@@ -55,7 +55,7 @@ import {
 } from "@/lib/model";
 
 type Modal =
-  | { kind: "add"; url?: string }
+  | { kind: "add"; url?: string; folderId?: string }
   | { kind: "settings" }
   | { kind: "workspace"; workspace: Workspace | null }
   | { kind: "remove"; download: Download }
@@ -201,115 +201,117 @@ export default function App() {
         onNew={() => setModal({ kind: "add" })}
       />
       <SidebarInset className="h-svh min-w-0 overflow-hidden">
-        <header
-          data-tauri-drag-region
-          className="flex h-14 shrink-0 items-center gap-2 px-4"
-        >
-          <SidebarTrigger />
-          <Separator
-            orientation="vertical"
-            className="mx-1 data-[orientation=vertical]:h-4"
-          />
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbPage className="flex items-center gap-2 truncate">
-                  {location.kind === "workspace" && workspace ? (
+        <header className="shrink-0 border-b">
+          <div
+            data-tauri-drag-region
+            className="flex min-h-14 flex-wrap items-center gap-x-2 gap-y-2 px-4 py-3"
+          >
+            <div className="flex min-w-0 flex-1 items-center gap-2 sm:max-w-56 sm:flex-initial">
+              <SidebarTrigger />
+              <Separator
+                orientation="vertical"
+                className="mx-1 data-vertical:h-4 data-vertical:self-center"
+              />
+              <Breadcrumb className="min-w-0">
+                <BreadcrumbList className="flex-nowrap">
+                  {folder && workspace && (
                     <>
-                      <span aria-hidden>{workspaceEmoji(workspace)}</span>
-                      {workspace.name}
+                      <BreadcrumbItem className="min-w-0">
+                        <span className="truncate">{workspace.name}</span>
+                      </BreadcrumbItem>
+                      <BreadcrumbSeparator />
                     </>
-                  ) : (
-                    "Library"
                   )}
-                </BreadcrumbPage>
-              </BreadcrumbItem>
-              {folder && (
-                <>
-                  <BreadcrumbSeparator />
-                  <BreadcrumbItem>
-                    <BreadcrumbPage>{folder.name}</BreadcrumbPage>
+                  <BreadcrumbItem className="min-w-0">
+                    <h1
+                      aria-label={title}
+                      aria-current="page"
+                      className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground"
+                    >
+                      {location.kind === "workspace" && workspace && (
+                        <span aria-hidden>{workspaceEmoji(workspace)}</span>
+                      )}
+                      <span className="truncate">{title}</span>
+                    </h1>
                   </BreadcrumbItem>
-                </>
-              )}
-            </BreadcrumbList>
-          </Breadcrumb>
-          <div data-tauri-drag-region className="h-full flex-1" />
-          <SidebarPopover
-            title="Workspace actions"
-            trigger={
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Workspace actions"
-              >
-                <MoreHorizontal />
-              </Button>
-            }
-            groups={[
-              {
-                actions: [
-                  {
-                    label: "New download",
-                    icon: Plus,
-                    onClick: () => setModal({ kind: "add" }),
-                    disabled: !canEdit,
-                  },
-                  {
-                    label: "Settings",
-                    icon: Settings2,
-                    onClick: () => setModal({ kind: "settings" }),
-                  },
-                ],
-              },
-              ...(location.kind === "workspace" && workspace
-                ? [
+                </BreadcrumbList>
+              </Breadcrumb>
+            </div>
+            <DownloadToolbar
+              searchRef={searchRef}
+              query={query}
+              setQuery={setQuery}
+              filter={filter}
+              setFilter={setFilter}
+              workspace={workspace}
+              view={view}
+              disabled={!canEdit || busy}
+            />
+            <SidebarPopover
+              title="Workspace actions"
+              trigger={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Workspace actions"
+                >
+                  <MoreHorizontal />
+                </Button>
+              }
+              groups={[
+                {
+                  actions: [
                     {
-                      actions: [
-                        {
-                          label: "Edit workspace",
-                          icon: FolderOpen,
-                          onClick: () =>
-                            setModal({ kind: "workspace", workspace }),
-                        },
-                        {
-                          label: "Delete workspace",
-                          icon: Trash2,
-                          destructive: true,
-                          disabled: workspaces.length === 1 || !canEdit,
-                          onClick: () =>
-                            setModal({ kind: "delete-workspace", workspace }),
-                        },
-                      ],
+                      label: "New download",
+                      icon: Plus,
+                      onClick: () => setModal({ kind: "add" }),
+                      disabled: !canEdit,
                     },
-                  ]
-                : []),
-            ]}
-          />
+                    {
+                      label: "Settings",
+                      icon: Settings2,
+                      onClick: () => setModal({ kind: "settings" }),
+                    },
+                  ],
+                },
+                ...(location.kind === "workspace" && workspace
+                  ? [
+                      {
+                        actions: [
+                          {
+                            label: "Edit workspace",
+                            icon: FolderOpen,
+                            onClick: () =>
+                              setModal({ kind: "workspace", workspace }),
+                          },
+                          {
+                            label: "Delete workspace",
+                            icon: Trash2,
+                            destructive: true,
+                            disabled: workspaces.length === 1 || !canEdit,
+                            onClick: () =>
+                              setModal({ kind: "delete-workspace", workspace }),
+                          },
+                        ],
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+          </div>
+          {workspace && (
+            <DownloadInput
+              key={workspace.id}
+              workspace={workspace}
+              disabled={!canEdit || busy}
+              onOptions={(url, folderId) =>
+                setModal({ kind: "add", url, folderId })
+              }
+            />
+          )}
         </header>
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-          <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 pt-9 pb-8 lg:px-10">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex min-w-0 flex-col gap-1.5">
-                <h1 className="truncate text-2xl font-semibold tracking-tight">
-                  {title}
-                </h1>
-                <p className="text-sm text-muted-foreground">
-                  {location.kind === "all"
-                    ? "All your downloads in one place."
-                    : folder
-                      ? folder.path
-                      : "Downloads saved to this workspace."}
-                </p>
-              </div>
-              <Button
-                disabled={!canEdit || busy}
-                onClick={() => setModal({ kind: "add" })}
-              >
-                <Plus data-icon="inline-start" />
-                <span className="hidden sm:inline">Add download</span>
-              </Button>
-            </div>
+          <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6 lg:px-10">
             {state.kind === "ready" && state.snapshot.session !== "Running" && (
               <Alert>
                 <CircleAlert />
@@ -336,16 +338,6 @@ export default function App() {
                 </AlertDescription>
               </Alert>
             )}
-            <DownloadToolbar
-              searchRef={searchRef}
-              query={query}
-              setQuery={setQuery}
-              filter={filter}
-              setFilter={setFilter}
-              workspace={workspace}
-              view={view}
-              disabled={!canEdit || busy}
-            />
             {state.kind === "loading" ? (
               <div
                 className="flex flex-col gap-4"
@@ -437,7 +429,7 @@ export default function App() {
         <AddDownloadDialog
           workspaces={workspaces}
           initialWorkspace={workspace}
-          initialFolder={folderId}
+          initialFolder={modal.folderId ?? folderId}
           initialUrl={modal.url}
           onClose={() => setModal(null)}
         />

@@ -53,8 +53,8 @@ export function DownloadToolbar({
   disabled: boolean;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <InputGroup className="max-w-64 flex-1">
+    <div className="order-last flex w-full min-w-0 items-center gap-1 sm:order-none sm:ml-auto sm:w-auto sm:max-w-md sm:flex-1">
+      <InputGroup className="min-w-20 flex-1">
         <InputGroupInput
           ref={searchRef}
           type="search"
@@ -71,14 +71,16 @@ export function DownloadToolbar({
         title="Filter downloads"
         trigger={
           <Button
-            variant="ghost"
-            size="sm"
+            variant={filter === "all" ? "ghost" : "secondary"}
+            size="icon-sm"
             aria-label={`${filter === "all" ? "Filter" : filterOptions.find((option) => option.value === filter)?.label} downloads`}
+            title={
+              filter === "all"
+                ? "Filter downloads"
+                : filterOptions.find((option) => option.value === filter)?.label
+            }
           >
-            <ListFilter data-icon="inline-start" />
-            {filter === "all"
-              ? "Filter"
-              : filterOptions.find((option) => option.value === filter)?.label}
+            <ListFilter />
           </Button>
         }
         groups={[
@@ -97,13 +99,11 @@ export function DownloadToolbar({
         trigger={
           <Button
             variant="ghost"
-            size="sm"
+            size="icon-sm"
             aria-label={`${workspace ? sortNames[workspace.sort] : "Sort"}: sort and group`}
+            title="Sort and group"
           >
-            <ArrowUpDown data-icon="inline-start" />
-            <span className="hidden md:inline">
-              {workspace ? sortNames[workspace.sort] : "Sort"}
-            </span>
+            <ArrowUpDown />
           </Button>
         }
         groups={[
@@ -127,7 +127,6 @@ export function DownloadToolbar({
           },
         ]}
       />
-      <div className="flex-1" />
       <ToggleGroup
         value={[workspace?.layout ?? "List"]}
         onValueChange={(values) => {

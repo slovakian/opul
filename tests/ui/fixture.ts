@@ -126,7 +126,12 @@ export const snapshot: Snapshot = {
 
 export async function mockDesktop(
   page: Page,
-  options: { empty?: boolean; fail?: boolean; recovery?: boolean } = {},
+  options: {
+    empty?: boolean;
+    fail?: boolean;
+    recovery?: boolean;
+    snapshot?: Snapshot;
+  } = {},
 ) {
   await page.addInitScript(
     ({ initialSnapshot, initialPreferences, options, baseDownload }) => {
@@ -260,7 +265,7 @@ export async function mockDesktop(
       });
     },
     {
-      initialSnapshot: snapshot,
+      initialSnapshot: options.snapshot ?? snapshot,
       initialPreferences: preferences,
       options,
       baseDownload,
