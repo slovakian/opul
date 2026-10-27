@@ -94,6 +94,9 @@ test("search previews locally, keeps the picker open, and saves the full sequenc
   await mockDesktop(page);
   await page.goto("/");
   await openPicker(page);
+  await expect(
+    editor(page).locator("[frimousse-category-header]:visible").first(),
+  ).toHaveText("Smileys & emotion");
   await choose(page, "family", "family: man, woman, girl, boy");
   await expect(
     editor(page).getByRole("img", { name: "Icon preview: 👨‍👩‍👧‍👦" }),
