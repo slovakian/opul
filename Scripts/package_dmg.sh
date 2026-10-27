@@ -11,6 +11,7 @@ fi
 if [[ -n "${MARKETING_VERSION:-}" ]]; then
   ARGS+=(--config "{\"version\":\"$MARKETING_VERSION\"}")
 fi
+export APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}"
 npm run tauri -- "${ARGS[@]}"
 shopt -s nullglob
 DMGS=("$TARGET_DIR/release/bundle/dmg/"*.dmg)

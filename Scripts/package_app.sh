@@ -17,6 +17,8 @@ fi
 if [[ -n "${MARKETING_VERSION:-}" ]]; then
   ARGS+=(--config "{\"version\":\"$MARKETING_VERSION\"}")
 fi
+export APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}"
 npm run tauri -- "${ARGS[@]}"
 ditto "$TARGET_DIR/$BUILD_CONF/bundle/macos/Opul.app" "$ROOT_DIR/Opul.app"
+codesign --verify --deep --strict "$ROOT_DIR/Opul.app"
 echo "Built $ROOT_DIR/Opul.app"
