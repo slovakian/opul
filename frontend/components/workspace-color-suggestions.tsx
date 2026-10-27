@@ -1,6 +1,6 @@
 import { Toggle as TogglePrimitive } from "@base-ui/react/toggle";
 import { Check } from "lucide-react";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { createColorSuggestions } from "@/lib/color-suggestions";
 import { cn } from "@/lib/utils";
 import { canTreatEmoji, isFolderEmoji } from "@/lib/workspace-appearance";
 
-export function WorkspaceColorSuggestions({
+export const WorkspaceColorSuggestions = ({
   workspaceId,
   draft,
   onChange,
@@ -24,21 +24,30 @@ export function WorkspaceColorSuggestions({
   onChange: Dispatch<SetStateAction<IconDraft>>;
   onCustomize: () => void;
   customButton: RefObject<HTMLButtonElement | null>;
-}) {
-  const [{ folder, other }] = useState(() =>
-    createColorSuggestions({ appearance: draft.appearance, workspaceId })
+}) => {
+  const suggestions = useMemo(
+    () => createColorSuggestions({ appearance: draft.appearance, workspaceId }),
+    [draft.appearance, workspaceId]
   );
 
-  const [savedPreference] = useState(draft.appearance.preference);
+  const { folder, other } = suggestions;
+
+  const savedPreference = useMemo(
+    () => draft.appearance.preference,
+    [draft.appearance.preference]
+  );
+
   const [expanded, setExpanded] = useState(false);
   const firstRevealed = useRef<HTMLButtonElement>(null);
   const restoreFocus = useRef(false);
+
   useLayoutEffect(() => {
     if (expanded && restoreFocus.current) {
       firstRevealed.current?.focus({ preventScroll: true });
       restoreFocus.current = false;
     }
   }, [expanded]);
+
   const { emoji, appearance } = draft;
   const { preference } = appearance;
   const folderEmoji = isFolderEmoji(emoji);
@@ -46,19 +55,21 @@ export function WorkspaceColorSuggestions({
   const visible = expanded ? choices : choices.slice(0, 6);
   const remaining = choices.length - visible.length;
 
-  function select(preference: typeof appearance.preference) {
-    onChange((draft) => ({
-      ...draft,
-      appearance: { ...draft.appearance, preference },
+  const select = (nextPreference: typeof appearance.preference) => {
+    onChange((currentDraft) => ({
+      ...currentDraft,
+      appearance: { ...currentDraft.appearance, preference: nextPreference },
     }));
-  }
+  };
 
   if (!canTreatEmoji(emoji)) {
     return null;
   }
+
   return (
     <div
       className="scroll-fade scroll-fade-2 flex h-44 min-h-20 shrink flex-col gap-2 overflow-y-auto overscroll-contain p-1"
+      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role
       role="group"
       aria-label="Icon appearance"
     >
@@ -91,8 +102,10 @@ export function WorkspaceColorSuggestions({
             preference.kind === "Preset" ? [preference.treatment.preset_id] : []
           }
           onValueChange={(values) => {
+            const [presetId] = values;
+
             const treatment = choices.find(
-              (item) => item.preset_id === values[0]
+              (item) => item.preset_id === presetId
             );
 
             if (treatment) {
@@ -137,7 +150,7 @@ export function WorkspaceColorSuggestions({
         className="w-full shrink-0 flex-wrap justify-start"
         value={[preference.kind]}
         onValueChange={(values) => {
-          const kind = values[0];
+          const [kind] = values;
 
           if (kind === "Original" || kind === "Automatic") {
             select({ kind });
@@ -174,4 +187,4 @@ export function WorkspaceColorSuggestions({
       )}
     </div>
   );
-}
+};

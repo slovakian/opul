@@ -14,7 +14,7 @@ const controls = [
   { key: "brightness", label: "Brightness", max: 150, min: 50 },
 ] as const;
 
-export function WorkspaceCustomTreatment({
+export const WorkspaceCustomTreatment = ({
   emoji,
   treatment,
   onChange,
@@ -24,7 +24,7 @@ export function WorkspaceCustomTreatment({
   treatment: Extract<IconDraft["appearance"]["preference"], { kind: "Custom" }>;
   onChange: Dispatch<SetStateAction<IconDraft>>;
   onBack: () => void;
-}) {
+}) => {
   const id = useId();
   const container = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -90,4 +90,4 @@ export function WorkspaceCustomTreatment({
       </FieldGroup>
     </div>
   );
-}
+};

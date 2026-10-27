@@ -2,6 +2,7 @@ import {
   Archive,
   ArrowDown,
   Check,
+  CircleAlert,
   File,
   FileAudio,
   FileCode,
@@ -10,7 +11,6 @@ import {
   Film,
   HardDriveDownload,
   Pause,
-  CircleAlert,
 } from "lucide-react";
 
 import { DownloadActions } from "@/components/download-actions";
@@ -41,12 +41,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { bytes, sourceHost, stateNames, timeRemaining } from "@/lib/model";
 import type { Download, Workspace } from "@/lib/model";
+import { bytes, sourceHost, stateNames, timeRemaining } from "@/lib/model";
 import { cn } from "@/lib/utils";
 
-export function fileIcon(download: Download) {
-  const extension = download.name.split(".").pop()?.toLowerCase();
+export const fileIcon = (download: Download) => {
+  const extension = download.name.split(".").findLast(Boolean)?.toLowerCase();
 
   if (extension && ["zip", "rar", "7z", "gz", "tar"].includes(extension)) {
     return Archive;
@@ -86,36 +86,40 @@ export function fileIcon(download: Download) {
   }
 
   return File;
-}
+};
 
-export function DownloadStatus({ download }: { download: Download }) {
-  const Icon =
-    download.state === "Finished"
-      ? Check
-      : download.state === "Failed"
-        ? CircleAlert
-        : download.state === "Paused"
-          ? Pause
-          : ArrowDown;
+const StatusIcon = ({ state }: { state: Download["state"] }) => {
+  if (state === "Finished") {
+    return <Check className="size-3" />;
+  }
 
-  return (
-    <span
-      className={cn(
-        "text-muted-foreground inline-flex items-center gap-1.5 text-xs",
-        download.state === "Failed" && "text-destructive"
-      )}
-    >
-      <Icon className="size-3" />
-      {stateNames[download.state]}
-    </span>
-  );
-}
+  if (state === "Failed") {
+    return <CircleAlert className="size-3" />;
+  }
 
-function progress(download: Download) {
-  return Math.min(100, Math.max(0, download.progress_millionths / 10_000));
-}
+  if (state === "Paused") {
+    return <Pause className="size-3" />;
+  }
 
-export function Downloads({
+  return <ArrowDown className="size-3" />;
+};
+
+export const DownloadStatus = ({ download }: { download: Download }) => (
+  <span
+    className={cn(
+      "text-muted-foreground inline-flex items-center gap-1.5 text-xs",
+      download.state === "Failed" && "text-destructive"
+    )}
+  >
+    <StatusIcon state={download.state} />
+    {stateNames[download.state]}
+  </span>
+);
+
+const progress = (download: Download) =>
+  Math.min(100, Math.max(0, download.progress_millionths / 10_000));
+
+export const Downloads = ({
   downloads,
   layout,
   selectedId,
@@ -131,7 +135,7 @@ export function Downloads({
   onRemove: (download: Download) => void;
   onNew: () => void;
   filtered: boolean;
-}) {
+}) => {
   if (!downloads.length) {
     return (
       <Empty className="min-h-80 border-0">
@@ -144,8 +148,8 @@ export function Downloads({
           </EmptyTitle>
           <EmptyDescription>
             {filtered
-              ? "Try another search or change your filters."
-              : "Add a link or open a torrent to get started."}
+              ? "Try a different search query or change your filters."
+              : "Paste a video link, direct download URL, or torrent magnet to get started."}
           </EmptyDescription>
         </EmptyHeader>
         {!filtered && (
@@ -160,10 +164,10 @@ export function Downloads({
 
   if (layout === "Table") {
     return (
-      <Table className="[&_tr]:border-0">
+      <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Name</TableHead>
+            <TableHead className="w-1/2">Name</TableHead>
             <TableHead>Status</TableHead>
             <TableHead className="hidden lg:table-cell">Source</TableHead>
             <TableHead className="text-right">Size</TableHead>
@@ -230,22 +234,29 @@ export function Downloads({
           "Fetching",
           "Starting",
           "Verifying",
-          "Processing",
-          "Paused",
-          "Pausing",
+          "Downloading",
+          "Seeding",
         ].includes(download.state);
+
+        let rateOrProgress = "";
+
+        if (download.download_rate) {
+          rateOrProgress = `${bytes(download.download_rate)}/s · ${timeRemaining(download.eta_seconds)}`;
+        } else if (transferring) {
+          rateOrProgress = `${Math.round(progress(download))}%`;
+        }
 
         return (
           <Item
             key={download.id}
+            // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role
             role="listitem"
             data-selected={selectedId === download.id}
-            className="download-item"
-            size="sm"
+            className="data-[selected=true]:bg-muted/70 hover:bg-muted/40 transition-colors"
           >
             <ItemMedia
               variant="icon"
-              className="bg-muted flex size-10 items-center justify-center rounded-lg"
+              className="text-muted-foreground size-9 rounded-lg"
             >
               <Icon />
             </ItemMedia>
@@ -288,11 +299,7 @@ export function Downloads({
               <div className="hidden min-w-28 flex-col items-end gap-1 sm:flex">
                 <DownloadStatus download={download} />
                 <span className="text-muted-foreground text-xs tabular-nums">
-                  {download.download_rate
-                    ? `${bytes(download.download_rate)}/s · ${timeRemaining(download.eta_seconds)}`
-                    : transferring
-                      ? `${Math.round(progress(download))}%`
-                      : ""}
+                  {rateOrProgress}
                 </span>
               </div>
               <DownloadActions
@@ -306,4 +313,4 @@ export function Downloads({
       })}
     </ItemGroup>
   );
-}
+};

@@ -27,7 +27,7 @@ import type { Command, Format, Workspace } from "@/lib/model";
 
 type Mode = Extract<Command, { kind: "add_url" }>["mode"];
 
-export function AddDownloadDialog({
+export const AddDownloadDialog = ({
   workspaces,
   initialWorkspace,
   initialFolder,
@@ -39,13 +39,12 @@ export function AddDownloadDialog({
   initialFolder?: string;
   initialUrl?: string;
   onClose: () => void;
-}) {
+}) => {
   const { run, busy } = useLibrary();
   const [workspaceId, setWorkspaceId] = useState(initialWorkspace.id);
 
   const workspace =
-    workspaces.find((workspace) => workspace.id === workspaceId) ??
-    initialWorkspace;
+    workspaces.find((w) => w.id === workspaceId) ?? initialWorkspace;
 
   const [folderId, setFolderId] = useState(
     initialFolder ??
@@ -61,7 +60,7 @@ export function AddDownloadDialog({
 
   const [format, setFormat] = useState<Format>(workspace.default_format);
 
-  async function importTorrent() {
+  const importTorrent = async () => {
     try {
       const path = await bridge.chooseTorrent();
 
@@ -86,9 +85,9 @@ export function AddDownloadDialog({
         type: "error",
       });
     }
-  }
+  };
 
-  async function submit(event: React.FormEvent) {
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault();
 
     const receipt = await run({
@@ -103,6 +102,12 @@ export function AddDownloadDialog({
     if (receipt) {
       onClose();
     }
+  };
+
+  let submitLabel = "Add download";
+
+  if (busy) {
+    submitLabel = mode === "Page" ? "Inspecting page…" : "Adding…";
   }
 
   return (
@@ -135,7 +140,7 @@ export function AddDownloadDialog({
 
                   if (
                     event.target.value.startsWith("magnet:") ||
-                    /\.torrent(\?|$)/i.test(event.target.value)
+                    /\.torrent(?:\?|$)/iu.test(event.target.value)
                   ) {
                     setMode("Torrent");
                   }
@@ -180,21 +185,21 @@ export function AddDownloadDialog({
                 <Choice
                   label="Download workspace"
                   value={workspace.id}
-                  options={workspaces.map((workspace) => ({
+                  options={workspaces.map((ws) => ({
                     content: (
                       <>
-                        <WorkspaceIcon workspace={workspace} />
-                        <span className="truncate">{workspace.name}</span>
+                        <WorkspaceIcon workspace={ws} />
+                        <span className="truncate">{ws.name}</span>
                       </>
                     ),
-                    label: workspace.name,
-                    value: workspace.id,
+                    label: ws.name,
+                    value: ws.id,
                   }))}
                   onChange={(id) => {
                     setWorkspaceId(id);
                     setFolderId(
                       workspaces
-                        .find((workspace) => workspace.id === id)
+                        .find((ws) => ws.id === id)
                         ?.folders.find((folder) => folder.is_default)?.id ?? ""
                     );
                   }}
@@ -218,7 +223,9 @@ export function AddDownloadDialog({
             <Button
               type="button"
               variant="ghost"
-              onClick={() => void importTorrent()}
+              onClick={() => {
+                importTorrent().catch(() => null);
+              }}
               disabled={busy}
             >
               <FileUp data-icon="inline-start" />
@@ -228,15 +235,11 @@ export function AddDownloadDialog({
               {busy && (
                 <Loader2 className="animate-spin" data-icon="inline-start" />
               )}
-              {busy
-                ? mode === "Page"
-                  ? "Inspecting page…"
-                  : "Adding…"
-                : "Add download"}
+              {submitLabel}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
   );
-}
+};

@@ -1,8 +1,21 @@
 import { Toggle as TogglePrimitive } from "@base-ui/react/toggle";
 import { EmojiPicker } from "frimousse";
-import type { EmojiPickerListEmojiProps } from "frimousse";
+import type {
+  EmojiPickerListCategoryHeaderProps,
+  EmojiPickerListComponents,
+  EmojiPickerListEmojiProps,
+  EmojiPickerListRowProps,
+} from "frimousse";
 import { Search } from "lucide-react";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -33,24 +46,58 @@ import { cn } from "@/lib/utils";
 import { canTreatEmoji, emojiTreatment } from "@/lib/workspace-appearance";
 
 export interface IconDraft {
-  emoji: string;
   appearance: Workspace["appearance"];
+  emoji: string;
 }
 
-function EmojiGridCell({
-  emoji,
-  chosen,
-  keyboardNavigation,
-  ...props
-}: EmojiPickerListEmojiProps & {
-  chosen: boolean;
+interface EmojiPickerContextValue {
+  chosenEmoji: string;
   keyboardNavigation: RefObject<boolean>;
-}) {
+}
+
+const EmojiPickerContext = createContext<EmojiPickerContextValue>({
+  chosenEmoji: "",
+  keyboardNavigation: { current: false },
+});
+
+const EmojiCategoryHeader = ({
+  category,
+  ...headerProps
+}: EmojiPickerListCategoryHeaderProps) => (
+  <div
+    {...headerProps}
+    // Fade through the sticky header's bottom padding at the same depth as the viewport's bottom fade.
+    className="from-popover text-muted-foreground bg-linear-to-b from-[calc(100%_-_var(--scroll-fade-size))] to-transparent px-1 py-2 text-xs font-medium"
+  >
+    {category.label.replaceAll(/\b[a-z]/gu, (letter) => letter.toUpperCase())}
+  </div>
+);
+
+const EmojiRow = ({ children, ...rowProps }: EmojiPickerListRowProps) => (
+  <div
+    {...rowProps}
+    aria-rowindex={
+      rowProps["aria-rowindex"] === undefined
+        ? undefined
+        : rowProps["aria-rowindex"] + 1
+    }
+    className="scroll-my-1"
+  >
+    {children}
+  </div>
+);
+
+const EmojiGridCell = (props: EmojiPickerListEmojiProps) => {
+  const { chosenEmoji, keyboardNavigation } = useContext(EmojiPickerContext);
+  const { emoji } = props;
+  const chosen = emoji.emoji === chosenEmoji;
   const ref = useRef<HTMLButtonElement>(null);
+
   useLayoutEffect(() => {
     if (!emoji.isActive || !keyboardNavigation.current) {
       return;
     }
+
     const cell = ref.current;
     const viewport = cell?.closest<HTMLElement>("[frimousse-viewport]");
 
@@ -60,6 +107,7 @@ function EmojiGridCell({
     // Frimousse 0.4 also uses its zero-based ARIA row index as a scroll target.
     // After correcting indices, keep the actual active cell visible, without
     // scrolling on hover or depending on the library's private row numbering.
+
     const bounds = cell.getBoundingClientRect();
     const frame = viewport.getBoundingClientRect();
 
@@ -74,15 +122,16 @@ function EmojiGridCell({
         Math.min(header?.offsetHeight ?? 0, frame.height - bounds.height)
       );
 
-    const delta =
-      bounds.bottom > frame.bottom
-        ? bounds.bottom - frame.bottom
-        : bounds.top < top
-          ? bounds.top - top
-          : 0;
+    let delta = 0;
+
+    if (bounds.bottom > frame.bottom) {
+      delta = bounds.bottom - frame.bottom;
+    } else if (bounds.top < top) {
+      delta = bounds.top - top;
+    }
 
     if (delta) {
-      viewport.scrollBy({ top: delta, behavior: "instant" });
+      viewport.scrollBy({ behavior: "instant", top: delta });
     }
   }, [emoji.isActive, keyboardNavigation]);
 
@@ -91,11 +140,13 @@ function EmojiGridCell({
       {...props}
       ref={ref}
       type="button"
+      // oxlint-disable-next-line jsx-a11y/role-supports-aria-props
       aria-colindex={
         props["aria-colindex"] === undefined
           ? undefined
           : props["aria-colindex"] + 1
       }
+      // oxlint-disable-next-line jsx-a11y/role-supports-aria-props
       aria-description={chosen ? "Selected icon" : undefined}
       data-chosen={chosen}
       data-keyboard-active={emoji.isActive && keyboardNavigation.current}
@@ -107,10 +158,16 @@ function EmojiGridCell({
       <EmojiFrame selected={chosen}>{emoji.emoji}</EmojiFrame>
     </button>
   );
-}
+};
+
+const listComponents: EmojiPickerListComponents = {
+  CategoryHeader: EmojiCategoryHeader,
+  Emoji: EmojiGridCell,
+  Row: EmojiRow,
+};
 
 // The browsing surface is controlled so creation can retain it in its own draft.
-export function WorkspaceIconPicker({
+export const WorkspaceIconPicker = ({
   workspaceId,
   draft,
   onChange,
@@ -118,14 +175,16 @@ export function WorkspaceIconPicker({
   workspaceId: string;
   draft: IconDraft;
   onChange: Dispatch<SetStateAction<IconDraft>>;
-}) {
+}) => {
   const { emoji, appearance } = draft;
   const { state } = useLibrary();
 
-  const [resolveEmojiData] = useState(() =>
-    emojiDataWithRecents(
-      state.kind === "ready" ? state.snapshot.recent_emoji : []
-    )
+  const resolveEmojiData = useMemo(
+    () =>
+      emojiDataWithRecents(
+        state.kind === "ready" ? state.snapshot.recent_emoji : []
+      ),
+    [state]
   );
 
   const tones = useMemo(() => skinToneChoices(emoji), [emoji]);
@@ -133,6 +192,7 @@ export function WorkspaceIconPicker({
   const [custom, setCustom] = useState(false);
   const customButton = useRef<HTMLButtonElement>(null);
   const restoreFocus = useRef(false);
+
   useLayoutEffect(() => {
     if (!custom && restoreFocus.current) {
       customButton.current?.focus({ preventScroll: true });
@@ -140,11 +200,17 @@ export function WorkspaceIconPicker({
     }
   }, [custom]);
 
+  const pickerContextValue = useMemo(
+    () => ({ chosenEmoji: emoji, keyboardNavigation }),
+    [emoji]
+  );
+
   return (
     <>
       <div className="flex shrink-0 items-center gap-3">
         <div
           className="flex size-12 shrink-0 items-center justify-center text-3xl"
+          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role
           role="img"
           aria-label={`Icon preview: ${emoji}`}
         >
@@ -154,11 +220,11 @@ export function WorkspaceIconPicker({
         </div>
         <div className="flex min-w-0 flex-col gap-1">
           <span className="text-sm font-medium">Selected icon</span>
-          <span className="text-muted-foreground text-xs" role="status">
+          <output className="text-muted-foreground text-xs">
             {canTreatEmoji(emoji)
               ? "Changes are previewed until you save."
               : "This emoji uses its original colors."}
-          </span>
+          </output>
         </div>
       </div>
       <div className="grid min-h-0 flex-1">
@@ -175,10 +241,10 @@ export function WorkspaceIconPicker({
               size="sm"
               value={[emoji]}
               onValueChange={(values) => {
-                const selected = values[0];
+                const [selected] = values;
 
-                if (typeof selected === "string") {
-                  onChange((draft) => ({ ...draft, emoji: selected }));
+                if (selected) {
+                  onChange((prevDraft) => ({ ...prevDraft, emoji: selected }));
                 }
               }}
             >
@@ -210,8 +276,8 @@ export function WorkspaceIconPicker({
             onPointerMoveCapture={() => {
               keyboardNavigation.current = false;
             }}
-            onEmojiSelect={({ emoji }) =>
-              onChange((draft) => ({ ...draft, emoji }))
+            onEmojiSelect={({ emoji: selectedEmoji }) =>
+              onChange((prevDraft) => ({ ...prevDraft, emoji: selectedEmoji }))
             }
           >
             <InputGroup>
@@ -238,43 +304,12 @@ export function WorkspaceIconPicker({
               <EmojiPicker.Empty className="text-muted-foreground p-4 text-sm">
                 No emoji found.
               </EmojiPicker.Empty>
-              <EmojiPicker.List
-                // Frimousse 0.4 emits zero-based ARIA indices; ARIA requires one-based indices.
-                components={{
-                  CategoryHeader: ({ category, ...props }) => (
-                    <div
-                      {...props}
-                      // Fade through the sticky header's bottom padding at the same depth as the viewport's bottom fade.
-                      className="from-popover text-muted-foreground bg-linear-to-b from-[calc(100%_-_var(--scroll-fade-size))] to-transparent px-1 py-2 text-xs font-medium"
-                    >
-                      {category.label.replace(/\b[a-z]/g, (letter) =>
-                        letter.toUpperCase()
-                      )}
-                    </div>
-                  ),
-                  Emoji: ({ emoji: item, ...props }) => (
-                    <EmojiGridCell
-                      {...props}
-                      emoji={item}
-                      chosen={item.emoji === emoji}
-                      keyboardNavigation={keyboardNavigation}
-                    />
-                  ),
-                  Row: ({ children, ...props }) => (
-                    <div
-                      {...props}
-                      aria-rowindex={
-                        props["aria-rowindex"] === undefined
-                          ? undefined
-                          : props["aria-rowindex"] + 1
-                      }
-                      className="scroll-my-1"
-                    >
-                      {children}
-                    </div>
-                  ),
-                }}
-              />
+              <EmojiPickerContext.Provider value={pickerContextValue}>
+                <EmojiPicker.List
+                  // Frimousse 0.4 emits zero-based ARIA indices; ARIA requires one-based indices.
+                  components={listComponents}
+                />
+              </EmojiPickerContext.Provider>
             </EmojiPicker.Viewport>
           </EmojiPicker.Root>
           <WorkspaceColorSuggestions
@@ -283,13 +318,16 @@ export function WorkspaceIconPicker({
             onChange={onChange}
             customButton={customButton}
             onCustomize={() => {
-              onChange((draft) => {
-                const current = emojiTreatment(draft.emoji, draft.appearance);
+              onChange((prevDraft) => {
+                const current = emojiTreatment(
+                  prevDraft.emoji,
+                  prevDraft.appearance
+                );
 
                 return {
-                  ...draft,
+                  ...prevDraft,
                   appearance: {
-                    ...draft.appearance,
+                    ...prevDraft.appearance,
                     preference: {
                       brightness: current?.brightness ?? 100,
                       hue: current?.hue ?? 0,
@@ -319,9 +357,9 @@ export function WorkspaceIconPicker({
       </div>
     </>
   );
-}
+};
 
-export function WorkspaceIconEditor({
+export const WorkspaceIconEditor = ({
   workspace,
   anchor,
   onClose,
@@ -329,7 +367,7 @@ export function WorkspaceIconEditor({
   workspace: Workspace;
   anchor: HTMLButtonElement | null;
   onClose: () => void;
-}) {
+}) => {
   const { run } = useLibrary();
 
   const [draft, setDraft] = useState<IconDraft>({
@@ -342,36 +380,43 @@ export function WorkspaceIconEditor({
   const [saving, setSaving] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const submission = useRef<{ input: string; requestId: string } | null>(null);
+
   useEffect(() => {
-    if (workspace.appearance.automatic_folder) {
+    if (workspace.appearance.automatic_folder || loadAttempt < 0) {
       return;
     }
+
     let canceled = false;
-    void bridge
-      .workspaceAppearanceDraft(workspace.id)
-      .then((appearance) => {
+
+    const loadAppearance = async () => {
+      try {
+        const appearance = await bridge.workspaceAppearanceDraft(workspace.id);
+
         if (!canceled) {
-          setDraft((draft) => ({ ...draft, appearance }));
+          setDraft((prevDraft) => ({ ...prevDraft, appearance }));
           setReady(true);
         }
-      })
-      .catch((error) => {
+      } catch (error_) {
         if (!canceled) {
-          setError(errorMessage(error));
+          setError(errorMessage(error_));
         }
-      });
+      }
+    };
+
+    loadAppearance().catch(() => null);
 
     return () => {
       canceled = true;
     };
   }, [workspace.id, workspace.appearance.automatic_folder, loadAttempt]);
 
-  async function save() {
+  const save = async () => {
     const input = JSON.stringify(draft);
 
     if (submission.current?.input !== input) {
       submission.current = { input, requestId: crypto.randomUUID() };
     }
+
     setSaving(true);
     setError(undefined);
 
@@ -394,7 +439,7 @@ export function WorkspaceIconEditor({
         "Couldn't save the icon. Your changes are kept here; try again."
       );
     }
-  }
+  };
 
   return (
     <Popover
@@ -423,9 +468,9 @@ export function WorkspaceIconEditor({
             onChange={setDraft}
           />
         ) : (
-          <div role="status" className="text-muted-foreground flex-1 text-sm">
+          <output className="text-muted-foreground flex-1 text-sm">
             Preparing icon…
-          </div>
+          </output>
         )}
         {error && (
           <Alert role="alert">
@@ -447,7 +492,12 @@ export function WorkspaceIconEditor({
           <Button variant="ghost" disabled={saving} onClick={onClose}>
             Cancel
           </Button>
-          <Button disabled={!ready || saving} onClick={() => void save()}>
+          <Button
+            disabled={!ready || saving}
+            onClick={() => {
+              save().catch(() => null);
+            }}
+          >
             {saving && (
               <Spinner
                 className="motion-reduce:animate-none"
@@ -460,4 +510,4 @@ export function WorkspaceIconEditor({
       </PopoverContent>
     </Popover>
   );
-}
+};

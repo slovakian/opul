@@ -1,5 +1,5 @@
 import { Copy, FolderOpen, X } from "lucide-react";
-import { useState } from "react";
+import { createElement, useState } from "react";
 
 import { DownloadActions, reveal } from "@/components/download-actions";
 import { DownloadStatus, fileIcon } from "@/components/downloads";
@@ -32,7 +32,9 @@ import { useLibrary } from "@/lib/library";
 import { bytes, formatNames, sourceNames, timeRemaining } from "@/lib/model";
 import type { Download, Workspace } from "@/lib/model";
 
-export function DownloadInspector({
+const noop = () => null;
+
+export const DownloadInspector = ({
   download,
   workspace,
   onClose,
@@ -42,18 +44,17 @@ export function DownloadInspector({
   workspace: Workspace;
   onClose: () => void;
   onRemove: () => void;
-}) {
+}) => {
   const { run, busy } = useLibrary();
 
   const [ratio, setRatio] = useState(
     download.seed_ratio_limit?.toString() ?? ""
   );
 
-  const Icon = fileIcon(download);
   const percent = Math.min(100, download.progress_millionths / 10_000);
 
   const folder = workspace.folders.find(
-    (folder) => folder.id === download.folder_id
+    (item) => item.id === download.folder_id
   );
 
   return (
@@ -61,6 +62,7 @@ export function DownloadInspector({
       side="right"
       collapsible="none"
       className="inspector bg-background w-80 shrink-0 border-l"
+      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role
       role="complementary"
       aria-label="Download details"
     >
@@ -78,7 +80,9 @@ export function DownloadInspector({
       <SidebarContent className="gap-6 px-5 pb-6">
         <div className="flex flex-col items-start gap-4 pt-4">
           <div className="bg-muted flex size-14 items-center justify-center rounded-xl">
-            <Icon className="text-muted-foreground size-6" />
+            {createElement(fileIcon(download), {
+              className: "text-muted-foreground size-6",
+            })}
           </div>
           <h3 className="max-w-full text-base font-medium break-words">
             {download.name}
@@ -87,7 +91,7 @@ export function DownloadInspector({
             <DownloadStatus download={download} />
             <DownloadActions
               download={download}
-              onInspect={() => {}}
+              onInspect={noop}
               onRemove={onRemove}
             />
           </div>
@@ -150,7 +154,12 @@ export function DownloadInspector({
           )}
         </dl>
         {download.capabilities.can_reveal_output && (
-          <Button variant="outline" onClick={() => void reveal(download.id)}>
+          <Button
+            variant="outline"
+            onClick={() => {
+              reveal(download.id).catch(() => null);
+            }}
+          >
             <FolderOpen data-icon="inline-start" />
             Show in Finder
           </Button>
@@ -165,17 +174,17 @@ export function DownloadInspector({
               variant="ghost"
               size="sm"
               className="self-start"
-              onClick={() => {
-                void navigator.clipboard
-                  .writeText(download.source_url)
-                  .then(() => toast.add({ title: "Link copied" }))
-                  .catch((error) =>
-                    toast.add({
-                      description: errorMessage(error),
-                      title: "Couldn't copy link",
-                      type: "error",
-                    })
-                  );
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(download.source_url);
+                  toast.add({ title: "Link copied" });
+                } catch (error) {
+                  toast.add({
+                    description: errorMessage(error),
+                    title: "Couldn't copy link",
+                    type: "error",
+                  });
+                }
               }}
             >
               <Copy data-icon="inline-start" />
@@ -189,11 +198,12 @@ export function DownloadInspector({
             <form
               onSubmit={(event) => {
                 event.preventDefault();
-                void run({
+
+                run({
                   download_id: download.id,
                   kind: "seed_ratio",
                   limit: ratio.trim() ? Number(ratio) : null,
-                });
+                }).catch(() => null);
               }}
             >
               <FieldGroup>
@@ -232,11 +242,15 @@ export function DownloadInspector({
         {download.files.length > 0 && (
           <>
             <Separator />
-            <section className="flex flex-col gap-3">
-              <h3 className="text-sm font-medium">
-                Files{" "}
-                <span className="text-muted-foreground">
-                  {download.files.length}
+            <section className="flex flex-col gap-2">
+              <h3 className="flex items-center justify-between text-sm font-medium">
+                Files
+                <span className="text-muted-foreground text-xs">
+                  {
+                    download.files.filter((file) => file.priority !== "skip")
+                      .length
+                  }{" "}
+                  of {download.files.length}
                 </span>
               </h3>
               <ItemGroup className="gap-1">
@@ -248,8 +262,8 @@ export function DownloadInspector({
                       disabled={
                         busy || !download.capabilities.can_change_file_selection
                       }
-                      onCheckedChange={(checked) =>
-                        void run({
+                      onCheckedChange={(checked) => {
+                        run({
                           download_id: download.id,
                           files: download.files.map((current) =>
                             current.index === file.index
@@ -260,8 +274,8 @@ export function DownloadInspector({
                               : current
                           ),
                           kind: "torrent_files",
-                        })
-                      }
+                        }).catch(() => null);
+                      }}
                     />
                     <ItemContent className="min-w-0">
                       <ItemTitle
@@ -299,4 +313,4 @@ export function DownloadInspector({
       </SidebarContent>
     </Sidebar>
   );
-}
+};

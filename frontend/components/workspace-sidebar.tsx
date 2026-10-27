@@ -54,7 +54,16 @@ export type Location =
 
 export type StatusFilter = "all" | "active" | "finished" | "paused" | "failed";
 
-export function WorkspaceSidebar({
+const folderRequest = (workspace: Workspace, folder: Folder) => ({
+  expected_revision: null,
+  folder_id: folder.id,
+  name: folder.name,
+  path: folder.path,
+  request_id: crypto.randomUUID(),
+  workspace_id: workspace.id,
+});
+
+export const WorkspaceSidebar = ({
   workspaces,
   location,
   navigate,
@@ -75,7 +84,7 @@ export function WorkspaceSidebar({
   ) => void;
   onSettings: () => void;
   onNew: () => void;
-}) {
+}) => {
   const { run, busy, state } = useLibrary();
   const { isMobile, setOpenMobile } = useSidebar();
   const allDownloads = workspaces.flatMap((workspace) => workspace.downloads);
@@ -90,15 +99,15 @@ export function WorkspaceSidebar({
     0
   );
 
-  function go(next: Location) {
+  const go = (next: Location) => {
     navigate(next);
 
     if (isMobile) {
       setOpenMobile(false);
     }
-  }
+  };
 
-  async function addFolder(workspace: Workspace) {
+  const addFolder = async (workspace: Workspace) => {
     try {
       const path = await bridge.chooseFolder();
 
@@ -111,7 +120,7 @@ export function WorkspaceSidebar({
         request: {
           expected_revision: null,
           folder_id: crypto.randomUUID(),
-          name: path.split("/").filter(Boolean).pop() || "Folder",
+          name: path.split("/").findLast(Boolean) || "Folder",
           path,
           request_id: crypto.randomUUID(),
           workspace_id: workspace.id,
@@ -124,22 +133,12 @@ export function WorkspaceSidebar({
         type: "error",
       });
     }
-  }
-
-  function folderRequest(workspace: Workspace, folder: Folder) {
-    return {
-      expected_revision: null,
-      folder_id: folder.id,
-      name: folder.name,
-      path: folder.path,
-      request_id: crypto.randomUUID(),
-      workspace_id: workspace.id,
-    };
-  }
+  };
 
   return (
     <Sidebar
       className="border-r-0"
+      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role
       role="navigation"
       aria-label="Workspace navigation"
     >
@@ -306,7 +305,9 @@ export function WorkspaceSidebar({
                             disabled: busy,
                             icon: FolderPlus,
                             label: "Add saved folder",
-                            onClick: () => void addFolder(workspace),
+                            onClick: () => {
+                              addFolder(workspace).catch(() => null);
+                            },
                           },
                         ],
                       },
@@ -320,7 +321,9 @@ export function WorkspaceSidebar({
                           className="group/folder relative"
                         >
                           <SidebarMenuSubButton
-                            render={<button type="button" />}
+                            render={
+                              <button type="button" aria-label={folder.name} />
+                            }
                             isActive={
                               location.kind === "workspace" &&
                               location.folderId === folder.id
@@ -354,14 +357,15 @@ export function WorkspaceSidebar({
                                     disabled: folder.is_default || busy,
                                     icon: Check,
                                     label: "Set as default",
-                                    onClick: () =>
-                                      void run({
+                                    onClick: () => {
+                                      run({
                                         kind: "default_folder",
                                         request: folderRequest(
                                           workspace,
                                           folder
                                         ),
-                                      }),
+                                      }).catch(() => null);
+                                    },
                                   },
                                   {
                                     destructive: true,
@@ -369,14 +373,15 @@ export function WorkspaceSidebar({
                                       workspace.folders.length === 1 || busy,
                                     icon: Trash2,
                                     label: "Remove saved folder",
-                                    onClick: () =>
-                                      void run({
+                                    onClick: () => {
+                                      run({
                                         kind: "remove_folder",
                                         request: folderRequest(
                                           workspace,
                                           folder
                                         ),
-                                      }),
+                                      }).catch(() => null);
+                                    },
                                   },
                                 ],
                                 label: folder.is_default
@@ -433,4 +438,4 @@ export function WorkspaceSidebar({
       <SidebarRail />
     </Sidebar>
   );
-}
+};

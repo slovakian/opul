@@ -30,7 +30,7 @@ const groupNames: Record<DisplayPreferences["grouping"], string> = {
   State: "Status",
 };
 
-export function DownloadToolbar({
+export const DownloadToolbar = ({
   filter,
   setFilter,
   display,
@@ -44,98 +44,91 @@ export function DownloadToolbar({
   showFilter: boolean;
   view: (change: Partial<DisplayPreferences>) => void;
   disabled: boolean;
-}) {
-  return (
-    <div className="flex shrink-0 items-center gap-1">
-      {showFilter && (
-        <SidebarPopover
-          title="Filter downloads"
-          trigger={
-            <Button
-              variant={filter === "all" ? "ghost" : "secondary"}
-              size="icon-sm"
-              aria-pressed={filter !== "all"}
-              aria-label={`${filter === "all" ? "Filter" : filterOptions.find((option) => option.value === filter)?.label} downloads`}
-              title={
-                filter === "all"
-                  ? "Filter downloads"
-                  : filterOptions.find((option) => option.value === filter)
-                      ?.label
-              }
-            >
-              <ListFilter />
-            </Button>
-          }
-          groups={[
-            {
-              actions: filterOptions.map((option) => ({
-                label: option.label,
-                onClick: () => setFilter(option.value),
-                selected: filter === option.value,
-              })),
-              label: "Status",
-            },
-          ]}
-        />
-      )}
+}) => (
+  <div className="flex shrink-0 items-center gap-1">
+    {showFilter && (
       <SidebarPopover
-        title="Sort and group"
+        title="Filter downloads"
         trigger={
           <Button
-            variant="ghost"
+            variant={filter === "all" ? "ghost" : "secondary"}
             size="icon-sm"
-            aria-label={`${sortNames[display.sort]}: sort and group`}
-            title="Sort and group"
+            aria-pressed={filter !== "all"}
+            aria-label={`${filter === "all" ? "Filter" : filterOptions.find((option) => option.value === filter)?.label} downloads`}
+            title={
+              filter === "all"
+                ? "Filter downloads"
+                : filterOptions.find((option) => option.value === filter)?.label
+            }
           >
-            <ArrowUpDown />
+            <ListFilter />
           </Button>
         }
         groups={[
           {
-            actions: sortSchema.options.map((value) => ({
-              disabled,
-              label: sortNames[value],
-              onClick: () => view({ sort: value }),
-              selected: display.sort === value,
+            actions: filterOptions.map((option) => ({
+              label: option.label,
+              onClick: () => setFilter(option.value),
+              selected: filter === option.value,
             })),
-            label: "Sort by",
-          },
-          {
-            actions: groupingSchema.options.map((value) => ({
-              disabled,
-              label: groupNames[value],
-              onClick: () => view({ grouping: value }),
-              selected: display.grouping === value,
-            })),
-            label: "Group by",
+            label: "Status",
           },
         ]}
       />
-      <ToggleGroup
-        value={[display.layout]}
-        onValueChange={(values) => {
-          const layout = values[0];
-
-          if (layout === "List" || layout === "Table") {
-            view({ layout });
-          }
-        }}
-        spacing={0}
-        size="sm"
-        aria-label="Download view"
-        disabled={disabled}
-      >
-        <ToggleGroupItem value="List" aria-label="List view" title="List view">
-          <List />
-        </ToggleGroupItem>
-        <ToggleGroupItem
-          value="Table"
-          aria-label="Table view"
-          title="Table view"
+    )}
+    <SidebarPopover
+      title="Sort and group"
+      trigger={
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`${sortNames[display.sort]}: sort and group`}
+          title="Sort and group"
         >
-          <Table2 />
-        </ToggleGroupItem>
-      </ToggleGroup>
-    </div>
-  );
-}
+          <ArrowUpDown />
+        </Button>
+      }
+      groups={[
+        {
+          actions: sortSchema.options.map((value) => ({
+            disabled,
+            label: sortNames[value],
+            onClick: () => view({ sort: value }),
+            selected: display.sort === value,
+          })),
+          label: "Sort by",
+        },
+        {
+          actions: groupingSchema.options.map((value) => ({
+            disabled,
+            label: groupNames[value],
+            onClick: () => view({ grouping: value }),
+            selected: display.grouping === value,
+          })),
+          label: "Group by",
+        },
+      ]}
+    />
+    <ToggleGroup
+      value={[display.layout]}
+      onValueChange={(values) => {
+        const [layout] = values;
+
+        if (layout === "List" || layout === "Table") {
+          view({ layout });
+        }
+      }}
+      spacing={0}
+      size="sm"
+      aria-label="Download view"
+      disabled={disabled}
+    >
+      <ToggleGroupItem value="List" aria-label="List view" title="List view">
+        <List />
+      </ToggleGroupItem>
+      <ToggleGroupItem value="Table" aria-label="Table view" title="Table view">
+        <Table2 />
+      </ToggleGroupItem>
+    </ToggleGroup>
+  </div>
+);

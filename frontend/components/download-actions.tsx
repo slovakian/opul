@@ -18,7 +18,19 @@ import { bridge, errorMessage } from "@/lib/bridge";
 import { useLibrary } from "@/lib/library";
 import type { Download, DownloadAction } from "@/lib/model";
 
-export function DownloadActions({
+export const reveal = async (id: string) => {
+  try {
+    await bridge.reveal(id);
+  } catch (error) {
+    toast.add({
+      description: errorMessage(error),
+      title: "Couldn't reveal this download",
+      type: "error",
+    });
+  }
+};
+
+export const DownloadActions = ({
   download,
   onInspect,
   onRemove,
@@ -26,13 +38,15 @@ export function DownloadActions({
   download: Download;
   onInspect: () => void;
   onRemove: () => void;
-}) {
+}) => {
   const { run, busy } = useLibrary();
   const caps = download.capabilities;
 
-  function act(action: DownloadAction) {
-    void run({ action, download_id: download.id, kind: "download" });
-  }
+  const act = (action: DownloadAction) => {
+    run({ action, download_id: download.id, kind: "download" }).catch(
+      () => null
+    );
+  };
 
   const actions: MenuAction[] = [
     { icon: Info, label: "Show details", onClick: onInspect },
@@ -42,7 +56,9 @@ export function DownloadActions({
     actions.push({
       icon: FolderOpen,
       label: "Show in Finder",
-      onClick: () => void reveal(download.id),
+      onClick: () => {
+        reveal(download.id).catch(() => null);
+      },
     });
   }
 
@@ -91,9 +107,9 @@ export function DownloadActions({
     });
   }
 
-  return (
-    <div className="flex items-center gap-1">
-      {caps.can_pause ? (
+  const renderPrimaryAction = () => {
+    if (caps.can_pause) {
+      return (
         <Button
           variant="ghost"
           size="icon-sm"
@@ -104,7 +120,11 @@ export function DownloadActions({
         >
           <Pause />
         </Button>
-      ) : caps.can_resume ? (
+      );
+    }
+
+    if (caps.can_resume) {
+      return (
         <Button
           variant="ghost"
           size="icon-sm"
@@ -115,7 +135,11 @@ export function DownloadActions({
         >
           <Play />
         </Button>
-      ) : caps.can_retry ? (
+      );
+    }
+
+    if (caps.can_retry) {
+      return (
         <Button
           variant="ghost"
           size="icon-sm"
@@ -126,17 +150,31 @@ export function DownloadActions({
         >
           <RotateCcw />
         </Button>
-      ) : caps.can_reveal_output ? (
+      );
+    }
+
+    if (caps.can_reveal_output) {
+      return (
         <Button
           variant="ghost"
           size="icon-sm"
           aria-label={`Reveal ${download.name}`}
           title="Show in Finder"
-          onClick={() => void reveal(download.id)}
+          onClick={() => {
+            reveal(download.id).catch(() => null);
+          }}
         >
           <FolderOpen />
         </Button>
-      ) : null}
+      );
+    }
+
+    return null;
+  };
+
+  return (
+    <div className="flex items-center gap-1">
+      {renderPrimaryAction()}
       <SidebarPopover
         title="Download actions"
         trigger={
@@ -164,16 +202,4 @@ export function DownloadActions({
       />
     </div>
   );
-}
-
-export async function reveal(id: string) {
-  try {
-    await bridge.reveal(id);
-  } catch (error) {
-    toast.add({
-      description: errorMessage(error),
-      title: "Couldn't reveal this download",
-      type: "error",
-    });
-  }
-}
+};

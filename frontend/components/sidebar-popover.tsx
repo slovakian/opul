@@ -37,7 +37,7 @@ interface MenuGroup {
   actions: MenuAction[];
 }
 
-export function SidebarPopover({
+export const SidebarPopover = ({
   trigger,
   title,
   groups,
@@ -47,7 +47,7 @@ export function SidebarPopover({
   title: string;
   groups: MenuGroup[];
   align?: "start" | "end";
-}) {
+}) => {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
@@ -74,20 +74,25 @@ export function SidebarPopover({
 
           event.preventDefault();
 
-          const index = buttons.findIndex(
-            (button) => button === document.activeElement
-          );
+          const active =
+            document.activeElement instanceof HTMLButtonElement
+              ? document.activeElement
+              : null;
 
-          buttons[
-            event.key === "Home"
-              ? 0
-              : event.key === "End"
-                ? buttons.length - 1
-                : (index +
-                    (event.key === "ArrowUp" ? -1 : 1) +
-                    buttons.length) %
-                  buttons.length
-          ]?.focus();
+          const index = active ? buttons.indexOf(active) : -1;
+
+          let targetIndex = 0;
+
+          if (event.key === "Home") {
+            targetIndex = 0;
+          } else if (event.key === "End") {
+            targetIndex = buttons.length - 1;
+          } else {
+            const step = event.key === "ArrowUp" ? -1 : 1;
+            targetIndex = (index + step + buttons.length) % buttons.length;
+          }
+
+          buttons[targetIndex]?.focus();
         }}
       >
         <PopoverTitle className="sr-only">{title}</PopoverTitle>
@@ -141,9 +146,9 @@ export function SidebarPopover({
       </PopoverContent>
     </Popover>
   );
-}
+};
 
-export function Choice<T extends string>({
+export const Choice = <T extends string>({
   label,
   value,
   options,
@@ -155,7 +160,7 @@ export function Choice<T extends string>({
   options: readonly { value: T; label: string; content?: ReactNode }[];
   onChange: (value: T) => void;
   disabled?: boolean;
-}) {
+}) => {
   const selected = options.find((option) => option.value === value);
 
   return (
@@ -191,18 +196,16 @@ export function Choice<T extends string>({
       ]}
     />
   );
-}
+};
 
-export function MenuTrigger({
+export const MenuTrigger = ({
   label,
   children,
 }: {
   label: string;
   children: ReactNode;
-}) {
-  return (
-    <Button variant="ghost" size="icon-sm" aria-label={label} title={label}>
-      {children}
-    </Button>
-  );
-}
+}) => (
+  <Button variant="ghost" size="icon-sm" aria-label={label} title={label}>
+    {children}
+  </Button>
+);

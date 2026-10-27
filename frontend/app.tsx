@@ -1,67 +1,79 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
-import {
-  CircleAlert,
-  FolderOpen,
-  MoreHorizontal,
-  Plus,
-  Settings2,
-  Smile,
-  Trash2,
-} from "lucide-react";
+import { CircleAlert } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { AddDownloadDialog } from "@/components/add-download-dialog";
-import { DownloadInput } from "@/components/download-input";
-import { DownloadInspector } from "@/components/download-inspector";
-import { DownloadToolbar } from "@/components/download-toolbar";
-import { Downloads } from "@/components/downloads";
-import { SettingsDialog } from "@/components/settings-dialog";
-import { SidebarPopover } from "@/components/sidebar-popover";
+import { AppContent } from "@/components/app-content";
+import { AppHeader } from "@/components/app-header";
+import { AppModals } from "@/components/app-modals";
+import type { Modal } from "@/components/app-modals";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { SidebarInset, useSidebar } from "@/components/ui/sidebar";
-import { Skeleton } from "@/components/ui/skeleton";
-import { WorkspaceDialog } from "@/components/workspace-dialog";
-import { WorkspaceHeader } from "@/components/workspace-header";
-import { WorkspaceIconEditor } from "@/components/workspace-icon-picker";
 import { WorkspaceSidebar } from "@/components/workspace-sidebar";
 import type { Location, StatusFilter } from "@/components/workspace-sidebar";
-import { useLibrary } from "@/lib/library";
+import { useAppKeyboard } from "@/hooks/use-app-keyboard";
 import {
-  aggregateNames,
-  defaultDisplay,
-  sourceNames,
-  stateNames,
-} from "@/lib/model";
-import type { DisplayPreferences, Download, Workspace } from "@/lib/model";
+  filterAndSortDownloads,
+  groupDownloads,
+  useWorkspaceView,
+} from "@/hooks/use-workspace-view";
+import { useLibrary } from "@/lib/library";
+import type { DisplayPreferences } from "@/lib/model";
 import { cn } from "@/lib/utils";
 
-type Modal =
-  | { kind: "icon"; workspace: Workspace; anchor: HTMLButtonElement | null }
-  | { kind: "add"; url?: string; folderId?: string; workspaceId: string }
-  | { kind: "settings" }
-  | { kind: "workspace"; workspace: Workspace | null }
-  | { kind: "remove"; download: Download }
-  | { kind: "delete-workspace"; workspace: Workspace };
+interface EngineAlertProps {
+  busy: boolean;
+  run: ReturnType<typeof useLibrary>["run"];
+  state: ReturnType<typeof useLibrary>["state"];
+}
 
-export default function App() {
-  const { state, busy, preferences, refresh, run, saveAggregateView } =
+const EngineAlert = ({ busy, run, state }: EngineAlertProps) => {
+  if (state.kind !== "ready" || state.snapshot.session === "Running") {
+    return null;
+  }
+
+  const isRecovery = state.snapshot.session === "RecoveryRequired";
+
+  return (
+    <Alert>
+      <CircleAlert />
+      <AlertTitle>
+        {isRecovery
+          ? "Your library needs attention"
+          : "Download engine is unavailable"}
+      </AlertTitle>
+      <AlertDescription>
+        <p>
+          {state.snapshot.recovery_notices.join(" ") ||
+            `Engine status: ${state.snapshot.session}`}
+        </p>
+        {isRecovery && (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={busy}
+            onClick={() => {
+              run({ kind: "acknowledge_recovery" }).catch(() => null);
+            }}
+          >
+            Acknowledge recovery
+          </Button>
+        )}
+      </AlertDescription>
+    </Alert>
+  );
+};
+
+const App = () => {
+  const { busy, preferences, refresh, run, saveAggregateView, state } =
     useLibrary();
 
   useEffect(() => {
     if (state.kind !== "loading" && isTauri()) {
-      void invoke("frontend_ready").catch(() => {});
+      invoke("frontend_ready").catch(() => null);
     }
   }, [state.kind]);
+
   const [location, setLocation] = useState<Location>({ kind: "all" });
   const [navigation, setNavigation] = useState(0);
   const [lastDestination, setLastDestination] = useState<string>();
@@ -73,28 +85,23 @@ export default function App() {
   const { setOpenMobile } = useSidebar();
   const workspaces = state.kind === "ready" ? state.snapshot.workspaces : [];
 
-  const workspace =
-    (location.kind === "workspace"
-      ? workspaces.find((workspace) => workspace.id === location.workspaceId)
-      : undefined) ?? workspaces[0];
+  const {
+    display,
+    effectiveFilter,
+    folder,
+    folderId,
+    rawDownloads,
+    title,
+    workspace,
+  } = useWorkspaceView({
+    filter,
+    location,
+    preferences,
+    workspaces,
+  });
 
-  const display =
-    location.kind === "workspace"
-      ? (workspace ?? defaultDisplay)
-      : (preferences?.aggregate_views[location.kind] ?? defaultDisplay);
-
-  const effectiveFilter =
-    location.kind === "active" || location.kind === "finished"
-      ? location.kind
-      : filter;
-
-  const folderId =
-    location.kind === "workspace" ? location.folderId : undefined;
-
-  const folder = workspace?.folders.find((folder) => folder.id === folderId);
-
-  const selectedWorkspace = workspaces.find((workspace) =>
-    workspace.downloads.some((download) => download.id === selectedId)
+  const selectedWorkspace = workspaces.find((item) =>
+    item.downloads.some((download) => download.id === selectedId)
   );
 
   const selected = selectedWorkspace?.downloads.find(
@@ -104,102 +111,39 @@ export default function App() {
   const canEdit =
     state.kind === "ready" && state.snapshot.session === "Running";
 
-  const title =
-    location.kind === "workspace"
-      ? (folder?.name ?? workspace?.name ?? "Downloads")
-      : aggregateNames[location.kind];
-
-  const downloads = (
-    location.kind === "workspace"
-      ? (workspace?.downloads ?? [])
-      : workspaces.flatMap((workspace) => workspace.downloads)
-  ).filter((download) => {
-    if (folderId && download.folder_id !== folderId) {
-      return false;
-    }
-
-    if (
-      !`${download.name} ${download.source_url}`
-        .toLowerCase()
-        .includes(query.toLowerCase())
-    ) {
-      return false;
-    }
-
-    if (effectiveFilter === "active") {
-      return download.capabilities.can_pause || download.state === "Pausing";
-    }
-
-    if (effectiveFilter === "finished") {
-      return download.state === "Finished";
-    }
-
-    if (effectiveFilter === "paused") {
-      return download.state === "Paused";
-    }
-
-    if (effectiveFilter === "failed") {
-      return download.state === "Failed";
-    }
-
-    return true;
+  const downloads = filterAndSortDownloads({
+    downloads: rawDownloads,
+    effectiveFilter,
+    folderId,
+    query,
+    sort: display.sort,
   });
 
-  if (display.sort === "Name") {
-    downloads.sort((a, b) => a.name.localeCompare(b.name));
-  } else if (display.sort === "State") {
-    downloads.sort((a, b) => a.state.localeCompare(b.state));
-  } else if (display.sort === "Source") {
-    downloads.sort((a, b) => a.source.localeCompare(b.source));
-  }
+  const groups = groupDownloads(downloads, display.grouping, workspaces);
 
-  const groups = new Map<string, Download[]>();
-
-  for (const download of downloads) {
-    const group =
-      display.grouping === "State"
-        ? stateNames[download.state]
-        : display.grouping === "Source"
-          ? sourceNames[download.source]
-          : display.grouping === "Kind"
-            ? (download.name.split(".").pop()?.toUpperCase() ?? "Other")
-            : display.grouping === "Folder"
-              ? (workspaces
-                  .flatMap((workspace) => workspace.folders)
-                  .find((folder) => folder.id === download.folder_id)?.name ??
-                "Other")
-              : "";
-
-    const existing = groups.get(group);
-
-    if (existing) {
-      existing.push(download);
-    } else {
-      groups.set(group, [download]);
-    }
-  }
-
-  function navigate(next: Location) {
+  const navigate = (next: Location) => {
     setLocation(next);
     setNavigation((count) => count + 1);
     setFilter("all");
     setSelectedId(undefined);
-  }
+  };
 
-  function view(change: Partial<DisplayPreferences>) {
+  const view = (change: Partial<DisplayPreferences>) => {
     if (location.kind !== "workspace") {
-      void saveAggregateView(location.kind, { ...display, ...change });
+      saveAggregateView(location.kind, { ...display, ...change }).catch(
+        () => null
+      );
     } else if (workspace) {
-      void run({
+      run({
         grouping: workspace.grouping,
         kind: "view",
         layout: workspace.layout,
         sort: workspace.sort,
         workspace_id: workspace.id,
         ...change,
-      });
+      }).catch(() => null);
     }
-  }
+  };
 
   const focusInput = useCallback(
     (select: boolean) => {
@@ -218,49 +162,7 @@ export default function App() {
 
   const newDownload = useCallback(() => focusInput(true), [focusInput]);
 
-  useEffect(() => {
-    function keydown(event: KeyboardEvent) {
-      if (!(event.metaKey || event.ctrlKey)) {
-        return;
-      }
-
-      if (event.key === "n") {
-        event.preventDefault();
-        newDownload();
-      }
-
-      if (event.key === ",") {
-        event.preventDefault();
-        setModal({ kind: "settings" });
-      }
-
-      if (event.key === "f") {
-        event.preventDefault();
-        focusInput(false);
-      }
-    }
-
-    window.addEventListener("keydown", keydown);
-
-    if (!isTauri()) {
-      return () => window.removeEventListener("keydown", keydown);
-    }
-
-    const subscriptions = [
-      listen("settings", () => setModal({ kind: "settings" })),
-      listen("new-download", () => {
-        newDownload();
-      }),
-    ];
-
-    return () => {
-      window.removeEventListener("keydown", keydown);
-
-      for (const subscription of subscriptions) {
-        void subscription.then((unlisten) => unlisten());
-      }
-    };
-  }, [focusInput, newDownload]);
+  useAppKeyboard({ focusInput, newDownload, setModal });
 
   return (
     <>
@@ -269,113 +171,47 @@ export default function App() {
         location={location}
         navigate={navigate}
         onCreate={() => setModal({ kind: "workspace", workspace: null })}
-        onEdit={(workspace) => setModal({ kind: "workspace", workspace })}
-        onChangeIcon={(workspace, anchor) =>
-          setModal({ anchor, kind: "icon", workspace })
+        onEdit={(item) => setModal({ kind: "workspace", workspace: item })}
+        onChangeIcon={(item, anchor) =>
+          setModal({ anchor, kind: "icon", workspace: item })
         }
         onSettings={() => setModal({ kind: "settings" })}
         onNew={newDownload}
       />
       <SidebarInset className="h-svh min-w-0 overflow-hidden">
-        <WorkspaceHeader
+        <AppHeader
+          busy={busy}
+          canEdit={canEdit}
+          display={display}
+          filter={filter}
+          folder={folder}
+          lastDestination={lastDestination}
+          location={location}
+          navigation={navigation}
+          newDownload={newDownload}
+          onNavigateWorkspace={(id) =>
+            navigate({ kind: "workspace", workspaceId: id })
+          }
+          onOpenAddModal={(url, optionFolderId, optionWorkspaceId) =>
+            setModal({
+              folderId: optionFolderId,
+              kind: "add",
+              url,
+              workspaceId: optionWorkspaceId ?? workspace?.id ?? "",
+            })
+          }
+          onSetLastDestination={setLastDestination}
+          onViewChange={view}
+          preferences={preferences}
+          query={query}
+          searchRef={searchRef}
+          setFilter={setFilter}
+          setModal={setModal}
+          setQuery={setQuery}
           title={title}
-          workspace={location.kind === "workspace" ? workspace : undefined}
-          parentWorkspace={folder ? workspace : undefined}
-          onParent={() => {
-            if (workspace) {
-              navigate({ kind: "workspace", workspaceId: workspace.id });
-            }
-          }}
-        >
-          {workspace && (
-            <DownloadInput
-              key={navigation}
-              workspaces={workspaces}
-              location={location}
-              lastUsed={lastDestination}
-              onUsed={setLastDestination}
-              disabled={!canEdit || busy}
-              query={query}
-              setQuery={setQuery}
-              inputRef={searchRef}
-              onOptions={(url, folderId, workspaceId) =>
-                setModal({ folderId, kind: "add", url, workspaceId })
-              }
-            />
-          )}
-          <DownloadToolbar
-            filter={filter}
-            setFilter={setFilter}
-            display={display}
-            showFilter={
-              location.kind === "all" || location.kind === "workspace"
-            }
-            view={view}
-            disabled={
-              !canEdit ||
-              busy ||
-              (location.kind !== "workspace" && !preferences)
-            }
-          />
-          <SidebarPopover
-            title="Workspace actions"
-            trigger={
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Workspace actions"
-              >
-                <MoreHorizontal />
-              </Button>
-            }
-            groups={[
-              {
-                actions: [
-                  {
-                    disabled: !canEdit,
-                    icon: Plus,
-                    label: "New download",
-                    onClick: newDownload,
-                  },
-                  {
-                    icon: Settings2,
-                    label: "Settings",
-                    onClick: () => setModal({ kind: "settings" }),
-                  },
-                ],
-              },
-              ...(location.kind === "workspace" && workspace
-                ? [
-                    {
-                      actions: [
-                        {
-                          disabled: !canEdit || busy,
-                          icon: Smile,
-                          label: "Change icon…",
-                          onClick: (anchor: HTMLButtonElement | null) =>
-                            setModal({ anchor, kind: "icon", workspace }),
-                        },
-                        {
-                          icon: FolderOpen,
-                          label: "Edit workspace",
-                          onClick: () =>
-                            setModal({ kind: "workspace", workspace }),
-                        },
-                        {
-                          destructive: true,
-                          disabled: workspaces.length === 1 || !canEdit,
-                          icon: Trash2,
-                          label: "Delete workspace",
-                          onClick: () =>
-                            setModal({ kind: "delete-workspace", workspace }),
-                        },
-                      ],
-                    },
-                  ]
-                : []),
-            ]}
-          />
-        </WorkspaceHeader>
+          workspace={workspace}
+          workspaces={workspaces}
+        />
         <div
           className={cn(
             "flex min-h-0 flex-1 flex-col overflow-y-auto",
@@ -383,89 +219,19 @@ export default function App() {
           )}
         >
           <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6 lg:px-10">
-            {state.kind === "ready" && state.snapshot.session !== "Running" && (
-              <Alert>
-                <CircleAlert />
-                <AlertTitle>
-                  {state.snapshot.session === "RecoveryRequired"
-                    ? "Your library needs attention"
-                    : "Download engine is unavailable"}
-                </AlertTitle>
-                <AlertDescription>
-                  <p>
-                    {state.snapshot.recovery_notices.join(" ") ||
-                      `Engine status: ${state.snapshot.session}`}
-                  </p>
-                  {state.snapshot.session === "RecoveryRequired" && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={busy}
-                      onClick={() => void run({ kind: "acknowledge_recovery" })}
-                    >
-                      Acknowledge recovery
-                    </Button>
-                  )}
-                </AlertDescription>
-              </Alert>
-            )}
-            {state.kind === "loading" ? (
-              <div
-                className="flex flex-col gap-4"
-                aria-label="Loading downloads"
-              >
-                {[0, 1, 2].map((key) => (
-                  <Skeleton key={key} className="h-16 w-full" />
-                ))}
-              </div>
-            ) : state.kind === "failed" ? (
-              <Alert>
-                <CircleAlert />
-                <AlertTitle>Couldn't open your library</AlertTitle>
-                <AlertDescription>
-                  <p>{state.message}</p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void refresh()}
-                  >
-                    Try again
-                  </Button>
-                </AlertDescription>
-              </Alert>
-            ) : groups.size ? (
-              <div className="flex flex-col gap-7">
-                {Array.from(groups, ([label, downloads]) => (
-                  <section key={label} className="flex flex-col gap-2">
-                    {label && (
-                      <h2 className="text-muted-foreground px-3 text-xs font-medium">
-                        {label} · {downloads.length}
-                      </h2>
-                    )}
-                    <Downloads
-                      downloads={downloads}
-                      layout={display.layout}
-                      selectedId={selectedId}
-                      onInspect={(download) => setSelectedId(download.id)}
-                      onRemove={(download) =>
-                        setModal({ download, kind: "remove" })
-                      }
-                      onNew={newDownload}
-                      filtered={Boolean(query) || effectiveFilter !== "all"}
-                    />
-                  </section>
-                ))}
-              </div>
-            ) : (
-              <Downloads
-                downloads={[]}
-                layout="List"
-                onInspect={() => {}}
-                onRemove={() => {}}
-                onNew={newDownload}
-                filtered={Boolean(query) || effectiveFilter !== "all"}
-              />
-            )}
+            <EngineAlert busy={busy} run={run} state={state} />
+            <AppContent
+              display={display}
+              effectiveFilter={effectiveFilter}
+              groups={groups}
+              onInspect={(download) => setSelectedId(download.id)}
+              onRemove={(download) => setModal({ download, kind: "remove" })}
+              onNew={newDownload}
+              query={query}
+              refresh={refresh}
+              selectedId={selectedId}
+              state={state}
+            />
             {downloads.length > 0 && (
               <p className="text-muted-foreground px-3 text-xs">
                 {downloads.length}{" "}
@@ -475,107 +241,26 @@ export default function App() {
           </div>
         </div>
       </SidebarInset>
-      {selected && selectedWorkspace && (
-        <DownloadInspector
-          key={selected.id}
-          download={selected}
-          workspace={selectedWorkspace}
-          onClose={() => setSelectedId(undefined)}
-          onRemove={() => setModal({ download: selected, kind: "remove" })}
-        />
-      )}
-      {modal?.kind === "settings" && (
-        <SettingsDialog onClose={() => setModal(null)} />
-      )}
-      {modal?.kind === "icon" && (
-        <WorkspaceIconEditor
-          workspace={modal.workspace}
-          anchor={modal.anchor}
-          onClose={() => setModal(null)}
-        />
-      )}
-      {modal?.kind === "workspace" && (
-        <WorkspaceDialog
-          workspace={modal.workspace}
-          onClose={() => setModal(null)}
-          onCreated={(workspaceId) =>
-            navigate({ kind: "workspace", workspaceId })
+      <AppModals
+        busy={busy}
+        folderId={folderId}
+        modal={modal}
+        navigate={navigate}
+        onClose={() => setModal(null)}
+        onRemoveSelected={() => {
+          if (selected) {
+            setModal({ download: selected, kind: "remove" });
           }
-        />
-      )}
-      {modal?.kind === "add" && workspace && (
-        <AddDownloadDialog
-          workspaces={workspaces}
-          initialWorkspace={
-            workspaces.find((item) => item.id === modal.workspaceId) ??
-            workspace
-          }
-          initialFolder={modal.folderId ?? folderId}
-          initialUrl={modal.url}
-          onClose={() => setModal(null)}
-        />
-      )}
-      {(modal?.kind === "remove" || modal?.kind === "delete-workspace") && (
-        <Dialog
-          open
-          onOpenChange={(open) => {
-            if (!open) {
-              setModal(null);
-            }
-          }}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {modal.kind === "remove"
-                  ? "Remove this download?"
-                  : "Delete this workspace?"}
-              </DialogTitle>
-              <DialogDescription>
-                {modal.kind === "remove"
-                  ? `Remove “${modal.download.name}” from your library? Any active transfer will stop. Your downloaded files stay on disk.`
-                  : `Delete “${modal.workspace.name}” and its download history? Downloaded files stay on disk.`}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="ghost" onClick={() => setModal(null)}>
-                Keep it
-              </Button>
-              <Button
-                variant="destructive"
-                disabled={busy}
-                onClick={async () => {
-                  const receipt = await run(
-                    modal.kind === "remove"
-                      ? {
-                          download_ids: [modal.download.id],
-                          kind: "remove_downloads",
-                        }
-                      : {
-                          kind: "delete_workspace",
-                          workspace_id: modal.workspace.id,
-                        }
-                  );
-
-                  if (receipt) {
-                    if (modal.kind === "delete-workspace") {
-                      navigate({ kind: "all" });
-                    }
-
-                    setModal(null);
-                  }
-                }}
-              >
-                {busy
-                  ? "Removing…"
-                  : modal.kind === "remove"
-                    ? "Remove download"
-                    : "Delete workspace"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+        }}
+        run={run}
+        selected={selected}
+        selectedWorkspace={selectedWorkspace}
+        setSelectedId={setSelectedId}
+        workspace={workspace}
+        workspaces={workspaces}
+      />
     </>
   );
-}
+};
+
+export default App;

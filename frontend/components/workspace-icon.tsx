@@ -1,18 +1,18 @@
+import type { TreatmentParameters, Workspace } from "@/lib/model";
 import { workspaceEmoji } from "@/lib/model";
-import type { Workspace, TreatmentParameters } from "@/lib/model";
 import { canTreatEmoji, emojiTreatment } from "@/lib/workspace-appearance";
 
 type Treatment = TreatmentParameters & {
   preset_id?: string;
 };
 
-export function EmojiArtwork({
+export const EmojiArtwork = ({
   emoji,
   treatment,
 }: {
   emoji: string;
   treatment?: Treatment | null;
-}) {
+}) => {
   const applied = canTreatEmoji(emoji) ? treatment : null;
 
   return (
@@ -32,13 +32,13 @@ export function EmojiArtwork({
       {emoji}
     </span>
   );
-}
+};
 
-export function WorkspaceIcon({
+export const WorkspaceIcon = ({
   workspace,
 }: {
-  workspace: Pick<Workspace, "icon" | "appearance">;
-}) {
+  workspace: Pick<Workspace, "appearance" | "icon">;
+}) => {
   const emoji = workspaceEmoji(workspace);
 
   return (
@@ -47,4 +47,4 @@ export function WorkspaceIcon({
       treatment={emojiTreatment(emoji, workspace.appearance)}
     />
   );
-}
+};

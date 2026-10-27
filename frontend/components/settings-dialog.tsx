@@ -42,42 +42,13 @@ const sections = [
   { icon: Info, label: "About" },
 ];
 
-export function SettingsDialog({ onClose }: { onClose: () => void }) {
-  const { preferences } = useLibrary();
-
-  return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open) {
-          onClose();
-        }
-      }}
-    >
-      <DialogContent className="overflow-hidden p-0 sm:max-w-3xl">
-        <DialogTitle className="sr-only">Settings</DialogTitle>
-        <DialogDescription className="sr-only">
-          Customize Opul's appearance, downloads, and connections.
-        </DialogDescription>
-        {preferences ? (
-          <SettingsContent initial={preferences} onClose={onClose} />
-        ) : (
-          <p className="p-8">
-            Settings are unavailable until the download engine connects.
-          </p>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function SettingsContent({
+const SettingsContent = ({
   initial,
   onClose,
 }: {
   initial: Preferences;
   onClose: () => void;
-}) {
+}) => {
   const { savePreferences, state } = useLibrary();
   const workspaces = state.kind === "ready" ? state.snapshot.workspaces : [];
   const [section, setSection] = useState("Appearance");
@@ -85,14 +56,22 @@ function SettingsContent({
   const [saving, setSaving] = useState(false);
   const [tools, setTools] = useState<ToolStatus | null>(null);
   const [toolError, setToolError] = useState("");
+
   useEffect(() => {
-    void bridge
-      .toolStatus()
-      .then(setTools)
-      .catch((error) => setToolError(errorMessage(error)));
+    const loadTools = async () => {
+      try {
+        const status = await bridge.toolStatus();
+
+        setTools(status);
+      } catch (error) {
+        setToolError(errorMessage(error));
+      }
+    };
+
+    loadTools().catch(() => null);
   }, []);
 
-  async function save(event: React.FormEvent) {
+  const save = async (event: React.FormEvent) => {
     event.preventDefault();
     setSaving(true);
 
@@ -101,9 +80,9 @@ function SettingsContent({
     }
 
     setSaving(false);
-  }
+  };
 
-  function numberField(
+  const numberField = (
     key:
       | "max_download_kbps"
       | "max_upload_kbps"
@@ -112,24 +91,22 @@ function SettingsContent({
     label: string,
     min = 0,
     max = 1_000_000
-  ) {
-    return (
-      <Field>
-        <FieldLabel htmlFor={`setting-${key}`}>{label}</FieldLabel>
-        <Input
-          id={`setting-${key}`}
-          type="number"
-          min={min}
-          max={max}
-          required
-          value={draft[key]}
-          onChange={(event) =>
-            setDraft({ ...draft, [key]: event.target.valueAsNumber || 0 })
-          }
-        />
-      </Field>
-    );
-  }
+  ) => (
+    <Field>
+      <FieldLabel htmlFor={`setting-${key}`}>{label}</FieldLabel>
+      <Input
+        id={`setting-${key}`}
+        type="number"
+        min={min}
+        max={max}
+        required
+        value={draft[key]}
+        onChange={(event) =>
+          setDraft({ ...draft, [key]: event.target.valueAsNumber || 0 })
+        }
+      />
+    </Field>
+  );
 
   return (
     <form onSubmit={save} className="flex h-[32rem] max-h-[85svh] min-w-0">
@@ -169,14 +146,12 @@ function SettingsContent({
               </p>
               <FieldGroup>
                 <Field>
-                  <FieldLabel id="theme-label">Theme</FieldLabel>
+                  <FieldLabel>Theme</FieldLabel>
                   <ToggleGroup
-                    aria-labelledby="theme-label"
-                    variant="outline"
-                    spacing={0}
+                    aria-label="Color theme"
                     value={[draft.theme]}
                     onValueChange={(values) => {
-                      const theme = values[0];
+                      const [theme] = values;
 
                       if (
                         theme === "system" ||
@@ -191,9 +166,6 @@ function SettingsContent({
                     <ToggleGroupItem value="light">Light</ToggleGroupItem>
                     <ToggleGroupItem value="dark">Dark</ToggleGroupItem>
                   </ToggleGroup>
-                  <FieldDescription>
-                    System follows your Mac's appearance.
-                  </FieldDescription>
                 </Field>
               </FieldGroup>
             </>
@@ -284,13 +256,18 @@ function SettingsContent({
                       })
                     }
                   />
+                  <FieldDescription>
+                    Applies to video pages and direct file downloads.
+                  </FieldDescription>
                 </Field>
-                {numberField("max_download_kbps", "Download limit, KB/s")}
-                {numberField("max_upload_kbps", "Upload limit, KB/s")}
-                <FieldDescription>
-                  Use 0 for unlimited speed. Save locations belong to each
-                  workspace.
-                </FieldDescription>
+                {numberField(
+                  "max_download_kbps",
+                  "Max download speed (KB/s, 0 for unlimited)"
+                )}
+                {numberField(
+                  "max_upload_kbps",
+                  "Max upload speed (KB/s, 0 for unlimited)"
+                )}
               </FieldGroup>
             </>
           )}
@@ -346,9 +323,9 @@ function SettingsContent({
                 Direct files and torrents work on their own. Video pages use
                 yt-dlp; audio conversion uses FFmpeg.
               </p>
-              <div className="bg-muted rounded-lg p-3 text-sm" role="status">
+              <output className="bg-muted block rounded-lg p-3 text-sm">
                 {toolError || tools?.message || "Checking installed tools…"}
-              </div>
+              </output>
               <FieldGroup>
                 <Field>
                   <FieldLabel htmlFor="yt-dlp">yt-dlp path</FieldLabel>
@@ -422,4 +399,33 @@ function SettingsContent({
       </main>
     </form>
   );
-}
+};
+
+export const SettingsDialog = ({ onClose }: { onClose: () => void }) => {
+  const { preferences } = useLibrary();
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) {
+          onClose();
+        }
+      }}
+    >
+      <DialogContent className="overflow-hidden p-0 sm:max-w-3xl">
+        <DialogTitle className="sr-only">Settings</DialogTitle>
+        <DialogDescription className="sr-only">
+          Customize Opul&apos;s appearance, downloads, and connections.
+        </DialogDescription>
+        {preferences ? (
+          <SettingsContent initial={preferences} onClose={onClose} />
+        ) : (
+          <p className="p-8">
+            Settings are unavailable until the download engine connects.
+          </p>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+};

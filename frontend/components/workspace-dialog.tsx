@@ -1,5 +1,6 @@
 import { FolderOpen, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { Dispatch, RefObject, SetStateAction } from "react";
 
 import { Choice } from "@/components/sidebar-popover";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -22,9 +23,9 @@ import { Input } from "@/components/ui/input";
 import {
   Popover,
   PopoverContent,
-  PopoverTitle,
   PopoverDescription,
   PopoverHeader,
+  PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { toast } from "@/components/ui/toast";
@@ -37,20 +38,248 @@ import type { Workspace, WorkspaceDraft, WorkspaceRequest } from "@/lib/model";
 
 const emojis = [
   "📁",
-  "🏠",
+  "📦",
   "💼",
-  "🎬",
-  "🎵",
   "📚",
-  "🎮",
   "🎨",
-  "📷",
-  "💻",
-  "🌱",
+  "🚀",
+  "💡",
+  "🎯",
+  "⚡️",
+  "🔥",
   "✨",
 ];
 
-export function WorkspaceDialog({
+const WorkspaceIconField = ({
+  workspace,
+  draft,
+  emoji,
+  busy,
+  pickerOpen,
+  setPickerOpen,
+  setDraft,
+}: {
+  workspace: Workspace | null;
+  draft: (WorkspaceDraft & { emoji: string }) | null;
+  emoji: string;
+  busy: boolean;
+  pickerOpen: boolean;
+  setPickerOpen: (open: boolean) => void;
+  setDraft: Dispatch<
+    SetStateAction<(WorkspaceDraft & { emoji: string }) | null>
+  >;
+}) => {
+  if (workspace) {
+    return (
+      <Choice
+        label="Workspace emoji"
+        value={emoji}
+        options={emojis.map((value) => ({
+          content: (
+            <WorkspaceIcon
+              workspace={{
+                appearance: workspace.appearance,
+                icon: { kind: "Emoji", value },
+              }}
+            />
+          ),
+          label: value,
+          value,
+        }))}
+        onChange={(nextEmoji) =>
+          setDraft((prev) => prev && { ...prev, emoji: nextEmoji })
+        }
+      />
+    );
+  }
+
+  return (
+    <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+      <PopoverTrigger
+        render={
+          <Button
+            id="workspace-emoji"
+            type="button"
+            variant="outline"
+            disabled={!draft || busy}
+            aria-label={`Workspace emoji: ${emoji}`}
+          />
+        }
+      >
+        <WorkspaceIcon
+          workspace={{
+            appearance: draft?.appearance ?? {
+              automatic_folder: null,
+              preference: { kind: "Automatic" },
+            },
+            icon: { kind: "Emoji", value: emoji },
+          }}
+        />
+      </PopoverTrigger>
+      <PopoverContent
+        side="right"
+        align="start"
+        className="h-[min(34rem,var(--available-height))] max-h-[calc(100svh-1rem)] w-80 max-w-[calc(100vw-1rem)] gap-2 overflow-hidden p-3 motion-reduce:transition-none motion-reduce:data-closed:animate-none motion-reduce:data-open:animate-none"
+      >
+        <PopoverHeader className="shrink-0">
+          <PopoverTitle>Choose workspace icon</PopoverTitle>
+          <PopoverDescription>
+            Saved when you create the workspace.
+          </PopoverDescription>
+        </PopoverHeader>
+        {draft && (
+          <WorkspaceIconPicker
+            workspaceId={draft.workspace_id}
+            draft={{ appearance: draft.appearance, emoji }}
+            onChange={(update) =>
+              setDraft((prevDraft) => {
+                if (!prevDraft) {
+                  return null;
+                }
+
+                const resolved =
+                  "call" in update
+                    ? update({
+                        appearance: prevDraft.appearance,
+                        emoji: prevDraft.emoji,
+                      })
+                    : update;
+
+                return { ...prevDraft, ...resolved };
+              })
+            }
+          />
+        )}
+        <div className="flex shrink-0 justify-end">
+          <Button type="button" onClick={() => setPickerOpen(false)}>
+            Done
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
+const WorkspaceFormFields = ({
+  workspace,
+  draft,
+  emoji,
+  busy,
+  pickerOpen,
+  setPickerOpen,
+  setDraft,
+  name,
+  setName,
+  nameInput,
+  path,
+  setPath,
+  chooseFolder,
+}: {
+  workspace: Workspace | null;
+  draft: (WorkspaceDraft & { emoji: string }) | null;
+  emoji: string;
+  busy: boolean;
+  pickerOpen: boolean;
+  setPickerOpen: (open: boolean) => void;
+  setDraft: Dispatch<
+    SetStateAction<(WorkspaceDraft & { emoji: string }) | null>
+  >;
+  name: string;
+  setName: (name: string) => void;
+  nameInput: RefObject<HTMLInputElement | null>;
+  path: string;
+  setPath: (path: string) => void;
+  chooseFolder: () => Promise<void>;
+}) => (
+  <FieldGroup>
+    <div className="flex items-end gap-3">
+      <Field className="w-24 shrink-0">
+        <FieldLabel htmlFor={workspace ? undefined : "workspace-emoji"}>
+          Icon
+        </FieldLabel>
+        <WorkspaceIconField
+          workspace={workspace}
+          draft={draft}
+          emoji={emoji}
+          busy={busy}
+          pickerOpen={pickerOpen}
+          setPickerOpen={setPickerOpen}
+          setDraft={setDraft}
+        />
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="workspace-name">Name</FieldLabel>
+        <Input
+          id="workspace-name"
+          ref={nameInput}
+          autoFocus
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          placeholder="e.g. Personal"
+          required
+          maxLength={80}
+        />
+      </Field>
+    </div>
+    {!workspace && (
+      <Field>
+        <FieldLabel htmlFor="workspace-path">Save downloads to</FieldLabel>
+        <div className="flex gap-2">
+          <Input
+            id="workspace-path"
+            value={path}
+            onChange={(event) => setPath(event.target.value)}
+            required
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            aria-label="Choose workspace folder"
+            onClick={() => {
+              chooseFolder().catch(() => null);
+            }}
+          >
+            <FolderOpen />
+          </Button>
+        </div>
+        <FieldDescription>
+          You can add more saved folders later.
+        </FieldDescription>
+      </Field>
+    )}
+  </FieldGroup>
+);
+
+const WorkspaceDialogAlerts = ({
+  draftError,
+  saveError,
+  onRetry,
+}: {
+  draftError?: string;
+  saveError?: string;
+  onRetry: () => void;
+}) => (
+  <>
+    {draftError && (
+      <Alert>
+        <AlertDescription>
+          <p>{draftError}</p>
+          <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+            Try again
+          </Button>
+        </AlertDescription>
+      </Alert>
+    )}
+    {saveError && (
+      <Alert role="alert">
+        <AlertDescription>{saveError}</AlertDescription>
+      </Alert>
+    )}
+  </>
+);
+
+export const WorkspaceDialog = ({
   workspace,
   onClose,
   onCreated,
@@ -58,7 +287,7 @@ export function WorkspaceDialog({
   workspace: Workspace | null;
   onClose: () => void;
   onCreated: (id: string) => void;
-}) {
+}) => {
   const { state, run, busy } = useLibrary();
   const nameInput = useRef<HTMLInputElement>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -86,11 +315,14 @@ export function WorkspaceDialog({
   );
 
   const loadDraft = useCallback(async () => {
-    setDraftError(undefined);
-
     try {
-      pendingDraft.current ??= bridge.workspaceDraft();
-      setDraft({ ...(await pendingDraft.current), emoji: "📁" });
+      if (!pendingDraft.current) {
+        pendingDraft.current = bridge.workspaceDraft();
+      }
+
+      const loaded = await pendingDraft.current;
+      setDraft({ ...loaded, emoji: "📁" });
+      setDraftError(undefined);
     } catch (error) {
       pendingDraft.current = null;
       setDraftError(errorMessage(error));
@@ -99,9 +331,10 @@ export function WorkspaceDialog({
 
   useEffect(() => {
     if (!workspace) {
-      void loadDraft();
+      loadDraft().catch(() => null);
     }
   }, [workspace, loadDraft]);
+
   const [name, setName] = useState(workspace?.name ?? "");
   const emoji = draft?.emoji ?? "📁";
 
@@ -112,7 +345,7 @@ export function WorkspaceDialog({
         : "")
   );
 
-  async function chooseFolder() {
+  const chooseFolder = async () => {
     try {
       const selected = await bridge.chooseFolder();
 
@@ -126,17 +359,18 @@ export function WorkspaceDialog({
         type: "error",
       });
     }
-  }
+  };
 
-  async function submit(event: React.FormEvent) {
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault();
 
     if (!draft) {
       return;
     }
+
     setSaveError(undefined);
     const id = draft.workspace_id;
-    const folder = workspace?.folders.find((folder) => folder.is_default);
+    const defaultFolder = workspace?.folders.find((f) => f.is_default);
 
     const input = {
       appearance: draft.appearance,
@@ -144,7 +378,7 @@ export function WorkspaceDialog({
       expected_revision: null,
       file_organization: workspace?.file_organization ?? "Automatic",
       folder_id: draft.folder_id,
-      folder_name: folder?.name ?? "Downloads",
+      folder_name: defaultFolder?.name ?? "Downloads",
       folder_path: path.trim(),
       icon: { kind: "Emoji", value: emoji },
       name: name.trim(),
@@ -173,7 +407,7 @@ export function WorkspaceDialog({
         "Couldn't save the workspace. Your changes are kept here; try again."
       );
     }
-  }
+  };
 
   return (
     <Dialog
@@ -199,157 +433,28 @@ export function WorkspaceDialog({
                 : "Keep a project, a collection, or just your everyday files together."}
             </DialogDescription>
           </DialogHeader>
-          <FieldGroup>
-            <div className="flex items-end gap-3">
-              <Field className="w-24 shrink-0">
-                <FieldLabel htmlFor={workspace ? undefined : "workspace-emoji"}>
-                  Icon
-                </FieldLabel>
-                {workspace ? (
-                  <Choice
-                    label="Workspace emoji"
-                    value={emoji}
-                    options={emojis.map((value) => ({
-                      content: (
-                        <WorkspaceIcon
-                          workspace={{
-                            icon: { kind: "Emoji", value },
-                            appearance: workspace.appearance,
-                          }}
-                        />
-                      ),
-                      label: value,
-                      value,
-                    }))}
-                    onChange={(emoji) =>
-                      setDraft((draft) => draft && { ...draft, emoji })
-                    }
-                  />
-                ) : (
-                  <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-                    <PopoverTrigger
-                      render={
-                        <Button
-                          id="workspace-emoji"
-                          type="button"
-                          variant="outline"
-                          disabled={!draft || busy}
-                          aria-label={`Workspace emoji: ${emoji}`}
-                        />
-                      }
-                    >
-                      <WorkspaceIcon
-                        workspace={{
-                          appearance: draft?.appearance ?? {
-                            automatic_folder: null,
-                            preference: { kind: "Automatic" },
-                          },
-                          icon: { kind: "Emoji", value: emoji },
-                        }}
-                      />
-                    </PopoverTrigger>
-                    <PopoverContent
-                      side="right"
-                      align="start"
-                      className="h-[min(34rem,var(--available-height))] max-h-[calc(100svh-1rem)] w-80 max-w-[calc(100vw-1rem)] gap-2 overflow-hidden p-3 motion-reduce:transition-none motion-reduce:data-closed:animate-none motion-reduce:data-open:animate-none"
-                    >
-                      <PopoverHeader className="shrink-0">
-                        <PopoverTitle>Choose workspace icon</PopoverTitle>
-                        <PopoverDescription>
-                          Saved when you create the workspace.
-                        </PopoverDescription>
-                      </PopoverHeader>
-                      {draft && (
-                        <WorkspaceIconPicker
-                          workspaceId={draft.workspace_id}
-                          draft={{ appearance: draft.appearance, emoji }}
-                          onChange={(update) =>
-                            setDraft(
-                              (draft) =>
-                                draft && {
-                                  ...draft,
-                                  ...(typeof update === "function"
-                                    ? update(draft)
-                                    : update),
-                                }
-                            )
-                          }
-                        />
-                      )}
-                      <div className="flex shrink-0 justify-end">
-                        <Button
-                          type="button"
-                          onClick={() => setPickerOpen(false)}
-                        >
-                          Done
-                        </Button>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                )}
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="workspace-name">Name</FieldLabel>
-                <Input
-                  id="workspace-name"
-                  ref={nameInput}
-                  autoFocus
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder="e.g. Personal"
-                  required
-                  maxLength={80}
-                />
-              </Field>
-            </div>
-            {!workspace && (
-              <Field>
-                <FieldLabel htmlFor="workspace-path">
-                  Save downloads to
-                </FieldLabel>
-                <div className="flex gap-2">
-                  <Input
-                    id="workspace-path"
-                    value={path}
-                    onChange={(event) => setPath(event.target.value)}
-                    required
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    aria-label="Choose workspace folder"
-                    onClick={() => void chooseFolder()}
-                  >
-                    <FolderOpen />
-                  </Button>
-                </div>
-                <FieldDescription>
-                  You can add more saved folders later.
-                </FieldDescription>
-              </Field>
-            )}
-          </FieldGroup>
-          {draftError && (
-            <Alert>
-              <AlertDescription>
-                <p>{draftError}</p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void loadDraft()}
-                >
-                  Try again
-                </Button>
-              </AlertDescription>
-            </Alert>
-          )}
-          {saveError && (
-            <Alert role="alert">
-              <AlertDescription>{saveError}</AlertDescription>
-            </Alert>
-          )}
+          <WorkspaceFormFields
+            workspace={workspace}
+            draft={draft}
+            emoji={emoji}
+            busy={busy}
+            pickerOpen={pickerOpen}
+            setPickerOpen={setPickerOpen}
+            setDraft={setDraft}
+            name={name}
+            setName={setName}
+            nameInput={nameInput}
+            path={path}
+            setPath={setPath}
+            chooseFolder={chooseFolder}
+          />
+          <WorkspaceDialogAlerts
+            draftError={draftError}
+            saveError={saveError}
+            onRetry={() => {
+              loadDraft().catch(() => null);
+            }}
+          />
           <DialogFooter>
             <Button
               type="button"
@@ -373,4 +478,4 @@ export function WorkspaceDialog({
       </DialogContent>
     </Dialog>
   );
-}
+};

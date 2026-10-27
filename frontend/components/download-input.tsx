@@ -94,7 +94,7 @@ export const DownloadInput = ({
         request: {
           expected_revision: null,
           folder_id: folderId,
-          name: path.split("/").filter(Boolean).pop() || "Folder",
+          name: path.split("/").findLast(Boolean) || "Folder",
           path,
           request_id: crypto.randomUUID(),
           workspace_id: workspace.id,
@@ -232,7 +232,9 @@ export const DownloadInput = ({
               }
               disabled={locked}
               onSelect={selectDestination}
-              onAdd={() => void addLocation()}
+              onAdd={() => {
+                addLocation().catch(() => null);
+              }}
             />
             <InputGroupButton
               type="submit"
