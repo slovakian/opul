@@ -303,6 +303,20 @@ mod tests {
     }
 
     #[test]
+    fn checkpoints_without_recent_emoji_keep_their_checksum() {
+        let state = AppState::fresh("/tmp/Downloads".into());
+        let encoded = serde_json::to_value(&state).unwrap();
+        assert!(encoded.get("recent_emoji").is_none());
+        let envelope = Envelope {
+            format: CHECKPOINT_FORMAT,
+            checksum: checksum(&serde_json::to_vec(&state).unwrap()),
+            state: state.clone(),
+        };
+        let bytes = serde_json::to_vec(&envelope).unwrap();
+        assert_eq!(read_checkpoint_bytes(&bytes).unwrap(), state);
+    }
+
+    #[test]
     fn checkpoint_round_trips_with_checksum_and_backup() {
         let folder = temp_dir();
         let path = folder.join("application-state.json");

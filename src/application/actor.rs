@@ -683,8 +683,52 @@ mod tests {
     }
 
     #[test]
+    fn recently_saved_emoji_are_durable_bounded_and_deduplicated() {
+        let folder = temp_dir();
+        let actor = ApplicationActor::open(folder.clone(), "/tmp/Downloads".into()).unwrap();
+        make_running(&actor);
+        let id = actor.snapshot().workspaces[0].id;
+        assert!(actor.snapshot().recent_emoji.is_empty());
+        let save = |emoji: &str| {
+            envelope(Command::SetWorkspaceAppearance {
+                workspace: id,
+                emoji: emoji.into(),
+                appearance: crate::WorkspaceAppearance::default(),
+            })
+        };
+        actor.dispatch(save("👩🏽‍💻")).unwrap();
+        actor.dispatch(save("👍🏿")).unwrap();
+        let retry = save("👩🏽‍💻");
+        actor.dispatch(retry.clone()).unwrap();
+        let checkpoint: serde_json::Value =
+            serde_json::from_slice(&fs::read(folder.join("application-state.json")).unwrap())
+                .unwrap();
+        assert_eq!(
+            checkpoint["state"]["recent_emoji"],
+            serde_json::json!(["👩🏽‍💻", "👍🏿"])
+        );
+        let mut expected = Vec::new();
+        for index in 0..30 {
+            let emoji = char::from_u32(0x1f600 + index).unwrap().to_string();
+            actor.dispatch(save(&emoji)).unwrap();
+            expected.insert(0, emoji);
+            expected.truncate(super::super::domain::RECENT_EMOJI_LIMIT);
+        }
+        actor.dispatch(retry.clone()).unwrap();
+        assert_eq!(actor.snapshot().recent_emoji, expected);
+        drop(actor);
+        let actor = ApplicationActor::open(folder.clone(), "/tmp/Unused".into()).unwrap();
+        assert_eq!(actor.snapshot().recent_emoji, expected);
+        actor.dispatch(retry).unwrap();
+        assert_eq!(actor.snapshot().recent_emoji, expected);
+        drop(actor);
+        fs::remove_dir_all(folder).unwrap();
+    }
+
+    #[test]
     fn creation_draft_commits_icon_and_frozen_appearance_together_and_retries_after_restart() {
-        for emoji in ["📁", "👨‍👩‍👧‍👦"] {
+        for emoji in ["📁", "👨‍👩‍👧‍👦", "👩🏽‍💻", "👍🏿", "🫱🏻‍🫲🏿"]
+        {
             let folder = temp_dir();
             let actor = ApplicationActor::open(folder.clone(), "/tmp/Downloads".into()).unwrap();
             make_running(&actor);
@@ -715,6 +759,7 @@ mod tests {
             assert!(actor.dispatch(request.clone()).is_err());
             assert_eq!(actor.snapshot().workspaces, before.workspaces);
             assert_eq!(actor.snapshot().revision, before.revision);
+            assert_eq!(actor.snapshot().recent_emoji, before.recent_emoji);
             assert_eq!(fs::read(&checkpoint).unwrap(), bytes);
             drop(actor);
             fs::remove_dir(&backup).unwrap();
@@ -734,6 +779,7 @@ mod tests {
                 super::super::WorkspaceIcon::Emoji(emoji.into())
             );
             assert_eq!(created.appearance, appearance);
+            assert_eq!(saved.recent_emoji, vec![emoji.to_string()]);
             assert!(
                 saved
                     .workspaces
@@ -747,6 +793,7 @@ mod tests {
             actor.dispatch(request).unwrap();
             let reopened = actor.snapshot();
             assert_eq!(reopened.workspaces, saved.workspaces);
+            assert_eq!(reopened.recent_emoji, saved.recent_emoji);
             drop(actor);
             fs::remove_dir_all(folder).unwrap();
         }
@@ -853,10 +900,12 @@ mod tests {
                 .is_err()
         );
         assert_eq!(actor.snapshot().workspaces[0], before);
+        assert!(actor.snapshot().recent_emoji.is_empty());
         drop(actor);
         fs::remove_dir(&backup).unwrap();
         let actor = ApplicationActor::open(folder.clone(), "/tmp/Unused".into()).unwrap();
         assert_eq!(actor.snapshot().workspaces[0], before);
+        assert!(actor.snapshot().recent_emoji.is_empty());
         drop(actor);
         fs::remove_dir_all(folder).unwrap();
     }

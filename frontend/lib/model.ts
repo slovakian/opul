@@ -144,6 +144,7 @@ export const snapshotSchema = z.object({
     "ReadOnly",
   ]),
   workspaces: z.array(workspaceSchema),
+  recent_emoji: z.array(z.string()).max(24).default([]),
   recovery_notices: z.array(z.string()),
 });
 export const preferencesSchema = z.object({

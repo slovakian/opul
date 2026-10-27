@@ -128,6 +128,7 @@ export const snapshot: Snapshot = {
       ],
     },
   ],
+  recent_emoji: [],
 };
 
 export async function mockDesktop(
@@ -331,6 +332,20 @@ export async function mockDesktop(
                   downloads: [],
                 });
               }
+              const savedEmoji =
+                command.kind === "set_workspace_appearance"
+                  ? command.request.emoji
+                  : command.kind === "create_workspace" &&
+                      command.request.icon.kind === "Emoji"
+                    ? command.request.icon.value
+                    : null;
+              if (savedEmoji)
+                snapshot.recent_emoji = [
+                  savedEmoji,
+                  ...snapshot.recent_emoji.filter(
+                    (emoji) => emoji !== savedEmoji,
+                  ),
+                ].slice(0, 24);
               if (command.kind === "update_workspace") {
                 const workspace = snapshot.workspaces.find(
                   (workspace) => workspace.id === command.request.workspace_id,

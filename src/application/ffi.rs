@@ -222,6 +222,7 @@ pub struct MachineSnapshot {
     pub sequence: u64,
     pub session: MachineSessionState,
     pub workspaces: Vec<MachineWorkspace>,
+    pub recent_emoji: Vec<String>,
     pub recovery_notices: Vec<String>,
 }
 
@@ -1717,6 +1718,7 @@ fn observe_adapters(actor: &ApplicationActor, torrent: &TorrentEngine, media: &M
 
 fn snapshot_view(projection: AppProjection) -> MachineSnapshot {
     MachineSnapshot {
+        recent_emoji: projection.recent_emoji,
         revision: projection.revision,
         boot_id: projection.boot.map(|id| id.to_string()),
         sequence: projection.sequence,

@@ -224,3 +224,42 @@ artwork in the sidebar, heading, and picker. Cancel preserved the saved treatmen
 WebKit additionally exercised pointer dragging, excluded emoji, creation,
 minimum-window layout, and emulated reduced motion. The native system motion
 preference was not changed during validation.
+
+## Skin tones and recently saved emoji (#16)
+
+The shared picker offers named skin-tone toggles only when the selected emoji's
+bundled metadata lists supported variants. Each toggle chooses the complete native
+Unicode sequence, including modifiers and joiners. Tone changes remain in the
+local draft. Search, color suggestions, Custom and Back retain that choice.
+Emoji without tone variants have no skin-tone controls.
+
+Rust records the latest 24 successfully saved emoji, newest first and deduplicated
+by exact Unicode sequence. Creation and appearance-save events update this list
+in the same checkpoint as the workspace. Failed writes, canceled proposals,
+renames, bootstrap folders, and polling do not add entries. Unchanged request
+retries return their receipt without changing recent order. Empty history is
+omitted when serializing, preserving checksums of older checkpoints.
+
+Recently used appears before ordinary categories in the same bounded Frimousse
+grid. Entries preserve their saved tone and sequence, use the offline bundled
+search metadata, and pass native support filtering. A browsing session freezes
+its recent list so polling cannot move choices or reset search and scroll.
+
+`tests/ui/skin-tones-recents.spec.ts` covers supported controls, keyboard tone
+selection, search and Custom/Back, cancellation, creation and editing failures,
+lost responses, retries, deduplication, recent ordering and storage cap, Unicode
+aliases, fresh-page reopening, and minimum-window accessibility. Actor tests
+verify actual checkpoint failures, bounded storage, creation and appearance saves,
+full process recovery, and idempotent retry. The new regressions initially failed
+on the missing tone control and missing persisted history.
+
+Final validation: `OPUL_TEST_PORT=1546 CARGO_BUILD_JOBS=2 Scripts/test.sh` passed
+105 Rust tests, TypeScript/production build, and all 55 WebKit tests. Changed
+TypeScript files pass Prettier, and Standards and Spec reviews have no remaining
+findings. Signed debug packaging and isolated native smoke checks passed.
+
+Native accessibility flows saved 👩🏽‍💻 while editing and created a workspace with
+👍🏿, verified exact checkpoint sequences and recent order, canceled another tone
+change, and restarted the full process. The reopened picker restored the selected
+tone and both recent choices with descriptive names and matching native artwork.
+The native system motion preference was not changed; WebKit used reduced motion.

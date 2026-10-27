@@ -35,6 +35,7 @@ id_type!(EffectId);
 id_type!(BootId);
 
 pub(crate) const STATE_SCHEMA_VERSION: u32 = 2;
+pub(crate) const RECENT_EMOJI_LIMIT: usize = 24;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct AppState {
@@ -42,6 +43,9 @@ pub(crate) struct AppState {
     pub(crate) revision: u64,
     pub(crate) session: SessionPhase,
     pub(crate) workspaces: Vec<Workspace>,
+    // Preserve checksums of checkpoints written before recent emoji existed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(crate) recent_emoji: Vec<String>,
     #[serde(default)]
     pub(crate) structural_changes: PendingStructuralChanges,
     pub(crate) outbox: BTreeMap<EffectId, PendingEffect>,
@@ -74,6 +78,7 @@ impl AppState {
                 downloads: Vec::new(),
             }],
             structural_changes: PendingStructuralChanges::default(),
+            recent_emoji: Vec::new(),
             outbox: BTreeMap::new(),
             receipts: BTreeMap::new(),
             recovery: Vec::new(),
@@ -89,6 +94,14 @@ impl AppState {
         }
         if self.workspaces.is_empty() {
             return Err(InvariantViolation::NoWorkspace);
+        }
+        if self.recent_emoji.len() > RECENT_EMOJI_LIMIT
+            || self.recent_emoji.iter().collect::<BTreeSet<_>>().len() != self.recent_emoji.len()
+            || self.recent_emoji.iter().any(|emoji| {
+                emoji.trim().is_empty() || emoji.len() > 128 || emoji.chars().any(char::is_control)
+            })
+        {
+            return Err(InvariantViolation::InvalidRecentEmoji);
         }
 
         let mut workspace_ids = BTreeSet::new();
@@ -212,6 +225,12 @@ impl AppState {
             }
         }
         Ok(())
+    }
+
+    pub(crate) fn record_recent_emoji(&mut self, emoji: &str) {
+        self.recent_emoji.retain(|saved| saved != emoji);
+        self.recent_emoji.insert(0, emoji.to_string());
+        self.recent_emoji.truncate(RECENT_EMOJI_LIMIT);
     }
 
     pub(crate) fn workspace(&self, id: WorkspaceId) -> Option<&Workspace> {
@@ -724,6 +743,8 @@ pub(crate) struct MigrationRecord {
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub(crate) enum InvariantViolation {
+    #[error("recent emoji must be valid, unique, and bounded")]
+    InvalidRecentEmoji,
     #[error("workspace {0} has an invalid appearance")]
     InvalidWorkspaceAppearance(WorkspaceId),
     #[error("unsupported application-state schema {0}")]

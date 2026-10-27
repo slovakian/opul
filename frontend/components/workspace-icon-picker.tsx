@@ -1,6 +1,7 @@
 import {
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type Dispatch,
@@ -25,9 +26,10 @@ import {
 import { WorkspaceColorSuggestions } from "@/components/workspace-color-suggestions";
 import { WorkspaceCustomTreatment } from "@/components/workspace-custom-treatment";
 import { Spinner } from "@/components/ui/spinner";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { WorkspaceIcon } from "@/components/workspace-icon";
 import { bridge, errorMessage } from "@/lib/bridge";
-import { resolveEmojiData } from "@/lib/emoji-data";
+import { emojiDataWithRecents, skinToneChoices } from "@/lib/emoji-data";
 import { useLibrary } from "@/lib/library";
 import { workspaceEmoji, type Workspace } from "@/lib/model";
 import { canTreatEmoji, emojiTreatment } from "@/lib/workspace-appearance";
@@ -108,6 +110,13 @@ export function WorkspaceIconPicker({
   onChange: Dispatch<SetStateAction<IconDraft>>;
 }) {
   const { emoji, appearance } = draft;
+  const { state } = useLibrary();
+  const [resolveEmojiData] = useState(() =>
+    emojiDataWithRecents(
+      state.kind === "ready" ? state.snapshot.recent_emoji : [],
+    ),
+  );
+  const tones = useMemo(() => skinToneChoices(emoji), [emoji]);
   const keyboardNavigation = useRef(false);
   const [custom, setCustom] = useState(false);
   const customButton = useRef<HTMLButtonElement>(null);
@@ -147,6 +156,33 @@ export function WorkspaceIconPicker({
             custom && "invisible",
           )}
         >
+          {tones.length > 1 && (
+            <ToggleGroup
+              aria-label="Skin tone"
+              size="sm"
+              value={[emoji]}
+              onValueChange={(values) => {
+                const selected = values[0];
+                if (typeof selected === "string")
+                  onChange((draft) => ({ ...draft, emoji: selected }));
+              }}
+            >
+              {tones.map((tone) => (
+                <ToggleGroupItem
+                  key={tone.emoji}
+                  value={tone.emoji}
+                  aria-label={tone.label}
+                  title={tone.label}
+                  className="relative"
+                >
+                  <span aria-hidden>{tone.emoji}</span>
+                  {tone.emoji === emoji && (
+                    <Check aria-hidden className="absolute bottom-0 right-0" />
+                  )}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          )}
           <EmojiPicker.Root
             className="flex min-h-[7.25rem] flex-1 flex-col gap-2"
             columns={8}

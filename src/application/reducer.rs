@@ -1001,8 +1001,14 @@ pub(crate) fn apply(state: &mut AppState, event: &Event) {
                 item.icon = WorkspaceIcon::Emoji(emoji.clone());
                 item.appearance = appearance.clone();
             }
+            state.record_recent_emoji(emoji);
         }
-        Event::WorkspaceCreated(workspace) => state.workspaces.push(workspace.clone()),
+        Event::WorkspaceCreated(workspace) => {
+            state.workspaces.push(workspace.clone());
+            if let WorkspaceIcon::Emoji(emoji) = &workspace.icon {
+                state.record_recent_emoji(emoji);
+            }
+        }
         Event::WorkspaceRenamed {
             workspace,
             name,
