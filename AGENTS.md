@@ -33,9 +33,9 @@ This project uses **Ultracite**, a zero-config preset that enforces strict code 
 
 ## Quick Reference
 
-- **Format code**: `npx ultracite fix`
-- **Check for issues**: `npx ultracite check`
-- **Diagnose setup**: `npx ultracite doctor`
+- **Format code**: `vp fmt` (or `npm run format`)
+- **Check for issues**: `vp check` (or `npm run check`)
+- **Diagnose setup**: `vp env doctor`
 
 Oxlint + Oxfmt (the underlying engine) provides robust linting and formatting. Most issues are automatically fixable.
 
@@ -153,4 +153,4 @@ Oxlint + Oxfmt will catch most mechanical issues automatically. Focus your atten
 
 ---
 
-Most formatting and common issues are automatically fixed by Oxlint + Oxfmt. Run `npx ultracite fix` before committing to ensure compliance.
+Most formatting and common issues are automatically fixed by Oxlint + Oxfmt. Run `vp fmt` before committing to ensure compliance.
