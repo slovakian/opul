@@ -149,6 +149,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             commands::snapshot,
             commands::workspace_draft,
+            commands::workspace_appearance_draft,
             commands::frontend_ready,
             commands::execute,
             commands::get_preferences,

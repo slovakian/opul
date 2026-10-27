@@ -171,6 +171,7 @@ export function WorkspaceDialog({
                           icon: { kind: "Emoji", value },
                           appearance: draft?.appearance ?? {
                             automatic_folder: null,
+                            preference: { kind: "Automatic" },
                           },
                         }}
                       />

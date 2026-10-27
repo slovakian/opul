@@ -15,6 +15,10 @@ export default defineConfig({
         codeSplitting: {
           groups: [
             {
+              name: "emoji-data",
+              test: /frontend\/assets\/emoji\/data\.json$/,
+            },
+            {
               name: "react",
               test: /node_modules\/(react|react-dom|scheduler)\//,
             },

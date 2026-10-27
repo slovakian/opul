@@ -38,3 +38,48 @@ Run `Scripts/test.sh`, `Scripts/package_app.sh debug`, and
 `Scripts/smoke_test.sh`. Appearance tests write `test-results/folders-light.png`,
 `folders-dark.png`, and `native-emoji.png`. If port 1420 belongs to another
 worktree, run Playwright with a dedicated Vite port and matching base URL.
+
+## Existing workspace icons (#12)
+
+Choose **Change icon…** in either workspace menu. The anchored picker holds a
+local draft: search and selection do not write, selecting an emoji keeps it open,
+and Cancel, Escape, or an outside click discards it and returns focus to the menu
+trigger. Save commits the complete Unicode sequence and appearance together.
+Checkpoint failure keeps the draft open. Retries with unchanged input reuse the
+request ID, including when the first response was lost after committing.
+
+`SetWorkspaceAppearance` changes only those two fields in the Rust state machine.
+Names, folders, format, organization, view settings, and downloads remain current.
+The automatic folder assignment is retained separately from the preference:
+Automatic, explicit Original, resolved Preset, or resolved Custom parameters.
+Automatic applies only to 📁; deliberate treatments follow eligible emoji. The
+shared eligibility rule in `frontend/lib/workspace-appearance.ts` suspends filters
+and hides color controls for curated exclusions, matching both presentation
+selectors without changing stored Unicode. Returning to an eligible emoji restores
+the preference. A previously unassigned workspace gets a frozen Rust proposal
+when editing begins; it is persisted only when saving a folder, without replacing
+an already assigned treatment.
+
+The shared controlled picker composes Frimousse 0.4 with shadcn Base UI popovers,
+input groups, buttons, and toggles. Browsing cells always show native colors.
+Frimousse's custom rendering API also corrects its zero-based ARIA grid indices
+to the required one-based indices. No dependency fork is needed.
+
+The English dataset is bundled from locked `emojibase-data` 18.0.0. Regenerate it
+with `node Scripts/bundle_emoji_data.mjs`; source licenses accompany the data in
+`frontend/assets/emoji/`. The custom resolver makes no network or storage requests.
+It probes native color glyphs to determine supported versions and country flags,
+then filters the bundled dataset before giving it to Frimousse. This is required
+because [Frimousse uses custom data without support filtering](https://frimousse.liveblocks.io/#custom-data-sources-and-locales).
+
+Verification adds state-machine checks for atomicity, unrelated settings,
+validation, retained automatic assignments, frozen proposals, full Unicode,
+checkpoint failure, restart, and idempotent retry. WebKit flows cover both menus,
+offline first use, keyboard selection, cancellation and focus, polling, failures,
+Original and deliberate treatments, presentation variants, eligibility, and
+accessible controls at the 720×520 minimum, including save errors.
+
+Follow-up tickets retain their scope: creation composition (#13), treatment
+suggestions (#14), custom sliders (#15), and skin-tone controls and recents (#16).
+The preference model supports deliberate treatments now; their selection controls
+arrive in those tickets.

@@ -87,16 +87,24 @@ export const downloadSchema = z.object({
     can_move: z.boolean(),
   }),
 });
+export const treatmentParametersSchema = z.object({
+  hue: z.number().int().min(0).max(359),
+  saturation: z.number().int().min(0).max(1000),
+  brightness: z.number().int().min(50).max(150),
+});
+export const folderTreatmentSchema = treatmentParametersSchema.extend({
+  preset_id: z.string().min(1).max(80),
+  version: z.number().int().positive(),
+});
+export const appearancePreferenceSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("Automatic") }),
+  z.object({ kind: z.literal("Original") }),
+  z.object({ kind: z.literal("Preset"), treatment: folderTreatmentSchema }),
+  treatmentParametersSchema.extend({ kind: z.literal("Custom") }),
+]);
 export const appearanceSchema = z.object({
-  automatic_folder: z
-    .object({
-      preset_id: z.string().min(1).max(80),
-      version: z.number().int().positive(),
-      hue: z.number().int().min(0).max(359),
-      saturation: z.number().int().min(0).max(1000),
-      brightness: z.number().int().min(50).max(150),
-    })
-    .nullable(),
+  automatic_folder: folderTreatmentSchema.nullable(),
+  preference: appearancePreferenceSchema.default({ kind: "Automatic" }),
 });
 export const workspaceDraftSchema = z.object({
   workspace_id: z.string(),
@@ -193,7 +201,14 @@ export type FolderRequest = {
 };
 export type DownloadAction =
   "Pause" | "Resume" | "Retry" | "Cancel" | "StopSeeding";
+export type WorkspaceAppearanceRequest = {
+  request_id: string;
+  workspace_id: string;
+  emoji: string;
+  appearance: Workspace["appearance"];
+};
 export type Command =
+  | { kind: "set_workspace_appearance"; request: WorkspaceAppearanceRequest }
   | { kind: "create_workspace" | "update_workspace"; request: WorkspaceRequest }
   | { kind: "delete_workspace"; workspace_id: string }
   | {

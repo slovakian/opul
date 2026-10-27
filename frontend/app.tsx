@@ -7,6 +7,7 @@ import {
   MoreHorizontal,
   Plus,
   Settings2,
+  Smile,
   Trash2,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -39,6 +40,7 @@ import { DownloadInspector } from "@/components/download-inspector";
 import { Downloads } from "@/components/downloads";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { SidebarPopover } from "@/components/sidebar-popover";
+import { WorkspaceIconEditor } from "@/components/workspace-icon-picker";
 import { WorkspaceDialog } from "@/components/workspace-dialog";
 import {
   WorkspaceSidebar,
@@ -56,6 +58,7 @@ import {
 } from "@/lib/model";
 
 type Modal =
+  | { kind: "icon"; workspace: Workspace; anchor: HTMLButtonElement | null }
   | { kind: "add"; url?: string; folderId?: string }
   | { kind: "settings" }
   | { kind: "workspace"; workspace: Workspace | null }
@@ -198,6 +201,9 @@ export default function App() {
         setFilter={setFilter}
         onCreate={() => setModal({ kind: "workspace", workspace: null })}
         onEdit={(workspace) => setModal({ kind: "workspace", workspace })}
+        onChangeIcon={(workspace, anchor) =>
+          setModal({ kind: "icon", workspace, anchor })
+        }
         onSettings={() => setModal({ kind: "settings" })}
         onNew={() => setModal({ kind: "add" })}
       />
@@ -281,6 +287,13 @@ export default function App() {
                   ? [
                       {
                         actions: [
+                          {
+                            label: "Change icon…",
+                            icon: Smile,
+                            disabled: !canEdit || busy,
+                            onClick: (anchor: HTMLButtonElement | null) =>
+                              setModal({ kind: "icon", workspace, anchor }),
+                          },
                           {
                             label: "Edit workspace",
                             icon: FolderOpen,
@@ -423,6 +436,13 @@ export default function App() {
       )}
       {modal?.kind === "settings" && (
         <SettingsDialog onClose={() => setModal(null)} />
+      )}
+      {modal?.kind === "icon" && (
+        <WorkspaceIconEditor
+          workspace={modal.workspace}
+          anchor={modal.anchor}
+          onClose={() => setModal(null)}
+        />
       )}
       {modal?.kind === "workspace" && (
         <WorkspaceDialog

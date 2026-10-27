@@ -17,6 +17,9 @@ use uuid::Uuid;
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum DesktopCommand {
+    SetWorkspaceAppearance {
+        request: opul_core::MachineWorkspaceAppearanceRequest,
+    },
     CreateWorkspace {
         request: MachineWorkspaceRequest,
     },
@@ -98,6 +101,7 @@ fn request_id() -> String {
 impl DesktopCommand {
     fn execute(self, machine: &OpulStateMachine) -> Result<MachineCommandReceipt, String> {
         let result = match self {
+            Self::SetWorkspaceAppearance { request } => machine.set_workspace_appearance(request),
             Self::CreateWorkspace { mut request } => {
                 normalize_emoji(&mut request);
                 machine.create_workspace(request)
@@ -316,6 +320,17 @@ pub fn workspace_draft(
     state
         .machine()?
         .workspace_draft()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn workspace_appearance_draft(
+    state: State<'_, Desktop>,
+    workspace_id: String,
+) -> Result<opul_core::WorkspaceAppearance, String> {
+    state
+        .machine()?
+        .workspace_appearance_draft(workspace_id)
         .map_err(|error| error.to_string())
 }
 

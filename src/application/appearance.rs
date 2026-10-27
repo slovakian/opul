@@ -22,22 +22,67 @@ pub(crate) static FOLDER_TREATMENTS: LazyLock<[FolderTreatment; 12]> = LazyLock:
 pub struct WorkspaceAppearance {
     /// Retained when a different emoji is selected, but applied only to folders.
     pub automatic_folder: Option<FolderTreatment>,
+    #[serde(default, skip_serializing_if = "AppearancePreference::is_automatic")]
+    pub preference: AppearancePreference,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind")]
+pub enum AppearancePreference {
+    #[default]
+    Automatic,
+    Original,
+    Preset {
+        treatment: FolderTreatment,
+    },
+    Custom {
+        hue: u16,
+        saturation: u16,
+        brightness: u16,
+    },
+}
+
+impl AppearancePreference {
+    fn is_automatic(&self) -> bool {
+        matches!(self, Self::Automatic)
+    }
+
+    fn valid(&self) -> bool {
+        match self {
+            Self::Automatic | Self::Original => true,
+            Self::Preset { treatment } => treatment.valid(),
+            Self::Custom {
+                hue,
+                saturation,
+                brightness,
+            } => valid_parameters(*hue, *saturation, *brightness),
+        }
+    }
+}
+
+fn valid_parameters(hue: u16, saturation: u16, brightness: u16) -> bool {
+    hue < 360 && saturation <= 1000 && (50..=150).contains(&brightness)
+}
+
+impl FolderTreatment {
+    fn valid(&self) -> bool {
+        !self.preset_id.is_empty()
+            && self.preset_id.len() <= 80
+            && self.version > 0
+            && valid_parameters(self.hue, self.saturation, self.brightness)
+    }
 }
 
 impl WorkspaceAppearance {
     pub(crate) fn is_unassigned(&self) -> bool {
-        self.automatic_folder.is_none()
+        self.automatic_folder.is_none() && self.preference.is_automatic()
     }
 
     pub(crate) fn valid(&self) -> bool {
-        self.automatic_folder.as_ref().is_none_or(|treatment| {
-            !treatment.preset_id.is_empty()
-                && treatment.preset_id.len() <= 80
-                && treatment.version > 0
-                && treatment.hue < 360
-                && treatment.saturation <= 1000
-                && (50..=150).contains(&treatment.brightness)
-        })
+        self.automatic_folder
+            .as_ref()
+            .is_none_or(FolderTreatment::valid)
+            && self.preference.valid()
     }
 }
 
@@ -45,7 +90,9 @@ impl WorkspaceIcon {
     pub(crate) fn renders_as_folder(&self) -> bool {
         match self {
             Self::Symbol(_) => true,
-            Self::Emoji(value) => value.trim().is_empty() || value == "📁" || value == "📁\u{fe0f}",
+            Self::Emoji(value) => {
+                value.trim().is_empty() || value.trim_end_matches(['\u{fe0e}', '\u{fe0f}']) == "📁"
+            }
         }
     }
 }
@@ -74,6 +121,7 @@ impl AppState {
             .clone();
         WorkspaceAppearance {
             automatic_folder: Some(treatment),
+            preference: AppearancePreference::Automatic,
         }
     }
 
@@ -159,7 +207,8 @@ mod tests {
         for treatment in FOLDER_TREATMENTS.iter() {
             assert!(
                 WorkspaceAppearance {
-                    automatic_folder: Some(treatment.clone())
+                    automatic_folder: Some(treatment.clone()),
+                    ..WorkspaceAppearance::default()
                 }
                 .valid()
             );

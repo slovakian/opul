@@ -13,6 +13,11 @@ impl Eq for CommandEnvelope {}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) enum Command {
+    SetWorkspaceAppearance {
+        workspace: WorkspaceId,
+        emoji: String,
+        appearance: super::WorkspaceAppearance,
+    },
     CreateWorkspace {
         workspace: Workspace,
     },
@@ -189,6 +194,11 @@ impl Decision {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Event {
+    WorkspaceAppearanceChanged {
+        workspace: WorkspaceId,
+        emoji: String,
+        appearance: super::WorkspaceAppearance,
+    },
     WorkspaceCreated(Workspace),
     WorkspaceRenamed {
         workspace: WorkspaceId,
@@ -373,6 +383,37 @@ pub(crate) fn decide(state: &AppState, envelope: &CommandEnvelope) -> Result<Dec
     }
 
     match &envelope.command {
+        Command::SetWorkspaceAppearance {
+            workspace,
+            emoji,
+            appearance,
+        } => {
+            let existing = state
+                .workspace(*workspace)
+                .ok_or(Rejection::UnknownWorkspace(*workspace))?;
+            if emoji.trim().is_empty() || emoji.len() > 128 || emoji.chars().any(char::is_control) {
+                return Err(Rejection::InvalidInput("choose a valid emoji".into()));
+            }
+            if !appearance.valid() {
+                return Err(Rejection::InvalidInput(
+                    "invalid workspace appearance".into(),
+                ));
+            }
+            let icon = WorkspaceIcon::Emoji(emoji.clone());
+            let mut saved = existing.appearance.clone();
+            saved.preference = appearance.preference.clone();
+            if saved.automatic_folder.is_none() && icon.renders_as_folder() {
+                saved.automatic_folder = appearance
+                    .automatic_folder
+                    .clone()
+                    .or_else(|| state.propose_folder_appearance(*workspace).automatic_folder);
+            }
+            Ok(simple(Event::WorkspaceAppearanceChanged {
+                workspace: *workspace,
+                emoji: emoji.clone(),
+                appearance: saved,
+            }))
+        }
         Command::CreateWorkspace { workspace } => {
             let mut workspace = workspace.clone();
             state.assign_folder_appearance(&mut workspace);
@@ -951,6 +992,16 @@ pub(crate) fn evolve(
 
 pub(crate) fn apply(state: &mut AppState, event: &Event) {
     match event {
+        Event::WorkspaceAppearanceChanged {
+            workspace,
+            emoji,
+            appearance,
+        } => {
+            if let Some(item) = state.workspace_mut(*workspace) {
+                item.icon = WorkspaceIcon::Emoji(emoji.clone());
+                item.appearance = appearance.clone();
+            }
+        }
         Event::WorkspaceCreated(workspace) => state.workspaces.push(workspace.clone()),
         Event::WorkspaceRenamed {
             workspace,
@@ -2099,6 +2150,167 @@ fn invalid(action: &'static str, lifecycle: &DownloadLifecycle) -> Rejection {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn appearance_preferences_preserve_automatic_assignment_and_full_unicode() {
+        use crate::AppearancePreference;
+        let mut state = running_state();
+        let id = state.workspaces[0].id;
+        let original = state.workspaces[0].appearance.automatic_folder.clone();
+        let manual = AppearancePreference::Custom {
+            hue: 180,
+            saturation: 150,
+            brightness: 110,
+        };
+        for preference in [
+            AppearancePreference::Original,
+            AppearancePreference::Automatic,
+            manual,
+        ] {
+            for emoji in ["👩🏽‍💻", "⚪", "⚪\u{fe0f}", "👨‍👩‍👧‍👦", "📁\u{fe0e}", "📁"]
+            {
+                state = run(
+                    &state,
+                    Command::SetWorkspaceAppearance {
+                        workspace: id,
+                        emoji: emoji.into(),
+                        appearance: crate::WorkspaceAppearance {
+                            automatic_folder: None,
+                            preference: preference.clone(),
+                        },
+                    },
+                );
+                assert_eq!(state.workspaces[0].icon, WorkspaceIcon::Emoji(emoji.into()));
+                assert_eq!(state.workspaces[0].appearance.preference, preference);
+                assert_eq!(state.workspaces[0].appearance.automatic_folder, original);
+            }
+        }
+    }
+
+    #[test]
+    fn first_folder_change_uses_the_frozen_proposal_and_never_replaces_it() {
+        let state = running_state();
+        let native = new_workspace(&state, "🐼");
+        let id = native.id;
+        let proposal = state.propose_folder_appearance(id);
+        let mut state = run(&state, Command::CreateWorkspace { workspace: native });
+        let mut other = new_workspace(&state, "📁");
+        other.appearance = proposal.clone();
+        state = run(&state, Command::CreateWorkspace { workspace: other });
+        assert_ne!(state.propose_folder_appearance(id), proposal);
+        state = run(
+            &state,
+            Command::SetWorkspaceAppearance {
+                workspace: id,
+                emoji: "📁".into(),
+                appearance: proposal.clone(),
+            },
+        );
+        assert_eq!(state.workspace(id).unwrap().appearance, proposal);
+        let other_proposal = state.propose_folder_appearance(id);
+        state = run(
+            &state,
+            Command::SetWorkspaceAppearance {
+                workspace: id,
+                emoji: "📁".into(),
+                appearance: other_proposal,
+            },
+        );
+        assert_eq!(state.workspace(id).unwrap().appearance, proposal);
+    }
+
+    #[test]
+    fn invalid_appearance_save_rejects_both_fields_without_changing_state() {
+        let state = running_state();
+        let id = state.workspaces[0].id;
+        for (emoji, preference) in [
+            (
+                "🐼",
+                crate::AppearancePreference::Custom {
+                    hue: 360,
+                    saturation: 100,
+                    brightness: 100,
+                },
+            ),
+            (
+                "🐼",
+                crate::AppearancePreference::Custom {
+                    hue: 0,
+                    saturation: 1001,
+                    brightness: 100,
+                },
+            ),
+            (
+                "🐼",
+                crate::AppearancePreference::Custom {
+                    hue: 0,
+                    saturation: 100,
+                    brightness: 49,
+                },
+            ),
+            (" ", crate::AppearancePreference::Original),
+            ("🐼\n", crate::AppearancePreference::Original),
+        ] {
+            let before = state.clone();
+            assert!(
+                decide(
+                    &state,
+                    &command(Command::SetWorkspaceAppearance {
+                        workspace: id,
+                        emoji: emoji.into(),
+                        appearance: crate::WorkspaceAppearance {
+                            automatic_folder: None,
+                            preference
+                        },
+                    })
+                )
+                .is_err()
+            );
+            assert_eq!(state, before);
+        }
+        assert!(
+            decide(
+                &state,
+                &command(Command::SetWorkspaceAppearance {
+                    workspace: WorkspaceId::new(),
+                    emoji: "🐼".into(),
+                    appearance: crate::WorkspaceAppearance::default(),
+                })
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn appearance_save_is_atomic_and_preserves_unrelated_workspace_settings() {
+        let mut state = running_state();
+        state.workspaces[0].name = "Renamed while choosing an icon".into();
+        state.workspaces[0].default_format = MediaFormat::AudioMp3;
+        state.workspaces[0].file_organization = FileOrganization::AlwaysCreateFolder;
+        let previous = state.workspaces[0].clone();
+        let command: Command = serde_json::from_value(serde_json::json!({
+            "SetWorkspaceAppearance": {
+                "workspace": previous.id,
+                "emoji": "👩🏽‍💻",
+                "appearance": {
+                    "automatic_folder": null,
+                    "preference": { "kind": "Original" }
+                }
+            }
+        }))
+        .expect("appearance-only command must be supported");
+        let next = run(&state, command);
+        let mut expected = previous.clone();
+        expected.icon = WorkspaceIcon::Emoji("👩🏽‍💻".into());
+        let json = serde_json::to_value(&next.workspaces[0]).unwrap();
+        assert_eq!(json["appearance"]["preference"]["kind"], "Original");
+        expected.appearance = next.workspaces[0].appearance.clone();
+        assert_eq!(next.workspaces[0], expected);
+        assert_eq!(
+            next.workspaces[0].appearance.automatic_folder,
+            previous.appearance.automatic_folder
+        );
+    }
+
     #[test]
     fn bootstrap_folder_has_a_persisted_resolved_treatment() {
         let state = running_state();

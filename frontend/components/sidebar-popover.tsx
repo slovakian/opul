@@ -1,4 +1,10 @@
-import { Fragment, useState, type ReactElement, type ReactNode } from "react";
+import {
+  Fragment,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import { Check, ChevronDown, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,7 +28,7 @@ export type MenuAction = {
   label: string;
   content?: ReactNode;
   icon?: LucideIcon;
-  onClick: () => void;
+  onClick: (trigger: HTMLButtonElement | null) => void;
   disabled?: boolean;
   selected?: boolean;
   hint?: string;
@@ -42,9 +48,10 @@ export function SidebarPopover({
   align?: "start" | "end";
 }) {
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger render={trigger} />
+      <PopoverTrigger ref={triggerRef} render={trigger} />
       <PopoverContent
         align={align}
         className="w-60 overflow-hidden p-0"
@@ -96,7 +103,7 @@ export function SidebarPopover({
                           }
                           onClick={() => {
                             setOpen(false);
-                            action.onClick();
+                            action.onClick(triggerRef.current);
                           }}
                         >
                           {action.icon && <action.icon />}

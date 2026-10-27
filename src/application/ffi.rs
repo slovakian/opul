@@ -255,6 +255,14 @@ pub struct MachineWorkspaceDraft {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct MachineWorkspaceAppearanceRequest {
+    pub request_id: String,
+    pub workspace_id: String,
+    pub emoji: String,
+    pub appearance: WorkspaceAppearance,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MachineFolderRequest {
     pub request_id: String,
     pub expected_revision: Option<u64>,
@@ -454,6 +462,45 @@ impl OpulStateMachine {
                 name: request.name,
                 icon: icon_from_view(request.icon),
                 organization: organization_from_view(request.file_organization),
+            },
+        )
+    }
+
+    pub fn workspace_appearance_draft(
+        &self,
+        workspace_id_value: String,
+    ) -> Result<WorkspaceAppearance, StateMachineError> {
+        let id = workspace_id(&workspace_id_value)?;
+        let snapshot = self.actor.snapshot();
+        let workspace = snapshot
+            .workspaces
+            .iter()
+            .find(|w| w.id == id)
+            .ok_or_else(|| StateMachineError::Rejected {
+                reason: "That workspace no longer exists.".into(),
+            })?;
+        let mut appearance = workspace.appearance.clone();
+        if appearance.automatic_folder.is_none() {
+            appearance.automatic_folder = self
+                .actor
+                .propose_workspace_appearance(id)
+                .map_err(actor_error)?
+                .automatic_folder;
+        }
+        Ok(appearance)
+    }
+
+    pub fn set_workspace_appearance(
+        &self,
+        request: MachineWorkspaceAppearanceRequest,
+    ) -> Result<MachineCommandReceipt, StateMachineError> {
+        self.dispatch_request(
+            request.request_id,
+            None,
+            Command::SetWorkspaceAppearance {
+                workspace: workspace_id(&request.workspace_id)?,
+                emoji: request.emoji,
+                appearance: request.appearance,
             },
         )
     }

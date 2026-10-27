@@ -1,6 +1,7 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
+  appearanceSchema,
   preferencesSchema,
   receiptSchema,
   snapshotSchema,
@@ -15,6 +16,11 @@ function requireDesktop() {
     throw new Error("Open the Opul desktop app to access your downloads.");
 }
 export const bridge = {
+  async workspaceAppearanceDraft(workspaceId: string) {
+    return appearanceSchema.parse(
+      await invoke("workspace_appearance_draft", { workspaceId }),
+    );
+  },
   async workspaceDraft() {
     return workspaceDraftSchema.parse(await invoke("workspace_draft"));
   },

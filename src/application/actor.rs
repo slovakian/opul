@@ -683,6 +683,77 @@ mod tests {
     }
 
     #[test]
+    fn appearance_commit_is_durable_idempotent_and_does_not_overwrite_settings() {
+        let folder = temp_dir();
+        let actor = ApplicationActor::open(folder.clone(), "/tmp/Downloads".into()).unwrap();
+        make_running(&actor);
+        let before = actor.snapshot().workspaces[0].clone();
+        let id = before.id;
+        let request = envelope(Command::SetWorkspaceAppearance {
+            workspace: id,
+            emoji: "👩🏽‍💻".into(),
+            appearance: crate::WorkspaceAppearance {
+                automatic_folder: None,
+                preference: crate::AppearancePreference::Preset {
+                    treatment: crate::application::appearance::FOLDER_TREATMENTS[1].clone(),
+                },
+            },
+        });
+        actor
+            .dispatch(envelope(Command::SetDefaultFormat {
+                workspace: id,
+                format: MediaFormat::AudioMp3,
+            }))
+            .unwrap();
+        actor.dispatch(request.clone()).unwrap();
+        let saved = actor.snapshot().workspaces[0].clone();
+        assert_eq!(saved.default_format, MediaFormat::AudioMp3);
+        assert_eq!(
+            saved.appearance.automatic_folder,
+            before.appearance.automatic_folder
+        );
+        drop(actor);
+        let actor = ApplicationActor::open(folder.clone(), "/tmp/Unused".into()).unwrap();
+        assert_eq!(actor.snapshot().workspaces[0], saved);
+        // A retry after a lost response is recognized even after restart.
+        actor.dispatch(request).unwrap();
+        assert_eq!(actor.snapshot().workspaces[0], saved);
+        drop(actor);
+        fs::remove_dir_all(folder).unwrap();
+    }
+
+    #[test]
+    fn failed_appearance_checkpoint_never_publishes_a_partial_icon() {
+        let folder = temp_dir();
+        let actor = ApplicationActor::open(folder.clone(), "/tmp/Downloads".into()).unwrap();
+        make_running(&actor);
+        let before = actor.snapshot().workspaces[0].clone();
+        // A file where the backup must go forces failure before installing the new checkpoint.
+        let backup = folder.join("application-state.json.bak");
+        fs::remove_file(&backup).unwrap();
+        fs::create_dir(&backup).unwrap();
+        assert!(
+            actor
+                .dispatch(envelope(Command::SetWorkspaceAppearance {
+                    workspace: before.id,
+                    emoji: "👩🏽‍💻".into(),
+                    appearance: crate::WorkspaceAppearance {
+                        automatic_folder: None,
+                        preference: crate::AppearancePreference::Original
+                    },
+                }))
+                .is_err()
+        );
+        assert_eq!(actor.snapshot().workspaces[0], before);
+        drop(actor);
+        fs::remove_dir(&backup).unwrap();
+        let actor = ApplicationActor::open(folder.clone(), "/tmp/Unused".into()).unwrap();
+        assert_eq!(actor.snapshot().workspaces[0], before);
+        drop(actor);
+        fs::remove_dir_all(folder).unwrap();
+    }
+
+    #[test]
     fn folder_migration_checkpoints_once_and_survives_restart_without_writes_on_reads() {
         let folder = temp_dir();
         let path = folder.join("application-state.json");

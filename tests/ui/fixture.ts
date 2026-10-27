@@ -76,7 +76,10 @@ export const snapshot: Snapshot = {
       id: "workspace-1",
       name: "Downloads",
       icon: { kind: "Symbol", value: "arrow.down.circle" },
-      appearance: { automatic_folder: folderTreatments[0] },
+      appearance: {
+        automatic_folder: folderTreatments[0],
+        preference: { kind: "Automatic" },
+      },
       folders: [
         {
           id: "folder-1",
@@ -139,6 +142,8 @@ export async function mockDesktop(
     failFirstCreate?: boolean;
     loseFirstCreateResponse?: boolean;
     changeSnapshotDuringDraft?: boolean;
+    failFirstAppearance?: boolean;
+    loseFirstAppearanceResponse?: boolean;
   } = {},
 ) {
   await page.addInitScript(
@@ -161,6 +166,7 @@ export async function mockDesktop(
       let callbackId = 0;
       let draftCalls = 0;
       let createAttempts = 0;
+      let appearanceAttempts = 0;
       const receipts = new Map<string, Receipt>();
       Object.defineProperty(window, "isTauri", { value: true });
       Object.defineProperty(window, "__TAURI_EVENT_PLUGIN_INTERNALS__", {
@@ -176,7 +182,11 @@ export async function mockDesktop(
           unregisterCallback: () => {},
           invoke: async (
             name: string,
-            args: { command?: Command; preferences?: Preferences } = {},
+            args: {
+              command?: Command;
+              preferences?: Preferences;
+              workspaceId?: string;
+            } = {},
           ) => {
             if (name === "snapshot") {
               if (options.fail)
@@ -184,12 +194,27 @@ export async function mockDesktop(
               return structuredClone(snapshot);
             }
             if (name === "get_preferences") return preferences;
+            if (name === "workspace_appearance_draft") {
+              const workspace = snapshot.workspaces.find(
+                (workspace) => workspace.id === args.workspaceId,
+              );
+              if (!workspace)
+                throw new Error("That workspace no longer exists.");
+              return {
+                ...workspace.appearance,
+                automatic_folder:
+                  workspace.appearance.automatic_folder ?? folderTreatments[1],
+              };
+            }
             if (name === "workspace_draft") {
               draftCalls++;
               const draft = {
                 workspace_id: `draft-workspace-${draftCalls}`,
                 folder_id: `draft-folder-${draftCalls}`,
-                appearance: { automatic_folder: folderTreatments[1] },
+                appearance: {
+                  automatic_folder: folderTreatments[1],
+                  preference: { kind: "Automatic" },
+                },
               };
               if (options.changeSnapshotDuringDraft) {
                 snapshot.workspaces[0].appearance.automatic_folder =
@@ -222,6 +247,37 @@ export async function mockDesktop(
             if (name === "execute") {
               const command = args.command;
               if (!command) throw new Error("Missing command");
+              if (command.kind === "set_workspace_appearance") {
+                const cached = receipts.get(command.request.request_id);
+                if (cached) return cached;
+                appearanceAttempts++;
+                if (options.failFirstAppearance && appearanceAttempts === 1)
+                  throw new Error("Couldn't save the checkpoint. Try again.");
+                const workspace = snapshot.workspaces.find(
+                  (workspace) => workspace.id === command.request.workspace_id,
+                );
+                if (!workspace)
+                  throw new Error("That workspace no longer exists.");
+                workspace.icon = {
+                  kind: "Emoji",
+                  value: command.request.emoji,
+                };
+                workspace.appearance = {
+                  preference: command.request.appearance.preference,
+                  automatic_folder:
+                    workspace.appearance.automatic_folder ??
+                    (command.request.emoji.replace(/[\uFE0E\uFE0F]/gu, "") ===
+                    "📁"
+                      ? command.request.appearance.automatic_folder
+                      : null),
+                };
+              }
+              if (command.kind === "format") {
+                const workspace = snapshot.workspaces.find(
+                  (workspace) => workspace.id === command.workspace_id,
+                );
+                if (workspace) workspace.default_format = command.format;
+              }
               if (command.kind === "view") {
                 const workspace = snapshot.workspaces.find(
                   (workspace) => workspace.id === command.workspace_id,
@@ -326,6 +382,16 @@ export async function mockDesktop(
               if (command.kind === "create_workspace") {
                 receipts.set(command.request.request_id, receipt);
                 if (options.loseFirstCreateResponse && createAttempts === 1)
+                  throw new Error(
+                    "The response was lost after saving. Try again.",
+                  );
+              }
+              if (command.kind === "set_workspace_appearance") {
+                receipts.set(command.request.request_id, receipt);
+                if (
+                  options.loseFirstAppearanceResponse &&
+                  appearanceAttempts === 1
+                )
                   throw new Error(
                     "The response was lost after saving. Try again.",
                   );

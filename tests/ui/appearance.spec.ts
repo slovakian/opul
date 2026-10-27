@@ -156,7 +156,10 @@ test("all twelve treatments render at sidebar size in light and dark themes", as
     ...library.workspaces[0],
     id: `palette-${index}`,
     name: treatment.preset_id,
-    appearance: { automatic_folder: treatment },
+    appearance: {
+      automatic_folder: treatment,
+      preference: { kind: "Automatic" },
+    },
     folders: [],
     downloads: [],
   }));

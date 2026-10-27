@@ -1,24 +1,32 @@
 import { workspaceEmoji, type Workspace } from "@/lib/model";
 
-type Appearance = Workspace["appearance"];
+import { canTreatEmoji, emojiTreatment } from "@/lib/workspace-appearance";
+
+type Treatment = {
+  hue: number;
+  saturation: number;
+  brightness: number;
+  preset_id?: string;
+};
 
 export function EmojiArtwork({
   emoji,
   treatment,
 }: {
   emoji: string;
-  treatment?: Appearance["automatic_folder"];
+  treatment?: Treatment | null;
 }) {
+  const applied = canTreatEmoji(emoji) ? treatment : null;
   return (
     <span
       aria-hidden
       data-slot="emoji-artwork"
-      data-preset={treatment?.preset_id}
+      data-preset={applied?.preset_id}
       className="inline-block shrink-0 leading-none"
       style={
-        treatment
+        applied
           ? {
-              filter: `hue-rotate(${treatment.hue}deg) saturate(${treatment.saturation}%) brightness(${treatment.brightness}%)`,
+              filter: `hue-rotate(${applied.hue}deg) saturate(${applied.saturation}%) brightness(${applied.brightness}%)`,
             }
           : undefined
       }
@@ -34,11 +42,10 @@ export function WorkspaceIcon({
   workspace: Pick<Workspace, "icon" | "appearance">;
 }) {
   const emoji = workspaceEmoji(workspace);
-  const folder = emoji === "📁" || emoji === "📁\uFE0F";
   return (
     <EmojiArtwork
       emoji={emoji}
-      treatment={folder ? workspace.appearance.automatic_folder : null}
+      treatment={emojiTreatment(emoji, workspace.appearance)}
     />
   );
 }

@@ -7,6 +7,7 @@ import {
   Inbox,
   MoreHorizontal,
   Pencil,
+  Smile,
   Plus,
   Settings2,
   Trash2,
@@ -58,6 +59,7 @@ export function WorkspaceSidebar({
   setFilter,
   onCreate,
   onEdit,
+  onChangeIcon,
   onSettings,
   onNew,
 }: {
@@ -68,6 +70,10 @@ export function WorkspaceSidebar({
   setFilter: (filter: StatusFilter) => void;
   onCreate: () => void;
   onEdit: (workspace: Workspace) => void;
+  onChangeIcon: (
+    workspace: Workspace,
+    anchor: HTMLButtonElement | null,
+  ) => void;
   onSettings: () => void;
   onNew: () => void;
 }) {
@@ -279,6 +285,16 @@ export function WorkspaceSidebar({
                     groups={[
                       {
                         actions: [
+                          {
+                            label: "Change icon…",
+                            icon: Smile,
+                            disabled:
+                              busy ||
+                              state.kind !== "ready" ||
+                              state.snapshot.session !== "Running",
+                            onClick: (anchor) =>
+                              onChangeIcon(workspace, anchor),
+                          },
                           {
                             label: "Edit workspace",
                             icon: Pencil,
