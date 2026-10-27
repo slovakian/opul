@@ -113,7 +113,52 @@ and console checks. A Rust actor test verifies canceled proposals do not write,
 failed creation checkpoints publish neither field, and both fields survive restart
 and an idempotent retry.
 
-Follow-up tickets retain their scope: treatment suggestions (#14), custom sliders
-(#15), and skin-tone controls and recents (#16).
-The preference model supports deliberate treatments now; their selection controls
-arrive in those tickets.
+The integrated color suggestions from #14 also apply to creation. Custom sliders
+(#15) and skin-tone controls and recents (#16) remain separate follow-ups.
+
+## Color suggestions (#14)
+
+Both Change icon and the workspace dialog use the controlled picker. Six unique
+preset previews show the selected emoji through the shared native artwork renderer.
+The saved built-in preset is included with its resolved values. Folder suggestions
+use a deterministic shuffle seeded by the immutable workspace ID; other eligible
+emoji use a fresh random seed once when the picker opens. Switching emoji, search,
+selection, polling, and rerenders do not resample either set.
+
+The ghost +6 button reveals the remaining six identities and disappears. The color
+section reserves its height so expansion does not resize or scroll the emoji grid.
+When its available space is smaller than its content, it scrolls with the official
+[shadcn scroll-fade utility](https://ui.shadcn.com/docs/utils/scroll-fade). Keyboard
+expansion transfers focus to the first revealed option without scrolling. A check
+and pressed state identify deliberate selections; choosing the automatic look as a
+preset still records a deliberate preference.
+
+Original, Automatic for folders, Custom, and a saved custom treatment are independent
+of the six suggestions. Custom starts a resolved preference from the current preview;
+sliders and custom-mode navigation remain in #15. The saved custom choice remains
+available after selecting Original or another preset. Excluded emoji hide the entire
+color section and suspend the preference without deleting it.
+
+The creation dialog now composes the shared picker so suggestions can be selected
+before creating a workspace. Done, outside click, and inner Escape retain the local
+appearance draft. Create persists emoji and appearance together, using the frozen
+workspace ID and automatic assignment. Canceling the outer dialog discards its draft.
+
+Tests in `tests/ui/color-suggestions.spec.ts` cover unique sampling, saved presets,
+per-opening sampling, polling stability, expansion, selection/focus/scroll, deliberate
+preferences, eligibility, saved custom restoration, creation/retry, and minimum-window
+accessibility. Existing actor tests verify checkpoint durability and process restart;
+WebKit reopening tests start a fresh page from the saved snapshot. Screenshots are
+written under `test-results/color-suggestions-*.png`.
+
+Final #14 verification on macOS: 101 Rust tests, TypeScript/production build, and
+36 WebKit tests passed. Standards and Spec reviews have no remaining findings.
+The six-suggestion regression failed before implementation and passes afterward.
+`Scripts/package_app.sh debug` and `Scripts/smoke_test.sh` passed with strict bundle
+signature and icon checks. Native app inspection used an isolated library and
+confirmed all twelve folder and multicolored rainbow previews, preset selection,
+creation, saved resolved values, and reopening after process restart.
+
+For machines with limited resources, run the checks sequentially with
+`CARGO_BUILD_JOBS=2 CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 cargo test --workspace`,
+`npm run build`, and `OPUL_TEST_PORT=1541 npm test -- --workers=1`.

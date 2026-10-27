@@ -22,14 +22,14 @@ import {
   PopoverDescription,
   PopoverTitle,
 } from "@/components/ui/popover";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { WorkspaceColorSuggestions } from "@/components/workspace-color-suggestions";
 import { Spinner } from "@/components/ui/spinner";
 import { WorkspaceIcon } from "@/components/workspace-icon";
 import { bridge, errorMessage } from "@/lib/bridge";
 import { resolveEmojiData } from "@/lib/emoji-data";
 import { useLibrary } from "@/lib/library";
 import { workspaceEmoji, type Workspace } from "@/lib/model";
-import { canTreatEmoji, isFolderEmoji } from "@/lib/workspace-appearance";
+import { canTreatEmoji } from "@/lib/workspace-appearance";
 
 export type IconDraft = { emoji: string; appearance: Workspace["appearance"] };
 
@@ -97,18 +97,19 @@ function EmojiGridCell({
 
 // The browsing surface is controlled so creation can retain it in its own draft.
 export function WorkspaceIconPicker({
+  workspaceId,
   draft,
   onChange,
 }: {
+  workspaceId: string;
   draft: IconDraft;
   onChange: Dispatch<SetStateAction<IconDraft>>;
 }) {
   const { emoji, appearance } = draft;
-  const preference = appearance.preference;
   const keyboardNavigation = useRef(false);
   return (
     <>
-      <div className="flex items-center gap-3">
+      <div className="flex shrink-0 items-center gap-3">
         <div
           className="flex size-12 shrink-0 items-center justify-center text-3xl"
           role="img"
@@ -128,7 +129,7 @@ export function WorkspaceIconPicker({
         </div>
       </div>
       <EmojiPicker.Root
-        className="flex min-h-0 flex-1 flex-col gap-2"
+        className="flex min-h-[7.25rem] flex-1 flex-col gap-2"
         columns={8}
         locale="en"
         resolveEmojiData={resolveEmojiData}
@@ -157,7 +158,7 @@ export function WorkspaceIconPicker({
           </InputGroupAddon>
         </InputGroup>
         <EmojiPicker.Viewport
-          className="relative min-h-9 flex-1 overscroll-contain rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="relative min-h-[4.5rem] flex-1 overscroll-contain rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label="Emoji categories"
         >
           <EmojiPicker.Loading className="p-4 text-sm text-muted-foreground">
@@ -202,37 +203,11 @@ export function WorkspaceIconPicker({
           />
         </EmojiPicker.Viewport>
       </EmojiPicker.Root>
-      {canTreatEmoji(emoji) && (
-        <ToggleGroup
-          aria-label="Icon appearance"
-          variant="outline"
-          size="sm"
-          value={[preference.kind]}
-          onValueChange={(values) => {
-            const kind = values[0];
-            if (kind === "Original" || kind === "Automatic")
-              onChange((draft) => ({
-                ...draft,
-                appearance: { ...draft.appearance, preference: { kind } },
-              }));
-          }}
-        >
-          <ToggleGroupItem value="Original">
-            {preference.kind === "Original" && <Check />}Original
-          </ToggleGroupItem>
-          {isFolderEmoji(emoji) && (
-            <ToggleGroupItem value="Automatic">
-              {preference.kind === "Automatic" && <Check />}Automatic
-            </ToggleGroupItem>
-          )}
-          {(preference.kind === "Preset" || preference.kind === "Custom") && (
-            <ToggleGroupItem value={preference.kind}>
-              <Check />
-              Saved treatment
-            </ToggleGroupItem>
-          )}
-        </ToggleGroup>
-      )}
+      <WorkspaceColorSuggestions
+        workspaceId={workspaceId}
+        draft={draft}
+        onChange={onChange}
+      />
     </>
   );
 }
@@ -310,14 +285,18 @@ export function WorkspaceIconEditor({
         anchor={anchor}
         align="start"
         finalFocus={anchor ? () => anchor : true}
-        className="h-[min(30rem,var(--available-height))] max-h-[calc(100svh-1rem)] w-80 max-w-[calc(100vw-1rem)] gap-3 overflow-hidden motion-reduce:animate-none motion-reduce:transition-none"
+        className="h-[min(34rem,var(--available-height))] max-h-[calc(100svh-1rem)] w-80 max-w-[calc(100vw-1rem)] gap-2 overflow-hidden p-3 motion-reduce:animate-none motion-reduce:transition-none"
       >
         <div className="flex shrink-0 flex-col gap-1">
           <PopoverTitle>Change icon</PopoverTitle>
           <PopoverDescription>{workspace.name}</PopoverDescription>
         </div>
         {ready ? (
-          <WorkspaceIconPicker draft={draft} onChange={setDraft} />
+          <WorkspaceIconPicker
+            workspaceId={workspace.id}
+            draft={draft}
+            onChange={setDraft}
+          />
         ) : (
           <div role="status" className="flex-1 text-sm text-muted-foreground">
             Preparing icon…
