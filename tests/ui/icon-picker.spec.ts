@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { AxeBuilder } from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
@@ -11,7 +11,7 @@ const artwork = '[data-slot="emoji-artwork"]';
 const editor = (page: Page) =>
   page.getByRole("dialog", { exact: true, name: "Change icon" });
 
-async function openPicker(page: Page) {
+const openPicker = async (page: Page) => {
   await page
     .getByRole("button", { exact: true, name: "Downloads actions" })
     .click();
@@ -19,9 +19,9 @@ async function openPicker(page: Page) {
   await expect(
     editor(page).getByRole("textbox", { name: "Search emoji" })
   ).toBeFocused();
-}
+};
 
-async function choose(page: Page, search: string, label: string) {
+const choose = async (page: Page, search: string, label: string) => {
   await editor(page)
     .getByRole("textbox", { name: "Search emoji" })
     .fill(search);
@@ -29,10 +29,10 @@ async function choose(page: Page, search: string, label: string) {
     .getByRole("gridcell", { exact: true, name: label })
     .click();
   await expect(editor(page)).toBeVisible();
-}
+};
 
-async function savedSnapshot(page: Page) {
-  return snapshotSchema.parse(
+const savedSnapshot = async (page: Page) =>
+  snapshotSchema.parse(
     await page.evaluate(async () => {
       const path = "/frontend/lib/bridge.ts";
       const { bridge } = await import(path);
@@ -40,7 +40,6 @@ async function savedSnapshot(page: Page) {
       return bridge.snapshot();
     })
   );
-}
 
 test("search previews locally, keeps the picker open, and saves the full sequence", async ({
   page,
@@ -55,9 +54,8 @@ test("search previews locally, keeps the picker open, and saves the full sequenc
   await expect(
     editor(page).getByRole("img", { name: "Icon preview: 👨‍👩‍👧‍👦" })
   ).toBeVisible();
-  expect((await savedSnapshot(page)).workspaces[0].icon).toEqual(
-    snapshot.workspaces[0].icon
-  );
+  const savedInitial = await savedSnapshot(page);
+  expect(savedInitial.workspaces[0].icon).toEqual(snapshot.workspaces[0].icon);
   await editor(page).getByRole("button", { exact: true, name: "Save" }).click();
   await expect(editor(page)).toHaveCount(0);
   await expect(
@@ -65,7 +63,8 @@ test("search previews locally, keeps the picker open, and saves the full sequenc
       .getByRole("button", { exact: true, name: "Downloads workspace" })
       .locator(artwork)
   ).toHaveText("👨‍👩‍👧‍👦");
-  expect((await savedSnapshot(page)).workspaces[0].icon.value).toBe("👨‍👩‍👧‍👦");
+  const savedAfterSave = await savedSnapshot(page);
+  expect(savedAfterSave.workspaces[0].icon.value).toBe("👨‍👩‍👧‍👦");
 });
 
 for (const close of ["Cancel", "Escape", "outside"]) {
@@ -91,9 +90,8 @@ for (const close of ["Cancel", "Escape", "outside"]) {
     await expect(
       page.getByRole("button", { exact: true, name: "Downloads actions" })
     ).toBeFocused();
-    expect((await savedSnapshot(page)).workspaces[0]).toEqual(
-      snapshot.workspaces[0]
-    );
+    const savedState = await savedSnapshot(page);
+    expect(savedState.workspaces[0]).toEqual(snapshot.workspaces[0]);
     await openPicker(page);
     await expect(
       editor(page).getByRole("img", { name: "Icon preview: 📁" })
@@ -158,7 +156,8 @@ for (const lost of [false, true]) {
       .getByRole("button", { exact: true, name: "Save" })
       .click();
     await expect(editor(page)).toHaveCount(0);
-    const saved = (await savedSnapshot(page)).workspaces[0];
+    const savedState = await savedSnapshot(page);
+    const [saved] = savedState.workspaces;
     expect(saved.icon.value).toBe("🐼");
     expect(saved.default_format).toBe("AudioMp3");
     expect(saved.layout).toBe("Table");
@@ -194,7 +193,8 @@ test("automatic folder treatment suspends, returns unchanged, and explicit Origi
     "filter",
     "none"
   );
-  expect((await savedSnapshot(page)).workspaces[0].appearance).toEqual({
+  const savedState = await savedSnapshot(page);
+  expect(savedState.workspaces[0].appearance).toEqual({
     automatic_folder: treatments[0],
     preference: { kind: "Original" },
   });
@@ -221,9 +221,11 @@ test("manual treatment follows eligible emoji and suspends for excluded presenta
   ).toHaveCount(0);
   await editor(page).getByRole("button", { exact: true, name: "Save" }).click();
   await expect(editor(page)).toHaveCount(0);
-  expect(
-    (await savedSnapshot(page)).workspaces[0].appearance.preference
-  ).toEqual({ kind: "Preset", treatment: treatments[1] });
+  const savedState = await savedSnapshot(page);
+  expect(savedState.workspaces[0].appearance.preference).toEqual({
+    kind: "Preset",
+    treatment: treatments[1],
+  });
   await openPicker(page);
   await choose(page, "panda", "panda");
   await expect(editor(page).getByRole("img").locator(artwork)).toHaveAttribute(
@@ -334,17 +336,19 @@ test("saved custom treatments and eligibility share the renderer across Unicode 
   await mockDesktop(page, { snapshot: library });
   await page.goto("/");
 
-  for (const [index, value] of emojis.entries()) {
-    const icon = page
-      .getByRole("button", { exact: true, name: `Icon ${index} workspace` })
-      .locator(artwork);
+  await Promise.all(
+    emojis.map(async (value, index) => {
+      const icon = page
+        .getByRole("button", { exact: true, name: `Icon ${index} workspace` })
+        .locator(artwork);
 
-    await expect(icon).toHaveText(value);
-    await expect(icon).toHaveCSS(
-      "filter",
-      index < 4 ? "none" : "hue-rotate(120deg) saturate(1.8) brightness(0.95)"
-    );
-  }
+      await expect(icon).toHaveText(value);
+      await expect(icon).toHaveCSS(
+        "filter",
+        index < 4 ? "none" : "hue-rotate(120deg) saturate(1.8) brightness(0.95)"
+      );
+    })
+  );
 });
 
 test("an unassigned native workspace freezes its first folder proposal", async ({
@@ -373,9 +377,10 @@ test("an unassigned native workspace freezes its first folder proposal", async (
   );
   await editor(page).getByRole("button", { exact: true, name: "Save" }).click();
   await expect(editor(page)).toHaveCount(0);
-  expect(
-    (await savedSnapshot(page)).workspaces[0].appearance.automatic_folder
-  ).toEqual(treatments[1]);
+  const savedState = await savedSnapshot(page);
+  expect(savedState.workspaces[0].appearance.automatic_folder).toEqual(
+    treatments[1]
+  );
 });
 
 test("save errors keep the actions reachable in the minimum window", async ({
@@ -450,15 +455,21 @@ test("keyboard browsing keeps the active emoji visible beyond the first rows in 
   await openPicker(page);
   const active = editor(page).getByRole("gridcell", { selected: true });
 
-  for (let index = 0; index < 18; index++) {
+  for (let index = 0; index < 18; index += 1) {
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await page.keyboard.press("ArrowDown");
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await expect(active).toHaveCount(1);
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await expect(active).toBeInViewport({ ratio: 1 });
   }
 
-  for (let index = 0; index < 12; index++) {
+  for (let index = 0; index < 12; index += 1) {
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await page.keyboard.press("ArrowUp");
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await expect(active).toHaveCount(1);
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await expect(active).toBeInViewport({ ratio: 1 });
   }
 
@@ -467,7 +478,6 @@ test("keyboard browsing keeps the active emoji visible beyond the first rows in 
   await expect(editor(page).getByRole("img").locator(artwork)).toHaveText(
     selected?.trim() ?? ""
   );
-  expect((await savedSnapshot(page)).workspaces[0]).toEqual(
-    snapshot.workspaces[0]
-  );
+  const savedFinal = await savedSnapshot(page);
+  expect(savedFinal.workspaces[0]).toEqual(snapshot.workspaces[0]);
 });

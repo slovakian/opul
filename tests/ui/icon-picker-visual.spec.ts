@@ -6,7 +6,7 @@ import { mockDesktop } from "./fixture";
 const editor = (page: Page) =>
   page.getByRole("dialog", { exact: true, name: "Change icon" });
 
-async function openPicker(page: Page) {
+const openPicker = async (page: Page) => {
   await page
     .getByRole("button", { exact: true, name: "Downloads actions" })
     .click();
@@ -14,9 +14,9 @@ async function openPicker(page: Page) {
   await expect(
     editor(page).getByRole("textbox", { name: "Search emoji" })
   ).toBeFocused();
-}
+};
 
-async function choose(page: Page, search: string, label: string) {
+const choose = async (page: Page, search: string, label: string) => {
   await editor(page)
     .getByRole("textbox", { name: "Search emoji" })
     .fill(search);
@@ -24,7 +24,7 @@ async function choose(page: Page, search: string, label: string) {
     .getByRole("gridcell", { exact: true, name: label })
     .click();
   await expect(editor(page)).toBeVisible();
-}
+};
 
 for (const theme of ["light", "dark"]) {
   test(`emoji fade beneath sticky category labels in ${theme} mode`, async ({
@@ -43,7 +43,7 @@ for (const theme of ["light", "dark"]) {
 
       await settings.getByRole("button", { exact: true, name: "Dark" }).click();
       await settings.getByRole("button", { name: "Save changes" }).click();
-      await expect(page.locator("html")).toHaveClass(/dark/);
+      await expect(page.locator("html")).toHaveClass(/dark/u);
     }
 
     await openPicker(page);
@@ -56,14 +56,18 @@ for (const theme of ["light", "dark"]) {
     await expect(headers.first()).toHaveText("Smileys & Emotion");
     await expect(headers.filter({ hasText: "Travel & Places" })).toHaveCount(1);
 
-    const { rowHeight, headerHeight } = await viewport.evaluate((element) => {
+    const { headerHeight, rowHeight } = await viewport.evaluate((element) => {
       const style = getComputedStyle(element);
 
+      const rawHeaderHeight = style.getPropertyValue(
+        "--frimousse-category-header-height"
+      );
+
+      const rawRowHeight = style.getPropertyValue("--frimousse-row-height");
+
       return {
-        headerHeight: parseFloat(
-          style.getPropertyValue("--frimousse-category-header-height")
-        ),
-        rowHeight: parseFloat(style.getPropertyValue("--frimousse-row-height")),
+        headerHeight: Number(rawHeaderHeight.replace(/px$/u, "")),
+        rowHeight: Number(rawRowHeight.replace(/px$/u, "")),
       };
     });
 
@@ -86,8 +90,9 @@ for (const theme of ["light", "dark"]) {
 
     // Compare the same glyph pixels before and after they move behind the label.
     const contrastRatio = await page.evaluate(
-      async ({ reference, faded, fullY, fadedY }) => {
-        async function pixels(encoded: string) {
+      async ({ fadedImage, fadedY, fullY, referenceImage }) => {
+        // oxlint-disable-next-line unicorn/consistent-function-scoping
+        const pixels = async (encoded: string) => {
           const image = new Image();
           image.src = `data:image/png;base64,${encoded}`;
           await image.decode();
@@ -99,49 +104,52 @@ for (const theme of ["light", "dark"]) {
           if (!context) {
             throw new Error("Canvas unavailable");
           }
+
           context.drawImage(image, 0, 0);
 
           return context.getImageData(0, 0, image.width, image.height);
-        }
+        };
 
-        const full = await pixels(reference);
-        const clipped = await pixels(faded);
-
-        function contrast(image: ImageData, centerY: number) {
+        // oxlint-disable-next-line unicorn/consistent-function-scoping
+        const contrast = (image: ImageData, centerY: number) => {
           let total = 0;
 
           for (
             let y = Math.round(centerY) - 1;
             y <= Math.round(centerY) + 1;
-            y++
+            y += 1
           ) {
-            for (let x = 0; x < image.width; x++)
-              for (let channel = 0; channel < 3; channel++)
+            for (let x = 0; x < image.width; x += 1) {
+              for (let channel = 0; channel < 3; channel += 1) {
                 total += Math.abs(
                   image.data[(y * image.width + x) * 4 + channel] -
                     image.data[channel]
                 );
+              }
+            }
           }
+
           return total;
-        }
+        };
+
+        const full = await pixels(referenceImage);
+        const clipped = await pixels(fadedImage);
 
         return contrast(clipped, fadedY) / contrast(full, fullY);
       },
       {
-        faded: faded.toString("base64"),
+        fadedImage: faded.toString("base64"),
         fadedY: headerHeight + rowHeight / 2 - delta,
         fullY: headerHeight + rowHeight / 2,
-        reference: reference.toString("base64"),
+        referenceImage: reference.toString("base64"),
       }
     );
 
     expect(contrastRatio).toBeGreaterThan(0.15);
     expect(contrastRatio).toBeLessThan(0.85);
     const viewportBounds = await viewport.boundingBox();
-    expect((await headers.first().boundingBox())?.y).toBeCloseTo(
-      viewportBounds?.y ?? 0,
-      1
-    );
+    const firstHeaderBounds = await headers.first().boundingBox();
+    expect(firstHeaderBounds?.y).toBeCloseTo(viewportBounds?.y ?? 0, 1);
     const next = headers.nth(1);
 
     const nextTop = await next.evaluate(
@@ -156,7 +164,11 @@ for (const theme of ["light", "dark"]) {
     );
     await expect(next).toHaveText("People & Body");
     await expect
-      .poll(async () => (await next.boundingBox())?.y)
+      .poll(async () => {
+        const nextBounds = await next.boundingBox();
+
+        return nextBounds?.y;
+      })
       .toBeCloseTo(viewportBounds?.y ?? 0, 1);
     await viewport.screenshot({
       path: `test-results/emoji-next-category-${theme}.png`,
@@ -193,18 +205,29 @@ test("emoji options stay transparent when chosen and only grow their artwork on 
   const badge = '[data-slot="emoji-frame-badge"]';
 
   for (const option of [cell, tone, color]) {
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await expect(option.locator(badge)).toHaveCount(1);
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await expect(option).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await expect(option).toHaveCSS("border-top-width", "0px");
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await expect(option).toHaveCSS("box-shadow", "none");
     const frame = option.locator('[data-slot="emoji-frame"]');
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await expect(frame).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
     const glyph = option.locator('[data-slot="emoji-frame-artwork"]');
+    // oxlint-disable-next-line eslint/no-await-in-loop
     const bounds = await option.boundingBox();
+    // oxlint-disable-next-line eslint/no-await-in-loop
     const before = await glyph.boundingBox();
+    // oxlint-disable-next-line eslint/no-await-in-loop
     const checkBefore = await option.locator(badge).boundingBox();
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await option.hover();
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await expect(frame).not.toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await expect
       .poll(async () => {
         const after = await glyph.boundingBox();
@@ -212,9 +235,15 @@ test("emoji options stay transparent when chosen and only grow their artwork on 
         return after && before ? after.width / before.width : 0;
       })
       .toBeCloseTo(1.1, 2);
-    expect(await option.boundingBox()).toEqual(bounds);
-    expect(await option.locator(badge).boundingBox()).toEqual(checkBefore);
+    // oxlint-disable-next-line eslint/no-await-in-loop
+    const currentBounds = await option.boundingBox();
+    // oxlint-disable-next-line eslint/no-await-in-loop
+    const currentBadgeBounds = await option.locator(badge).boundingBox();
+    expect(currentBounds).toEqual(bounds);
+    expect(currentBadgeBounds).toEqual(checkBefore);
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await page.mouse.move(0, 0);
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await expect(frame).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   }
 

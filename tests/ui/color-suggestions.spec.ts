@@ -10,36 +10,35 @@ const artwork = '[data-slot="emoji-artwork"]';
 const picker = (page: Page) =>
   page.getByRole("dialog", {
     exact: true,
-    name: /^(Change icon|Choose workspace icon)$/,
+    name: /^(?:Change icon|Choose workspace icon)$/u,
   });
 
 const suggestions = (page: Page) =>
   picker(page).getByRole("group", { exact: true, name: "Color suggestions" });
 
-async function openPicker(page: Page) {
+const openPicker = async (page: Page) => {
   await page
     .getByRole("button", { exact: true, name: "Downloads actions" })
     .click();
   await page.getByRole("button", { exact: true, name: "Change icon…" }).click();
-}
+};
 
-async function choose(page: Page, search: string, label: string) {
+const choose = async (page: Page, search: string, label: string) => {
   await picker(page)
     .getByRole("textbox", { name: "Search emoji" })
     .fill(search);
   await picker(page)
     .getByRole("gridcell", { exact: true, name: label })
     .click();
-}
+};
 
-async function identities(page: Page) {
-  return suggestions(page)
+const identities = async (page: Page) =>
+  await suggestions(page)
     .locator(artwork)
     .evaluateAll((nodes) => nodes.map((node) => node.dataset.preset));
-}
 
-async function saved(page: Page) {
-  return snapshotSchema.parse(
+const saved = async (page: Page) =>
+  snapshotSchema.parse(
     await page.evaluate(async () => {
       const path = "/frontend/lib/bridge.ts";
       const { bridge } = await import(path);
@@ -47,7 +46,6 @@ async function saved(page: Page) {
       return bridge.snapshot();
     })
   );
-}
 
 test("color suggestions have square targets and equal spacing in both directions", async ({
   page,
@@ -119,9 +117,11 @@ test("six unique suggestions include a saved preset; expansion preserves selecti
 
   await expect(selected).toHaveAttribute("aria-pressed", "true");
 
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 10; i += 1) {
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await page.keyboard.press("ArrowDown");
   }
+
   const viewport = picker(page).locator("[frimousse-viewport]");
   const scroll = await viewport.evaluate((node) => node.scrollTop);
   expect(scroll).toBeGreaterThan(0);
@@ -134,9 +134,12 @@ test("six unique suggestions include a saved preset; expansion preserves selecti
   await expect(more).toHaveText("+6");
   await more.focus();
   await page.keyboard.press("Enter");
-  expect(await identities(page)).toHaveLength(12);
-  expect(new Set(await identities(page)).size).toBe(12);
-  expect((await identities(page)).slice(0, 6)).toEqual(initial);
+
+  const allIdentities = await identities(page);
+
+  expect(allIdentities).toHaveLength(12);
+  expect(new Set(allIdentities).size).toBe(12);
+  expect(allIdentities.slice(0, 6)).toEqual(initial);
   await expect(more).toHaveCount(0);
   await expect(selected).toHaveAttribute("aria-pressed", "true");
   await expect(suggestions(page).getByRole("button").nth(6)).toBeFocused();
@@ -175,12 +178,13 @@ test("choosing the automatic look records a deliberate preset that follows eligi
   );
   await choose(page, "panda", "panda");
   await picker(page).getByRole("button", { exact: true, name: "Save" }).click();
-  expect((await saved(page)).workspaces[0].appearance.preference).toEqual({
+  const savedState = await saved(page);
+  expect(savedState.workspaces[0].appearance.preference).toEqual({
     kind: "Preset",
     treatment: treatments[0],
   });
   const reopened = await context.newPage();
-  await mockDesktop(reopened, { snapshot: await saved(page) });
+  await mockDesktop(reopened, { snapshot: savedState });
   await reopened.goto("/");
   await openPicker(reopened);
   await expect(
@@ -200,13 +204,22 @@ test("treatment names are title case for folders and hidden for other emoji", as
   const options = suggestions(page).getByRole("button");
 
   const checkFolderLabels = async () => {
-    for (const option of await options.all()) {
-      const preset = await option.locator(artwork).getAttribute("data-preset");
-      expect(preset).toBeTruthy();
-      const label = `${preset?.charAt(0).toUpperCase()}${preset?.slice(1)} Treatment`;
-      await expect(option).toHaveAttribute("title", label);
-      await expect(option).toHaveAccessibleName(`Preview ${label}`);
-    }
+    const allOptions = await options.all();
+
+    await Promise.all(
+      allOptions.map(async (option) => {
+        const preset = await option
+          .locator(artwork)
+          .getAttribute("data-preset");
+
+        expect(preset).toBeTruthy();
+
+        const label = `${preset?.charAt(0).toUpperCase()}${preset?.slice(1)} Treatment`;
+
+        await expect(option).toHaveAttribute("title", label);
+        await expect(option).toHaveAccessibleName(`Preview ${label}`);
+      })
+    );
   };
 
   await checkFolderLabels();
@@ -215,15 +228,23 @@ test("treatment names are title case for folders and hidden for other emoji", as
     ["panda", "panda"],
     ["rainbow", "rainbow"],
   ]) {
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await choose(page, search, label);
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await expect(options).toHaveCount(6);
 
-    for (const [index, option] of (await options.all()).entries()) {
-      await expect(option).not.toHaveAttribute("title");
-      await expect(option).toHaveAccessibleName(
-        `Preview color suggestion ${index + 1}`
-      );
-    }
+    // oxlint-disable-next-line eslint/no-await-in-loop
+    const allOptions = await options.all();
+
+    // oxlint-disable-next-line eslint/no-await-in-loop
+    await Promise.all(
+      allOptions.flatMap((option, index) => [
+        expect(option).not.toHaveAttribute("title"),
+        expect(option).toHaveAccessibleName(
+          `Preview color suggestion ${index + 1}`
+        ),
+      ])
+    );
   }
 
   await choose(page, "file folder", "file folder");
@@ -311,9 +332,10 @@ test("saved custom remains independently selectable after Original and preset ch
     "hue-rotate(120deg) saturate(1.8) brightness(0.95)"
   );
   await picker(page).getByRole("button", { exact: true, name: "Save" }).click();
-  expect((await saved(page)).workspaces[0].appearance.preference).toEqual(
-    custom
-  );
+
+  const savedAfterSave = await saved(page);
+
+  expect(savedAfterSave.workspaces[0].appearance.preference).toEqual(custom);
 });
 
 for (const fail of [false, true]) {
@@ -356,20 +378,24 @@ for (const fail of [false, true]) {
 
     await more.click();
 
-    for (const treatment of treatments) {
-      const option = suggestions(page)
-        .getByRole("button")
-        .filter({
-          has: page.locator(`[data-preset="${treatment.preset_id}"]`),
-        });
+    await Promise.all(
+      treatments.flatMap((treatment) => {
+        const option = suggestions(page)
+          .getByRole("button")
+          .filter({
+            has: page.locator(`[data-preset="${treatment.preset_id}"]`),
+          });
 
-      await expect(option.locator(artwork)).toHaveText("🐼");
-      await expect(option).toHaveCSS("filter", "none");
-      await expect(option.locator(artwork)).toHaveCSS(
-        "filter",
-        `hue-rotate(${treatment.hue}deg) saturate(${treatment.saturation / 100}) brightness(${treatment.brightness / 100})`
-      );
-    }
+        return [
+          expect(option.locator(artwork)).toHaveText("🐼"),
+          expect(option).toHaveCSS("filter", "none"),
+          expect(option.locator(artwork)).toHaveCSS(
+            "filter",
+            `hue-rotate(${treatment.hue}deg) saturate(${treatment.saturation / 100}) brightness(${treatment.brightness / 100})`
+          ),
+        ];
+      })
+    );
 
     const done = picker(page).getByRole("button", {
       exact: true,
@@ -413,8 +439,10 @@ for (const fail of [false, true]) {
         .locator(artwork)
     ).toHaveText("🐼");
 
-    const created = (await saved(page)).workspaces.find(
-      (workspace) => workspace.name === "Research"
+    const savedSnapshot = await saved(page);
+
+    const created = savedSnapshot.workspaces.find(
+      (item) => item.name === "Research"
     );
 
     expect(created?.appearance.preference).toEqual({
@@ -500,7 +528,8 @@ test("Custom starts from the actual preview and canceling creation discards its 
   await choose(page, "rainbow", "rainbow");
   await picker(page).getByRole("button", { exact: true, name: "Done" }).click();
   await page.getByRole("button", { exact: true, name: "Cancel" }).click();
-  expect((await saved(page)).workspaces).toHaveLength(1);
+  const savedAfterCancel = await saved(page);
+  expect(savedAfterCancel.workspaces).toHaveLength(1);
   await page
     .getByRole("button", { exact: true, name: "New workspace" })
     .last()

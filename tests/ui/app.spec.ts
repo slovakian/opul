@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { AxeBuilder } from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
 import { mockDesktop, snapshot } from "./fixture";
@@ -76,7 +76,7 @@ test("emoji workspace creation and Base UI settings dialog", async ({
     .last()
     .click();
   await page.getByLabel("Name", { exact: true }).fill("Research");
-  await page.getByRole("button", { name: /^Workspace emoji:/ }).click();
+  await page.getByRole("button", { name: /^Workspace emoji:/u }).click();
   await page.getByRole("textbox", { name: "Search emoji" }).fill("books");
   await page
     .locator('[data-slot="popover-content"]')
@@ -98,7 +98,7 @@ test("emoji workspace creation and Base UI settings dialog", async ({
   await dialog.getByRole("button", { exact: true, name: "Dark" }).click();
   await page.screenshot({ path: "test-results/settings.png" });
   await dialog.getByRole("button", { name: "Save changes" }).click();
-  await expect(page.locator("html")).toHaveClass(/dark/);
+  await expect(page.locator("html")).toHaveClass(/dark/u);
   await page.screenshot({ path: "test-results/dark.png" });
 });
 
@@ -127,7 +127,7 @@ test("imports retain errors, close on success, and use sidebar choices", async (
   await dialog
     .getByLabel("Link", { exact: true })
     .fill("https://example.com/new-file.zip");
-  await dialog.getByRole("button", { name: /^Download type:/ }).click();
+  await dialog.getByRole("button", { name: /^Download type:/u }).click();
   await expect(
     page.locator('[data-slot="popover-content"] [data-slot="sidebar"]')
   ).toBeVisible();
@@ -145,7 +145,7 @@ test("header downloads use the workspace default and selected saved folder", asy
   page,
 }) => {
   const library = structuredClone(snapshot);
-  const workspace = library.workspaces[0];
+  const [workspace] = library.workspaces;
   workspace.folders[0].is_default = false;
   workspace.folders.push(
     {
@@ -167,9 +167,9 @@ test("header downloads use the workspace default and selected saved folder", asy
     folders: [
       {
         id: "folder-4",
+        is_default: true,
         name: "Videos",
         path: "/Users/test/Videos",
-        is_default: true,
       },
     ],
     id: "workspace-2",
@@ -235,7 +235,7 @@ test("header downloads use the workspace default and selected saved folder", asy
   await page.getByRole("button", { exact: true, name: "new-file.zip" }).click();
   const details = page.getByRole("complementary", { name: "Download details" });
   await expect(
-    details.locator("dd").filter({ hasText: /^Archive$/ })
+    details.locator("dd").filter({ hasText: /^Archive$/u })
   ).toBeVisible();
   await page
     .getByRole("button", { exact: true, name: "Close details" })
@@ -310,7 +310,7 @@ test("add a saved location from the download input without changing the default"
     page
       .getByRole("complementary", { name: "Download details" })
       .locator("dd")
-      .filter({ hasText: /^Research$/ })
+      .filter({ hasText: /^Research$/u })
   ).toBeVisible();
   await page
     .getByRole("button", { exact: true, name: "Close details" })
@@ -355,6 +355,7 @@ for (const outcome of ["cancelled", "failed"]) {
     if (outcome === "failed") {
       await expect(page.getByText("Folder picker unavailable")).toBeVisible();
     }
+
     await expect(
       header.getByRole("button", {
         exact: true,
@@ -367,34 +368,45 @@ for (const outcome of ["cancelled", "failed"]) {
 
 test("empty, recovery, and startup failure states", async ({ browser }) => {
   for (const state of ["empty", "recovery", "fail"]) {
+    // oxlint-disable-next-line eslint/no-await-in-loop
     const page = await browser.newPage();
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await mockDesktop(page, {
       empty: state === "empty",
       fail: state === "fail",
       recovery: state === "recovery",
     });
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await page.goto("/");
 
     if (state === "empty") {
+      // oxlint-disable-next-line eslint/no-await-in-loop
       await expect(page.getByText("No downloads yet")).toBeVisible();
+      // oxlint-disable-next-line eslint/no-await-in-loop
       await page.screenshot({ path: "test-results/empty.png" });
     }
 
     if (state === "recovery") {
+      // oxlint-disable-next-line eslint/no-await-in-loop
       await expect(
         page.getByText("Your library needs attention")
       ).toBeVisible();
+      // oxlint-disable-next-line eslint/no-await-in-loop
       await page.getByRole("button", { name: "Acknowledge recovery" }).click();
+      // oxlint-disable-next-line eslint/no-await-in-loop
       await expect(page.getByText("Your library needs attention")).toHaveCount(
         0
       );
     }
 
     if (state === "fail") {
+      // oxlint-disable-next-line eslint/no-await-in-loop
       await expect(
         page.getByText("The state directory is already in use")
       ).toBeVisible();
     }
+
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await page.close();
   }
 });

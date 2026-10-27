@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { AxeBuilder } from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
@@ -15,9 +15,9 @@ const picker = (page: Page) =>
   page.getByRole("dialog", { exact: true, name: "Choose workspace icon" });
 
 const iconButton = (page: Page) =>
-  dialog(page).getByRole("button", { name: /^Workspace emoji:/ });
+  dialog(page).getByRole("button", { name: /^Workspace emoji:/u });
 
-async function openCreation(page: Page) {
+const openCreation = async (page: Page) => {
   await page
     .getByRole("button", { exact: true, name: "New workspace" })
     .last()
@@ -25,9 +25,9 @@ async function openCreation(page: Page) {
   await expect(
     dialog(page).getByRole("textbox", { exact: true, name: "Name" })
   ).toBeFocused();
-}
+};
 
-async function choose(page: Page, search: string, label: string) {
+const choose = async (page: Page, search: string, label: string) => {
   await picker(page)
     .getByRole("textbox", { name: "Search emoji" })
     .fill(search);
@@ -35,10 +35,10 @@ async function choose(page: Page, search: string, label: string) {
     .getByRole("gridcell", { exact: true, name: label })
     .click();
   await expect(picker(page)).toBeVisible();
-}
+};
 
-async function savedSnapshot(page: Page) {
-  return snapshotSchema.parse(
+const savedSnapshot = async (page: Page) =>
+  snapshotSchema.parse(
     await page.evaluate(async () => {
       const path = "/frontend/lib/bridge.ts";
       const { bridge } = await import(path);
@@ -46,7 +46,6 @@ async function savedSnapshot(page: Page) {
       return bridge.snapshot();
     })
   );
-}
 
 test("nested Escape retains icon choices and restores focus before canceling the whole draft", async ({
   page,
@@ -74,7 +73,8 @@ test("nested Escape retains icon choices and restores focus before canceling the
   await page.keyboard.press("Escape");
   await page.keyboard.press("Escape");
   await expect(dialog(page)).toHaveCount(0);
-  expect((await savedSnapshot(page)).workspaces).toHaveLength(1);
+  const savedAfterEsc = await savedSnapshot(page);
+  expect(savedAfterEsc.workspaces).toHaveLength(1);
   await openCreation(page);
   await expect(iconButton(page).locator(artwork)).toHaveText("📁");
   await expect(iconButton(page).locator(artwork)).toHaveAttribute(
@@ -111,7 +111,9 @@ test("creation without opening the picker saves the frozen folder preview", asyn
       .locator(artwork)
   ).toHaveCSS("filter", filter);
 
-  const created = (await savedSnapshot(page)).workspaces.find(
+  const savedState = await savedSnapshot(page);
+
+  const created = savedState.workspaces.find(
     (workspace) => workspace.name === "Quick workspace"
   );
 
@@ -152,7 +154,8 @@ for (const lost of [false, true]) {
       .locator(artwork)
       .evaluate((element) => getComputedStyle(element).filter);
 
-    expect((await savedSnapshot(page)).workspaces).toHaveLength(1);
+    const savedBeforeCreate = await savedSnapshot(page);
+    expect(savedBeforeCreate.workspaces).toHaveLength(1);
     await dialog(page)
       .getByRole("button", { exact: true, name: "Create workspace" })
       .click();
@@ -182,7 +185,9 @@ for (const lost of [false, true]) {
         .locator(artwork)
     ).toHaveText("👨‍👩‍👧‍👦");
 
-    const created = (await savedSnapshot(page)).workspaces.filter(
+    const savedAfterRetry = await savedSnapshot(page);
+
+    const created = savedAfterRetry.workspaces.filter(
       (workspace) => workspace.name === "Family"
     );
 
@@ -213,7 +218,8 @@ test("outside close retains choices, Cancel discards them, and the next creation
   await dialog(page)
     .getByRole("button", { exact: true, name: "Cancel" })
     .click();
-  expect((await savedSnapshot(page)).workspaces).toHaveLength(1);
+  const savedAfterCancel = await savedSnapshot(page);
+  expect(savedAfterCancel.workspaces).toHaveLength(1);
   await openCreation(page);
   await expect(iconButton(page).locator(artwork)).toHaveText("📁");
   await dialog(page)
@@ -223,10 +229,10 @@ test("outside close retains choices, Cancel discards them, and the next creation
     .getByRole("button", { exact: true, name: "Create workspace" })
     .click();
   await expect(dialog(page)).toHaveCount(0);
+  const savedAfterFresh = await savedSnapshot(page);
   expect(
-    (await savedSnapshot(page)).workspaces.find(
-      (workspace) => workspace.name === "Fresh"
-    )?.id
+    savedAfterFresh.workspaces.find((workspace) => workspace.name === "Fresh")
+      ?.id
   ).toBe("draft-workspace-2");
 });
 

@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { AxeBuilder } from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
@@ -8,22 +8,24 @@ import { mockDesktop, snapshot } from "./fixture";
 const artwork = '[data-slot="emoji-artwork"]';
 
 const picker = (page: Page) =>
-  page.getByRole("dialog", { name: /^(Change icon|Choose workspace icon)$/ });
+  page.getByRole("dialog", {
+    name: /^(?:Change icon|Choose workspace icon)$/u,
+  });
 
 const preview = (page: Page) =>
   picker(page)
-    .getByRole("img", { name: /^Icon preview:/ })
+    .getByRole("img", { name: /^Icon preview:/u })
     .locator(artwork);
 
-async function openPicker(page: Page) {
+const openPicker = async (page: Page) => {
   await page
     .getByRole("button", { exact: true, name: "Downloads actions" })
     .click();
   await page.getByRole("button", { exact: true, name: "Change icon…" }).click();
-}
+};
 
-async function saved(page: Page) {
-  return snapshotSchema.parse(
+const saved = async (page: Page) =>
+  snapshotSchema.parse(
     await page.evaluate(async () => {
       const path = "/frontend/lib/bridge.ts";
       const { bridge } = await import(path);
@@ -31,18 +33,17 @@ async function saved(page: Page) {
       return bridge.snapshot();
     })
   );
-}
 
-async function choose(page: Page, name: string) {
+const choose = async (page: Page, name: string) => {
   await picker(page).getByRole("textbox", { name: "Search emoji" }).fill(name);
   await picker(page).getByRole("gridcell", { exact: true, name }).click();
-}
+};
 
-async function customize(page: Page) {
+const customize = async (page: Page) => {
   await picker(page)
     .getByRole("button", { exact: true, name: "Custom" })
     .click();
-}
+};
 
 test("Custom replaces browsing, starts from the preview, and back preserves the draft and browsing session", async ({
   page,
@@ -104,16 +105,21 @@ test("Custom replaces browsing, starts from the preview, and back preserves the 
   await hue.press("ArrowRight");
   await expect(hue).toHaveAttribute("aria-valuenow", "1");
 
-  for (const name of ["Saturation", "Brightness"]) {
-    await expect(
-      picker(page).getByRole("slider", { name, exact: true })
-    ).toBeVisible();
-  }
+  await Promise.all(
+    ["Saturation", "Brightness"].map((name) =>
+      expect(
+        picker(page).getByRole("slider", { exact: true, name })
+      ).toBeVisible()
+    )
+  );
+
   const edited = await preview(page).evaluate(
     (node) => getComputedStyle(node).filter
   );
 
-  expect((await saved(page)).workspaces[0].appearance.preference.kind).toBe(
+  const savedBeforeBack = await saved(page);
+
+  expect(savedBeforeBack.workspaces[0].appearance.preference.kind).toBe(
     "Automatic"
   );
   await picker(page)
@@ -151,13 +157,15 @@ test("custom save matches every workspace surface and a fresh page; exclusions s
   await openPicker(page);
   await customize(page);
 
-  for (const [name, key] of [
-    ["Hue", "End"],
-    ["Saturation", "Home"],
-    ["Brightness", "End"],
-  ]) {
-    await picker(page).getByRole("slider", { exact: true, name }).press(key);
-  }
+  await Promise.all(
+    [
+      ["Hue", "End"],
+      ["Saturation", "Home"],
+      ["Brightness", "End"],
+    ].map(([name, key]) =>
+      picker(page).getByRole("slider", { exact: true, name }).press(key)
+    )
+  );
 
   await picker(page)
     .getByRole("button", { name: "Back to emoji browsing" })
@@ -169,9 +177,9 @@ test("custom save matches every workspace surface and a fresh page; exclusions s
   ).toHaveCount(0);
   await picker(page).getByRole("button", { exact: true, name: "Save" }).click();
   const custom = { brightness: 150, hue: 359, kind: "Custom", saturation: 0 };
-  expect((await saved(page)).workspaces[0].appearance.preference).toEqual(
-    custom
-  );
+  const currentSnapshot = await saved(page);
+
+  expect(currentSnapshot.workspaces[0].appearance.preference).toEqual(custom);
   const reopened = await context.newPage();
   await mockDesktop(reopened, { snapshot: await saved(page) });
   await reopened.goto("/");
@@ -235,11 +243,14 @@ test("custom mode stays accessible in the minimum window and retains edits on fa
   await picker(page).getByRole("button", { exact: true, name: "Save" }).click();
   await expect(picker(page).getByRole("alert")).toBeVisible();
 
-  for (const name of ["Hue", "Saturation", "Brightness"]) {
-    await expect(
-      picker(page).getByRole("slider", { name, exact: true })
-    ).toBeInViewport({ ratio: 1 });
-  }
+  await Promise.all(
+    ["Hue", "Saturation", "Brightness"].map((name) =>
+      expect(
+        picker(page).getByRole("slider", { exact: true, name })
+      ).toBeInViewport({ ratio: 1 })
+    )
+  );
+
   await expect(
     picker(page).getByRole("button", { exact: true, name: "Save" })
   ).toBeInViewport({ ratio: 1 });
@@ -254,7 +265,10 @@ test("custom mode stays accessible in the minimum window and retains edits on fa
   await picker(page)
     .getByRole("button", { exact: true, name: "Cancel" })
     .click();
-  expect((await saved(page)).workspaces[0].appearance.preference.kind).toBe(
+
+  const savedAfterCancel = await saved(page);
+
+  expect(savedAfterCancel.workspaces[0].appearance.preference.kind).toBe(
     "Automatic"
   );
 });
@@ -302,10 +316,12 @@ test("creation retains custom edits through inner close and saves exact paramete
   await page
     .getByRole("button", { exact: true, name: "Create workspace" })
     .click();
+
+  const savedWorkspace = await saved(page);
+
   expect(
-    (await saved(page)).workspaces.find(
-      (workspace) => workspace.name === "Custom workspace"
-    )?.appearance.preference
+    savedWorkspace.workspaces.find((item) => item.name === "Custom workspace")
+      ?.appearance.preference
   ).toMatchObject({ kind: "Custom", saturation: 1000 });
   await expect(
     page
@@ -330,15 +346,17 @@ test("dragging updates only the local preview, survives polling, and Escape disc
     .click();
   await customize(page);
 
-  for (const [name, value] of [
-    ["Hue", "0"],
-    ["Saturation", "100"],
-    ["Brightness", "100"],
-  ]) {
-    await expect(
-      picker(page).getByRole("slider", { exact: true, name })
-    ).toHaveAttribute("aria-valuenow", value);
-  }
+  await Promise.all(
+    [
+      ["Hue", "0"],
+      ["Saturation", "100"],
+      ["Brightness", "100"],
+    ].map(([name, value]) =>
+      expect(
+        picker(page).getByRole("slider", { exact: true, name })
+      ).toHaveAttribute("aria-valuenow", value)
+    )
+  );
 
   const before = await saved(page);
 
@@ -350,6 +368,7 @@ test("dragging updates only the local preview, survives polling, and Escape disc
   if (!bounds) {
     throw new Error("The hue track must be visible");
   }
+
   await page.mouse.move(
     bounds.x + bounds.width / 4,
     bounds.y + bounds.height / 2
@@ -368,8 +387,10 @@ test("dragging updates only the local preview, survives polling, and Escape disc
     (node) => getComputedStyle(node).filter
   );
 
-  expect((await saved(page)).revision).toBe(before.revision);
-  expect((await saved(page)).workspaces[0].appearance).toEqual(
+  const savedAfterDrag = await saved(page);
+
+  expect(savedAfterDrag.revision).toBe(before.revision);
+  expect(savedAfterDrag.workspaces[0].appearance).toEqual(
     before.workspaces[0].appearance
   );
   await page.evaluate(async () => {
@@ -423,13 +444,20 @@ test("failed custom save retries without losing slider values", async ({
   await picker(page).getByRole("button", { exact: true, name: "Save" }).click();
   await expect(picker(page).getByRole("alert")).toBeVisible();
   await expect(hue).toHaveAttribute("aria-valuenow", "359");
-  expect((await saved(page)).workspaces[0].appearance.preference.kind).toBe(
+
+  const savedBeforeRetry = await saved(page);
+
+  expect(savedBeforeRetry.workspaces[0].appearance.preference.kind).toBe(
     "Automatic"
   );
   await picker(page).getByRole("button", { exact: true, name: "Save" }).click();
-  expect((await saved(page)).workspaces[0].appearance.preference).toMatchObject(
-    { hue: 359, kind: "Custom" }
-  );
+
+  const savedAfterRetry = await saved(page);
+
+  expect(savedAfterRetry.workspaces[0].appearance.preference).toMatchObject({
+    hue: 359,
+    kind: "Custom",
+  });
   await openPicker(page);
   await expect(preview(page)).toHaveCSS("filter", filter);
 });

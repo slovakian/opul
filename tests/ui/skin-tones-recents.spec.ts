@@ -1,4 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
+import { AxeBuilder } from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
@@ -8,7 +8,7 @@ import { mockDesktop, snapshot } from "./fixture";
 const editor = (page: Page) =>
   page.getByRole("dialog", { exact: true, name: "Change icon" });
 
-async function openPicker(page: Page, workspace = "Downloads") {
+const openPicker = async (page: Page, workspace = "Downloads") => {
   await page
     .getByRole("button", { exact: true, name: `${workspace} actions` })
     .click();
@@ -16,10 +16,10 @@ async function openPicker(page: Page, workspace = "Downloads") {
   await expect(
     editor(page).getByRole("textbox", { name: "Search emoji" })
   ).toBeFocused();
-}
+};
 
-async function savedSnapshot(page: Page) {
-  return snapshotSchema.parse(
+const savedSnapshot = async (page: Page) =>
+  snapshotSchema.parse(
     await page.evaluate(async () => {
       const path = "/frontend/lib/bridge.ts";
       const { bridge } = await import(path);
@@ -27,12 +27,11 @@ async function savedSnapshot(page: Page) {
       return bridge.snapshot();
     })
   );
-}
 
-async function choose(page: Page, search: string, label: string) {
+const choose = async (page: Page, search: string, label: string) => {
   await page.getByRole("textbox", { name: "Search emoji" }).fill(search);
   await page.getByRole("gridcell", { exact: true, name: label }).click();
-}
+};
 
 test("skin tones change the selected sequence and recents start with successful saves", async ({
   page,
@@ -78,7 +77,9 @@ test("only supported selections have tones and keyboard tone choices stay local 
     ["panda", "panda"],
     ["family", "family: man, woman, girl, boy"],
   ]) {
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await choose(page, search, label);
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await expect(
       editor(page).getByRole("group", { exact: true, name: "Skin tone" })
     ).toHaveCount(0);
@@ -115,17 +116,19 @@ test("only supported selections have tones and keyboard tone choices stay local 
   await expect(
     tones.getByRole("button", { exact: true, name: "Light skin tone" })
   ).toHaveAttribute("aria-pressed", "true");
-  expect((await savedSnapshot(page)).recent_emoji).toEqual([]);
+  const savedBeforeCancel = await savedSnapshot(page);
+  expect(savedBeforeCancel.recent_emoji).toEqual([]);
   await editor(page)
     .getByRole("button", { exact: true, name: "Cancel" })
     .click();
-  expect((await savedSnapshot(page)).recent_emoji).toEqual([]);
+  const savedAfterCancel = await savedSnapshot(page);
+  expect(savedAfterCancel.recent_emoji).toEqual([]);
 });
 
 for (const lost of [false, true]) {
   test(`editing ${lost ? "a lost response" : "a failed save"} retains the exact draft and retries without duplicate recents`, async ({
-    page,
     context,
+    page,
   }) => {
     await mockDesktop(page, {
       failFirstAppearance: !lost,
@@ -143,9 +146,8 @@ for (const lost of [false, true]) {
     await expect(editor(page).getByRole("alert")).toContainText(
       "Couldn't save the icon"
     );
-    expect((await savedSnapshot(page)).recent_emoji).toEqual(
-      lost ? ["👩🏿‍💻"] : []
-    );
+    const savedAfterFail = await savedSnapshot(page);
+    expect(savedAfterFail.recent_emoji).toEqual(lost ? ["👩🏿‍💻"] : []);
     await expect(
       editor(page).getByRole("img", { name: "Icon preview: 👩🏿‍💻" })
     ).toBeVisible();
@@ -166,13 +168,14 @@ for (const lost of [false, true]) {
       .getByRole("button", { exact: true, name: "Save" })
       .click();
     await expect(editor(reopened)).toHaveCount(0);
-    expect((await savedSnapshot(reopened)).recent_emoji).toEqual(["👩🏿‍💻"]);
+    const savedReopened = await savedSnapshot(reopened);
+    expect(savedReopened.recent_emoji).toEqual(["👩🏿‍💻"]);
   });
 }
 
 test("creation cancels drafts, retains nested choices, and records only the successful retry", async ({
-  page,
   context,
+  page,
 }) => {
   await mockDesktop(page, { failFirstCreate: true });
   await page.goto("/");
@@ -181,7 +184,7 @@ test("creation cancels drafts, retains nested choices, and records only the succ
     name: "A place for your downloads",
   });
 
-  async function start() {
+  const start = async () => {
     await page
       .getByRole("button", { exact: true, name: "New workspace" })
       .first()
@@ -200,12 +203,14 @@ test("creation cancels drafts, retains nested choices, and records only the succ
     await expect(
       dialog.getByRole("button", { exact: true, name: "Workspace emoji: 👍🏾" })
     ).toBeFocused();
-    expect((await savedSnapshot(page)).recent_emoji).toEqual([]);
-  }
+    const savedInStart = await savedSnapshot(page);
+    expect(savedInStart.recent_emoji).toEqual([]);
+  };
 
   await start();
   await dialog.getByRole("button", { exact: true, name: "Cancel" }).click();
-  expect((await savedSnapshot(page)).recent_emoji).toEqual([]);
+  const savedAfterFirstCancel = await savedSnapshot(page);
+  expect(savedAfterFirstCancel.recent_emoji).toEqual([]);
   await start();
   await dialog
     .getByRole("button", { exact: true, name: "Create workspace" })
@@ -213,7 +218,8 @@ test("creation cancels drafts, retains nested choices, and records only the succ
   await expect(dialog.getByRole("alert")).toContainText(
     "Couldn't save the workspace"
   );
-  expect((await savedSnapshot(page)).recent_emoji).toEqual([]);
+  const savedAfterFailCreate = await savedSnapshot(page);
+  expect(savedAfterFailCreate.recent_emoji).toEqual([]);
   await dialog
     .getByRole("button", { exact: true, name: "Create workspace" })
     .click();
@@ -270,9 +276,8 @@ test("recent variants and joined sequences are searchable, keyboard selectable, 
   ).toBeVisible();
   await editor(page).getByRole("button", { exact: true, name: "Save" }).click();
   await expect(editor(page)).toHaveCount(0);
-  expect((await savedSnapshot(page)).recent_emoji).toEqual(
-    initial.recent_emoji
-  );
+  const savedAfterRecentsSave = await savedSnapshot(page);
+  expect(savedAfterRecentsSave.recent_emoji).toEqual(initial.recent_emoji);
 });
 
 test("a full recent section is bounded and remains accessible at the minimum window", async ({
@@ -336,7 +341,8 @@ test("a full recent section is bounded and remains accessible at the minimum win
   });
   await editor(page).getByRole("button", { exact: true, name: "Save" }).click();
   await expect(editor(page)).toHaveCount(0);
-  expect((await savedSnapshot(page)).recent_emoji).toEqual([
+  const savedFinal = await savedSnapshot(page);
+  expect(savedFinal.recent_emoji).toEqual([
     "🚀",
     ...initial.recent_emoji.slice(0, 23),
   ]);

@@ -189,25 +189,27 @@ test("all twelve treatments render at sidebar size in light and dark themes", as
   await mockDesktop(page, { snapshot: library });
   await page.goto("/");
 
-  for (const treatment of treatments) {
-    const button = page.getByRole("button", {
-      exact: true,
-      name: `${treatment.preset_id} workspace`,
-    });
+  await Promise.all(
+    treatments.map(async (treatment) => {
+      const button = page.getByRole("button", {
+        exact: true,
+        name: `${treatment.preset_id} workspace`,
+      });
 
-    await expect(button.locator(artwork)).toHaveAttribute(
-      "data-preset",
-      treatment.preset_id
-    );
-    await expect(button).toHaveCSS("filter", "none");
-  }
+      await expect(button.locator(artwork)).toHaveAttribute(
+        "data-preset",
+        treatment.preset_id
+      );
+      await expect(button).toHaveCSS("filter", "none");
+    })
+  );
 
   await page.screenshot({ path: "test-results/folders-light.png" });
   await page.getByRole("button", { exact: true, name: "Settings" }).click();
   const settings = page.getByRole("dialog", { exact: true, name: "Settings" });
   await settings.getByRole("button", { exact: true, name: "Dark" }).click();
   await settings.getByRole("button", { name: "Save changes" }).click();
-  await expect(page.locator("html")).toHaveClass(/dark/);
+  await expect(page.locator("html")).toHaveClass(/dark/u);
   await page.screenshot({ path: "test-results/folders-dark.png" });
 });
 
@@ -227,14 +229,16 @@ test("native emoji sequences retain their original artwork even with an inactive
   await mockDesktop(page, { snapshot: library });
   await page.goto("/");
 
-  for (const [index, emoji] of emojis.entries()) {
-    const icon = page
-      .getByRole("button", { exact: true, name: `Native ${index} workspace` })
-      .locator(artwork);
+  await Promise.all(
+    emojis.map(async (emoji, index) => {
+      const icon = page
+        .getByRole("button", { exact: true, name: `Native ${index} workspace` })
+        .locator(artwork);
 
-    await expect(icon).toHaveText(emoji);
-    await expect(icon).toHaveCSS("filter", "none");
-  }
+      await expect(icon).toHaveText(emoji);
+      await expect(icon).toHaveCSS("filter", "none");
+    })
+  );
 
   await page.screenshot({ path: "test-results/native-emoji.png" });
 });
