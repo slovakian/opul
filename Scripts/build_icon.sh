@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Build a macOS .icns from a square PNG master (assets/AppIcon.png).
-# Finder and the Dock apply the squircle mask, so the artwork stays a full-bleed square.
+# The master supplies the silhouette: macOS does not remove a baked-in background.
+# Regenerate both Tauri icon assets from the same transparent master.
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 SRC=${1:-$ROOT/assets/AppIcon.png}
-OUT=${2:-$ROOT/.build/Icon.icns}
+OUT=${2:-$ROOT/src-tauri/icons/icon.icns}
 
 if [[ ! -f "$SRC" ]]; then
   echo "ERROR: missing app icon source: $SRC" >&2
@@ -20,6 +21,10 @@ if [[ "$width" != "$height" ]]; then
 fi
 if [[ "$width" -lt 1024 ]]; then
   echo "ERROR: app icon must be at least 1024x1024 (got ${width})" >&2
+  exit 1
+fi
+if [[ "$(sips -g hasAlpha "$SRC" | awk 'END { print $2 }')" != "yes" ]]; then
+  echo "ERROR: app icon must preserve its transparent background" >&2
   exit 1
 fi
 
@@ -62,4 +67,5 @@ if ! iconutil --convert icns --output "$OUT" "$iconset" 2>/dev/null; then
   rm -f "$OUT"
   /usr/bin/perl "$ROOT/Scripts/pack_icns.pl" "$iconset" "$OUT"
 fi
+sips -z 512 512 "$SRC" --out "$(dirname "$OUT")/icon.png" >/dev/null
 echo "Wrote $OUT"
