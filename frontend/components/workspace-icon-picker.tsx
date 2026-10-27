@@ -213,7 +213,7 @@ export function WorkspaceIconPicker({
               </InputGroupAddon>
             </InputGroup>
             <EmojiPicker.Viewport
-              className="relative min-h-[4.5rem] flex-1 overscroll-contain scroll-fade scroll-fade-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="relative min-h-[4.5rem] flex-1 overscroll-contain scroll-fade-b scroll-fade-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-label="Emoji categories"
             >
               <EmojiPicker.Loading className="p-4 text-sm text-muted-foreground">
@@ -228,7 +228,8 @@ export function WorkspaceIconPicker({
                   CategoryHeader: ({ category, ...props }) => (
                     <div
                       {...props}
-                      className="bg-popover px-1 py-2 text-xs font-medium text-muted-foreground"
+                      // Fade through the sticky header's bottom padding at the same depth as the viewport's bottom fade.
+                      className="bg-linear-to-b from-popover from-[calc(100%_-_var(--scroll-fade-size))] to-transparent px-1 py-2 text-xs font-medium text-muted-foreground"
                     >
                       {category.label.replace(/\b[a-z]/g, (letter) =>
                         letter.toUpperCase(),
