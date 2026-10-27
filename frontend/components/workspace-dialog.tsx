@@ -18,6 +18,14 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTitle,
+  PopoverDescription,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { WorkspaceIconPicker } from "@/components/workspace-icon-picker";
 import { Choice } from "@/components/sidebar-popover";
 import { useLibrary } from "@/lib/library";
 import { bridge, errorMessage } from "@/lib/bridge";
@@ -53,6 +61,9 @@ export function WorkspaceDialog({
   onCreated: (id: string) => void;
 }) {
   const { state, run, busy } = useLibrary();
+  const nameInput = useRef<HTMLInputElement>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [saveError, setSaveError] = useState<string>();
   const [draft, setDraft] = useState<WorkspaceDraft | null>(() =>
     workspace
       ? {
@@ -106,6 +117,7 @@ export function WorkspaceDialog({
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (!draft) return;
+    setSaveError(undefined);
     const id = draft.workspace_id;
     const folder = workspace?.folders.find((folder) => folder.is_default);
     const input = {
@@ -134,7 +146,10 @@ export function WorkspaceDialog({
     if (receipt) {
       onCreated(id);
       onClose();
-    }
+    } else
+      setSaveError(
+        "Couldn't save the workspace. Your changes are kept here; try again.",
+      );
   }
   return (
     <Dialog
@@ -143,7 +158,10 @@ export function WorkspaceDialog({
         if (!open && !busy) onClose();
       }}
     >
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        initialFocus={nameInput}
+        className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-md motion-reduce:animate-none motion-reduce:transition-none"
+      >
         <form className="flex flex-col gap-6" onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>
@@ -158,32 +176,87 @@ export function WorkspaceDialog({
           <FieldGroup>
             <div className="flex items-end gap-3">
               <Field className="w-24 shrink-0">
-                <FieldLabel>Emoji</FieldLabel>
-                <Choice
-                  label="Workspace emoji"
-                  value={emoji}
-                  options={emojis.map((value) => ({
-                    value,
-                    label: value,
-                    content: (
+                <FieldLabel htmlFor={workspace ? undefined : "workspace-emoji"}>
+                  Icon
+                </FieldLabel>
+                {workspace ? (
+                  <Choice
+                    label="Workspace emoji"
+                    value={emoji}
+                    options={emojis.map((value) => ({
+                      value,
+                      label: value,
+                      content: (
+                        <WorkspaceIcon
+                          workspace={{
+                            icon: { kind: "Emoji", value },
+                            appearance: workspace.appearance,
+                          }}
+                        />
+                      ),
+                    }))}
+                    onChange={setEmoji}
+                  />
+                ) : (
+                  <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+                    <PopoverTrigger
+                      render={
+                        <Button
+                          id="workspace-emoji"
+                          type="button"
+                          variant="outline"
+                          disabled={!draft || busy}
+                          aria-label={`Workspace emoji: ${emoji}`}
+                        />
+                      }
+                    >
                       <WorkspaceIcon
                         workspace={{
-                          icon: { kind: "Emoji", value },
+                          icon: { kind: "Emoji", value: emoji },
                           appearance: draft?.appearance ?? {
                             automatic_folder: null,
                             preference: { kind: "Automatic" },
                           },
                         }}
                       />
-                    ),
-                  }))}
-                  onChange={setEmoji}
-                />
+                    </PopoverTrigger>
+                    <PopoverContent
+                      side="right"
+                      align="start"
+                      className="h-[min(30rem,var(--available-height))] max-h-[calc(100svh-1rem)] w-80 max-w-[calc(100vw-1rem)] gap-3 overflow-hidden motion-reduce:animate-none motion-reduce:transition-none"
+                    >
+                      <div className="flex shrink-0 flex-col gap-1">
+                        <PopoverTitle>Choose workspace icon</PopoverTitle>
+                        <PopoverDescription>
+                          Saved when you create the workspace.
+                        </PopoverDescription>
+                      </div>
+                      {draft && (
+                        <WorkspaceIconPicker
+                          draft={{ emoji, appearance: draft.appearance }}
+                          onChange={(icon) => {
+                            setEmoji(icon.emoji);
+                            setDraft({ ...draft, appearance: icon.appearance });
+                          }}
+                        />
+                      )}
+                      <div className="flex shrink-0 justify-end">
+                        <Button
+                          type="button"
+                          onClick={() => setPickerOpen(false)}
+                        >
+                          Done
+                        </Button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                )}
               </Field>
               <Field>
                 <FieldLabel htmlFor="workspace-name">Name</FieldLabel>
                 <Input
                   id="workspace-name"
+                  ref={nameInput}
                   autoFocus
                   value={name}
                   onChange={(event) => setName(event.target.value)}
@@ -234,6 +307,11 @@ export function WorkspaceDialog({
                   Try again
                 </Button>
               </AlertDescription>
+            </Alert>
+          )}
+          {saveError && (
+            <Alert role="alert">
+              <AlertDescription>{saveError}</AlertDescription>
             </Alert>
           )}
           <DialogFooter>

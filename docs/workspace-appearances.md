@@ -90,7 +90,30 @@ the keyboard-scrolling regression first reproduced a clipped active cell, then
 passed after the renderer correction. Standards and spec reviews have no
 remaining findings.
 
-Follow-up tickets retain their scope: creation composition (#13), treatment
-suggestions (#14), custom sliders (#15), and skin-tone controls and recents (#16).
+## Icons during workspace creation (#13)
+
+The creation dialog initially focuses Name and shows the frozen automatic folder
+treatment beside it. The icon button opens the same controlled picker used by
+Change icon. Selection and appearance changes stay in the creation draft. Done,
+Escape, and clicking back into the form close only the picker and retain choices.
+Done and Escape restore focus to the icon button. A second Escape cancels creation,
+as do Cancel and the dialog close button. Reopening starts a fresh draft.
+
+Create workspace commits the draft's emoji, appearance, workspace ID, and folder
+ID together. A failed submission displays an inline error and keeps the form
+available. Unchanged retries reuse the request ID, including after a lost success
+response. Rust checkpoint durability faults still require resolving the storage
+problem and restarting the app before writes can resume.
+
+WebKit creation flows cover the default path, nested close and Escape, keyboard
+selection, canceled drafts, polling, retry before and after a committed save,
+complete Unicode sequences, saved appearance, and focus restoration. The nested
+picker is bounded and scrollable at the 720×520 minimum window, with accessibility
+and console checks. A Rust actor test verifies canceled proposals do not write,
+failed creation checkpoints publish neither field, and both fields survive restart
+and an idempotent retry.
+
+Follow-up tickets retain their scope: treatment suggestions (#14), custom sliders
+(#15), and skin-tone controls and recents (#16).
 The preference model supports deliberate treatments now; their selection controls
 arrive in those tickets.

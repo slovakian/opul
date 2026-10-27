@@ -683,6 +683,76 @@ mod tests {
     }
 
     #[test]
+    fn creation_draft_commits_icon_and_frozen_appearance_together_and_retries_after_restart() {
+        for emoji in ["📁", "👨‍👩‍👧‍👦"] {
+            let folder = temp_dir();
+            let actor = ApplicationActor::open(folder.clone(), "/tmp/Downloads".into()).unwrap();
+            make_running(&actor);
+            let before = actor.snapshot();
+            let checkpoint = folder.join("application-state.json");
+            let bytes = fs::read(&checkpoint).unwrap();
+            // Opening and canceling a proposal never publishes or checkpoints a workspace.
+            let canceled_id = super::super::WorkspaceId::new();
+            actor.propose_workspace_appearance(canceled_id).unwrap();
+            assert_eq!(actor.snapshot(), before);
+            assert_eq!(fs::read(&checkpoint).unwrap(), bytes);
+
+            let mut workspace = AppState::fresh("/tmp/Family".into()).workspaces.remove(0);
+            workspace.name = "Family".into();
+            workspace.icon = super::super::WorkspaceIcon::Emoji(emoji.into());
+            workspace.appearance = actor.propose_workspace_appearance(workspace.id).unwrap();
+            if emoji != "📁" {
+                workspace.appearance.preference = crate::AppearancePreference::Original;
+            }
+            let id = workspace.id;
+            let appearance = workspace.appearance.clone();
+            let request = envelope(Command::CreateWorkspace { workspace });
+
+            // A checkpoint failure cannot publish either half of the creation draft.
+            let backup = folder.join("application-state.json.bak");
+            fs::remove_file(&backup).unwrap();
+            fs::create_dir(&backup).unwrap();
+            assert!(actor.dispatch(request.clone()).is_err());
+            assert_eq!(actor.snapshot().workspaces, before.workspaces);
+            assert_eq!(actor.snapshot().revision, before.revision);
+            assert_eq!(fs::read(&checkpoint).unwrap(), bytes);
+            drop(actor);
+            fs::remove_dir(&backup).unwrap();
+
+            // Durability faults put the actor in read-only mode until restart.
+            let actor = ApplicationActor::open(folder.clone(), "/tmp/Unused".into()).unwrap();
+            make_running(&actor);
+            actor.dispatch(request.clone()).unwrap();
+            let saved = actor.snapshot();
+            let created = saved
+                .workspaces
+                .iter()
+                .find(|workspace| workspace.id == id)
+                .unwrap();
+            assert_eq!(
+                created.icon,
+                super::super::WorkspaceIcon::Emoji(emoji.into())
+            );
+            assert_eq!(created.appearance, appearance);
+            assert!(
+                saved
+                    .workspaces
+                    .iter()
+                    .all(|workspace| workspace.id != canceled_id)
+            );
+            drop(actor);
+
+            let actor = ApplicationActor::open(folder.clone(), "/tmp/Unused".into()).unwrap();
+            // An unchanged retry after a lost response creates exactly one workspace.
+            actor.dispatch(request).unwrap();
+            let reopened = actor.snapshot();
+            assert_eq!(reopened.workspaces, saved.workspaces);
+            drop(actor);
+            fs::remove_dir_all(folder).unwrap();
+        }
+    }
+
+    #[test]
     fn appearance_commit_is_durable_idempotent_and_does_not_overwrite_settings() {
         let folder = temp_dir();
         let actor = ApplicationActor::open(folder.clone(), "/tmp/Downloads".into()).unwrap();

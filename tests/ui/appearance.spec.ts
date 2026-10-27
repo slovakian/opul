@@ -86,10 +86,12 @@ for (const loseResponse of [false, true]) {
     await page
       .getByRole("button", { name: "Workspace emoji: 📁", exact: true })
       .click();
+    await page.getByRole("textbox", { name: "Search emoji" }).fill("books");
     await page
       .locator('[data-slot="popover-content"]')
-      .getByRole("button", { name: "📚", exact: true })
+      .getByRole("gridcell", { name: "books", exact: true })
       .click();
+    await page.getByRole("button", { name: "Done", exact: true }).click();
     await expect(
       page
         .getByRole("button", { name: "Workspace emoji: 📚", exact: true })
@@ -99,9 +101,13 @@ for (const loseResponse of [false, true]) {
       .getByRole("button", { name: "Workspace emoji: 📚", exact: true })
       .click();
     await page
+      .getByRole("textbox", { name: "Search emoji" })
+      .fill("file folder");
+    await page
       .locator('[data-slot="popover-content"]')
-      .getByRole("button", { name: "📁", exact: true })
+      .getByRole("gridcell", { name: "file folder", exact: true })
       .click();
+    await page.getByRole("button", { name: "Done", exact: true }).click();
     await expect(preview).toHaveCSS("filter", filter);
     await page
       .getByRole("button", { name: "Create workspace", exact: true })

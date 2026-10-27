@@ -74,10 +74,12 @@ test("emoji workspace creation and Base UI settings dialog", async ({
     .click();
   await page.getByLabel("Name", { exact: true }).fill("Research");
   await page.getByRole("button", { name: /^Workspace emoji:/ }).click();
+  await page.getByRole("textbox", { name: "Search emoji" }).fill("books");
   await page
     .locator('[data-slot="popover-content"]')
-    .getByRole("button", { name: "📚", exact: true })
+    .getByRole("gridcell", { name: "books", exact: true })
     .click();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   await page
     .getByRole("button", { name: "Create workspace", exact: true })
     .click();
