@@ -213,7 +213,7 @@ export function WorkspaceIconPicker({
               </InputGroupAddon>
             </InputGroup>
             <EmojiPicker.Viewport
-              className="relative min-h-[4.5rem] flex-1 overscroll-contain rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="relative min-h-[4.5rem] flex-1 overscroll-contain scroll-fade scroll-fade-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-label="Emoji categories"
             >
               <EmojiPicker.Loading className="p-4 text-sm text-muted-foreground">

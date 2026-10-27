@@ -43,7 +43,7 @@ export function WorkspaceCustomTreatment({
   return (
     <div
       ref={container}
-      className="col-start-1 row-start-1 flex min-h-0 flex-col gap-3 overflow-y-auto overscroll-contain p-1"
+      className="col-start-1 row-start-1 flex min-h-0 flex-col gap-3 overflow-y-auto overscroll-contain scroll-fade scroll-fade-2 p-1"
     >
       <div className="flex shrink-0 items-center gap-2">
         <Button
