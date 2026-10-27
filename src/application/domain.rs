@@ -59,7 +59,7 @@ impl AppState {
             workspaces: vec![Workspace {
                 id: WorkspaceId::new(),
                 name: "Downloads".to_string(),
-                icon: WorkspaceIcon::Symbol("arrow.down.circle".to_string()),
+                icon: WorkspaceIcon::Emoji("📁".to_string()),
                 folders: vec![SavedFolder {
                     id: folder_id,
                     name: "Downloads".to_string(),

@@ -1,0 +1,194 @@
+import { expect, test } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
+import { mockDesktop } from "./fixture";
+
+test("search, transfer actions, table view, inspector, and removal", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await mockDesktop(page);
+  await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "All downloads" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Design resources.zip", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Pause Design resources.zip", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", {
+      name: "Resume Design resources.zip",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Resume Design resources.zip", exact: true })
+    .click();
+  await page
+    .getByRole("searchbox", { name: "Search downloads" })
+    .fill("Field notes");
+  await expect(
+    page.getByRole("button", { name: "Design resources.zip", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("searchbox", { name: "Search downloads" }).clear();
+  await page
+    .getByRole("button", { name: "Design resources.zip", exact: true })
+    .click();
+  await expect(
+    page.getByRole("complementary", { name: "Download details" }),
+  ).toBeVisible();
+  await page.screenshot({ path: "test-results/inspector.png" });
+  await page.getByRole("button", { name: "Close details" }).click();
+  await page.getByRole("button", { name: "Table view", exact: true }).click();
+  await expect(page.getByRole("table")).toBeVisible();
+  await page.screenshot({ path: "test-results/table.png" });
+  await page
+    .getByRole("button", { name: "Actions for Field notes.pdf" })
+    .click();
+  const menu = page.locator('[data-slot="popover-content"]');
+  await expect(menu.locator('[data-slot="sidebar"]')).toBeVisible();
+  await menu.getByRole("button", { name: "Remove from library" }).click();
+  await page
+    .getByRole("button", { name: "Remove download", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Field notes.pdf", exact: true }),
+  ).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("emoji workspace creation and Base UI settings dialog", async ({
+  page,
+}) => {
+  await mockDesktop(page);
+  await page.goto("/");
+  await expect(
+    page.getByRole("button", { name: "Downloads workspace", exact: true }),
+  ).toContainText("📁");
+  await page
+    .getByRole("button", { name: "New workspace", exact: true })
+    .last()
+    .click();
+  await page.getByLabel("Name", { exact: true }).fill("Research");
+  await page.getByRole("button", { name: /^Workspace emoji:/ }).click();
+  await page
+    .locator('[data-slot="popover-content"]')
+    .getByRole("button", { name: "📚", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Create workspace", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Research", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Research workspace", exact: true }),
+  ).toContainText("📚");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Settings", exact: true });
+  await expect(dialog.locator('[data-slot="sidebar"]')).toBeVisible();
+  await dialog.getByRole("button", { name: "Dark", exact: true }).click();
+  await page.screenshot({ path: "test-results/settings.png" });
+  await dialog.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.locator("html")).toHaveClass(/dark/);
+  await page.screenshot({ path: "test-results/dark.png" });
+});
+
+test("imports retain errors, close on success, and use sidebar choices", async ({
+  page,
+}) => {
+  await mockDesktop(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Add download", exact: true }).click();
+  const dialog = page.getByRole("dialog", {
+    name: "New download",
+    exact: true,
+  });
+  await dialog.getByLabel("Link", { exact: true }).fill("file:///private/file");
+  await dialog
+    .getByRole("button", { name: "Add download", exact: true })
+    .click();
+  await expect(dialog).toBeVisible();
+  await expect(
+    page.getByText("Use an HTTP, HTTPS, or magnet link."),
+  ).toBeVisible();
+  await dialog
+    .getByLabel("Link", { exact: true })
+    .fill("https://example.com/new-file.zip");
+  await dialog.getByRole("button", { name: /^Download type:/ }).click();
+  await expect(
+    page.locator('[data-slot="popover-content"] [data-slot="sidebar"]'),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await dialog
+    .getByRole("button", { name: "Add download", exact: true })
+    .click();
+  await expect(dialog).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "new-file.zip", exact: true }),
+  ).toBeVisible();
+});
+
+test("empty, recovery, and startup failure states", async ({ browser }) => {
+  for (const state of ["empty", "recovery", "fail"]) {
+    const page = await browser.newPage();
+    await mockDesktop(page, {
+      empty: state === "empty",
+      recovery: state === "recovery",
+      fail: state === "fail",
+    });
+    await page.goto("/");
+    if (state === "empty") {
+      await expect(page.getByText("No downloads yet")).toBeVisible();
+      await page.screenshot({ path: "test-results/empty.png" });
+    }
+    if (state === "recovery") {
+      await expect(
+        page.getByText("Your library needs attention"),
+      ).toBeVisible();
+      await page.getByRole("button", { name: "Acknowledge recovery" }).click();
+      await expect(page.getByText("Your library needs attention")).toHaveCount(
+        0,
+      );
+    }
+    if (state === "fail")
+      await expect(
+        page.getByText("The state directory is already in use"),
+      ).toBeVisible();
+    await page.close();
+  }
+});
+
+test("keyboard navigation, accessibility, and narrow layout", async ({
+  page,
+}) => {
+  await mockDesktop(page);
+  await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "All downloads" }),
+  ).toBeVisible();
+  const result = await new AxeBuilder({ page }).analyze();
+  expect(result.violations).toEqual([]);
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  // Base UI's WebKit VoiceOver focus sentinels are not user controls.
+  const dialogResult = await new AxeBuilder({ page })
+    .exclude("[data-base-ui-focus-guard]")
+    .analyze();
+  expect(dialogResult.violations).toEqual([]);
+  await page.keyboard.press("Escape");
+  await page.setViewportSize({ width: 768, height: 800 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({ path: "test-results/narrow.png" });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Toggle Sidebar" }).click();
+  await expect(
+    page.getByRole("button", { name: "Downloads workspace", exact: true }),
+  ).toBeVisible();
+});

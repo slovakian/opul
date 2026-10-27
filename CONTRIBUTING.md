@@ -1,13 +1,20 @@
 # Contributing to Opul
 
-Thanks for helping improve Opul.
+Focused pull requests and bug reports are welcome. Discuss large changes in an
+issue before starting, unless the maintainer has already requested the work.
 
-Before opening a pull request:
+Install dependencies with `npm ci`, then run:
 
-1. Search existing issues and pull requests.
-2. Open an issue before starting a large feature or architectural change.
-3. Keep each pull request focused on one outcome.
-4. Run `Scripts/test.sh` and `Scripts/package_app.sh debug`.
-5. Explain user-visible behavior, tradeoffs, and testing in the pull request.
+```bash
+npx playwright install webkit
+Scripts/test.sh
+Scripts/package_app.sh debug
+Scripts/smoke_test.sh
+```
 
-By contributing, you agree that your contribution is licensed under the MIT License.
+The UI uses the official shadcn skill installed in `.agents/skills/shadcn`.
+Use Base UI primitives, semantic colors, Sidebar popover menus, and the existing
+Rust commands. Keep persisted download state in Rust.
+
+Describe the user-visible behavior, tradeoffs, and verification in your PR.
+Contributions are licensed under the MIT License.

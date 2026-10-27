@@ -3,9 +3,9 @@ use std::sync::{Arc, Mutex, MutexGuard};
 mod application;
 mod bencode;
 mod destination;
-mod engine;
+pub mod engine;
 mod media;
-mod meta;
+pub mod meta;
 mod persistence;
 
 pub use application::{
@@ -19,6 +19,7 @@ pub use application::{
 };
 
 pub use destination::DownloadContentLayout;
+pub use engine::EngineConfig;
 
 pub use media::{
     GuidedCandidate, GuidedDownloadSelection, GuidedExtractionSession, GuidedHttpHeader,
@@ -27,16 +28,14 @@ pub use media::{
     MediaTransferSnapshot, MediaTransferState, classify_guided_url,
 };
 
-uniffi::setup_scaffolding!();
-
-#[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Summary {
     pub count: u64,
     pub total: i64,
     pub mean: f64,
 }
 
-#[derive(Debug, thiserror::Error, uniffi::Error, PartialEq, Eq)]
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum CoreError {
     #[error("the running total overflowed")]
     TotalOverflow,
@@ -70,14 +69,11 @@ pub fn summarize(samples: &[i64]) -> Result<Summary, CoreError> {
     Ok(Summary { count, total, mean })
 }
 
-#[derive(uniffi::Object)]
 pub struct Session {
     samples: Mutex<Vec<i64>>,
 }
 
-#[uniffi::export]
 impl Session {
-    #[uniffi::constructor]
     pub fn new() -> Arc<Self> {
         Arc::new(Self {
             samples: Mutex::new(Vec::new()),

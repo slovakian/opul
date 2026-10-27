@@ -1,14 +1,14 @@
 use crate::CoreError;
 use crate::bencode::{self, BValue};
 
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TorrentFileInfo {
     pub file_index: u32,
     pub path: String,
     pub size: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TorrentMeta {
     pub info_hash: String,
     pub name: String,
@@ -24,7 +24,7 @@ pub struct TorrentMeta {
     pub is_private: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MagnetMeta {
     pub info_hash: String,
     pub name: Option<String>,
@@ -36,7 +36,7 @@ pub struct MagnetMeta {
 ///
 /// Seeding means the selected files are on disk and Opul is still uploading.
 /// Finished means seeding stopped because the ratio was met or the person stopped it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TorrentState {
     Queued,
     Fetching,
@@ -49,7 +49,7 @@ pub enum TorrentState {
 /// Folx stores one signed byte per file. Zero skips the file.
 /// librqbit only has an include mask, so high and low stay on the Download
 /// and skip is the bit the engine honors.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilePriority {
     Normal,
     High,
@@ -72,7 +72,7 @@ impl FilePriority {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileTransferStatus {
     pub file_index: u32,
     pub path: String,
@@ -82,7 +82,7 @@ pub struct FileTransferStatus {
     pub priority: String,
 }
 
-#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TorrentTransferSnapshot {
     pub download_id: Option<String>,
     pub attempt: u32,
@@ -113,7 +113,6 @@ pub struct TorrentTransferSnapshot {
     pub error_message: Option<String>,
 }
 
-#[uniffi::export]
 pub fn parse_torrent_bytes(bytes: &[u8]) -> Result<TorrentMeta, CoreError> {
     let root = bencode::decode(bytes).map_err(|reason| CoreError::InvalidTorrent { reason })?;
     let info = root
@@ -240,7 +239,6 @@ pub fn parse_torrent_bytes(bytes: &[u8]) -> Result<TorrentMeta, CoreError> {
     })
 }
 
-#[uniffi::export]
 pub fn parse_magnet_uri(uri: &str) -> Result<MagnetMeta, CoreError> {
     let trimmed = uri.trim();
     if !trimmed.to_ascii_lowercase().starts_with("magnet:?") {
@@ -294,7 +292,6 @@ pub fn parse_magnet_uri(uri: &str) -> Result<MagnetMeta, CoreError> {
     })
 }
 
-#[uniffi::export]
 pub fn create_magnet_uri(info_hash: &str, name: Option<String>, trackers: Vec<String>) -> String {
     let mut uri = format!("magnet:?xt=urn:btih:{}", info_hash.to_ascii_lowercase());
     if let Some(name) = name {

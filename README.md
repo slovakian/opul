@@ -1,49 +1,79 @@
 # Opul
 
-Opul is a native download manager for macOS. It keeps downloads in Workspaces, supports saved folders and custom views, and handles video pages, direct URLs, and BitTorrent downloads.
+Opul is a download manager for macOS, built with Tauri, React, shadcn/ui on
+Base UI, and a Rust download core. Organize direct links, video pages, playlists,
+and BitTorrent downloads in emoji workspaces.
 
-Opul is free and open source under the MIT License. If it makes your day better, you can support its continued development through [GitHub Sponsors](https://github.com/sponsors/slovakian).
+## Develop
 
-## Download
-
-[Download Opul](https://github.com/slovakian/opul/releases/latest/download/Opul.dmg) (the newest release, always), or visit [opul.procka.org](https://opul.procka.org). Requires macOS 14 Sonoma or newer on Apple silicon or Intel.
-
-Open `Opul.dmg` and drag Opul to Applications. Opul is not notarized by Apple yet, so macOS asks you to approve it the first time:
-
-1. Open Opul from Applications. macOS says it can't verify the app. Close the warning; don't choose **Move to Trash**.
-2. Open **System Settings → Privacy & Security**, scroll down to **Security**, and click **Open Anyway** next to the message about Opul.
-3. Confirm when macOS asks again. It may ask for your password or Touch ID.
-
-You only do this once. Opul then checks for updates and installs them by itself; you can change that in Preferences.
-
-## Build
-
-You need the Apple Command Line Tools or Xcode, Swift 6 or newer, and a stable Rust toolchain.
+Install Xcode Command Line Tools, a stable Rust toolchain, and Node.js 24 or newer.
 
 ```bash
-Scripts/test.sh
-Scripts/compile_and_run.sh
+npm ci
+npm run tauri -- dev
 ```
 
-Build a release app and disk image without launching it:
+Video pages need [yt-dlp](https://github.com/yt-dlp/yt-dlp). Audio conversion needs
+[FFmpeg](https://ffmpeg.org). Direct files and torrents work without either.
+
+```bash
+brew install yt-dlp ffmpeg
+```
+
+Opul detects Homebrew installations. Custom executable paths can be set in Settings.
+
+## Verify and package
+
+```bash
+npx playwright install webkit
+Scripts/test.sh
+Scripts/package_app.sh debug
+Scripts/smoke_test.sh
+Scripts/launch.sh
+```
+
+For a release app and disk image:
 
 ```bash
 Scripts/package_app.sh release
 Scripts/package_dmg.sh
 ```
 
-These write `Opul.app` and `Opul.dmg`. Releases are published by the Release workflow; see [docs/releasing.md](docs/releasing.md).
+The scripts use Tauri's bundler and copy the output to `Opul.app` and `Opul.dmg`.
+For development, use `npm run tauri -- dev`. `npm run dev` runs only the web
+interface; downloads require the native shell.
+
+## Your library
+
+The Tauri app opens the existing `~/Library/Application Support/Opul` library.
+The Rust core imports legacy `library.json` files and retains its checkpoint,
+backup, recovery, and exclusive-lock behavior. Quit an older Opul before launching
+this version.
+
+Development and smoke tests can use isolated data:
+
+```bash
+OPUL_DATA_DIR=/tmp/opul-dev-state OPUL_DOWNLOAD_DIR=/tmp/opul-dev-downloads npm run tauri -- dev
+```
+
+The new shell stores settings in `desktop-preferences.json`. Old Swift
+preferences are not imported. This migration replaces the Swift interface and
+Sparkle updater. Updates currently require a manual download from
+[GitHub Releases](https://github.com/slovakian/opul/releases). The former guided
+browser extraction interface is not included; its Rust implementation remains.
 
 ## Project structure
 
-- `Sources/Opul`: SwiftUI application
-- `src`: Rust state machine and download engines
-- `Sources/OpulCore`: generated UniFFI bindings checked into source control
-- `Scripts`: build, test, packaging, and local launch commands
-- `docs/adr`: technical architecture decisions
+- `frontend/`: React interface and official shadcn Base UI components
+- `src-tauri/`: native shell, commands, settings, and packaging configuration
+- `src/`: Rust state machine, persistence, torrent engine, and media engine
+- `tests/ui/`: WebKit interaction and accessibility checks with mocked Tauri IPC
+- `Scripts/`: test, package, and launch entrypoints
+- `.agents/skills/shadcn/`: official shadcn skill installed for this repository
 
-The project website lives separately in [slovakian/opul-website](https://github.com/slovakian/opul-website).
+The interface follows sidebar-15 for workspaces, sidebar-10 for all popover menus,
+and sidebar-13 for settings. See [the migration decision](docs/adr/0004-tauri-interface.md).
+The desktop setup takes reference from [tauri-ui](https://github.com/agmmnn/tauri-ui).
 
-## Contributing
-
-Bug reports and focused pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before starting a larger change.
+Opul is free and open source under the MIT License.
+[Support development](https://github.com/sponsors/slovakian).

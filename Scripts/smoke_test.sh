@@ -1,28 +1,29 @@
 #!/usr/bin/env bash
-# Launch the packaged app the way a user's Mac would and fail if it does not stay running.
-# The build folder is moved aside first because SwiftPM's resource lookup falls back to it,
-# which hides missing-resource crashes on the machine that built the app.
+# Isolate the native launch from the user's library and download folder.
 set -euo pipefail
-
-ROOT=$(cd "$(dirname "$0")/.." && pwd)
-source "$ROOT/app.env"
-APP=${1:-"$ROOT/${APP_NAME}.app"}
-HIDDEN_BUILD="$ROOT/../.opul-build-hidden-$$"
-
-restore() {
-  [[ -n "${PID:-}" ]] && kill "$PID" 2>/dev/null || true
-  [[ -d "$HIDDEN_BUILD" ]] && mv "$HIDDEN_BUILD" "$ROOT/.build"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+APP="${1:-$ROOT_DIR/Opul.app}"
+[[ -x "$APP/Contents/MacOS/Opul" ]] || { echo "Package Opul first." >&2; exit 1; }
+SMOKE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/opul-smoke.XXXXXX")"
+cleanup() {
+  if [[ -n "${SMOKE_PID:-}" ]]; then
+    kill "$SMOKE_PID" 2>/dev/null || true
+    wait "$SMOKE_PID" 2>/dev/null || true
+  fi
 }
-trap restore EXIT
-
-[[ -d "$ROOT/.build" ]] && mv "$ROOT/.build" "$HIDDEN_BUILD"
-
-"$APP/Contents/MacOS/$APP_NAME" >/dev/null 2>&1 &
-PID=$!
-sleep 10
-if ! kill -0 "$PID" 2>/dev/null; then
-  wait "$PID" || status=$?
-  echo "ERROR: $APP_NAME exited during launch (status ${status:-0}). Check ~/Library/Logs/DiagnosticReports." >&2
-  exit 1
-fi
-echo "$APP_NAME stayed running after launch."
+trap cleanup EXIT
+env OPUL_DATA_DIR="$SMOKE_DIR/state" OPUL_DOWNLOAD_DIR="$SMOKE_DIR/downloads" \
+  OPUL_SMOKE_READY_FILE="$SMOKE_DIR/frontend-ready" \
+  "$APP/Contents/MacOS/Opul" >"$SMOKE_DIR/launch.log" 2>&1 &
+SMOKE_PID=$!
+for _ in {1..40}; do
+  kill -0 "$SMOKE_PID" 2>/dev/null || { cat "$SMOKE_DIR/launch.log"; exit 1; }
+  if [[ -f "$SMOKE_DIR/frontend-ready" ]]; then
+    echo "Opul's packaged frontend rendered and connected to Rust."
+    echo "Smoke artifacts: $SMOKE_DIR"
+    exit 0
+  fi
+  sleep 0.5
+done
+echo "The packaged frontend did not become ready. Logs: $SMOKE_DIR/launch.log" >&2
+exit 1

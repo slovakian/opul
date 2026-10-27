@@ -1,5 +1,5 @@
 [workspace]
-members = ["bindgen"]
+members = ["src-tauri"]
 resolver = "3"
 
 [package]
@@ -9,7 +9,7 @@ edition = "2024"
 
 [lib]
 name = "opul_core"
-crate-type = ["lib", "cdylib", "staticlib"]
+crate-type = ["lib"]
 
 [dependencies]
 hex = "0.4"
@@ -21,6 +21,5 @@ serde_json = "1"
 sha1 = "0.10"
 thiserror = "2.0.21"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync", "net", "io-util"] }
-uniffi = "0.32.2"
 url = "2.5"
-uuid = { version = "1.18", features = ["v4", "serde"] }
+uuid = { version = "1.18", features = ["v4", "v5", "serde"] }
