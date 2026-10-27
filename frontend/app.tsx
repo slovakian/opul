@@ -9,7 +9,7 @@ import {
   Smile,
   Trash2,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AddDownloadDialog } from "@/components/add-download-dialog";
 import { DownloadInput } from "@/components/download-input";
@@ -19,12 +19,6 @@ import { Downloads } from "@/components/downloads";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { SidebarPopover } from "@/components/sidebar-popover";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -34,15 +28,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
+import { SidebarInset, useSidebar } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WorkspaceDialog } from "@/components/workspace-dialog";
-import { WorkspaceIcon } from "@/components/workspace-icon";
+import { WorkspaceHeader } from "@/components/workspace-header";
 import { WorkspaceIconEditor } from "@/components/workspace-icon-picker";
 import { WorkspaceSidebar } from "@/components/workspace-sidebar";
 import type { Location, StatusFilter } from "@/components/workspace-sidebar";
@@ -79,6 +68,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string>();
   const [modal, setModal] = useState<Modal | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const { setOpenMobile } = useSidebar();
   const workspaces = state.kind === "ready" ? state.snapshot.workspaces : [];
 
   const workspace =
@@ -183,7 +173,6 @@ export default function App() {
   function navigate(next: Location) {
     setLocation(next);
     setFilter("all");
-    setQuery("");
     setSelectedId(undefined);
   }
 
@@ -202,6 +191,23 @@ export default function App() {
     }
   }
 
+  const focusInput = useCallback(
+    (select: boolean) => {
+      setOpenMobile(false);
+      // Let a closing menu restore focus before moving it to the shared input.
+      requestAnimationFrame(() => {
+        searchRef.current?.focus();
+
+        if (select) {
+          searchRef.current?.select();
+        }
+      });
+    },
+    [setOpenMobile]
+  );
+
+  const newDownload = useCallback(() => focusInput(true), [focusInput]);
+
   useEffect(() => {
     function keydown(event: KeyboardEvent) {
       if (!(event.metaKey || event.ctrlKey)) {
@@ -209,7 +215,7 @@ export default function App() {
       }
       if (event.key === "n") {
         event.preventDefault();
-        setModal({ kind: "add" });
+        newDownload();
       }
 
       if (event.key === ",") {
@@ -219,7 +225,7 @@ export default function App() {
 
       if (event.key === "f") {
         event.preventDefault();
-        searchRef.current?.focus();
+        focusInput(false);
       }
     }
 
@@ -230,7 +236,9 @@ export default function App() {
     }
     const subscriptions = [
       listen("settings", () => setModal({ kind: "settings" })),
-      listen("new-download", () => setModal({ kind: "add" })),
+      listen("new-download", () => {
+        newDownload();
+      }),
     ];
 
     return () => {
@@ -240,10 +248,10 @@ export default function App() {
         void subscription.then((unlisten) => unlisten());
       }
     };
-  }, []);
+  }, [focusInput, newDownload]);
 
   return (
-    <SidebarProvider className="h-svh min-h-0 overflow-hidden">
+    <>
       <WorkspaceSidebar
         workspaces={workspaces}
         location={location}
@@ -254,134 +262,105 @@ export default function App() {
           setModal({ anchor, kind: "icon", workspace })
         }
         onSettings={() => setModal({ kind: "settings" })}
-        onNew={() => setModal({ kind: "add" })}
+        onNew={newDownload}
       />
       <SidebarInset className="h-svh min-w-0 overflow-hidden">
-        <header className="shrink-0">
-          <div
-            data-tauri-drag-region
-            className="flex min-h-14 flex-wrap items-center gap-x-2 gap-y-2 px-4 py-3"
-          >
-            <div className="flex min-w-0 flex-1 items-center gap-2 sm:max-w-56 sm:flex-initial">
-              <SidebarTrigger />
-              <Separator
-                orientation="vertical"
-                className="mx-1 data-vertical:h-4 data-vertical:self-center"
-              />
-              <Breadcrumb className="min-w-0">
-                <BreadcrumbList className="flex-nowrap">
-                  {folder && workspace && (
-                    <>
-                      <BreadcrumbItem className="min-w-0">
-                        <span className="truncate">{workspace.name}</span>
-                      </BreadcrumbItem>
-                      <BreadcrumbSeparator />
-                    </>
-                  )}
-                  <BreadcrumbItem className="min-w-0">
-                    <h1
-                      aria-label={title}
-                      aria-current="page"
-                      className="text-foreground flex min-w-0 items-center gap-2 text-sm font-medium"
-                    >
-                      {location.kind === "workspace" && workspace && (
-                        <span aria-hidden>
-                          <WorkspaceIcon workspace={workspace} />
-                        </span>
-                      )}
-                      <span className="truncate">{title}</span>
-                    </h1>
-                  </BreadcrumbItem>
-                </BreadcrumbList>
-              </Breadcrumb>
-            </div>
-            <DownloadToolbar
-              searchRef={searchRef}
-              query={query}
-              setQuery={setQuery}
-              filter={filter}
-              setFilter={setFilter}
-              display={display}
-              showFilter={
-                location.kind === "all" || location.kind === "workspace"
-              }
-              view={view}
-              disabled={
-                !canEdit ||
-                busy ||
-                (location.kind !== "workspace" && !preferences)
-              }
-            />
-            <SidebarPopover
-              title="Workspace actions"
-              trigger={
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Workspace actions"
-                >
-                  <MoreHorizontal />
-                </Button>
-              }
-              groups={[
-                {
-                  actions: [
-                    {
-                      disabled: !canEdit,
-                      icon: Plus,
-                      label: "New download",
-                      onClick: () => setModal({ kind: "add" }),
-                    },
-                    {
-                      icon: Settings2,
-                      label: "Settings",
-                      onClick: () => setModal({ kind: "settings" }),
-                    },
-                  ],
-                },
-                ...(location.kind === "workspace" && workspace
-                  ? [
-                      {
-                        actions: [
-                          {
-                            disabled: !canEdit || busy,
-                            icon: Smile,
-                            label: "Change icon…",
-                            onClick: (anchor: HTMLButtonElement | null) =>
-                              setModal({ kind: "icon", workspace, anchor }),
-                          },
-                          {
-                            icon: FolderOpen,
-                            label: "Edit workspace",
-                            onClick: () =>
-                              setModal({ kind: "workspace", workspace }),
-                          },
-                          {
-                            destructive: true,
-                            disabled: workspaces.length === 1 || !canEdit,
-                            icon: Trash2,
-                            label: "Delete workspace",
-                            onClick: () =>
-                              setModal({ kind: "delete-workspace", workspace }),
-                          },
-                        ],
-                      },
-                    ]
-                  : []),
-              ]}
-            />
-          </div>
+        <WorkspaceHeader
+          title={title}
+          workspace={location.kind === "workspace" ? workspace : undefined}
+          parentWorkspace={folder ? workspace : undefined}
+          onParent={() => {
+            if (workspace) {
+              navigate({ kind: "workspace", workspaceId: workspace.id });
+            }
+          }}
+        >
           {workspace && (
             <DownloadInput
-              key={workspace.id}
+              key={workspace?.id}
               workspace={workspace}
               disabled={!canEdit || busy}
+              query={query}
+              setQuery={setQuery}
+              inputRef={searchRef}
               onOptions={(url, folderId) =>
                 setModal({ folderId, kind: "add", url })
               }
             />
           )}
-        </header>
+          <DownloadToolbar
+            filter={filter}
+            setFilter={setFilter}
+            display={display}
+            showFilter={
+              location.kind === "all" || location.kind === "workspace"
+            }
+            view={view}
+            disabled={
+              !canEdit ||
+              busy ||
+              (location.kind !== "workspace" && !preferences)
+            }
+          />
+          <SidebarPopover
+            title="Workspace actions"
+            trigger={
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Workspace actions"
+              >
+                <MoreHorizontal />
+              </Button>
+            }
+            groups={[
+              {
+                actions: [
+                  {
+                    disabled: !canEdit,
+                    icon: Plus,
+                    label: "New download",
+                    onClick: newDownload,
+                  },
+                  {
+                    icon: Settings2,
+                    label: "Settings",
+                    onClick: () => setModal({ kind: "settings" }),
+                  },
+                ],
+              },
+              ...(location.kind === "workspace" && workspace
+                ? [
+                    {
+                      actions: [
+                        {
+                          disabled: !canEdit || busy,
+                          icon: Smile,
+                          label: "Change icon…",
+                          onClick: (anchor: HTMLButtonElement | null) =>
+                            setModal({ kind: "icon", workspace, anchor }),
+                        },
+                        {
+                          icon: FolderOpen,
+                          label: "Edit workspace",
+                          onClick: () =>
+                            setModal({ kind: "workspace", workspace }),
+                        },
+                        {
+                          destructive: true,
+                          disabled: workspaces.length === 1 || !canEdit,
+                          icon: Trash2,
+                          label: "Delete workspace",
+                          onClick: () =>
+                            setModal({ kind: "delete-workspace", workspace }),
+                        },
+                      ],
+                    },
+                  ]
+                : []),
+            ]}
+          />
+        </WorkspaceHeader>
         <div
           className={cn(
             "flex min-h-0 flex-1 flex-col overflow-y-auto",
@@ -456,7 +435,7 @@ export default function App() {
                       onRemove={(download) =>
                         setModal({ download, kind: "remove" })
                       }
-                      onNew={() => setModal({ kind: "add" })}
+                      onNew={newDownload}
                       filtered={Boolean(query) || effectiveFilter !== "all"}
                     />
                   </section>
@@ -468,7 +447,7 @@ export default function App() {
                 layout="List"
                 onInspect={() => {}}
                 onRemove={() => {}}
-                onNew={() => setModal({ kind: "add" })}
+                onNew={newDownload}
                 filtered={Boolean(query) || effectiveFilter !== "all"}
               />
             )}
@@ -578,6 +557,6 @@ export default function App() {
           </DialogContent>
         </Dialog>
       )}
-    </SidebarProvider>
+    </>
   );
 }

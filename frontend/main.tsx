@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import App from "@/app";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LibraryProvider } from "@/lib/library";
@@ -19,7 +20,9 @@ createRoot(root).render(
     <TooltipProvider>
       <Toaster>
         <LibraryProvider>
-          <App />
+          <SidebarProvider className="h-svh min-h-0 overflow-hidden">
+            <App />
+          </SidebarProvider>
         </LibraryProvider>
       </Toaster>
     </TooltipProvider>

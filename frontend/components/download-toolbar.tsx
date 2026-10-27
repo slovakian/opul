@@ -1,13 +1,7 @@
-import { ArrowUpDown, List, ListFilter, Search, Table2 } from "lucide-react";
-import type { Ref } from "react";
+import { ArrowUpDown, List, ListFilter, Table2 } from "lucide-react";
 
 import { SidebarPopover } from "@/components/sidebar-popover";
 import { Button } from "@/components/ui/button";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "@/components/ui/input-group";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { StatusFilter } from "@/components/workspace-sidebar";
 import { groupingSchema, sortSchema } from "@/lib/model";
@@ -37,9 +31,6 @@ const groupNames: Record<DisplayPreferences["grouping"], string> = {
 };
 
 export function DownloadToolbar({
-  searchRef,
-  query,
-  setQuery,
   filter,
   setFilter,
   display,
@@ -47,9 +38,6 @@ export function DownloadToolbar({
   view,
   disabled,
 }: {
-  searchRef: Ref<HTMLInputElement>;
-  query: string;
-  setQuery: (query: string) => void;
   filter: StatusFilter;
   setFilter: (filter: StatusFilter) => void;
   display: DisplayPreferences;
@@ -58,20 +46,7 @@ export function DownloadToolbar({
   disabled: boolean;
 }) {
   return (
-    <div className="order-last flex w-full min-w-0 items-center gap-1 sm:order-none sm:ml-auto sm:w-auto sm:max-w-md sm:flex-1">
-      <InputGroup className="min-w-20 flex-1">
-        <InputGroupInput
-          ref={searchRef}
-          type="search"
-          aria-label="Search downloads"
-          placeholder="Search downloads…"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-        <InputGroupAddon>
-          <Search />
-        </InputGroupAddon>
-      </InputGroup>
+    <div className="flex shrink-0 items-center gap-1">
       {showFilter && (
         <SidebarPopover
           title="Filter downloads"

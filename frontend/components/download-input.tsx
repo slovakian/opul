@@ -5,10 +5,12 @@ import {
   FolderPlus,
   Link,
   Loader2,
+  Search,
   Settings2,
+  X,
 } from "lucide-react";
 import { useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, RefObject } from "react";
 
 import { SidebarPopover } from "@/components/sidebar-popover";
 import { Button } from "@/components/ui/button";
@@ -20,6 +22,7 @@ import {
 } from "@/components/ui/input-group";
 import { toast } from "@/components/ui/toast";
 import { bridge, errorMessage } from "@/lib/bridge";
+import { isDownloadLink } from "@/lib/download-link";
 import { useLibrary } from "@/lib/library";
 import type { Workspace } from "@/lib/model";
 
@@ -27,19 +30,26 @@ export function DownloadInput({
   workspace,
   disabled,
   onOptions,
+  query,
+  setQuery,
+  inputRef,
 }: {
   workspace: Workspace;
   disabled: boolean;
   onOptions: (url: string, folderId: string) => void;
+  query: string;
+  setQuery: (query: string) => void;
+  inputRef: RefObject<HTMLInputElement | null>;
 }) {
   const { run } = useLibrary();
-  const [url, setUrl] = useState("");
   const [selectedFolderId, setSelectedFolderId] = useState<string>();
   const [adding, setAdding] = useState(false);
 
   const folder =
-    workspace.folders.find((folder) => folder.id === selectedFolderId) ??
-    workspace.folders.find((folder) => folder.is_default);
+    workspace.folders.find((option) => option.id === selectedFolderId) ??
+    workspace.folders.find((option) => option.is_default);
+
+  const isLink = isDownloadLink(query);
 
   async function addLocation() {
     try {
@@ -78,19 +88,19 @@ export function DownloadInput({
   async function submit(event: FormEvent) {
     event.preventDefault();
 
-    if (!folder || disabled || adding || !url.trim()) {
+    if (!folder || disabled || adding || !isLink) {
       return;
     }
 
     setAdding(true);
-    const link = url.trim();
+    const link = query.trim();
 
     const receipt = await run({
       folder_id: folder.id,
       format: workspace.default_format,
       kind: "add_url",
       mode:
-        link.startsWith("magnet:") || /\.torrent(\?|$)/i.test(link)
+        /^magnet:/iu.test(link) || /\.torrent(?:\?|$)/iu.test(link)
           ? "Torrent"
           : "Direct",
       url: link,
@@ -98,7 +108,7 @@ export function DownloadInput({
     });
 
     if (receipt) {
-      setUrl("");
+      setQuery("");
     }
 
     setAdding(false);
@@ -107,22 +117,49 @@ export function DownloadInput({
   return (
     <form
       onSubmit={submit}
-      aria-label="Add a download"
-      className="flex min-w-0 items-center gap-2 px-4 pb-3"
+      aria-label="Search or add a download"
+      className="flex min-w-0 flex-1 items-center gap-1"
     >
       <InputGroup>
         <InputGroupAddon>
-          <Link />
+          {isLink ? <Link aria-hidden /> : <Search aria-hidden />}
+          <span className="sr-only">
+            {isLink ? "Download link recognized" : "Search query"}
+          </span>
         </InputGroupAddon>
         <InputGroupInput
-          aria-label="Download link"
-          placeholder="Paste a download link…"
-          value={url}
-          onChange={(event) => setUrl(event.target.value)}
-          disabled={disabled || adding}
-          required
+          ref={inputRef}
+          type="search"
+          aria-label="Search downloads or paste a link"
+          placeholder="Search or paste a link…"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (
+              event.key === "Escape" &&
+              !event.defaultPrevented &&
+              !document.querySelector(
+                '[data-slot="popover-content"]:not([data-closed]), [role="dialog"]:not([data-closed])'
+              )
+            ) {
+              event.preventDefault();
+              setQuery("");
+            }
+          }}
         />
         <InputGroupAddon align="inline-end">
+          {query && (
+            <InputGroupButton
+              size="icon-xs"
+              aria-label="Clear input"
+              onClick={() => {
+                setQuery("");
+                inputRef.current?.focus();
+              }}
+            >
+              <X data-icon="inline-start" />
+            </InputGroupButton>
+          )}
           <SidebarPopover
             title="Save location"
             trigger={
@@ -132,7 +169,7 @@ export function DownloadInput({
                 disabled={disabled || adding}
               >
                 <FolderClosed data-icon="inline-start" />
-                <span className="hidden max-w-40 truncate sm:inline">
+                <span className="header-location max-w-24 truncate">
                   {folder?.name ?? "Save to"}
                 </span>
                 <ChevronDown data-icon="inline-end" />
@@ -162,8 +199,8 @@ export function DownloadInput({
           />
           <InputGroupButton
             type="submit"
-            variant="default"
-            disabled={disabled || adding || !url.trim() || !folder}
+            variant={isLink ? "default" : "ghost"}
+            disabled={disabled || adding || !isLink || !folder}
             aria-label="Download link"
           >
             {adding ? (
@@ -171,7 +208,7 @@ export function DownloadInput({
             ) : (
               <Download data-icon="inline-start" />
             )}
-            <span className="hidden sm:inline">
+            <span className="header-download-label">
               {adding ? "Adding…" : "Download"}
             </span>
           </InputGroupButton>
@@ -186,7 +223,7 @@ export function DownloadInput({
         disabled={disabled || adding || !folder}
         onClick={() => {
           if (folder) {
-            onOptions(url, folder.id);
+            onOptions(query, folder.id);
           }
         }}
       >

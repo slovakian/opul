@@ -29,12 +29,14 @@ test("search, transfer actions, table view, inspector, and removal", async ({
     .getByRole("button", { name: "Resume Design resources.zip", exact: true })
     .click();
   await page
-    .getByRole("searchbox", { name: "Search downloads" })
+    .getByRole("searchbox", { name: "Search downloads or paste a link" })
     .fill("Field notes");
   await expect(
     page.getByRole("button", { name: "Design resources.zip", exact: true })
   ).toHaveCount(0);
-  await page.getByRole("searchbox", { name: "Search downloads" }).clear();
+  await page
+    .getByRole("searchbox", { name: "Search downloads or paste a link" })
+    .clear();
   await page
     .getByRole("button", { name: "Design resources.zip", exact: true })
     .click();
@@ -175,7 +177,7 @@ test("header downloads use the workspace default and selected saved folder", asy
   await page.goto("/");
   const header = page.locator("main > header");
   await expect(
-    header.getByRole("searchbox", { name: "Search downloads" })
+    header.getByRole("searchbox", { name: "Search downloads or paste a link" })
   ).toBeVisible();
   await expect(
     header.getByRole("button", {
@@ -191,17 +193,18 @@ test("header downloads use the workspace default and selected saved folder", asy
     "Research (Default)"
   );
   await folders.getByRole("button", { name: "Archive", exact: true }).click();
-  const link = header.getByRole("textbox", {
-    name: "Download link",
+  const link = header.getByRole("searchbox", {
+    name: "Search downloads or paste a link",
     exact: true,
   });
   await link.fill("file:///private/file");
-  await header
-    .getByRole("button", { name: "Download link", exact: true })
-    .click();
+  await expect(
+    header.getByRole("button", { name: "Download link", exact: true })
+  ).toBeDisabled();
+  await link.press("Enter");
   await expect(
     page.getByText("Use an HTTP, HTTPS, or magnet link.")
-  ).toBeVisible();
+  ).toHaveCount(0);
   await expect(link).toHaveValue("file:///private/file");
   await link.fill("https://example.com/new-file.zip");
   await header
@@ -251,8 +254,8 @@ test("add a saved location from the download input without changing the default"
   await mockDesktop(page, { folderPickerPath: "/Users/test/Research" });
   await page.goto("/");
   const header = page.locator("main > header");
-  const link = header.getByRole("textbox", {
-    name: "Download link",
+  const link = header.getByRole("searchbox", {
+    name: "Search downloads or paste a link",
     exact: true,
   });
   await link.fill("https://example.com/new-file.zip");
@@ -314,8 +317,8 @@ for (const outcome of ["cancelled", "failed"]) {
     });
     await page.goto("/");
     const header = page.locator("main > header");
-    const link = header.getByRole("textbox", {
-      name: "Download link",
+    const link = header.getByRole("searchbox", {
+      name: "Search downloads or paste a link",
       exact: true,
     });
     await link.fill("https://example.com/new-file.zip");

@@ -31,8 +31,46 @@ a {
   -webkit-app-region: drag;
 }
 [data-tauri-drag-region] button,
+[data-tauri-drag-region] a,
 [data-tauri-drag-region] input {
   -webkit-app-region: no-drag;
+}
+.workspace-header {
+  container-type: inline-size;
+}
+.workspace-header[data-traffic-lights="true"] .header-row {
+  padding-left: 5rem;
+}
+.header-identity {
+  max-width: 14rem;
+}
+.header-identity button {
+  cursor: pointer;
+}
+.header-identity [aria-hidden] {
+  pointer-events: none;
+}
+.workspace-header input[type="search"]::-webkit-search-cancel-button {
+  display: none;
+}
+@container (max-width: 1000px) {
+  .header-location,
+  .header-download-label {
+    display: none;
+  }
+}
+@container (max-width: 900px) {
+  .header-parent {
+    display: none;
+  }
+  .header-identity {
+    max-width: 7rem;
+  }
+}
+@container (max-width: 650px) {
+  .header-identity {
+    max-width: 4rem;
+  }
 }
 .download-item:hover,
 .download-item[data-selected="true"] {
