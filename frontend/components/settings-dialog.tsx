@@ -119,7 +119,10 @@ function SettingsContent({
   }
   return (
     <form onSubmit={save} className="flex h-[32rem] max-h-[85svh] min-w-0">
-      <Sidebar collapsible="none" className="w-40 shrink-0 sm:w-48">
+      <Sidebar
+        collapsible="none"
+        className="w-40 shrink-0 border-r border-sidebar-border sm:w-48"
+      >
         <SidebarContent>
           <SidebarGroup className="pt-5">
             <SidebarGroupLabel>Settings</SidebarGroupLabel>
