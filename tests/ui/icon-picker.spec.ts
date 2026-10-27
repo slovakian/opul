@@ -96,7 +96,7 @@ test("search previews locally, keeps the picker open, and saves the full sequenc
   await openPicker(page);
   await expect(
     editor(page).locator("[frimousse-category-header]:visible").first(),
-  ).toHaveText("Smileys & emotion");
+  ).toHaveText("Smileys & Emotion");
   await choose(page, "family", "family: man, woman, girl, boy");
   await expect(
     editor(page).getByRole("img", { name: "Icon preview: 👨‍👩‍👧‍👦" }),

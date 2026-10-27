@@ -230,8 +230,9 @@ export function WorkspaceIconPicker({
                       {...props}
                       className="bg-popover px-1 py-2 text-xs font-medium text-muted-foreground"
                     >
-                      {category.label.charAt(0).toUpperCase() +
-                        category.label.slice(1)}
+                      {category.label.replace(/\b[a-z]/g, (letter) =>
+                        letter.toUpperCase(),
+                      )}
                     </div>
                   ),
                   Row: ({ children, ...props }) => (

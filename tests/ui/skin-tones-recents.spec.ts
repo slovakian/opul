@@ -57,7 +57,7 @@ test("skin tones change the selected sequence and recents start with successful 
   await openPicker(page);
   await expect(
     editor(page).locator("[frimousse-category-header]:visible").first(),
-  ).toHaveText("Recently used");
+  ).toHaveText("Recently Used");
   await expect(editor(page).getByRole("gridcell").first()).toHaveText("👩🏽‍💻");
   await expect(
     editor(page).getByRole("button", { name: "Medium skin tone", exact: true }),
