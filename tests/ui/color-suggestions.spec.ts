@@ -98,7 +98,7 @@ test("six unique suggestions include a saved preset; expansion preserves selecti
   expect(new Set(initial).size).toBe(6);
   expect(initial).toContain("lime");
   const selected = suggestions(page).getByRole("button", {
-    name: "Preview lime treatment",
+    name: "Preview Lime Treatment",
     exact: true,
   });
   await expect(selected).toHaveAttribute("aria-pressed", "true");
@@ -133,7 +133,7 @@ test("choosing the automatic look records a deliberate preset that follows eligi
   await page.goto("/");
   await openPicker(page);
   await suggestions(page)
-    .getByRole("button", { name: "Preview gold treatment", exact: true })
+    .getByRole("button", { name: "Preview Gold Treatment", exact: true })
     .click();
   const preview = picker(page)
     .getByRole("img", { name: "Icon preview: 📁" })
@@ -162,10 +162,44 @@ test("choosing the automatic look records a deliberate preset that follows eligi
   await openPicker(reopened);
   await expect(
     suggestions(reopened).getByRole("button", {
-      name: "Preview gold treatment",
+      name: "Preview color suggestion 1",
       exact: true,
     }),
   ).toHaveAttribute("aria-pressed", "true");
+});
+
+test("treatment names are title case for folders and hidden for other emoji", async ({
+  page,
+}) => {
+  await mockDesktop(page);
+  await page.goto("/");
+  await openPicker(page);
+  const options = suggestions(page).getByRole("button");
+  const checkFolderLabels = async () => {
+    for (const option of await options.all()) {
+      const preset = await option.locator(artwork).getAttribute("data-preset");
+      expect(preset).toBeTruthy();
+      const label = `${preset?.charAt(0).toUpperCase()}${preset?.slice(1)} Treatment`;
+      await expect(option).toHaveAttribute("title", label);
+      await expect(option).toHaveAccessibleName(`Preview ${label}`);
+    }
+  };
+  await checkFolderLabels();
+  for (const [search, label] of [
+    ["panda", "panda"],
+    ["rainbow", "rainbow"],
+  ]) {
+    await choose(page, search, label);
+    await expect(options).toHaveCount(6);
+    for (const [index, option] of (await options.all()).entries()) {
+      await expect(option).not.toHaveAttribute("title");
+      await expect(option).toHaveAccessibleName(
+        `Preview color suggestion ${index + 1}`,
+      );
+    }
+  }
+  await choose(page, "file folder", "file folder");
+  await checkFolderLabels();
 });
 
 test("folder suggestions stay stable across changes, polling and reopening; other emoji sample once per opening", async ({
@@ -274,7 +308,7 @@ for (const fail of [false, true]) {
     ).toBeFocused();
     expect(await identities(page)).toHaveLength(6);
     await suggestions(page)
-      .getByRole("button", { name: "Preview coral treatment", exact: true })
+      .getByRole("button", { name: "Preview Coral Treatment", exact: true })
       .click();
     await choose(page, "panda", "panda");
     const more = picker(page).getByRole("button", {
@@ -283,10 +317,11 @@ for (const fail of [false, true]) {
     });
     await more.click();
     for (const treatment of treatments) {
-      const option = suggestions(page).getByRole("button", {
-        name: `Preview ${treatment.preset_id} treatment`,
-        exact: true,
-      });
+      const option = suggestions(page)
+        .getByRole("button")
+        .filter({
+          has: page.locator(`[data-preset="${treatment.preset_id}"]`),
+        });
       await expect(option.locator(artwork)).toHaveText("🐼");
       await expect(option).toHaveCSS("filter", "none");
       await expect(option.locator(artwork)).toHaveCSS(

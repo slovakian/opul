@@ -45,7 +45,8 @@ export function WorkspaceColorSuggestions({
   }, [expanded]);
   const { emoji, appearance } = draft;
   const preference = appearance.preference;
-  const choices = isFolderEmoji(emoji) ? folder : other;
+  const folderEmoji = isFolderEmoji(emoji);
+  const choices = folderEmoji ? folder : other;
   const visible = expanded ? choices : choices.slice(0, 6);
   const remaining = choices.length - visible.length;
   function select(preference: typeof appearance.preference) {
@@ -94,28 +95,33 @@ export function WorkspaceColorSuggestions({
             if (treatment) select({ kind: "Preset", treatment });
           }}
         >
-          {visible.map((treatment, index) => (
-            <TogglePrimitive
-              key={treatment.preset_id}
-              value={treatment.preset_id}
-              ref={index === 6 ? firstRevealed : undefined}
-              aria-label={`Preview ${treatment.preset_id} treatment`}
-              title={`${treatment.preset_id} treatment`}
-              className={cn(
-                emojiOptionClassName,
-                "aspect-square size-auto w-full",
-              )}
-            >
-              <EmojiFrame
-                selected={
-                  preference.kind === "Preset" &&
-                  preference.treatment.preset_id === treatment.preset_id
-                }
+          {visible.map((treatment, index) => {
+            const label = folderEmoji
+              ? `${treatment.preset_id.charAt(0).toUpperCase()}${treatment.preset_id.slice(1)} Treatment`
+              : `color suggestion ${index + 1}`;
+            return (
+              <TogglePrimitive
+                key={treatment.preset_id}
+                value={treatment.preset_id}
+                ref={index === 6 ? firstRevealed : undefined}
+                aria-label={`Preview ${label}`}
+                title={folderEmoji ? label : undefined}
+                className={cn(
+                  emojiOptionClassName,
+                  "aspect-square size-auto w-full",
+                )}
               >
-                <EmojiArtwork emoji={emoji} treatment={treatment} />
-              </EmojiFrame>
-            </TogglePrimitive>
-          ))}
+                <EmojiFrame
+                  selected={
+                    preference.kind === "Preset" &&
+                    preference.treatment.preset_id === treatment.preset_id
+                  }
+                >
+                  <EmojiArtwork emoji={emoji} treatment={treatment} />
+                </EmojiFrame>
+              </TogglePrimitive>
+            );
+          })}
         </ToggleGroup>
       </div>
       <ToggleGroup
@@ -132,7 +138,7 @@ export function WorkspaceColorSuggestions({
         <ToggleGroupItem value="Original">
           {preference.kind === "Original" && <Check aria-hidden />}Original
         </ToggleGroupItem>
-        {isFolderEmoji(emoji) && (
+        {folderEmoji && (
           <ToggleGroupItem value="Automatic">
             {preference.kind === "Automatic" && <Check aria-hidden />}Automatic
           </ToggleGroupItem>
