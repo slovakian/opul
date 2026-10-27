@@ -11,7 +11,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { StatusFilter } from "@/components/workspace-sidebar";
 import { groupingSchema, sortSchema } from "@/lib/model";
-import type { Workspace } from "@/lib/model";
+import type { DisplayPreferences } from "@/lib/model";
 
 const filterOptions: { value: StatusFilter; label: string }[] = [
   { label: "All downloads", value: "all" },
@@ -21,14 +21,14 @@ const filterOptions: { value: StatusFilter; label: string }[] = [
   { label: "Failed", value: "failed" },
 ];
 
-const sortNames: Record<Workspace["sort"], string> = {
+const sortNames: Record<DisplayPreferences["sort"], string> = {
   Name: "Name",
   Order: "Date added",
   Source: "Source",
   State: "Status",
 };
 
-const groupNames: Record<Workspace["grouping"], string> = {
+const groupNames: Record<DisplayPreferences["grouping"], string> = {
   Folder: "Save location",
   Kind: "File type",
   None: "No grouping",
@@ -42,7 +42,8 @@ export function DownloadToolbar({
   setQuery,
   filter,
   setFilter,
-  workspace,
+  display,
+  showFilter,
   view,
   disabled,
 }: {
@@ -51,10 +52,9 @@ export function DownloadToolbar({
   setQuery: (query: string) => void;
   filter: StatusFilter;
   setFilter: (filter: StatusFilter) => void;
-  workspace?: Workspace;
-  view: (
-    change: Partial<Pick<Workspace, "layout" | "sort" | "grouping">>
-  ) => void;
+  display: DisplayPreferences;
+  showFilter: boolean;
+  view: (change: Partial<DisplayPreferences>) => void;
   disabled: boolean;
 }) {
   return (
@@ -72,40 +72,44 @@ export function DownloadToolbar({
           <Search />
         </InputGroupAddon>
       </InputGroup>
-      <SidebarPopover
-        title="Filter downloads"
-        trigger={
-          <Button
-            variant={filter === "all" ? "ghost" : "secondary"}
-            size="icon-sm"
-            aria-label={`${filter === "all" ? "Filter" : filterOptions.find((option) => option.value === filter)?.label} downloads`}
-            title={
-              filter === "all"
-                ? "Filter downloads"
-                : filterOptions.find((option) => option.value === filter)?.label
-            }
-          >
-            <ListFilter />
-          </Button>
-        }
-        groups={[
-          {
-            actions: filterOptions.map((option) => ({
-              label: option.label,
-              onClick: () => setFilter(option.value),
-              selected: filter === option.value,
-            })),
-            label: "Status",
-          },
-        ]}
-      />
+      {showFilter && (
+        <SidebarPopover
+          title="Filter downloads"
+          trigger={
+            <Button
+              variant={filter === "all" ? "ghost" : "secondary"}
+              size="icon-sm"
+              aria-pressed={filter !== "all"}
+              aria-label={`${filter === "all" ? "Filter" : filterOptions.find((option) => option.value === filter)?.label} downloads`}
+              title={
+                filter === "all"
+                  ? "Filter downloads"
+                  : filterOptions.find((option) => option.value === filter)
+                      ?.label
+              }
+            >
+              <ListFilter />
+            </Button>
+          }
+          groups={[
+            {
+              actions: filterOptions.map((option) => ({
+                label: option.label,
+                onClick: () => setFilter(option.value),
+                selected: filter === option.value,
+              })),
+              label: "Status",
+            },
+          ]}
+        />
+      )}
       <SidebarPopover
         title="Sort and group"
         trigger={
           <Button
             variant="ghost"
             size="icon-sm"
-            aria-label={`${workspace ? sortNames[workspace.sort] : "Sort"}: sort and group`}
+            aria-label={`${sortNames[display.sort]}: sort and group`}
             title="Sort and group"
           >
             <ArrowUpDown />
@@ -117,7 +121,7 @@ export function DownloadToolbar({
               disabled,
               label: sortNames[value],
               onClick: () => view({ sort: value }),
-              selected: workspace?.sort === value,
+              selected: display.sort === value,
             })),
             label: "Sort by",
           },
@@ -126,14 +130,14 @@ export function DownloadToolbar({
               disabled,
               label: groupNames[value],
               onClick: () => view({ grouping: value }),
-              selected: workspace?.grouping === value,
+              selected: display.grouping === value,
             })),
             label: "Group by",
           },
         ]}
       />
       <ToggleGroup
-        value={[workspace?.layout ?? "List"]}
+        value={[display.layout]}
         onValueChange={(values) => {
           const layout = values[0];
 

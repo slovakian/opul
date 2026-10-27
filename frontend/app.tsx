@@ -47,8 +47,13 @@ import { WorkspaceIconEditor } from "@/components/workspace-icon-picker";
 import { WorkspaceSidebar } from "@/components/workspace-sidebar";
 import type { Location, StatusFilter } from "@/components/workspace-sidebar";
 import { useLibrary } from "@/lib/library";
-import { sourceNames, stateNames } from "@/lib/model";
-import type { Download, Workspace } from "@/lib/model";
+import {
+  aggregateNames,
+  defaultDisplay,
+  sourceNames,
+  stateNames,
+} from "@/lib/model";
+import type { DisplayPreferences, Download, Workspace } from "@/lib/model";
 import { cn } from "@/lib/utils";
 
 type Modal =
@@ -60,7 +65,9 @@ type Modal =
   | { kind: "delete-workspace"; workspace: Workspace };
 
 export default function App() {
-  const { state, busy, refresh, run } = useLibrary();
+  const { state, busy, preferences, refresh, run, saveAggregateView } =
+    useLibrary();
+
   useEffect(() => {
     if (state.kind !== "loading" && isTauri()) {
       void invoke("frontend_ready").catch(() => {});
@@ -79,6 +86,16 @@ export default function App() {
       ? workspaces.find((workspace) => workspace.id === location.workspaceId)
       : undefined) ?? workspaces[0];
 
+  const display =
+    location.kind === "workspace"
+      ? (workspace ?? defaultDisplay)
+      : (preferences?.aggregate_views[location.kind] ?? defaultDisplay);
+
+  const effectiveFilter =
+    location.kind === "active" || location.kind === "finished"
+      ? location.kind
+      : filter;
+
   const folderId =
     location.kind === "workspace" ? location.folderId : undefined;
 
@@ -96,18 +113,14 @@ export default function App() {
     state.kind === "ready" && state.snapshot.session === "Running";
 
   const title =
-    location.kind === "all"
-      ? filter === "active"
-        ? "In progress"
-        : filter === "finished"
-          ? "Completed"
-          : "All downloads"
-      : (folder?.name ?? workspace?.name ?? "Downloads");
+    location.kind === "workspace"
+      ? (folder?.name ?? workspace?.name ?? "Downloads")
+      : aggregateNames[location.kind];
 
   const downloads = (
-    location.kind === "all"
-      ? workspaces.flatMap((workspace) => workspace.downloads)
-      : (workspace?.downloads ?? [])
+    location.kind === "workspace"
+      ? (workspace?.downloads ?? [])
+      : workspaces.flatMap((workspace) => workspace.downloads)
   ).filter((download) => {
     if (folderId && download.folder_id !== folderId) {
       return false;
@@ -119,39 +132,39 @@ export default function App() {
     ) {
       return false;
     }
-    if (filter === "active") {
+    if (effectiveFilter === "active") {
       return download.capabilities.can_pause || download.state === "Pausing";
     }
-    if (filter === "finished") {
+    if (effectiveFilter === "finished") {
       return download.state === "Finished";
     }
-    if (filter === "paused") {
+    if (effectiveFilter === "paused") {
       return download.state === "Paused";
     }
-    if (filter === "failed") {
+    if (effectiveFilter === "failed") {
       return download.state === "Failed";
     }
     return true;
   });
 
-  if (workspace?.sort === "Name") {
+  if (display.sort === "Name") {
     downloads.sort((a, b) => a.name.localeCompare(b.name));
-  } else if (workspace?.sort === "State") {
+  } else if (display.sort === "State") {
     downloads.sort((a, b) => a.state.localeCompare(b.state));
-  } else if (workspace?.sort === "Source") {
+  } else if (display.sort === "Source") {
     downloads.sort((a, b) => a.source.localeCompare(b.source));
   }
   const groups = new Map<string, Download[]>();
 
   for (const download of downloads) {
     const group =
-      workspace?.grouping === "State"
+      display.grouping === "State"
         ? stateNames[download.state]
-        : workspace?.grouping === "Source"
+        : display.grouping === "Source"
           ? sourceNames[download.source]
-          : workspace?.grouping === "Kind"
+          : display.grouping === "Kind"
             ? (download.name.split(".").pop()?.toUpperCase() ?? "Other")
-            : workspace?.grouping === "Folder"
+            : display.grouping === "Folder"
               ? (workspaces
                   .flatMap((workspace) => workspace.folders)
                   .find((folder) => folder.id === download.folder_id)?.name ??
@@ -169,14 +182,15 @@ export default function App() {
 
   function navigate(next: Location) {
     setLocation(next);
+    setFilter("all");
     setQuery("");
     setSelectedId(undefined);
   }
 
-  function view(
-    change: Partial<Pick<Workspace, "layout" | "sort" | "grouping">>
-  ) {
-    if (workspace) {
+  function view(change: Partial<DisplayPreferences>) {
+    if (location.kind !== "workspace") {
+      void saveAggregateView(location.kind, { ...display, ...change });
+    } else if (workspace) {
       void run({
         kind: "view",
         workspace_id: workspace.id,
@@ -233,9 +247,7 @@ export default function App() {
       <WorkspaceSidebar
         workspaces={workspaces}
         location={location}
-        filter={filter}
         navigate={navigate}
-        setFilter={setFilter}
         onCreate={() => setModal({ kind: "workspace", workspace: null })}
         onEdit={(workspace) => setModal({ kind: "workspace", workspace })}
         onChangeIcon={(workspace, anchor) =>
@@ -289,9 +301,16 @@ export default function App() {
               setQuery={setQuery}
               filter={filter}
               setFilter={setFilter}
-              workspace={workspace}
+              display={display}
+              showFilter={
+                location.kind === "all" || location.kind === "workspace"
+              }
               view={view}
-              disabled={!canEdit || busy}
+              disabled={
+                !canEdit ||
+                busy ||
+                (location.kind !== "workspace" && !preferences)
+              }
             />
             <SidebarPopover
               title="Workspace actions"
@@ -366,7 +385,7 @@ export default function App() {
         <div
           className={cn(
             "flex min-h-0 flex-1 flex-col overflow-y-auto",
-            workspace?.layout !== "Table" && "scroll-fade"
+            display.layout !== "Table" && "scroll-fade"
           )}
         >
           <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6 lg:px-10">
@@ -431,14 +450,14 @@ export default function App() {
                     )}
                     <Downloads
                       downloads={downloads}
-                      layout={workspace?.layout ?? "List"}
+                      layout={display.layout}
                       selectedId={selectedId}
                       onInspect={(download) => setSelectedId(download.id)}
                       onRemove={(download) =>
                         setModal({ download, kind: "remove" })
                       }
                       onNew={() => setModal({ kind: "add" })}
-                      filtered={Boolean(query) || filter !== "all"}
+                      filtered={Boolean(query) || effectiveFilter !== "all"}
                     />
                   </section>
                 ))}
@@ -450,7 +469,7 @@ export default function App() {
                 onInspect={() => {}}
                 onRemove={() => {}}
                 onNew={() => setModal({ kind: "add" })}
-                filtered={Boolean(query) || filter !== "all"}
+                filtered={Boolean(query) || effectiveFilter !== "all"}
               />
             )}
             {downloads.length > 0 && (

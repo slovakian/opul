@@ -1,6 +1,8 @@
 import type { Page } from "@playwright/test";
 
 import type {
+  AggregateView,
+  DisplayPreferences,
   Command,
   Download,
   Preferences,
@@ -56,6 +58,11 @@ export const baseDownload: Download = {
 };
 
 export const preferences: Preferences = {
+  aggregate_views: {
+    active: { grouping: "None", layout: "List", sort: "Order" },
+    all: { grouping: "None", layout: "List", sort: "Order" },
+    finished: { grouping: "None", layout: "List", sort: "Order" },
+  },
   concurrent_downloads: 3,
   enable_dht: true,
   ffmpeg_path: null,
@@ -138,6 +145,8 @@ export async function mockDesktop(
   page: Page,
   options: {
     empty?: boolean;
+    persist?: boolean;
+    failFirstView?: boolean;
     fail?: boolean;
     recovery?: boolean;
     snapshot?: Snapshot;
@@ -158,8 +167,21 @@ export async function mockDesktop(
       baseDownload,
       folderTreatments,
     }) => {
-      const snapshot = structuredClone(initialSnapshot);
-      let preferences = structuredClone(initialPreferences);
+      const savedSnapshot = options.persist
+        ? sessionStorage.getItem("test-snapshot")
+        : null;
+
+      const savedPreferences = options.persist
+        ? sessionStorage.getItem("test-preferences")
+        : null;
+
+      const snapshot: Snapshot = savedSnapshot
+        ? JSON.parse(savedSnapshot)
+        : structuredClone(initialSnapshot);
+
+      let preferences: Preferences = savedPreferences
+        ? JSON.parse(savedPreferences)
+        : structuredClone(initialPreferences);
 
       if (options.empty) {
         snapshot.workspaces[0].downloads = [];
@@ -171,6 +193,7 @@ export async function mockDesktop(
         ];
       }
 
+      let viewAttempts = 0;
       let callbackId = 0;
       let draftCalls = 0;
       let createAttempts = 0;
@@ -186,7 +209,8 @@ export async function mockDesktop(
             name: string,
             args: {
               command?: Command;
-              preferences?: Preferences;
+              preferences?: Preferences | DisplayPreferences;
+              view?: AggregateView;
               workspaceId?: string;
             } = {}
           ) => {
@@ -226,9 +250,49 @@ export async function mockDesktop(
               }
               return draft;
             }
-            if (name === "save_preferences" && args.preferences) {
-              preferences = args.preferences;
-              return;
+            if (
+              name === "save_preferences" &&
+              args.preferences &&
+              "theme" in args.preferences
+            ) {
+              preferences = {
+                ...args.preferences,
+                aggregate_views: preferences.aggregate_views,
+              };
+
+              if (options.persist) {
+                sessionStorage.setItem(
+                  "test-preferences",
+                  JSON.stringify(preferences)
+                );
+              }
+
+              return structuredClone(preferences);
+            }
+            if (
+              name === "save_aggregate_view" &&
+              args.view &&
+              args.preferences &&
+              "layout" in args.preferences
+            ) {
+              viewAttempts += 1;
+
+              if (options.failFirstView && viewAttempts === 1) {
+                throw new Error(
+                  "Couldn't write display preferences. Try again."
+                );
+              }
+
+              preferences.aggregate_views[args.view] = args.preferences;
+
+              if (options.persist) {
+                sessionStorage.setItem(
+                  "test-preferences",
+                  JSON.stringify(preferences)
+                );
+              }
+
+              return structuredClone(preferences);
             }
             if (name === "tool_status")
               return {
@@ -411,6 +475,13 @@ export async function mockDesktop(
                     "The response was lost after saving. Try again."
                   );
               }
+              if (options.persist) {
+                sessionStorage.setItem(
+                  "test-snapshot",
+                  JSON.stringify(snapshot)
+                );
+              }
+
               return receipt;
             }
             return null;

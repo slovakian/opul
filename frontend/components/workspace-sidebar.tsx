@@ -45,11 +45,11 @@ import { toast } from "@/components/ui/toast";
 import { WorkspaceIcon } from "@/components/workspace-icon";
 import { bridge, errorMessage } from "@/lib/bridge";
 import { useLibrary } from "@/lib/library";
-import { bytes } from "@/lib/model";
-import type { Folder, Workspace } from "@/lib/model";
+import { aggregateNames, bytes } from "@/lib/model";
+import type { AggregateView, Folder, Workspace } from "@/lib/model";
 
 export type Location =
-  | { kind: "all" }
+  | { kind: AggregateView }
   | { kind: "workspace"; workspaceId: string; folderId?: string };
 
 export type StatusFilter = "all" | "active" | "finished" | "paused" | "failed";
@@ -57,9 +57,7 @@ export type StatusFilter = "all" | "active" | "finished" | "paused" | "failed";
 export function WorkspaceSidebar({
   workspaces,
   location,
-  filter,
   navigate,
-  setFilter,
   onCreate,
   onEdit,
   onChangeIcon,
@@ -68,9 +66,7 @@ export function WorkspaceSidebar({
 }: {
   workspaces: Workspace[];
   location: Location;
-  filter: StatusFilter;
   navigate: (location: Location) => void;
-  setFilter: (filter: StatusFilter) => void;
   onCreate: () => void;
   onEdit: (workspace: Workspace) => void;
   onChangeIcon: (
@@ -94,9 +90,8 @@ export function WorkspaceSidebar({
     0
   );
 
-  function go(next: Location, status: StatusFilter = "all") {
+  function go(next: Location) {
     navigate(next);
-    setFilter(status);
 
     if (isMobile) {
       setOpenMobile(false);
@@ -196,37 +191,28 @@ export function WorkspaceSidebar({
             {
               count: allDownloads.length,
               icon: Inbox,
-              label: "All downloads",
-              status: "all",
+              label: aggregateNames.all,
+              status: "all" as const,
             },
             {
               count: active.length,
               icon: ArrowDown,
-              label: "In progress",
-              status: "active",
+              label: aggregateNames.active,
+              status: "active" as const,
             },
             {
               count: allDownloads.filter(
                 (download) => download.state === "Finished"
               ).length,
               icon: Check,
-              label: "Completed",
-              status: "finished",
+              label: aggregateNames.finished,
+              status: "finished" as const,
             },
           ].map((item) => (
             <SidebarMenuItem key={item.label}>
               <SidebarMenuButton
-                isActive={location.kind === "all" && filter === item.status}
-                onClick={() =>
-                  go(
-                    { kind: "all" },
-                    item.status === "active"
-                      ? "active"
-                      : item.status === "finished"
-                        ? "finished"
-                        : "all"
-                  )
-                }
+                isActive={location.kind === item.status}
+                onClick={() => go({ kind: item.status })}
               >
                 <item.icon />
                 <span>{item.label}</span>

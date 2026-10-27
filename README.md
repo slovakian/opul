@@ -50,7 +50,9 @@ Development and smoke tests can use isolated data:
 OPUL_DATA_DIR=/tmp/opul-dev-state OPUL_DOWNLOAD_DIR=/tmp/opul-dev-downloads npm run tauri -- dev
 ```
 
-The new shell stores settings in `desktop-preferences.json`. Old Swift preferences are not imported. This migration replaces the Swift interface and Sparkle updater. Updates currently require a manual download from [GitHub Releases](https://github.com/slovakian/opul/releases). The former guided browser extraction interface is not included; its Rust implementation remains.
+All downloads, In progress, and Completed each remember their own layout, sort, and grouping across restarts. Workspaces and their saved folders continue to share workspace display settings. In progress and Completed have fixed status scopes; other views highlight the status filter button while a filter is active.
+
+The new shell stores settings, including aggregate display preferences, in `desktop-preferences.json`. Old Swift preferences are not imported. This migration replaces the Swift interface and Sparkle updater. Updates currently require a manual download from [GitHub Releases](https://github.com/slovakian/opul/releases). The former guided browser extraction interface is not included; its Rust implementation remains.
 
 ## Project structure
 

@@ -297,6 +297,9 @@ test("dragging updates only the local preview, survives polling, and Escape disc
   page.on("pageerror", (error) => errors.push(error.message));
   await mockDesktop(page);
   await page.goto("/");
+  await page
+    .getByRole("button", { exact: true, name: "Downloads workspace" })
+    .click();
   await openPicker(page);
   await picker(page)
     .getByRole("button", { name: "Original", exact: true })

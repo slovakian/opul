@@ -21,6 +21,32 @@ export const groupingSchema = z.enum([
   "Source",
 ]);
 
+export const displayPreferencesSchema = z.object({
+  grouping: groupingSchema.default("None"),
+  layout: layoutSchema.default("List"),
+  sort: sortSchema.default("Order"),
+});
+
+export const aggregateViewSchema = z.enum(["all", "active", "finished"]);
+
+export type AggregateView = z.infer<typeof aggregateViewSchema>;
+
+export type DisplayPreferences = z.infer<typeof displayPreferencesSchema>;
+
+export const defaultDisplay = displayPreferencesSchema.parse({});
+
+export const aggregateNames: Record<AggregateView, string> = {
+  active: "In progress",
+  all: "All downloads",
+  finished: "Completed",
+};
+
+export const aggregateViewsSchema = z.object({
+  active: displayPreferencesSchema.prefault({}),
+  all: displayPreferencesSchema.prefault({}),
+  finished: displayPreferencesSchema.prefault({}),
+});
+
 export const folderSchema = z.object({
   id: z.string(),
   is_default: z.boolean(),
@@ -163,6 +189,7 @@ export const snapshotSchema = z.object({
 });
 
 export const preferencesSchema = z.object({
+  aggregate_views: aggregateViewsSchema.prefault({}),
   concurrent_downloads: z.number(),
   enable_dht: z.boolean(),
   ffmpeg_path: z.string().nullable(),

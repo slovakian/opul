@@ -208,6 +208,9 @@ test("folder suggestions stay stable across changes, polling and reopening; othe
 }) => {
   await mockDesktop(page);
   await page.goto("/");
+  await page
+    .getByRole("button", { exact: true, name: "Downloads workspace" })
+    .click();
   await openPicker(page);
   const folder = await identities(page);
   await choose(page, "panda", "panda");

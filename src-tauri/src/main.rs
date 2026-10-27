@@ -152,8 +152,9 @@ fn main() {
             commands::workspace_appearance_draft,
             commands::frontend_ready,
             commands::execute,
-            commands::get_preferences,
-            commands::save_preferences,
+            commands::preferences::get_preferences,
+            commands::preferences::save_preferences,
+            commands::preferences::save_aggregate_view,
             commands::tool_status,
             commands::reveal_download
         ])

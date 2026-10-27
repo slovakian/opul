@@ -9,7 +9,14 @@ import type { ReactNode } from "react";
 
 import { toast } from "@/components/ui/toast";
 import { bridge, errorMessage } from "@/lib/bridge";
-import type { Command, Preferences, Receipt, Snapshot } from "@/lib/model";
+import type {
+  AggregateView,
+  Command,
+  DisplayPreferences,
+  Preferences,
+  Receipt,
+  Snapshot,
+} from "@/lib/model";
 
 type LibraryState =
   | { kind: "loading" }
@@ -23,6 +30,10 @@ interface Library {
   refresh: () => Promise<void>;
   run: (command: Command) => Promise<Receipt | null>;
   savePreferences: (preferences: Preferences) => Promise<boolean>;
+  saveAggregateView: (
+    view: AggregateView,
+    preferences: DisplayPreferences
+  ) => Promise<void>;
 }
 
 const LibraryContext = createContext<Library | null>(null);
@@ -111,10 +122,28 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     [refresh]
   );
 
+  const saveAggregateView = useCallback(
+    async (view: AggregateView, display: DisplayPreferences) => {
+      setPending((count) => count + 1);
+
+      try {
+        setPreferences(await bridge.saveAggregateView(view, display));
+      } catch (error) {
+        toast.add({
+          description: errorMessage(error),
+          title: "Couldn't save display preferences",
+          type: "error",
+        });
+      }
+
+      setPending((count) => count - 1);
+    },
+    []
+  );
+
   async function savePreferences(next: Preferences) {
     try {
-      await bridge.savePreferences(next);
-      setPreferences(next);
+      setPreferences(await bridge.savePreferences(next));
       toast.add({ title: "Settings saved" });
 
       return true;
@@ -136,6 +165,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
         preferences,
         refresh,
         run,
+        saveAggregateView,
         savePreferences,
         state,
       }}

@@ -1,7 +1,9 @@
 // Tauri injects command arguments by value.
 #![allow(clippy::needless_pass_by_value)]
 
-use crate::{Desktop, preferences::Preferences};
+pub mod preferences;
+
+use crate::Desktop;
 use opul_core::{
     MachineCommandReceipt, MachineDownloadCommand, MachineFolderRequest, MachineFormat,
     MachineGrouping, MachineLayout, MachineMediaItem, MachineMediaPolicy, MachineMediaRequest,
@@ -360,28 +362,6 @@ pub async fn execute(
     tauri::async_runtime::spawn_blocking(move || command.execute(&machine))
         .await
         .map_err(|error| error.to_string())?
-}
-
-#[tauri::command]
-pub fn get_preferences(state: State<'_, Desktop>) -> Result<Preferences, String> {
-    Ok(state.preferences.as_ref().map_err(Clone::clone)?.get())
-}
-
-#[tauri::command]
-pub fn save_preferences(state: State<'_, Desktop>, preferences: Preferences) -> Result<(), String> {
-    state
-        .preferences
-        .as_ref()
-        .map_err(Clone::clone)?
-        .save(preferences.clone())?;
-    if let Ok(machine) = &state.machine {
-        machine.set_speed_limits(
-            u64::from(preferences.max_download_kbps) * 1024,
-            u64::from(preferences.max_upload_kbps) * 1024,
-        );
-        machine.set_max_concurrent_media_downloads(preferences.concurrent_downloads);
-    }
-    Ok(())
 }
 
 #[tauri::command]

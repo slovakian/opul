@@ -109,6 +109,9 @@ for (const lost of [false, true]) {
       loseFirstAppearanceResponse: lost,
     });
     await page.goto("/");
+    await page
+      .getByRole("button", { exact: true, name: "Downloads workspace" })
+      .click();
     await openPicker(page);
     await choose(page, "panda", "panda");
     // An unrelated setting changes while the picker owns a local draft.

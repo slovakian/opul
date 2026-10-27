@@ -9,7 +9,12 @@ import {
   toolStatusSchema,
   workspaceDraftSchema,
 } from "@/lib/model";
-import type { Command, Preferences } from "@/lib/model";
+import type {
+  AggregateView,
+  Command,
+  DisplayPreferences,
+  Preferences,
+} from "@/lib/model";
 
 const requireDesktop = () => {
   if (!isTauri()) {
@@ -43,8 +48,18 @@ export const bridge = {
   async reveal(downloadId: string) {
     await invoke("reveal_download", { downloadId });
   },
+  async saveAggregateView(
+    view: AggregateView,
+    preferences: DisplayPreferences
+  ) {
+    return preferencesSchema.parse(
+      await invoke("save_aggregate_view", { preferences, view })
+    );
+  },
   async savePreferences(preferences: Preferences) {
-    await invoke("save_preferences", { preferences });
+    return preferencesSchema.parse(
+      await invoke("save_preferences", { preferences })
+    );
   },
   async snapshot() {
     requireDesktop();
