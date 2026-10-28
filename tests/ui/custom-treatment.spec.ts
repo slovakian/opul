@@ -157,15 +157,14 @@ test("custom save matches every workspace surface and a fresh page; exclusions s
   await openPicker(page);
   await customize(page);
 
-  await Promise.all(
-    [
-      ["Hue", "End"],
-      ["Saturation", "Home"],
-      ["Brightness", "End"],
-    ].map(([name, key]) =>
-      picker(page).getByRole("slider", { exact: true, name }).press(key)
-    )
-  );
+  for (const [name, key] of [
+    ["Hue", "End"],
+    ["Saturation", "Home"],
+    ["Brightness", "End"],
+  ]) {
+    // oxlint-disable-next-line eslint/no-await-in-loop
+    await picker(page).getByRole("slider", { exact: true, name }).press(key);
+  }
 
   await picker(page)
     .getByRole("button", { name: "Back to emoji browsing" })

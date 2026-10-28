@@ -1,6 +1,6 @@
 import { Toggle as TogglePrimitive } from "@base-ui/react/toggle";
 import { Check } from "lucide-react";
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -25,17 +25,13 @@ export const WorkspaceColorSuggestions = ({
   onCustomize: () => void;
   customButton: RefObject<HTMLButtonElement | null>;
 }) => {
-  const suggestions = useMemo(
-    () => createColorSuggestions({ appearance: draft.appearance, workspaceId }),
-    [draft.appearance, workspaceId]
+  // oxlint-disable-next-line react/hook-use-state
+  const [{ folder, other }] = useState(() =>
+    createColorSuggestions({ appearance: draft.appearance, workspaceId })
   );
 
-  const { folder, other } = suggestions;
-
-  const savedPreference = useMemo(
-    () => draft.appearance.preference,
-    [draft.appearance.preference]
-  );
+  // oxlint-disable-next-line react/hook-use-state
+  const [savedPreference] = useState(draft.appearance.preference);
 
   const [expanded, setExpanded] = useState(false);
   const firstRevealed = useRef<HTMLButtonElement>(null);

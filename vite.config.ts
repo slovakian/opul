@@ -8,6 +8,46 @@ import playwright from "ultracite/oxlint/playwright";
 import ultraciteReact from "ultracite/oxlint/react";
 import { defineConfig, lazyPlugins } from "vite-plus";
 
+const sharedIgnorePatterns = [
+  // Agent skills and AI tooling
+  "**/.agent/**",
+  "**/.agents/**",
+  "**/.aide/**",
+  "**/.aider/**",
+  "**/.antigravity/**",
+  "**/.claude/**",
+  "**/.cline/**",
+  "**/.codex/**",
+  "**/.continue/**",
+  "**/.copilot/**",
+  "**/.cursor/**",
+  "**/.gemini/**",
+  "**/.opencode/**",
+  "**/.pi/**",
+  "**/.roo/**",
+  "**/.windsurf/**",
+  "skills-lock.json",
+  // Internal tooling and vendored plugins
+  "**/.vite-hooks/**",
+  "tools/oxlint/anti-slop/**",
+  // Rust / Tauri backend sources, builds, and manifests
+  "src-tauri/**",
+  "src/**",
+  "target/**",
+  "**/*.toml",
+  "Cargo.lock",
+  // Generated datasets and static media assets
+  "frontend/assets/**",
+  "assets/**",
+  // Test results, coverage, reports, and build artifacts
+  "test-results/**",
+  "playwright-report/**",
+  "blob-report/**",
+  ".vitest/**",
+  "**/.build/**",
+  "build/**",
+];
+
 export default defineConfig({
   build: {
     rolldownOptions: {
@@ -32,52 +72,14 @@ export default defineConfig({
     ...ultraciteFmt,
     ignorePatterns: [
       ...(ultraciteFmt.ignorePatterns ?? []),
-      "**/.agent/**",
-      "**/.agents/**",
-      "**/.claude/**",
-      "**/.codex/**",
-      "**/.continue/**",
-      "**/.cursor/**",
-      "**/.gemini/**",
-      "**/.opencode/**",
-      "**/.pi/**",
-      "**/.roo/**",
-      "**/.windsurf/**",
-      "**/.vite-hooks/**",
-      "tools/oxlint/anti-slop/**",
-      "src-tauri/**",
-      "src/**",
-      "target/**",
-      "frontend/assets/**",
-      "**/*.toml",
-      "Cargo.lock",
-      "skills-lock.json",
+      ...sharedIgnorePatterns,
     ],
   },
   lint: {
     env: core.env,
     // oxlint-disable-next-line typescript/no-explicit-any, anti-slop/require-safety-comment-for-type-assertion
     extends: [core, ultraciteReact, playwright] as any,
-    ignorePatterns: [
-      ...(core.ignorePatterns ?? []),
-      "**/.agent/**",
-      "**/.agents/**",
-      "**/.claude/**",
-      "**/.codex/**",
-      "**/.continue/**",
-      "**/.cursor/**",
-      "**/.gemini/**",
-      "**/.opencode/**",
-      "**/.pi/**",
-      "**/.roo/**",
-      "**/.windsurf/**",
-      "**/.vite-hooks/**",
-      "tools/oxlint/anti-slop/**",
-      "src-tauri/**",
-      "src/**",
-      "target/**",
-      "frontend/assets/**",
-    ],
+    ignorePatterns: [...(core.ignorePatterns ?? []), ...sharedIgnorePatterns],
     jsPlugins: [
       { name: "vite-plus", specifier: "vite-plus/oxlint-plugin" },
       { name: "anti-slop", specifier: "./tools/oxlint/anti-slop/index.ts" },
