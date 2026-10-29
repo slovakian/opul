@@ -12,6 +12,7 @@ import { SidebarInset, useSidebar } from "@/components/ui/sidebar";
 import { WorkspaceSidebar } from "@/components/workspace-sidebar";
 import type { Location, StatusFilter } from "@/components/workspace-sidebar";
 import { useAppKeyboard } from "@/hooks/use-app-keyboard";
+import { useDownloadNotifications } from "@/hooks/use-download-notifications";
 import {
   filterAndSortDownloads,
   groupDownloads,
@@ -80,6 +81,7 @@ const App = () => {
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string>();
+  const notifyAdded = useDownloadNotifications(setSelectedId);
   const [modal, setModal] = useState<Modal | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const { setOpenMobile } = useSidebar();
@@ -189,6 +191,7 @@ const App = () => {
           location={location}
           navigation={navigation}
           newDownload={newDownload}
+          onAdded={notifyAdded}
           onNavigateWorkspace={(id) =>
             navigate({ kind: "workspace", workspaceId: id })
           }

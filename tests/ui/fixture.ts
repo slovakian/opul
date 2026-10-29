@@ -156,6 +156,7 @@ export const mockDesktop = async (
     failPreferencesRead?: boolean;
     folderPickerError?: string;
     folderPickerPath?: string | null;
+    holdAdd?: boolean;
     loseFirstAppearanceResponse?: boolean;
     loseFirstCreateResponse?: boolean;
     persist?: boolean;
@@ -217,7 +218,7 @@ export const mockDesktop = async (
       Object.defineProperty(window, "__TAURI_INTERNALS__", {
         value: {
           // oxlint-disable-next-line eslint/complexity
-          invoke: (
+          invoke: async (
             name: string,
             args: {
               command?: Command;
@@ -531,8 +532,27 @@ export const mockDesktop = async (
                 }
               }
 
+              const createdDownloadIds: string[] = [];
+
               if (command.kind === "add_url") {
                 addAttempts += 1;
+                sessionStorage.setItem(
+                  "test-add-attempts",
+                  String(addAttempts)
+                );
+
+                if (mockOpts.holdAdd) {
+                  // oxlint-disable-next-line promise/avoid-new
+                  await new Promise<void>((resolve) => {
+                    window.addEventListener(
+                      "test:release-add",
+                      () => resolve(),
+                      {
+                        once: true,
+                      }
+                    );
+                  });
+                }
 
                 if (mockOpts.failFirstAdd && addAttempts === 1) {
                   throw new Error("Couldn't add download. Try again.");
@@ -542,12 +562,15 @@ export const mockDesktop = async (
                   throw new Error("Use an HTTP, HTTPS, or magnet link.");
                 }
 
+                const downloadId = `imported-${currentSnapshot.sequence}`;
+                createdDownloadIds.push(downloadId);
+
                 currentSnapshot.workspaces
                   .find((item) => item.id === command.workspace_id)
                   ?.downloads.push({
                     ...defaultDownload,
                     folder_id: command.folder_id,
-                    id: `imported-${currentSnapshot.sequence}`,
+                    id: downloadId,
                     name: "new-file.zip",
                     source_url: command.url,
                   });
@@ -562,7 +585,7 @@ export const mockDesktop = async (
               currentSnapshot.sequence += 1;
 
               const receipt = {
-                created_download_ids: [],
+                created_download_ids: createdDownloadIds,
                 revision: currentSnapshot.revision,
               };
 

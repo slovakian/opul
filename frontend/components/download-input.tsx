@@ -1,6 +1,6 @@
 import { Download, Link, Loader2, Search, Settings2, X } from "lucide-react";
-import { useState } from "react";
-import type { FormEvent, RefObject } from "react";
+import { useRef, useState } from "react";
+import type { Dispatch, FormEvent, RefObject, SetStateAction } from "react";
 
 import { DestinationDialog } from "@/components/destination-dialog";
 import { DestinationPicker } from "@/components/destination-picker";
@@ -23,6 +23,8 @@ import type { Workspace } from "@/lib/model";
 export const DownloadInput = ({
   workspaces,
   location,
+  navigation,
+  onAdded,
   lastUsed,
   onUsed,
   disabled,
@@ -33,12 +35,14 @@ export const DownloadInput = ({
 }: {
   workspaces: Workspace[];
   location: Location;
+  navigation: number;
+  onAdded: (ids: string[]) => void;
   lastUsed?: string;
   onUsed: (workspaceId: string) => void;
   disabled: boolean;
   onOptions: (url: string, folderId: string, workspaceId: string) => void;
   query: string;
-  setQuery: (query: string) => void;
+  setQuery: Dispatch<SetStateAction<string>>;
   inputRef: RefObject<HTMLInputElement | null>;
 }) => {
   const { run, preferences, savePreferences } = useLibrary();
@@ -46,13 +50,17 @@ export const DownloadInput = ({
   const [override, setOverride] = useState<{
     workspaceId: string;
     folderId: string;
+    navigation: number;
   }>();
 
   const [adding, setAdding] = useState(false);
-  const [confirming, setConfirming] = useState(false);
+  const inFlight = useRef(false);
+  const [confirmation, setConfirmation] = useState<number>();
+  const confirming = confirmation === navigation;
 
   const overrideWorkspace = workspaces.find(
-    (item) => item.id === override?.workspaceId
+    (item) =>
+      override?.navigation === navigation && item.id === override.workspaceId
   );
 
   const overrideFolder = overrideWorkspace?.folders.find(
@@ -67,7 +75,11 @@ export const DownloadInput = ({
   const recommended = recommendedWorkspace(workspaces, preferences, lastUsed);
 
   const selectDestination = (next: Destination) => {
-    setOverride({ folderId: next.folder.id, workspaceId: next.workspace.id });
+    setOverride({
+      folderId: next.folder.id,
+      navigation,
+      workspaceId: next.workspace.id,
+    });
   };
 
   const isLink = isDownloadLink(query);
@@ -102,7 +114,7 @@ export const DownloadInput = ({
       });
 
       if (receipt) {
-        setOverride({ folderId, workspaceId: workspace.id });
+        setOverride({ folderId, navigation, workspaceId: workspace.id });
       }
     } catch (error) {
       toast.add({
@@ -114,11 +126,13 @@ export const DownloadInput = ({
   };
 
   const download = async (next: Destination, automatic = false) => {
-    if (locked || !isLink) {
+    if (locked || inFlight.current || !isLink) {
       return;
     }
 
+    inFlight.current = true;
     setAdding(true);
+    const submitted = query;
 
     if (
       automatic &&
@@ -131,13 +145,14 @@ export const DownloadInput = ({
           },
         })))
     ) {
+      inFlight.current = false;
       setAdding(false);
 
       return;
     }
 
     const { workspace, folder } = next;
-    const link = query.trim();
+    const link = submitted.trim();
 
     const receipt = await run({
       folder_id: folder.id,
@@ -154,22 +169,24 @@ export const DownloadInput = ({
     if (receipt) {
       selectDestination(next);
       onUsed(workspace.id);
-      setConfirming(false);
-      setQuery("");
+      setConfirmation(undefined);
+      setQuery((current) => (current === submitted ? "" : current));
+      onAdded(receipt.created_download_ids);
     }
 
+    inFlight.current = false;
     setAdding(false);
   };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
 
-    if (locked || !isLink) {
+    if (locked || inFlight.current || !isLink) {
       return;
     }
 
     if (!destination) {
-      setConfirming(true);
+      setConfirmation(navigation);
 
       return;
     }
@@ -241,6 +258,7 @@ export const DownloadInput = ({
               variant={isLink ? "default" : "ghost"}
               disabled={locked || !isLink || !workspaces.length}
               aria-label="Download link"
+              aria-busy={adding}
             >
               {adding ? (
                 <Loader2 className="animate-spin" data-icon="inline-start" />
@@ -284,7 +302,7 @@ export const DownloadInput = ({
           canSaveDefault={preferences !== null}
           disabled={locked}
           onConfirm={download}
-          onClose={() => setConfirming(false)}
+          onClose={() => setConfirmation(undefined)}
           inputRef={inputRef}
         />
       )}

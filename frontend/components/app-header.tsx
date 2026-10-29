@@ -6,7 +6,7 @@ import {
   Smile,
   Trash2,
 } from "lucide-react";
-import type { RefObject } from "react";
+import type { Dispatch, RefObject, SetStateAction } from "react";
 
 import type { Modal } from "@/components/app-modals";
 import { DownloadInput } from "@/components/download-input";
@@ -107,6 +107,7 @@ export interface AppHeaderProps {
   location: Location;
   navigation: number;
   newDownload: () => void;
+  onAdded: (ids: string[]) => void;
   onNavigateWorkspace: (id: string) => void;
   onOpenAddModal: (
     url?: string,
@@ -120,7 +121,7 @@ export interface AppHeaderProps {
   searchRef: RefObject<HTMLInputElement | null>;
   setFilter: (filter: StatusFilter) => void;
   setModal: (modal: Modal | null) => void;
-  setQuery: (query: string) => void;
+  setQuery: Dispatch<SetStateAction<string>>;
   title: string;
   workspace: Workspace | undefined;
   workspaces: Workspace[];
@@ -136,6 +137,7 @@ export const AppHeader = ({
   location,
   navigation,
   newDownload,
+  onAdded,
   onNavigateWorkspace,
   onOpenAddModal,
   onSetLastDestination,
@@ -162,7 +164,8 @@ export const AppHeader = ({
   >
     {workspace && (
       <DownloadInput
-        key={navigation}
+        navigation={navigation}
+        onAdded={onAdded}
         workspaces={workspaces}
         location={location}
         lastUsed={lastDestination}
