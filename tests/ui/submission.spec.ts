@@ -319,7 +319,7 @@ test("aggregate confirmation submits once and its toast works at the minimum win
   await notice(page).getByRole("button", { exact: true, name: "View" }).click();
   await expect(
     page
-      .getByRole("complementary", { name: "Download details" })
+      .getByRole("dialog", { exact: true, name: "Download details" })
       .getByRole("heading", { name: "new-file.zip" })
   ).toBeVisible();
   await expect(

@@ -49,7 +49,14 @@ export const DownloadActions = ({
   };
 
   const actions: MenuAction[] = [
-    { icon: Info, label: "Show details", onClick: onInspect },
+    {
+      icon: Info,
+      label: "Show details",
+      onClick: (anchor) => {
+        anchor?.focus();
+        onInspect();
+      },
+    },
   ];
 
   if (caps.can_reveal_output) {

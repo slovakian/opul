@@ -111,6 +111,7 @@ export const SidebarPopover = ({
                         <SidebarMenuButton
                           type="button"
                           aria-label={action.label}
+                          aria-pressed={action.selected}
                           disabled={action.disabled}
                           isActive={action.selected}
                           variant={

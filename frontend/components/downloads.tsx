@@ -190,7 +190,10 @@ export const Downloads = ({
                   <button
                     type="button"
                     className="flex max-w-full items-center gap-3 py-2 text-left outline-none hover:underline focus-visible:underline"
-                    onClick={() => onInspect(download)}
+                    onClick={(event) => {
+                      event.currentTarget.focus();
+                      onInspect(download);
+                    }}
                   >
                     <Icon className="text-muted-foreground size-4 shrink-0" />
                     <span className="truncate">{download.name}</span>
@@ -265,7 +268,10 @@ export const Downloads = ({
                 <button
                   type="button"
                   className="truncate text-left outline-none hover:underline focus-visible:underline"
-                  onClick={() => onInspect(download)}
+                  onClick={(event) => {
+                    event.currentTarget.focus();
+                    onInspect(download);
+                  }}
                 >
                   {download.name}
                 </button>

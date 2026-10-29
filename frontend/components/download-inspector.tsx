@@ -3,6 +3,7 @@ import { createElement, useState } from "react";
 
 import { DownloadActions, reveal } from "@/components/download-actions";
 import { DownloadStatus, fileIcon } from "@/components/downloads";
+import { InspectorPanel } from "@/components/inspector-panel";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -21,11 +22,7 @@ import {
 } from "@/components/ui/item";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarHeader,
-} from "@/components/ui/sidebar";
+import { SidebarContent, SidebarHeader } from "@/components/ui/sidebar";
 import { toast } from "@/components/ui/toast";
 import { errorMessage } from "@/lib/bridge";
 import { useLibrary } from "@/lib/library";
@@ -58,14 +55,7 @@ export const DownloadInspector = ({
   );
 
   return (
-    <Sidebar
-      side="right"
-      collapsible="none"
-      className="inspector bg-background w-80 shrink-0 border-l"
-      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role
-      role="complementary"
-      aria-label="Download details"
-    >
+    <InspectorPanel onClose={onClose}>
       <SidebarHeader className="h-14 flex-row items-center justify-between px-4">
         <h2 className="text-sm font-medium">Download details</h2>
         <Button
@@ -311,6 +301,6 @@ export const DownloadInspector = ({
           </>
         )}
       </SidebarContent>
-    </Sidebar>
+    </InspectorPanel>
   );
 };

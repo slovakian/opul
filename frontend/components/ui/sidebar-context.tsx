@@ -50,6 +50,13 @@ export const SidebarProvider = ({
   const isMobile = useIsMobile();
   const [openMobile, setOpenMobile] = React.useState(false);
 
+  const [previousIsMobile, setPreviousIsMobile] = React.useState(isMobile);
+
+  if (previousIsMobile !== isMobile) {
+    setPreviousIsMobile(isMobile);
+    setOpenMobile(false);
+  }
+
   // This is the internal state of the sidebar.
   // We use openProp and setOpenProp for control from outside the component.
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen);
