@@ -195,14 +195,6 @@ const App = () => {
           onNavigateWorkspace={(id) =>
             navigate({ kind: "workspace", workspaceId: id })
           }
-          onOpenAddModal={(url, optionFolderId, optionWorkspaceId) =>
-            setModal({
-              folderId: optionFolderId,
-              kind: "add",
-              url,
-              workspaceId: optionWorkspaceId ?? workspace?.id ?? "",
-            })
-          }
           onSetLastDestination={setLastDestination}
           onViewChange={view}
           preferences={preferences}
@@ -246,7 +238,6 @@ const App = () => {
       </SidebarInset>
       <AppModals
         busy={busy}
-        folderId={folderId}
         modal={modal}
         navigate={navigate}
         onClose={() => setModal(null)}
@@ -259,8 +250,6 @@ const App = () => {
         selected={selected}
         selectedWorkspace={selectedWorkspace}
         setSelectedId={setSelectedId}
-        workspace={workspace}
-        workspaces={workspaces}
       />
     </>
   );

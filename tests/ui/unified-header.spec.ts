@@ -156,7 +156,7 @@ test("Escape dismisses overlays before clearing the unified input", async ({
     .getByRole("button", { exact: true, name: "Download options" })
     .click();
   await expect(
-    page.getByRole("dialog", { exact: true, name: "New download" })
+    page.getByRole("button", { exact: true, name: "Download type: Automatic" })
   ).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(input).toHaveValue("keep this draft");

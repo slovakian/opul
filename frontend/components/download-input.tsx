@@ -1,10 +1,11 @@
-import { Download, Link, Loader2, Search, Settings2, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { Download, Link, Loader2, Search, X } from "lucide-react";
+import { useState } from "react";
 import type { Dispatch, FormEvent, RefObject, SetStateAction } from "react";
 
 import { DestinationDialog } from "@/components/destination-dialog";
 import { DestinationPicker } from "@/components/destination-picker";
-import { Button } from "@/components/ui/button";
+import { DownloadOptions } from "@/components/download-options";
+import { DownloadTypeDialog } from "@/components/download-type-dialog";
 import {
   InputGroup,
   InputGroupAddon,
@@ -13,6 +14,7 @@ import {
 } from "@/components/ui/input-group";
 import { toast } from "@/components/ui/toast";
 import type { Location } from "@/components/workspace-sidebar";
+import { useDownloadSubmission } from "@/hooks/use-download-submission";
 import { bridge, errorMessage } from "@/lib/bridge";
 import { naturalDestination, recommendedWorkspace } from "@/lib/destination";
 import type { Destination } from "@/lib/destination";
@@ -28,7 +30,6 @@ export const DownloadInput = ({
   lastUsed,
   onUsed,
   disabled,
-  onOptions,
   query,
   setQuery,
   inputRef,
@@ -40,23 +41,17 @@ export const DownloadInput = ({
   lastUsed?: string;
   onUsed: (workspaceId: string) => void;
   disabled: boolean;
-  onOptions: (url: string, folderId: string, workspaceId: string) => void;
   query: string;
   setQuery: Dispatch<SetStateAction<string>>;
   inputRef: RefObject<HTMLInputElement | null>;
 }) => {
-  const { run, preferences, savePreferences } = useLibrary();
+  const { run, preferences } = useLibrary();
 
   const [override, setOverride] = useState<{
     workspaceId: string;
     folderId: string;
     navigation: number;
   }>();
-
-  const [adding, setAdding] = useState(false);
-  const inFlight = useRef(false);
-  const [confirmation, setConfirmation] = useState<number>();
-  const confirming = confirmation === navigation;
 
   const overrideWorkspace = workspaces.find(
     (item) =>
@@ -83,7 +78,22 @@ export const DownloadInput = ({
   };
 
   const isLink = isDownloadLink(query);
-  const locked = disabled || adding;
+
+  const optionsWorkspace = destination?.workspace ?? recommended;
+
+  const submission = useDownloadSubmission({
+    destination,
+    disabled,
+    navigation,
+    onAdded,
+    onUsed,
+    query,
+    selectDestination,
+    setQuery,
+    workspace: optionsWorkspace,
+  });
+
+  const { adding, locked } = submission;
 
   const addLocation = async () => {
     const workspace = destination?.workspace ?? recommended;
@@ -125,73 +135,12 @@ export const DownloadInput = ({
     }
   };
 
-  const download = async (next: Destination, automatic = false) => {
-    if (locked || inFlight.current || !isLink) {
-      return;
-    }
-
-    inFlight.current = true;
-    setAdding(true);
-    const submitted = query;
-
-    if (
-      automatic &&
-      (!preferences ||
-        !(await savePreferences({
-          ...preferences,
-          aggregate_destination: {
-            kind: "workspace",
-            workspace_id: next.workspace.id,
-          },
-        })))
-    ) {
-      inFlight.current = false;
-      setAdding(false);
-
-      return;
-    }
-
-    const { workspace, folder } = next;
-    const link = submitted.trim();
-
-    const receipt = await run({
-      folder_id: folder.id,
-      format: workspace.default_format,
-      kind: "add_url",
-      mode:
-        /^magnet:/iu.test(link) || /\.torrent(?:\?|$)/iu.test(link)
-          ? "Torrent"
-          : "Direct",
-      url: link,
-      workspace_id: workspace.id,
-    });
-
-    if (receipt) {
-      selectDestination(next);
-      onUsed(workspace.id);
-      setConfirmation(undefined);
-      setQuery((current) => (current === submitted ? "" : current));
-      onAdded(receipt.created_download_ids);
-    }
-
-    inFlight.current = false;
-    setAdding(false);
-  };
-
   const submit = async (event: FormEvent) => {
     event.preventDefault();
 
-    if (locked || inFlight.current || !isLink) {
-      return;
+    if (isLink) {
+      await submission.submit();
     }
-
-    if (!destination) {
-      setConfirmation(navigation);
-
-      return;
-    }
-
-    await download(destination);
   };
 
   return (
@@ -253,56 +202,52 @@ export const DownloadInput = ({
                 addLocation().catch(() => null);
               }}
             />
-            <InputGroupButton
-              type="submit"
-              variant={isLink ? "default" : "ghost"}
-              disabled={locked || !isLink || !workspaces.length}
-              aria-label="Download link"
-              aria-busy={adding}
-            >
-              {adding ? (
-                <Loader2 className="animate-spin" data-icon="inline-start" />
-              ) : (
-                <Download data-icon="inline-start" />
-              )}
-              <span className="header-download-label">
-                {adding ? "Adding…" : "Download"}
-              </span>
-            </InputGroupButton>
+            <div className="inline-flex items-center">
+              <InputGroupButton
+                type="submit"
+                variant={isLink ? "default" : "ghost"}
+                className="rounded-r-none"
+                disabled={locked || !isLink || !workspaces.length}
+                aria-label="Download link"
+                aria-busy={adding}
+              >
+                {adding ? (
+                  <Loader2 className="animate-spin" data-icon="inline-start" />
+                ) : (
+                  <Download data-icon="inline-start" />
+                )}
+                <span className="header-download-label">
+                  {adding ? "Adding…" : "Download"}
+                </span>
+              </InputGroupButton>
+              <DownloadOptions
+                workspace={optionsWorkspace}
+                type={submission.type}
+                format={submission.format}
+                onType={(...args) => submission.setType(...args)}
+                onFormat={(...args) => submission.setFormat(...args)}
+                onTorrent={(...args) => submission.importTorrent(...args)}
+                disabled={locked || !workspaces.length}
+              />
+            </div>
           </InputGroupAddon>
         </InputGroup>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Download options"
-          title="Video pages, formats, and torrent files"
-          disabled={locked || !workspaces.length}
-          onClick={() => {
-            const target =
-              destination ??
-              naturalDestination(
-                workspaces,
-                { kind: "workspace", workspaceId: recommended?.id ?? "" },
-                preferences
-              );
-
-            if (target) {
-              onOptions(query, target.folder.id, target.workspace.id);
-            }
-          }}
-        >
-          <Settings2 />
-        </Button>
       </form>
-      {confirming && recommended && (
+      {submission.uncertain !== undefined && (
+        <DownloadTypeDialog
+          onChoose={(...args) => submission.chooseType(...args)}
+          onClose={(...args) => submission.closeUncertain(...args)}
+          inputRef={inputRef}
+        />
+      )}
+      {submission.confirming && recommended && (
         <DestinationDialog
           workspaces={workspaces}
           recommended={recommended}
           canSaveDefault={preferences !== null}
           disabled={locked}
-          onConfirm={download}
-          onClose={() => setConfirmation(undefined)}
+          onConfirm={(...args) => submission.confirm(...args)}
+          onClose={(...args) => submission.closeConfirmation(...args)}
           inputRef={inputRef}
         />
       )}

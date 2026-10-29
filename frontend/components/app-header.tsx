@@ -109,11 +109,6 @@ export interface AppHeaderProps {
   newDownload: () => void;
   onAdded: (ids: string[]) => void;
   onNavigateWorkspace: (id: string) => void;
-  onOpenAddModal: (
-    url?: string,
-    folderId?: string,
-    workspaceId?: string
-  ) => void;
   onSetLastDestination: (dest: string | undefined) => void;
   onViewChange: (change: Partial<DisplayPreferences>) => void;
   preferences: ReturnType<typeof useLibrary>["preferences"];
@@ -139,7 +134,6 @@ export const AppHeader = ({
   newDownload,
   onAdded,
   onNavigateWorkspace,
-  onOpenAddModal,
   onSetLastDestination,
   onViewChange,
   preferences,
@@ -174,7 +168,6 @@ export const AppHeader = ({
         query={query}
         setQuery={setQuery}
         inputRef={searchRef}
-        onOptions={onOpenAddModal}
       />
     )}
     <DownloadToolbar

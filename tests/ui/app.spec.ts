@@ -102,40 +102,29 @@ test("emoji workspace creation and Base UI settings dialog", async ({
   await page.screenshot({ path: "test-results/dark.png" });
 });
 
-test("imports retain errors, close on success, and use sidebar choices", async ({
+test("download options use sidebar choices and preserve the header draft", async ({
   page,
 }) => {
   await mockDesktop(page);
   await page.goto("/");
+
+  const link = page.getByRole("searchbox", {
+    name: "Search downloads or paste a link",
+  });
+
+  await link.fill("https://example.com/new-file.zip");
   await page
     .getByRole("button", { exact: true, name: "Download options" })
     .click();
-
-  const dialog = page.getByRole("dialog", {
-    exact: true,
-    name: "New download",
-  });
-
-  await dialog.getByLabel("Link", { exact: true }).fill("file:///private/file");
-  await dialog
-    .getByRole("button", { exact: true, name: "Add download" })
-    .click();
-  await expect(dialog).toBeVisible();
-  await expect(
-    page.getByText("Use an HTTP, HTTPS, or magnet link.")
-  ).toBeVisible();
-  await dialog
-    .getByLabel("Link", { exact: true })
-    .fill("https://example.com/new-file.zip");
-  await dialog.getByRole("button", { name: /^Download type:/u }).click();
+  await page.getByRole("button", { name: /^Download type:/u }).click();
   await expect(
     page.locator('[data-slot="popover-content"] [data-slot="sidebar"]')
   ).toBeVisible();
   await page.keyboard.press("Escape");
-  await dialog
-    .getByRole("button", { exact: true, name: "Add download" })
-    .click();
-  await expect(dialog).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(link).toHaveValue("https://example.com/new-file.zip");
+  await link.press("Enter");
+  await expect(link).toHaveValue("");
   await expect(
     page.getByRole("button", { exact: true, name: "new-file.zip" })
   ).toBeVisible();
@@ -218,16 +207,15 @@ test("header downloads use the workspace default and selected saved folder", asy
     .getByRole("button", { exact: true, name: "Download options" })
     .click();
 
-  const dialog = page.getByRole("dialog", {
-    exact: true,
-    name: "New download",
-  });
-
-  await expect(dialog.getByLabel("Link", { exact: true })).toHaveValue(
-    "https://example.com/new-file.zip"
-  );
   await expect(
-    dialog.getByRole("button", { exact: true, name: "Save location: Archive" })
+    page.getByRole("button", {
+      exact: true,
+      name: "Video format: Best available",
+    })
+  ).toBeVisible();
+  await expect(link).toHaveValue("https://example.com/new-file.zip");
+  await expect(
+    header.getByRole("button", { exact: true, name: "Save location: Archive" })
   ).toBeVisible();
   await page.keyboard.press("Escape");
   await link.press("Enter");

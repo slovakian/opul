@@ -4,58 +4,13 @@ import type {
   AggregateView,
   DisplayPreferences,
   Command,
-  Download,
   Preferences,
   Snapshot,
   Receipt,
 } from "../../frontend/lib/model";
 import folderTreatments from "../../src/application/folder-treatments.json" with { type: "json" };
-
-export const baseDownload: Download = {
-  bytes_downloaded: 23_592_960,
-  bytes_uploaded: 0,
-  capabilities: {
-    can_cancel: true,
-    can_change_file_selection: false,
-    can_move: false,
-    can_pause: true,
-    can_remove: true,
-    can_resume: false,
-    can_retry: false,
-    can_reveal_output: false,
-    can_stop_seeding: false,
-  },
-  comment: null,
-  content_folder: null,
-  download_rate: 2_097_152,
-  error_message: null,
-  eta_seconds: 14,
-  extractor: null,
-  files: [],
-  folder_id: "folder-1",
-  format: "Original",
-  hold_cause: null,
-  id: "download-1",
-  info_hash: null,
-  name: "Design resources.zip",
-  output_path: null,
-  page_url: null,
-  peers: 0,
-  piece_count: 0,
-  piece_length: 0,
-  playlist_index: null,
-  progress_millionths: 450_000,
-  seed_ratio: 0,
-  seed_ratio_limit: null,
-  seeds: 0,
-  source: "Direct",
-  source_url: "https://example.com/resources.zip",
-  state: "Fetching",
-  thumbnail_url: null,
-  total_size: 52_428_800,
-  trackers: [],
-  upload_rate: 0,
-};
+import { baseDownload } from "./fixture-data";
+import type { DesktopOptions } from "./fixture-options";
 
 export const preferences: Preferences = {
   aggregate_destination: { kind: "prompt" },
@@ -142,29 +97,7 @@ export const snapshot: Snapshot = {
   ],
 };
 
-export const mockDesktop = async (
-  page: Page,
-  options: {
-    changeSnapshotDuringDraft?: boolean;
-    empty?: boolean;
-    fail?: boolean;
-    failFirstAdd?: boolean;
-    failFirstAppearance?: boolean;
-    failFirstCreate?: boolean;
-    failFirstPreferences?: boolean;
-    failFirstView?: boolean;
-    failPreferencesRead?: boolean;
-    folderPickerError?: string;
-    folderPickerPath?: string | null;
-    holdAdd?: boolean;
-    loseFirstAppearanceResponse?: boolean;
-    loseFirstCreateResponse?: boolean;
-    persist?: boolean;
-    preferences?: Preferences;
-    recovery?: boolean;
-    snapshot?: Snapshot;
-  } = {}
-) => {
+export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
   await page.addInitScript(
     ({
       defaultDownload,
@@ -347,6 +280,12 @@ export const mockDesktop = async (
             }
 
             if (name === "plugin:dialog|open") {
+              sessionStorage.setItem("test-picker", JSON.stringify(args));
+
+              if (JSON.stringify(args).includes("Open a torrent")) {
+                return mockOpts.torrentPickerPath ?? null;
+              }
+
               if (mockOpts.folderPickerError) {
                 throw new Error(mockOpts.folderPickerError);
               }
@@ -362,6 +301,8 @@ export const mockDesktop = async (
               if (!command) {
                 throw new Error("Missing command");
               }
+
+              sessionStorage.setItem("test-command", JSON.stringify(command));
 
               if (command.kind === "set_workspace_appearance") {
                 const cached = receipts.get(command.request.request_id);
@@ -534,7 +475,10 @@ export const mockDesktop = async (
 
               const createdDownloadIds: string[] = [];
 
-              if (command.kind === "add_url") {
+              if (
+                command.kind === "add_url" ||
+                command.kind === "add_torrent_file"
+              ) {
                 addAttempts += 1;
                 sessionStorage.setItem(
                   "test-add-attempts",
@@ -558,7 +502,10 @@ export const mockDesktop = async (
                   throw new Error("Couldn't add download. Try again.");
                 }
 
-                if (!/^https?:\/\//u.test(command.url)) {
+                if (
+                  command.kind === "add_url" &&
+                  !/^(?:https?:\/\/|magnet:)/u.test(command.url)
+                ) {
                   throw new Error("Use an HTTP, HTTPS, or magnet link.");
                 }
 
@@ -570,9 +517,12 @@ export const mockDesktop = async (
                   ?.downloads.push({
                     ...defaultDownload,
                     folder_id: command.folder_id,
+                    format: command.kind === "add_url" ? command.format : null,
                     id: downloadId,
+
                     name: "new-file.zip",
-                    source_url: command.url,
+                    source_url:
+                      command.kind === "add_url" ? command.url : command.path,
                   });
               }
 

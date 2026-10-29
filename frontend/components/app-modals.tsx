@@ -1,4 +1,3 @@
-import { AddDownloadDialog } from "@/components/add-download-dialog";
 import { DownloadInspector } from "@/components/download-inspector";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { Button } from "@/components/ui/button";
@@ -18,7 +17,6 @@ import type { Download, Workspace } from "@/lib/model";
 
 export type Modal =
   | { kind: "icon"; workspace: Workspace; anchor: HTMLButtonElement | null }
-  | { kind: "add"; url?: string; folderId?: string; workspaceId: string }
   | { kind: "settings" }
   | { kind: "workspace"; workspace: Workspace | null }
   | { kind: "remove"; download: Download }
@@ -108,7 +106,6 @@ const DeleteConfirmDialog = ({
 
 export interface AppModalsProps {
   busy: boolean;
-  folderId?: string;
   modal: Modal | null;
   navigate: (next: Location) => void;
   onClose: () => void;
@@ -117,13 +114,10 @@ export interface AppModalsProps {
   selected: Download | undefined;
   selectedWorkspace: Workspace | undefined;
   setSelectedId: (id: string | undefined) => void;
-  workspace: Workspace | undefined;
-  workspaces: Workspace[];
 }
 
 export const AppModals = ({
   busy,
-  folderId,
   modal,
   navigate,
   onClose,
@@ -132,8 +126,6 @@ export const AppModals = ({
   selected,
   selectedWorkspace,
   setSelectedId,
-  workspace,
-  workspaces,
 }: AppModalsProps) => (
   <>
     {selected && selectedWorkspace && (
@@ -160,17 +152,6 @@ export const AppModals = ({
         onCreated={(workspaceId) =>
           navigate({ kind: "workspace", workspaceId })
         }
-      />
-    )}
-    {modal?.kind === "add" && workspace && (
-      <AddDownloadDialog
-        workspaces={workspaces}
-        initialWorkspace={
-          workspaces.find((item) => item.id === modal.workspaceId) ?? workspace
-        }
-        initialFolder={modal.folderId ?? folderId}
-        initialUrl={modal.url}
-        onClose={onClose}
       />
     )}
     {(modal?.kind === "remove" || modal?.kind === "delete-workspace") && (

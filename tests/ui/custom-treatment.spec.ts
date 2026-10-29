@@ -207,12 +207,15 @@ test("custom save matches every workspace surface and a fresh page; exclusions s
       .locator(artwork)
   ).toHaveCSS("filter", filter);
   await reopened
-    .getByRole("button", { exact: true, name: "Download options" })
+    .getByRole("button", {
+      exact: true,
+      name: "Save location: Downloads",
+    })
     .click();
 
   const selector = reopened.getByRole("button", {
     exact: true,
-    name: "Download workspace: Downloads",
+    name: "Save location: Downloads",
   });
 
   await expect(selector.locator(artwork)).toHaveCSS("filter", filter);

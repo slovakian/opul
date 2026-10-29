@@ -37,24 +37,23 @@ test("folder appearance is identical across navigation, heading, and download ch
   await expect(icon).toHaveCSS("filter", filter);
   await page.getByRole("button", { name: "Toggle Downloads folders" }).click();
   await page
-    .getByRole("button", { exact: true, name: "Download options" })
+    .getByRole("button", {
+      exact: true,
+      name: "Save location: Downloads",
+    })
     .click();
 
   const selector = page.getByRole("button", {
     exact: true,
-    name: "Download workspace: Downloads",
+    name: "Save location: Downloads",
   });
 
   await expect(selector.locator(artwork)).toHaveCSS("filter", filter);
   await expect(selector).toHaveCSS("filter", "none");
-  await selector.click();
 
-  const option = page
-    .locator('[data-slot="popover-content"]')
-    .getByRole("button", { exact: true, name: "Downloads" });
-
-  await expect(option.locator(artwork)).toHaveCSS("filter", filter);
-  await expect(option).toHaveCSS("filter", "none");
+  await expect(
+    page.getByRole("button", { exact: true, name: "Downloads (Default)" })
+  ).toBeVisible();
 });
 
 for (const loseResponse of [false, true]) {
