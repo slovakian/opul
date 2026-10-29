@@ -27,7 +27,6 @@ export const WorkspaceHeader = ({
   children: ReactNode;
 }) => {
   const { open, isMobile } = useSidebar();
-  const iconWorkspace = workspace ?? parentWorkspace;
 
   const reserveTrafficLights =
     isTauri() && /Mac/u.test(navigator.userAgent) && (!open || isMobile);
@@ -62,9 +61,12 @@ export const WorkspaceHeader = ({
                         onClick={onParent}
                       />
                     }
-                    className="truncate"
+                    className="flex min-w-0 items-center gap-2 overflow-hidden"
                   >
-                    {parentWorkspace.name}
+                    <span aria-hidden className="shrink-0">
+                      <WorkspaceIcon workspace={parentWorkspace} />
+                    </span>
+                    <span className="truncate">{parentWorkspace.name}</span>
                   </BreadcrumbLink>
                 </BreadcrumbItem>
                 <BreadcrumbSeparator />
@@ -80,9 +82,9 @@ export const WorkspaceHeader = ({
                 aria-current="page"
                 className="text-foreground flex min-w-0 items-center gap-2 text-sm font-medium"
               >
-                {iconWorkspace && (
+                {workspace && !parentWorkspace && (
                   <span data-tauri-drag-region aria-hidden className="shrink-0">
-                    <WorkspaceIcon workspace={iconWorkspace} />
+                    <WorkspaceIcon workspace={workspace} />
                   </span>
                 )}
                 <span data-tauri-drag-region className="truncate">

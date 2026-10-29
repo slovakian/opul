@@ -4,6 +4,48 @@ import { expect, test } from "@playwright/test";
 
 import { mockDesktop, snapshot } from "./fixture";
 
+test("workspace identity stays first when navigating into a saved folder", async ({
+  page,
+}) => {
+  const library = structuredClone(snapshot);
+  library.workspaces[0].name = "Research";
+  library.workspaces[0].icon = { kind: "Emoji", value: "🤢" };
+  await mockDesktop(page, { snapshot: library });
+  await page.goto("/");
+
+  const breadcrumb = page
+    .locator("main > header")
+    .getByRole("navigation", { name: "breadcrumb" });
+
+  await expect(breadcrumb.locator('[data-slot="emoji-artwork"]')).toHaveCount(
+    0
+  );
+  await page.getByRole("button", { exact: true, name: "Downloads" }).click();
+  await expect(breadcrumb.locator('[data-slot="breadcrumb-item"]')).toHaveText([
+    "🤢Research",
+    "Downloads",
+  ]);
+
+  const workspace = breadcrumb.getByRole("button", {
+    exact: true,
+    name: "Research",
+  });
+
+  await expect(workspace.locator('[data-slot="emoji-artwork"]')).toHaveText(
+    "🤢"
+  );
+  await expect(
+    breadcrumb.getByRole("heading", { exact: true, name: "Downloads" })
+  ).toHaveAttribute("aria-current", "page");
+  await workspace.click();
+  await expect(breadcrumb.locator('[data-slot="breadcrumb-item"]')).toHaveText([
+    "🤢Research",
+  ]);
+  await expect(
+    breadcrumb.getByRole("heading", { exact: true, name: "Research" })
+  ).toHaveAttribute("aria-current", "page");
+});
+
 test("one header row preserves searches across views and breadcrumb navigation", async ({
   page,
 }) => {

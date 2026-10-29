@@ -53,7 +53,8 @@ test("breadcrumbs shorten before destinations and display controls combine", asy
     "title",
     "Research and reference material › Collected references"
   );
-  await expect(header.locator("h1 > [aria-hidden]")).toBeVisible();
+  await expect(parent.locator('[data-slot="emoji-artwork"]')).toBeVisible();
+  await expect(header.locator("h1 > [aria-hidden]")).toHaveCount(0);
   await page.setViewportSize({ height: 800, width: 1220 });
   await expect
     .poll(() => destination.evaluate((element) => element.clientWidth))
