@@ -287,3 +287,163 @@ test("single tracker and single file render without collapsible parent-child wra
   await expect(singleTrackerIcons.nth(0).locator("svg")).toBeVisible();
   await expect(singleTrackerIcons.nth(1).locator("svg")).toBeVisible();
 });
+
+test("source link renders as trace line with hover copy and feedback without layout shift", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    let clipboard = "";
+
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        readText: () => Promise.resolve(clipboard),
+        writeText: (text: string) => {
+          clipboard = text;
+
+          return Promise.resolve();
+        },
+      },
+      writable: true,
+    });
+  });
+
+  const library = structuredClone(snapshot);
+
+  const magnetUrl =
+    "magnet:?xt=urn:btih:deadbeef&dn=Arch+Linux+2026+x86_64+Complete+System+Installation+Media+ISO+With+Extra+Long+Parameters+To+Test+Truncation";
+
+  library.workspaces[0].downloads = [
+    {
+      ...baseDownload,
+      files: [],
+      id: "download-torrent",
+      name: "Arch Linux 2026.iso",
+      source: "Torrent",
+      source_url: magnetUrl,
+      trackers: [],
+    },
+  ];
+
+  await mockDesktop(page, { snapshot: library });
+  await page.goto("/");
+
+  await page
+    .getByRole("button", { exact: true, name: "Arch Linux 2026.iso" })
+    .click();
+
+  const details = page.getByRole("complementary", {
+    name: "Download details",
+  });
+
+  await expect(details).toBeVisible();
+
+  // Verify the old "Original link" field label is gone
+  await expect(details.getByText("Original link")).toHaveCount(0);
+
+  // Locate the Trace source link button
+  const linkTrace = details.locator('[data-slot="trace"]').first();
+  const linkButton = linkTrace.locator("button");
+
+  await expect(linkButton).toBeVisible();
+  await expect(linkButton).toContainText(magnetUrl);
+
+  const title = linkButton.locator('[data-slot="trace-title"]');
+
+  await expect(title).toHaveAttribute("title", magnetUrl);
+  await expect(title).toHaveClass(/truncate/u);
+
+  // Verify single-line truncation
+  const isTruncatedAndSingleLine = await title.evaluate((element) => {
+    const computedStyle = window.getComputedStyle(element);
+
+    // SAFETY: The trace title element is rendered as an HTMLSpanElement in the DOM.
+    const htmlElement = element as HTMLElement;
+
+    return {
+      isNowrap: computedStyle.whiteSpace === "nowrap",
+      isOverflowHidden: computedStyle.overflow === "hidden",
+      isTextEllipsis: computedStyle.textOverflow === "ellipsis",
+      singleLineHeight: htmlElement.offsetHeight <= 24,
+    };
+  });
+
+  expect(isTruncatedAndSingleLine.isNowrap).toBe(true);
+  expect(isTruncatedAndSingleLine.isOverflowHidden).toBe(true);
+  expect(isTruncatedAndSingleLine.isTextEllipsis).toBe(true);
+  expect(isTruncatedAndSingleLine.singleLineHeight).toBe(true);
+
+  // Verify left icon is Magnet (SVG exists) and right icon is Copy
+  const icons = linkButton.locator('[data-slot="trace-icon"]');
+
+  await expect(icons).toHaveCount(2);
+  await expect(icons.nth(0).locator("svg")).toBeVisible();
+  await expect(icons.nth(1).locator("svg")).toBeVisible();
+
+  // Record height before click to check for layout shift
+  const heightBefore = await linkButton.evaluate(
+    (element) => element.getBoundingClientRect().height
+  );
+
+  // Click to copy
+  await linkButton.click();
+
+  // After click: title temporarily changes to "Copied"
+  await expect(title).toHaveText("Copied");
+  await expect(linkButton).toHaveText("Copied");
+
+  // Verify clipboard received the magnet URL
+  const clipboardText = await page.evaluate(() =>
+    navigator.clipboard.readText()
+  );
+
+  expect(clipboardText).toBe(magnetUrl);
+
+  // Verify no layout shift occurred
+  const heightAfter = await linkButton.evaluate(
+    (element) => element.getBoundingClientRect().height
+  );
+
+  expect(heightAfter).toBe(heightBefore);
+});
+
+test("direct download link renders with Link icon in trace", async ({
+  page,
+}) => {
+  const library = structuredClone(snapshot);
+  const directUrl = "https://example.com/downloads/package.tar.gz";
+
+  library.workspaces[0].downloads = [
+    {
+      ...baseDownload,
+      files: [],
+      id: "download-direct",
+      name: "package.tar.gz",
+      source: "Direct",
+      source_url: directUrl,
+      trackers: [],
+    },
+  ];
+
+  await mockDesktop(page, { snapshot: library });
+  await page.goto("/");
+
+  await page
+    .getByRole("button", { exact: true, name: "package.tar.gz" })
+    .click();
+
+  const details = page.getByRole("complementary", {
+    name: "Download details",
+  });
+
+  await expect(details).toBeVisible();
+
+  const linkTrace = details.locator('[data-slot="trace"]').first();
+  const linkButton = linkTrace.locator("button");
+
+  await expect(linkButton).toBeVisible();
+
+  const title = linkButton.locator('[data-slot="trace-title"]');
+
+  await expect(title).toHaveAttribute("title", directUrl);
+});

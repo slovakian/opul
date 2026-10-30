@@ -1,12 +1,15 @@
 import {
   ArrowUpRightIcon,
+  Check,
   Copy,
   FileIcon,
   FolderOpen,
   GlobeIcon,
+  Link,
+  Magnet,
   X,
 } from "lucide-react";
-import { createElement, useState } from "react";
+import { createElement, useEffect, useRef, useState } from "react";
 
 import { DownloadActions, reveal } from "@/components/download-actions";
 import { DownloadStatus, fileIcon } from "@/components/downloads";
@@ -37,8 +40,78 @@ import { errorMessage } from "@/lib/bridge";
 import { useLibrary } from "@/lib/library";
 import { bytes, formatNames, sourceNames, timeRemaining } from "@/lib/model";
 import type { Download, Workspace } from "@/lib/model";
+import { cn } from "@/lib/utils";
 
 const noop = () => null;
+
+export const DownloadSourceLink = ({ download }: { download: Download }) => {
+  const [copied, setCopied] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    },
+    []
+  );
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(download.source_url);
+      setCopied(true);
+
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+
+      timeoutRef.current = setTimeout(() => {
+        setCopied(false);
+      }, 2000);
+    } catch (error) {
+      toast.add({
+        description: errorMessage(error),
+        title: "Couldn't copy link",
+        type: "error",
+      });
+    }
+  };
+
+  if (!download.source_url) {
+    return null;
+  }
+
+  const isTorrent = download.source === "Torrent";
+
+  return (
+    <Trace>
+      <button
+        type="button"
+        className="group/trace"
+        onClick={handleCopy}
+        aria-label={copied ? "Copied" : download.source_url}
+      >
+        <TraceLine>
+          <TraceIcon>{isTorrent ? <Magnet /> : <Link />}</TraceIcon>
+          <TraceTitle title={copied ? "Copied" : download.source_url}>
+            {copied ? "Copied" : download.source_url}
+          </TraceTitle>
+          <TraceIcon
+            className={cn(
+              "transition-opacity",
+              copied
+                ? "text-foreground opacity-100"
+                : "opacity-0 group-hover/trace:opacity-100 group-focus-visible/trace:opacity-100"
+            )}
+          >
+            {copied ? <Check /> : <Copy />}
+          </TraceIcon>
+        </TraceLine>
+      </button>
+    </Trace>
+  );
+};
 
 export const DownloadInspector = ({
   download,
@@ -163,34 +236,7 @@ export const DownloadInspector = ({
             Show in Finder
           </Button>
         )}
-        <FieldGroup>
-          <Field>
-            <FieldLabel>Original link</FieldLabel>
-            <p className="text-muted-foreground text-xs leading-relaxed break-all select-text">
-              {download.source_url}
-            </p>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="self-start"
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(download.source_url);
-                  toast.add({ title: "Link copied" });
-                } catch (error) {
-                  toast.add({
-                    description: errorMessage(error),
-                    title: "Couldn't copy link",
-                    type: "error",
-                  });
-                }
-              }}
-            >
-              <Copy data-icon="inline-start" />
-              Copy link
-            </Button>
-          </Field>
-        </FieldGroup>
+        <DownloadSourceLink key={download.id} download={download} />
         {download.source === "Torrent" && (
           <>
             <Separator />
