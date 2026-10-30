@@ -1,11 +1,17 @@
-import { ArrowUpRightIcon, Copy, FolderOpen, GlobeIcon, X } from "lucide-react";
+import {
+  ArrowUpRightIcon,
+  Copy,
+  FileIcon,
+  FolderOpen,
+  GlobeIcon,
+  X,
+} from "lucide-react";
 import { createElement, useState } from "react";
 
 import { DownloadActions, reveal } from "@/components/download-actions";
 import { DownloadStatus, fileIcon } from "@/components/downloads";
 import { InspectorPanel } from "@/components/inspector-panel";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Field,
   FieldDescription,
@@ -13,13 +19,6 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  Item,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemTitle,
-} from "@/components/ui/item";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { SidebarContent, SidebarHeader } from "@/components/ui/sidebar";
@@ -29,6 +28,7 @@ import {
   TraceCollapsible,
   TraceCollapsibleContent,
   TraceCollapsibleTrigger,
+  TraceDescription,
   TraceIcon,
   TraceLine,
   TraceTitle,
@@ -241,72 +241,75 @@ export const DownloadInspector = ({
         {download.files.length > 0 && (
           <>
             <Separator />
-            <section className="flex flex-col gap-2">
-              <h3 className="flex items-center justify-between text-sm font-medium">
-                Files
-                <span className="text-muted-foreground text-xs">
-                  {
-                    download.files.filter((file) => file.priority !== "skip")
-                      .length
-                  }{" "}
-                  of {download.files.length}
-                </span>
-              </h3>
-              <ItemGroup className="gap-1">
-                {download.files.map((file) => (
-                  <Item key={file.index} size="xs" className="px-0">
-                    <Checkbox
-                      aria-label={`Download ${file.path}`}
-                      checked={file.priority !== "skip"}
-                      disabled={
-                        busy || !download.capabilities.can_change_file_selection
-                      }
-                      onCheckedChange={(checked) => {
-                        run({
-                          download_id: download.id,
-                          files: download.files.map((current) =>
-                            current.index === file.index
-                              ? {
-                                  ...current,
-                                  priority: checked ? "normal" : "skip",
-                                }
-                              : current
-                          ),
-                          kind: "torrent_files",
-                        }).catch(() => null);
-                      }}
-                    />
-                    <ItemContent className="min-w-0">
-                      <ItemTitle
-                        className="max-w-full truncate text-xs"
-                        title={file.path}
-                      >
-                        {file.path}
-                      </ItemTitle>
-                      <ItemDescription className="text-xs">
-                        {bytes(file.size)}
-                      </ItemDescription>
-                    </ItemContent>
-                  </Item>
-                ))}
-              </ItemGroup>
-            </section>
+            {download.files.length === 1 ? (
+              <Trace>
+                <TraceLine>
+                  <TraceIcon>
+                    <FileIcon />
+                  </TraceIcon>
+                  <TraceTitle title={download.files[0].path}>
+                    {download.files[0].path}
+                  </TraceTitle>
+                  <TraceDescription>
+                    {bytes(download.files[0].size)}
+                  </TraceDescription>
+                </TraceLine>
+              </Trace>
+            ) : (
+              <TraceCollapsible>
+                <TraceCollapsibleTrigger>
+                  <TraceLine>
+                    <TraceIcon>
+                      <FileIcon />
+                    </TraceIcon>
+                    <TraceTitle>{`${download.files.length} files`}</TraceTitle>
+                  </TraceLine>
+                </TraceCollapsibleTrigger>
+                <TraceCollapsibleContent>
+                  <Trace>
+                    {download.files.map((file) => (
+                      <TraceLine key={file.index}>
+                        <TraceTitle title={file.path}>{file.path}</TraceTitle>
+                        <TraceDescription>{bytes(file.size)}</TraceDescription>
+                      </TraceLine>
+                    ))}
+                  </Trace>
+                </TraceCollapsibleContent>
+              </TraceCollapsible>
+            )}
           </>
         )}
-        {download.trackers.length > 0 && (
-          <>
-            <Separator />
-            <TraceCollapsible defaultOpen>
+        {download.trackers.length > 0 &&
+          (download.trackers.length === 1 ? (
+            <Trace>
+              <a
+                href={download.trackers[0]}
+                aria-label={download.trackers[0]}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <TraceLine>
+                  <TraceIcon>
+                    <GlobeIcon />
+                  </TraceIcon>
+                  <TraceTitle title={download.trackers[0]}>
+                    {download.trackers[0]}
+                    <span className="sr-only"> (opens in a new tab)</span>
+                  </TraceTitle>
+                  <TraceIcon>
+                    <ArrowUpRightIcon />
+                  </TraceIcon>
+                </TraceLine>
+              </a>
+            </Trace>
+          ) : (
+            <TraceCollapsible>
               <TraceCollapsibleTrigger>
                 <TraceLine>
                   <TraceIcon>
                     <GlobeIcon />
                   </TraceIcon>
-                  <TraceTitle>
-                    {download.trackers.length === 1
-                      ? "1 tracker"
-                      : `${download.trackers.length} trackers`}
-                  </TraceTitle>
+                  <TraceTitle>{`${download.trackers.length} trackers`}</TraceTitle>
                 </TraceLine>
               </TraceCollapsibleTrigger>
               <TraceCollapsibleContent>
@@ -320,9 +323,6 @@ export const DownloadInspector = ({
                       rel="noopener noreferrer"
                     >
                       <TraceLine>
-                        <TraceIcon>
-                          <GlobeIcon />
-                        </TraceIcon>
                         <TraceTitle title={tracker}>
                           {tracker}
                           <span className="sr-only"> (opens in a new tab)</span>
@@ -336,8 +336,7 @@ export const DownloadInspector = ({
                 </Trace>
               </TraceCollapsibleContent>
             </TraceCollapsible>
-          </>
-        )}
+          ))}
       </SidebarContent>
     </InspectorPanel>
   );

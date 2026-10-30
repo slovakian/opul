@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import { mockDesktop, snapshot } from "./fixture";
 import { baseDownload } from "./fixture-data";
 
-test("torrent trackers render with shadcn trace, icons, single-line truncation, and toggle", async ({
+test("torrent trackers and files render with trace, alignment, single-line truncation, and closed by default", async ({
   page,
 }) => {
   const library = structuredClone(snapshot);
@@ -16,6 +16,20 @@ test("torrent trackers render with shadcn trace, icons, single-line truncation, 
   library.workspaces[0].downloads = [
     {
       ...baseDownload,
+      files: [
+        {
+          index: 0,
+          path: "Arch Linux 2026/archlinux-2026.01.01-x86_64.iso",
+          priority: "normal",
+          size: 943_718_400,
+        },
+        {
+          index: 1,
+          path: "Arch Linux 2026/sha256sums.txt",
+          priority: "normal",
+          size: 1024,
+        },
+      ],
       id: "download-torrent",
       name: "Arch Linux 2026.iso",
       source: "Torrent",
@@ -42,85 +56,234 @@ test("torrent trackers render with shadcn trace, icons, single-line truncation, 
 
   await expect(details).toBeVisible();
 
-  // Check the TraceCollapsible trigger
-  const trigger = details.locator('[data-slot="trace-collapsible-trigger"]');
+  // Check the Files collapsible trigger
+  const fileTrigger = details.getByRole("button", {
+    exact: true,
+    name: "2 files",
+  });
 
-  await expect(trigger).toBeVisible();
-  await expect(trigger).toContainText("2 trackers");
+  await expect(fileTrigger).toBeVisible();
 
-  // Verify it is defaultOpen and trace container exists
-  const trace = details.locator('[data-slot="trace"]');
+  // Verify file trigger has a FileIcon
+  const fileTriggerIcon = fileTrigger
+    .locator('[data-slot="trace-icon"]')
+    .first();
 
-  await expect(trace).toBeVisible();
+  await expect(fileTriggerIcon.locator("svg")).toBeVisible();
 
-  // Check both tracker links
-  const links = trace.locator("a");
+  // Check the Trackers collapsible trigger
+  const trackerTrigger = details.getByRole("button", {
+    exact: true,
+    name: "2 trackers",
+  });
 
-  await expect(links).toHaveCount(2);
+  await expect(trackerTrigger).toBeVisible();
 
-  const firstLink = links.nth(0);
+  // Verify tracker trigger has a GlobeIcon
+  const trackerTriggerIcon = trackerTrigger
+    .locator('[data-slot="trace-icon"]')
+    .first();
 
-  await expect(firstLink).toHaveAttribute("href", shortTrackerUrl);
-  await expect(firstLink).toHaveAttribute("target", "_blank");
-  await expect(firstLink).toHaveAttribute("rel", "noopener noreferrer");
+  await expect(trackerTriggerIcon.locator("svg")).toBeVisible();
 
-  const secondLink = links.nth(1);
+  // Verify both collapsible contents are CLOSED by default
+  const collapsibles = details.locator('[data-slot="trace-collapsible"]');
 
-  await expect(secondLink).toHaveAttribute("href", longTrackerUrl);
-  await expect(secondLink).toHaveAttribute("target", "_blank");
-  await expect(secondLink).toHaveAttribute("rel", "noopener noreferrer");
+  await expect(collapsibles).toHaveCount(2);
 
-  // Verify left and right icons exist in each trace line
-  const lines = trace.locator('[data-slot="trace-line"]');
+  const filesContent = collapsibles
+    .nth(0)
+    .locator('[data-slot="trace-collapsible-content"]');
 
-  await expect(lines).toHaveCount(2);
+  const trackersContent = collapsibles
+    .nth(1)
+    .locator('[data-slot="trace-collapsible-content"]');
 
-  const lineCount = await lines.count();
+  await expect(filesContent).toBeHidden();
+  await expect(trackersContent).toBeHidden();
+
+  // Expand trackers list
+  await trackerTrigger.click();
+  await expect(trackersContent).toBeVisible();
+
+  // Verify each tracker row in the list
+  const trackerLinks = trackersContent.locator("a");
+
+  await expect(trackerLinks).toHaveCount(2);
+
+  // Verify individual tracker rows do NOT have an icon on the left, but DO have the icon on the right
+  const trackerLines = trackersContent.locator('[data-slot="trace-line"]');
+
+  await expect(trackerLines).toHaveCount(2);
+
+  const trackerLineCount = await trackerLines.count();
 
   await Promise.all(
-    Array.from({ length: lineCount }, async (_, index) => {
-      const line = lines.nth(index);
+    Array.from({ length: trackerLineCount }, async (_, index) => {
+      const line = trackerLines.nth(index);
       const icons = line.locator('[data-slot="trace-icon"]');
 
-      await expect(icons).toHaveCount(2);
-      await expect(icons.nth(0).locator("svg")).toBeVisible();
-      await expect(icons.nth(1).locator("svg")).toBeVisible();
+      // Only one icon: the right arrow icon
+      await expect(icons).toHaveCount(1);
+      await expect(icons.first().locator("svg")).toBeVisible();
     })
   );
 
-  // Verify title has truncation and title attribute
-  const longTitle = secondLink.locator('[data-slot="trace-title"]');
+  // Verify horizontal alignment along the vertical line: right icons share the same right coordinate
+  const firstIconRight = await trackerLines
+    .nth(0)
+    .locator('[data-slot="trace-icon"]')
+    .evaluate((element) => element.getBoundingClientRect().right);
 
-  await expect(longTitle).toHaveAttribute("title", longTrackerUrl);
-  await expect(longTitle).toHaveClass(/truncate/u);
+  const secondIconRight = await trackerLines
+    .nth(1)
+    .locator('[data-slot="trace-icon"]')
+    .evaluate((element) => element.getBoundingClientRect().right);
 
-  // Verify single-line behavior: nowrap, overflow hidden, text ellipsis, and height <= 24px
-  const isTruncatedAndSingleLine = await longTitle.evaluate((element) => {
-    const computedStyle = window.getComputedStyle(element);
+  expect(Math.abs(firstIconRight - secondIconRight)).toBeLessThanOrEqual(1);
 
-    return {
-      isNowrap: computedStyle.whiteSpace === "nowrap",
-      isOverflowHidden: computedStyle.overflow === "hidden",
-      isTextEllipsis: computedStyle.textOverflow === "ellipsis",
-      singleLineHeight: element.offsetHeight <= 24,
-    };
+  // Verify single-line truncation of long tracker URL
+  const longTrackerTitle = trackerLinks
+    .nth(1)
+    .locator('[data-slot="trace-title"]');
+
+  await expect(longTrackerTitle).toHaveAttribute("title", longTrackerUrl);
+  await expect(longTrackerTitle).toHaveClass(/truncate/u);
+
+  const isTrackerTruncatedAndSingleLine = await longTrackerTitle.evaluate(
+    (element) => {
+      const computedStyle = window.getComputedStyle(element);
+
+      // SAFETY: The trace title element is rendered as an HTMLSpanElement in the DOM.
+      const htmlElement = element as HTMLElement;
+
+      return {
+        isNowrap: computedStyle.whiteSpace === "nowrap",
+        isOverflowHidden: computedStyle.overflow === "hidden",
+        isTextEllipsis: computedStyle.textOverflow === "ellipsis",
+        singleLineHeight: htmlElement.offsetHeight <= 24,
+      };
+    }
+  );
+
+  expect(isTrackerTruncatedAndSingleLine.isNowrap).toBe(true);
+  expect(isTrackerTruncatedAndSingleLine.isOverflowHidden).toBe(true);
+  expect(isTrackerTruncatedAndSingleLine.isTextEllipsis).toBe(true);
+  expect(isTrackerTruncatedAndSingleLine.singleLineHeight).toBe(true);
+
+  // Expand files list
+  await fileTrigger.click();
+  await expect(filesContent).toBeVisible();
+
+  // Verify file rows in the list: no left icon, truncated title, and inlined file size on right
+  const fileLines = filesContent.locator('[data-slot="trace-line"]');
+
+  await expect(fileLines).toHaveCount(2);
+
+  const fileLineCount = await fileLines.count();
+
+  await Promise.all(
+    Array.from({ length: fileLineCount }, async (_, index) => {
+      const line = fileLines.nth(index);
+      const icons = line.locator('[data-slot="trace-icon"]');
+
+      // No icons inside child file lines
+      await expect(icons).toHaveCount(0);
+
+      // Inlined file size exists
+      const desc = line.locator('[data-slot="trace-description"]');
+
+      await expect(desc).toBeVisible();
+    })
+  );
+
+  // Verify file sizes share the same right alignment coordinate
+  const firstSizeRight = await fileLines
+    .nth(0)
+    .locator('[data-slot="trace-description"]')
+    .evaluate((element) => element.getBoundingClientRect().right);
+
+  const secondSizeRight = await fileLines
+    .nth(1)
+    .locator('[data-slot="trace-description"]')
+    .evaluate((element) => element.getBoundingClientRect().right);
+
+  expect(Math.abs(firstSizeRight - secondSizeRight)).toBeLessThanOrEqual(1);
+});
+
+test("single tracker and single file render without collapsible parent-child wrapper", async ({
+  page,
+}) => {
+  const library = structuredClone(snapshot);
+  const singleTracker = "udp://tracker.single.org:1337/announce";
+
+  library.workspaces[0].downloads = [
+    {
+      ...baseDownload,
+      files: [
+        {
+          index: 0,
+          path: "single-archive.tar.gz",
+          priority: "normal",
+          size: 52_428_800,
+        },
+      ],
+      id: "download-single-torrent",
+      name: "Single Archive Torrent",
+      source: "Torrent",
+      source_url: "magnet:?xt=urn:btih:feedface&dn=Archive",
+      trackers: [singleTracker],
+    },
+  ];
+
+  await mockDesktop(page, { snapshot: library });
+  await page.goto("/");
+
+  await page
+    .getByRole("button", { exact: true, name: "Single Archive Torrent" })
+    .click();
+
+  const details = page.getByRole("complementary", {
+    name: "Download details",
   });
 
-  expect(isTruncatedAndSingleLine.isNowrap).toBe(true);
-  expect(isTruncatedAndSingleLine.isOverflowHidden).toBe(true);
-  expect(isTruncatedAndSingleLine.isTextEllipsis).toBe(true);
-  expect(isTruncatedAndSingleLine.singleLineHeight).toBe(true);
+  await expect(details).toBeVisible();
 
-  // Test collapsing and expanding
-  await trigger.click();
-  const content = details.locator('[data-slot="trace-collapsible-content"]');
+  // No collapsible triggers should exist since each list has only 1 item
+  await expect(
+    details.locator('[data-slot="trace-collapsible-trigger"]')
+  ).toHaveCount(0);
 
-  await expect(content).toBeHidden();
+  // Check the single file item: has left FileIcon, path, and inlined size
+  const singleFileTitle = details
+    .locator('[data-slot="trace-title"]')
+    .filter({ hasText: "single-archive.tar.gz" });
 
-  await trigger.click();
-  await expect(content).toBeVisible();
-  await details.locator('[data-slot="sidebar-content"]').evaluate((el) => {
-    el.scrollTop = el.scrollHeight;
-  });
-  await details.screenshot({ path: "test-results/trackers-trace.png" });
+  await expect(singleFileTitle).toBeVisible();
+
+  const singleFileRow = singleFileTitle.locator("..");
+  const singleFileIcon = singleFileRow.locator('[data-slot="trace-icon"]');
+
+  await expect(singleFileIcon).toHaveCount(1);
+  await expect(
+    singleFileRow.locator('[data-slot="trace-description"]')
+  ).toContainText("50 MB");
+
+  // Check the single tracker item: has left GlobeIcon, URL, and right ArrowUpRightIcon
+  const singleTrackerLink = details.locator(`a[href="${singleTracker}"]`);
+
+  await expect(singleTrackerLink).toBeVisible();
+
+  const singleTrackerRow = singleTrackerLink.locator(
+    '[data-slot="trace-line"]'
+  );
+
+  const singleTrackerIcons = singleTrackerRow.locator(
+    '[data-slot="trace-icon"]'
+  );
+
+  // Has both left GlobeIcon and right ArrowUpRightIcon
+  await expect(singleTrackerIcons).toHaveCount(2);
+  await expect(singleTrackerIcons.nth(0).locator("svg")).toBeVisible();
+  await expect(singleTrackerIcons.nth(1).locator("svg")).toBeVisible();
 });
