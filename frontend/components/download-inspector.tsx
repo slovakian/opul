@@ -1,4 +1,4 @@
-import { Copy, FolderOpen, X } from "lucide-react";
+import { ArrowUpRightIcon, Copy, FolderOpen, GlobeIcon, X } from "lucide-react";
 import { createElement, useState } from "react";
 
 import { DownloadActions, reveal } from "@/components/download-actions";
@@ -24,6 +24,15 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { SidebarContent, SidebarHeader } from "@/components/ui/sidebar";
 import { toast } from "@/components/ui/toast";
+import {
+  Trace,
+  TraceCollapsible,
+  TraceCollapsibleContent,
+  TraceCollapsibleTrigger,
+  TraceIcon,
+  TraceLine,
+  TraceTitle,
+} from "@/components/ui/trace";
 import { errorMessage } from "@/lib/bridge";
 import { useLibrary } from "@/lib/library";
 import { bytes, formatNames, sourceNames, timeRemaining } from "@/lib/model";
@@ -287,17 +296,46 @@ export const DownloadInspector = ({
         {download.trackers.length > 0 && (
           <>
             <Separator />
-            <section className="flex flex-col gap-2">
-              <h3 className="text-sm font-medium">Trackers</h3>
-              {download.trackers.map((tracker) => (
-                <p
-                  key={tracker}
-                  className="text-muted-foreground text-xs break-all select-text"
-                >
-                  {tracker}
-                </p>
-              ))}
-            </section>
+            <TraceCollapsible defaultOpen>
+              <TraceCollapsibleTrigger>
+                <TraceLine>
+                  <TraceIcon>
+                    <GlobeIcon />
+                  </TraceIcon>
+                  <TraceTitle>
+                    {download.trackers.length === 1
+                      ? "1 tracker"
+                      : `${download.trackers.length} trackers`}
+                  </TraceTitle>
+                </TraceLine>
+              </TraceCollapsibleTrigger>
+              <TraceCollapsibleContent>
+                <Trace>
+                  {download.trackers.map((tracker) => (
+                    <a
+                      key={tracker}
+                      href={tracker}
+                      aria-label={tracker}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <TraceLine>
+                        <TraceIcon>
+                          <GlobeIcon />
+                        </TraceIcon>
+                        <TraceTitle title={tracker}>
+                          {tracker}
+                          <span className="sr-only"> (opens in a new tab)</span>
+                        </TraceTitle>
+                        <TraceIcon>
+                          <ArrowUpRightIcon />
+                        </TraceIcon>
+                      </TraceLine>
+                    </a>
+                  ))}
+                </Trace>
+              </TraceCollapsibleContent>
+            </TraceCollapsible>
           </>
         )}
       </SidebarContent>
