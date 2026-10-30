@@ -18,7 +18,7 @@ use crate::CoreError;
 use crate::destination::{DownloadContentLayout, resolve_download_destination};
 use crate::persistence::{LoadedState, load_state, save_state};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, uniffi::Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum MediaFormat {
     Best,
     BestMp4,
@@ -30,7 +30,7 @@ pub enum MediaFormat {
     AudioM4a,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, uniffi::Record)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MediaDownloadOptions {
     #[serde(default)]
     pub format: MediaFormat,
@@ -74,7 +74,7 @@ impl Default for MediaDownloadOptions {
     }
 }
 
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone)]
 pub struct MediaEngineConfig {
     pub session_folder: String,
     pub resources_folder: Option<String>,
@@ -84,7 +84,7 @@ pub struct MediaEngineConfig {
     pub max_download_bps: u64,
 }
 
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone)]
 pub struct MediaToolStatus {
     pub yt_dlp_path: Option<String>,
     pub yt_dlp_version: Option<String>,
@@ -94,7 +94,7 @@ pub struct MediaToolStatus {
     pub message: String,
 }
 
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone)]
 pub struct MediaProbeItem {
     pub webpage_url: String,
     pub title: String,
@@ -104,7 +104,7 @@ pub struct MediaProbeItem {
     pub playlist_index: Option<u32>,
 }
 
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone)]
 pub struct MediaProbe {
     pub title: String,
     pub webpage_url: String,
@@ -114,7 +114,7 @@ pub struct MediaProbe {
     pub items: Vec<MediaProbeItem>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, uniffi::Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum MediaTransferState {
     #[default]
     Queued,
@@ -126,7 +126,7 @@ pub enum MediaTransferState {
     Cancelled,
 }
 
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone)]
 pub struct MediaTransferSnapshot {
     pub id: String,
     pub download_id: Option<String>,
@@ -149,7 +149,7 @@ pub struct MediaTransferSnapshot {
     pub format: MediaFormat,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, uniffi::Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GuidedMediaKind {
     Video,
     Audio,
@@ -159,7 +159,7 @@ pub enum GuidedMediaKind {
     Unknown,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GuidedObservationSource {
     Dom,
     Performance,
@@ -167,13 +167,13 @@ pub enum GuidedObservationSource {
     Popup,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GuidedHttpHeader {
     pub name: String,
     pub value: String,
 }
 
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone)]
 pub struct GuidedObservation {
     pub url: String,
     pub page_url: String,
@@ -192,7 +192,7 @@ pub struct GuidedObservation {
     pub headers: Vec<GuidedHttpHeader>,
 }
 
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone)]
 pub struct GuidedCandidate {
     pub id: String,
     pub url: String,
@@ -212,7 +212,7 @@ pub struct GuidedCandidate {
     pub direct_download: bool,
 }
 
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone)]
 pub struct GuidedDownloadSelection {
     pub candidate_id: String,
     pub user_agent: Option<String>,
@@ -232,14 +232,11 @@ struct GuidedExtractionState {
     limit_reached: bool,
 }
 
-#[derive(uniffi::Object)]
 pub struct GuidedExtractionSession {
     state: Mutex<GuidedExtractionState>,
 }
 
-#[uniffi::export]
 impl GuidedExtractionSession {
-    #[uniffi::constructor]
     pub fn new() -> Arc<Self> {
         Arc::new(Self {
             state: Mutex::new(GuidedExtractionState::default()),
@@ -1026,7 +1023,6 @@ struct WorkerContext {
     max_download_bps: Arc<Mutex<u64>>,
 }
 
-#[derive(uniffi::Object)]
 pub struct MediaEngine {
     yt_dlp: Option<PathBuf>,
     yt_dlp_version: Option<String>,
@@ -1103,9 +1099,7 @@ fn open_media_engine(
     Ok(engine)
 }
 
-#[uniffi::export]
 impl MediaEngine {
-    #[uniffi::constructor]
     pub fn new(config: MediaEngineConfig) -> Result<Arc<Self>, CoreError> {
         open_media_engine(config, true)
     }
@@ -1264,6 +1258,7 @@ impl MediaEngine {
         &self,
         download_id: &str,
         attempt: u32,
+        direct_download: bool,
         item: MediaProbeItem,
         output_folder: String,
         options: MediaDownloadOptions,
@@ -1272,7 +1267,10 @@ impl MediaEngine {
             item,
             output_folder,
             options,
-            GuidedTransferContext::default(),
+            GuidedTransferContext {
+                direct_download,
+                ..GuidedTransferContext::default()
+            },
             Some((download_id, attempt)),
         )
     }
@@ -1494,7 +1492,13 @@ impl MediaEngine {
             }
         }
         let id = identity
-            .map(|(download_id, attempt)| format!("opul-{download_id}-{attempt}"))
+            .map(|(download_id, attempt)| {
+                Uuid::new_v5(
+                    &Uuid::NAMESPACE_OID,
+                    format!("opul:{download_id}:{attempt}").as_bytes(),
+                )
+                .to_string()
+            })
             .unwrap_or_else(|| Uuid::new_v4().to_string());
         let cookie_file = self.snapshot_cookie_jar(&id, cookie_contents.as_deref())?;
         let request_header_file = match self.snapshot_request_headers(&id, &request_headers) {
@@ -1555,7 +1559,6 @@ impl MediaEngine {
     }
 }
 
-#[uniffi::export]
 impl MediaEngine {
     pub fn snapshots(&self) -> Vec<MediaTransferSnapshot> {
         let items = self
@@ -2051,7 +2054,6 @@ impl Drop for MediaEngine {
     }
 }
 
-#[uniffi::export]
 pub fn classify_guided_url(url: String, initiator: String) -> GuidedMediaKind {
     classify_guided_resource(&url, &initiator, None)
 }

@@ -20,7 +20,7 @@ use crate::meta::{
 };
 use crate::persistence::{LoadedState, load_state, protect_json_file, save_state};
 
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone)]
 pub struct EngineConfig {
     pub session_folder: String,
     pub listen_port: u16,
@@ -90,7 +90,6 @@ impl StoredTorrent {
     }
 }
 
-#[derive(uniffi::Object)]
 pub struct TorrentEngine {
     runtime: tokio::runtime::Runtime,
     session: Arc<Session>,
@@ -100,9 +99,7 @@ pub struct TorrentEngine {
     recovery_notice: Option<String>,
 }
 
-#[uniffi::export]
 impl TorrentEngine {
-    #[uniffi::constructor]
     pub fn new(config: EngineConfig) -> Result<Arc<Self>, CoreError> {
         let session_folder = PathBuf::from(&config.session_folder);
         fs::create_dir_all(&session_folder).map_err(|err| CoreError::Engine {

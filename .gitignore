@@ -6,3 +6,13 @@
 /*.sha256
 .DS_Store
 /*.dmg
+/node_modules
+/dist
+/test-results
+/playwright-report
+/src-tauri/gen
+.env
+.env.*
+!.env.example
+.vitest/
+.vite-hooks/_

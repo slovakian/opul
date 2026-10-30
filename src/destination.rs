@@ -1,8 +1,6 @@
 use std::path::{Path, PathBuf};
 
-#[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize, uniffi::Enum,
-)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum DownloadContentLayout {
     #[default]
     Original,

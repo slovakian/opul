@@ -1,24 +1,30 @@
 name: CI
-
 on:
   push:
     branches: [main]
   pull_request:
-
 permissions:
   contents: read
-
 jobs:
   check:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
-      - name: Test Rust and Swift
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install webkit
+      - name: Test Rust, TypeScript, and the Base UI interface
         run: Scripts/test.sh
-      - name: Package the app and disk image
+      - name: Package and launch the Tauri app
         run: |
           Scripts/package_app.sh debug
-          Scripts/package_dmg.sh
-      - name: Launch the packaged app
-        run: Scripts/smoke_test.sh
+          Scripts/smoke_test.sh
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ui-test-results
+          path: test-results/

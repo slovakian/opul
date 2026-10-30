@@ -28,6 +28,7 @@ pub(crate) struct AppProjection {
     pub(crate) sequence: u64,
     pub(crate) session: SessionPhase,
     pub(crate) workspaces: Vec<WorkspaceProjection>,
+    pub(crate) recent_emoji: Vec<String>,
     pub(crate) recovery: Vec<RecoveryItem>,
 }
 
@@ -36,6 +37,7 @@ pub(crate) struct WorkspaceProjection {
     pub(crate) id: WorkspaceId,
     pub(crate) name: String,
     pub(crate) icon: WorkspaceIcon,
+    pub(crate) appearance: super::WorkspaceAppearance,
     pub(crate) folders: Vec<SavedFolder>,
     pub(crate) default_folder: FolderId,
     pub(crate) default_format: MediaFormat,
@@ -77,6 +79,7 @@ pub(crate) fn project(state: &AppState, overlay: &RuntimeOverlay) -> AppProjecti
         boot: overlay.boot,
         sequence: overlay.sequence,
         session: state.session.clone(),
+        recent_emoji: state.recent_emoji.clone(),
         workspaces: state
             .workspaces
             .iter()
@@ -84,6 +87,7 @@ pub(crate) fn project(state: &AppState, overlay: &RuntimeOverlay) -> AppProjecti
                 id: workspace.id,
                 name: workspace.name.clone(),
                 icon: workspace.icon.clone(),
+                appearance: workspace.appearance.clone(),
                 folders: workspace.folders.clone(),
                 default_folder: workspace.default_folder,
                 default_format: workspace.default_format,

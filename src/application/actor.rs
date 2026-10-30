@@ -18,6 +18,7 @@ pub(crate) struct ApplicationActor {
 }
 
 enum Message {
+    ProposeWorkspaceAppearance(super::WorkspaceId, mpsc::Sender<super::WorkspaceAppearance>),
     Command(
         Box<CommandEnvelope>,
         mpsc::Sender<Result<CommandReceipt, ActorError>>,
@@ -108,9 +109,6 @@ impl ApplicationActor {
                 } else {
                     AppState::fresh(downloads_path)
                 };
-                store
-                    .commit(&state)
-                    .map_err(|error| ActorError::Open(error.to_string()))?;
                 (state, true)
             }
             CheckpointLoad::Current(state) => (state, true),
@@ -148,7 +146,9 @@ impl ApplicationActor {
             }
         };
 
-        if writable && !matches!(state.session, SessionPhase::RecoveryRequired) {
+        let appearance_migrated = state.migrate_workspace_appearances();
+        let reconcile = !matches!(state.session, SessionPhase::RecoveryRequired);
+        if writable && reconcile {
             // Opening never resumes blindly. Adapters open quiescent, then explicit
             // reconciliation moves the session to Running.
             state.session = SessionPhase::Reconciling;
@@ -158,6 +158,8 @@ impl ApplicationActor {
             for effect in state.outbox.values_mut() {
                 effect.status = EffectStatus::Pending;
             }
+        }
+        if writable && (reconcile || appearance_migrated) {
             store
                 .commit(&state)
                 .map_err(|error| ActorError::Open(error.to_string()))?;
@@ -194,6 +196,17 @@ impl ApplicationActor {
 
     pub(crate) fn snapshot(&self) -> AppProjection {
         self.projection.snapshot()
+    }
+
+    pub(crate) fn propose_workspace_appearance(
+        &self,
+        id: super::WorkspaceId,
+    ) -> Result<super::WorkspaceAppearance, ActorError> {
+        let (response, receiver) = mpsc::channel();
+        self.sender
+            .send(Message::ProposeWorkspaceAppearance(id, response))
+            .map_err(|_| ActorError::Stopped)?;
+        receiver.recv().map_err(|_| ActorError::Stopped)
     }
 
     pub(crate) fn wait_for_projection(
@@ -268,6 +281,9 @@ impl ActorCore {
     fn run(mut self, receiver: mpsc::Receiver<Message>) {
         while let Ok(message) = receiver.recv() {
             match message {
+                Message::ProposeWorkspaceAppearance(id, response) => {
+                    let _ = response.send(self.state.propose_folder_appearance(id));
+                }
                 Message::Command(command, response) => {
                     let _ = response.send(self.handle_command(*command));
                 }
@@ -667,6 +683,270 @@ mod tests {
     }
 
     #[test]
+    fn recently_saved_emoji_are_durable_bounded_and_deduplicated() {
+        let folder = temp_dir();
+        let actor = ApplicationActor::open(folder.clone(), "/tmp/Downloads".into()).unwrap();
+        make_running(&actor);
+        let id = actor.snapshot().workspaces[0].id;
+        assert!(actor.snapshot().recent_emoji.is_empty());
+        let save = |emoji: &str| {
+            envelope(Command::SetWorkspaceAppearance {
+                workspace: id,
+                emoji: emoji.into(),
+                appearance: crate::WorkspaceAppearance::default(),
+            })
+        };
+        actor.dispatch(save("👩🏽‍💻")).unwrap();
+        actor.dispatch(save("👍🏿")).unwrap();
+        let retry = save("👩🏽‍💻");
+        actor.dispatch(retry.clone()).unwrap();
+        let checkpoint: serde_json::Value =
+            serde_json::from_slice(&fs::read(folder.join("application-state.json")).unwrap())
+                .unwrap();
+        assert_eq!(
+            checkpoint["state"]["recent_emoji"],
+            serde_json::json!(["👩🏽‍💻", "👍🏿"])
+        );
+        let mut expected = Vec::new();
+        for index in 0..30 {
+            let emoji = char::from_u32(0x1f600 + index).unwrap().to_string();
+            actor.dispatch(save(&emoji)).unwrap();
+            expected.insert(0, emoji);
+            expected.truncate(super::super::domain::RECENT_EMOJI_LIMIT);
+        }
+        actor.dispatch(retry.clone()).unwrap();
+        assert_eq!(actor.snapshot().recent_emoji, expected);
+        drop(actor);
+        let actor = ApplicationActor::open(folder.clone(), "/tmp/Unused".into()).unwrap();
+        assert_eq!(actor.snapshot().recent_emoji, expected);
+        actor.dispatch(retry).unwrap();
+        assert_eq!(actor.snapshot().recent_emoji, expected);
+        drop(actor);
+        fs::remove_dir_all(folder).unwrap();
+    }
+
+    #[test]
+    fn creation_draft_commits_icon_and_frozen_appearance_together_and_retries_after_restart() {
+        for emoji in ["📁", "👨‍👩‍👧‍👦", "👩🏽‍💻", "👍🏿", "🫱🏻‍🫲🏿"]
+        {
+            let folder = temp_dir();
+            let actor = ApplicationActor::open(folder.clone(), "/tmp/Downloads".into()).unwrap();
+            make_running(&actor);
+            let before = actor.snapshot();
+            let checkpoint = folder.join("application-state.json");
+            let bytes = fs::read(&checkpoint).unwrap();
+            // Opening and canceling a proposal never publishes or checkpoints a workspace.
+            let canceled_id = super::super::WorkspaceId::new();
+            actor.propose_workspace_appearance(canceled_id).unwrap();
+            assert_eq!(actor.snapshot(), before);
+            assert_eq!(fs::read(&checkpoint).unwrap(), bytes);
+
+            let mut workspace = AppState::fresh("/tmp/Family".into()).workspaces.remove(0);
+            workspace.name = "Family".into();
+            workspace.icon = super::super::WorkspaceIcon::Emoji(emoji.into());
+            workspace.appearance = actor.propose_workspace_appearance(workspace.id).unwrap();
+            if emoji != "📁" {
+                workspace.appearance.preference = crate::AppearancePreference::Original;
+            }
+            let id = workspace.id;
+            let appearance = workspace.appearance.clone();
+            let request = envelope(Command::CreateWorkspace { workspace });
+
+            // A checkpoint failure cannot publish either half of the creation draft.
+            let backup = folder.join("application-state.json.bak");
+            fs::remove_file(&backup).unwrap();
+            fs::create_dir(&backup).unwrap();
+            assert!(actor.dispatch(request.clone()).is_err());
+            assert_eq!(actor.snapshot().workspaces, before.workspaces);
+            assert_eq!(actor.snapshot().revision, before.revision);
+            assert_eq!(actor.snapshot().recent_emoji, before.recent_emoji);
+            assert_eq!(fs::read(&checkpoint).unwrap(), bytes);
+            drop(actor);
+            fs::remove_dir(&backup).unwrap();
+
+            // Durability faults put the actor in read-only mode until restart.
+            let actor = ApplicationActor::open(folder.clone(), "/tmp/Unused".into()).unwrap();
+            make_running(&actor);
+            actor.dispatch(request.clone()).unwrap();
+            let saved = actor.snapshot();
+            let created = saved
+                .workspaces
+                .iter()
+                .find(|workspace| workspace.id == id)
+                .unwrap();
+            assert_eq!(
+                created.icon,
+                super::super::WorkspaceIcon::Emoji(emoji.into())
+            );
+            assert_eq!(created.appearance, appearance);
+            assert_eq!(saved.recent_emoji, vec![emoji.to_string()]);
+            assert!(
+                saved
+                    .workspaces
+                    .iter()
+                    .all(|workspace| workspace.id != canceled_id)
+            );
+            drop(actor);
+
+            let actor = ApplicationActor::open(folder.clone(), "/tmp/Unused".into()).unwrap();
+            // An unchanged retry after a lost response creates exactly one workspace.
+            actor.dispatch(request).unwrap();
+            let reopened = actor.snapshot();
+            assert_eq!(reopened.workspaces, saved.workspaces);
+            assert_eq!(reopened.recent_emoji, saved.recent_emoji);
+            drop(actor);
+            fs::remove_dir_all(folder).unwrap();
+        }
+    }
+
+    #[test]
+    fn appearance_commit_is_durable_idempotent_and_does_not_overwrite_settings() {
+        let folder = temp_dir();
+        let actor = ApplicationActor::open(folder.clone(), "/tmp/Downloads".into()).unwrap();
+        make_running(&actor);
+        let before = actor.snapshot().workspaces[0].clone();
+        let id = before.id;
+        let request = envelope(Command::SetWorkspaceAppearance {
+            workspace: id,
+            emoji: "👩🏽‍💻".into(),
+            appearance: crate::WorkspaceAppearance {
+                automatic_folder: None,
+                preference: crate::AppearancePreference::Preset {
+                    treatment: crate::application::appearance::FOLDER_TREATMENTS[1].clone(),
+                },
+            },
+        });
+        actor
+            .dispatch(envelope(Command::SetDefaultFormat {
+                workspace: id,
+                format: MediaFormat::AudioMp3,
+            }))
+            .unwrap();
+        actor.dispatch(request.clone()).unwrap();
+        let saved = actor.snapshot().workspaces[0].clone();
+        assert_eq!(saved.default_format, MediaFormat::AudioMp3);
+        assert_eq!(
+            saved.appearance.automatic_folder,
+            before.appearance.automatic_folder
+        );
+        drop(actor);
+        let actor = ApplicationActor::open(folder.clone(), "/tmp/Unused".into()).unwrap();
+        assert_eq!(actor.snapshot().workspaces[0], saved);
+        // A retry after a lost response is recognized even after restart.
+        actor.dispatch(request).unwrap();
+        assert_eq!(actor.snapshot().workspaces[0], saved);
+        drop(actor);
+        fs::remove_dir_all(folder).unwrap();
+    }
+
+    #[test]
+    fn resolved_custom_treatment_survives_restart_for_eligible_and_excluded_emoji() {
+        for emoji in ["📁", "🌈", "⚪️", "👩🏽‍💻"] {
+            let folder = temp_dir();
+            let actor = ApplicationActor::open(folder.clone(), "/tmp/Downloads".into()).unwrap();
+            make_running(&actor);
+            let before = actor.snapshot().workspaces[0].clone();
+            let preference = crate::AppearancePreference::Custom {
+                hue: 359,
+                saturation: 1000,
+                brightness: 50,
+            };
+            let request = envelope(Command::SetWorkspaceAppearance {
+                workspace: before.id,
+                emoji: emoji.into(),
+                appearance: crate::WorkspaceAppearance {
+                    automatic_folder: None,
+                    preference: preference.clone(),
+                },
+            });
+            actor.dispatch(request.clone()).unwrap();
+            let saved = actor.snapshot().workspaces[0].clone();
+            assert_eq!(saved.appearance.preference, preference);
+            assert_eq!(
+                saved.appearance.automatic_folder,
+                before.appearance.automatic_folder
+            );
+            assert_eq!(saved.icon, super::super::WorkspaceIcon::Emoji(emoji.into()));
+            drop(actor);
+            let actor = ApplicationActor::open(folder.clone(), "/tmp/Unused".into()).unwrap();
+            assert_eq!(actor.snapshot().workspaces[0], saved);
+            actor.dispatch(request).unwrap();
+            assert_eq!(actor.snapshot().workspaces[0], saved);
+            drop(actor);
+            fs::remove_dir_all(folder).unwrap();
+        }
+    }
+
+    #[test]
+    fn failed_appearance_checkpoint_never_publishes_a_partial_icon() {
+        let folder = temp_dir();
+        let actor = ApplicationActor::open(folder.clone(), "/tmp/Downloads".into()).unwrap();
+        make_running(&actor);
+        let before = actor.snapshot().workspaces[0].clone();
+        // A file where the backup must go forces failure before installing the new checkpoint.
+        let backup = folder.join("application-state.json.bak");
+        fs::remove_file(&backup).unwrap();
+        fs::create_dir(&backup).unwrap();
+        assert!(
+            actor
+                .dispatch(envelope(Command::SetWorkspaceAppearance {
+                    workspace: before.id,
+                    emoji: "👩🏽‍💻".into(),
+                    appearance: crate::WorkspaceAppearance {
+                        automatic_folder: None,
+                        preference: crate::AppearancePreference::Original
+                    },
+                }))
+                .is_err()
+        );
+        assert_eq!(actor.snapshot().workspaces[0], before);
+        assert!(actor.snapshot().recent_emoji.is_empty());
+        drop(actor);
+        fs::remove_dir(&backup).unwrap();
+        let actor = ApplicationActor::open(folder.clone(), "/tmp/Unused".into()).unwrap();
+        assert_eq!(actor.snapshot().workspaces[0], before);
+        assert!(actor.snapshot().recent_emoji.is_empty());
+        drop(actor);
+        fs::remove_dir_all(folder).unwrap();
+    }
+
+    #[test]
+    fn folder_migration_checkpoints_once_and_survives_restart_without_writes_on_reads() {
+        let folder = temp_dir();
+        let path = folder.join("application-state.json");
+        let store = CheckpointStore::new(path.clone());
+        let mut old = AppState::fresh("/tmp/Downloads".into());
+        old.workspaces[0].appearance = crate::WorkspaceAppearance::default();
+        old.workspaces[0].icon = super::super::WorkspaceIcon::Symbol("arrow.down.circle".into());
+        // Empty appearance is omitted, reproducing the old serialized shape and checksum.
+        store.commit(&old).unwrap();
+        let original_bytes = fs::read(&path).unwrap();
+        assert!(!String::from_utf8_lossy(&original_bytes).contains("appearance"));
+        let actor = ApplicationActor::open(folder.clone(), "/tmp/Unused".into()).unwrap();
+        let first = actor.snapshot();
+        assert_eq!(first.workspaces[0].id, old.workspaces[0].id);
+        assert!(!first.workspaces[0].appearance.is_unassigned());
+        assert_eq!(
+            fs::read(path.with_extension("json.bak")).unwrap(),
+            original_bytes
+        );
+        let migrated_bytes = fs::read(&path).unwrap();
+        for _ in 0..5 {
+            assert_eq!(actor.snapshot(), first);
+            let proposal = actor
+                .propose_workspace_appearance(super::super::WorkspaceId::new())
+                .unwrap();
+            assert!(!proposal.is_unassigned());
+        }
+        assert_eq!(fs::read(&path).unwrap(), migrated_bytes);
+        drop(actor);
+        let reopened = ApplicationActor::open(folder.clone(), "/tmp/Unused".into()).unwrap();
+        assert_eq!(reopened.snapshot().workspaces, first.workspaces);
+        drop(reopened);
+        fs::remove_dir_all(folder).unwrap();
+    }
+
+    #[test]
     fn actor_commits_intent_and_outbox_before_effect_claim() {
         let folder = temp_dir();
         let actor = ApplicationActor::open(folder.clone(), "/tmp/Downloads".to_string()).unwrap();
@@ -773,6 +1053,7 @@ mod tests {
             id: super::super::WorkspaceId::new(),
             name: "Study".to_string(),
             icon: crate::application::WorkspaceIcon::Emoji("📚".to_string()),
+            appearance: crate::application::WorkspaceAppearance::default(),
             folders: vec![crate::application::SavedFolder {
                 id: super::super::FolderId::new(),
                 name: "Study".to_string(),

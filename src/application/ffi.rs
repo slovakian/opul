@@ -18,7 +18,7 @@ use std::thread::{self, JoinHandle};
 use std::time::Duration;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone)]
 pub struct OpulMachineConfig {
     pub application_support_folder: String,
     pub downloads_folder: String,
@@ -26,7 +26,7 @@ pub struct OpulMachineConfig {
     pub media: MediaEngineConfig,
 }
 
-#[derive(Debug, thiserror::Error, uniffi::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum StateMachineError {
     #[error("{reason}")]
     Open { reason: String },
@@ -40,7 +40,7 @@ pub enum StateMachineError {
     Persistence { reason: String },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum MachineSessionState {
     Booting,
     Reconciling,
@@ -51,19 +51,19 @@ pub enum MachineSessionState {
     ReadOnly,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum MachineWorkspaceIconKind {
     Symbol,
     Emoji,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct MachineWorkspaceIcon {
     pub kind: MachineWorkspaceIconKind,
     pub value: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum MachineFormat {
     Best,
     BestMp4,
@@ -74,20 +74,20 @@ pub enum MachineFormat {
     AudioM4a,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum MachineFileOrganization {
     Automatic,
     AlwaysCreateFolder,
     KeepInSaveLocation,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum MachineLayout {
     List,
     Table,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum MachineSort {
     Order,
     Name,
@@ -95,7 +95,7 @@ pub enum MachineSort {
     Source,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum MachineGrouping {
     None,
     State,
@@ -104,7 +104,7 @@ pub enum MachineGrouping {
     Source,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum MachineSource {
     Torrent,
     VideoPage,
@@ -112,7 +112,7 @@ pub enum MachineSource {
     Guided,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum MachineDownloadState {
     Queued,
     Starting,
@@ -127,14 +127,14 @@ pub enum MachineDownloadState {
     Cancelled,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum MachineHoldCause {
     Person,
     Shutdown,
     Recovery,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct MachineCapabilities {
     pub can_pause: bool,
     pub can_resume: bool,
@@ -147,7 +147,7 @@ pub struct MachineCapabilities {
     pub can_move: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct MachineFolder {
     pub id: String,
     pub name: String,
@@ -155,7 +155,7 @@ pub struct MachineFolder {
     pub is_default: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct MachineTorrentFile {
     pub index: u32,
     pub path: String,
@@ -163,7 +163,7 @@ pub struct MachineTorrentFile {
     pub priority: String,
 }
 
-#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct MachineDownload {
     pub id: String,
     pub folder_id: String,
@@ -200,11 +200,12 @@ pub struct MachineDownload {
     pub capabilities: MachineCapabilities,
 }
 
-#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct MachineWorkspace {
     pub id: String,
     pub name: String,
     pub icon: MachineWorkspaceIcon,
+    pub appearance: WorkspaceAppearance,
     pub folders: Vec<MachineFolder>,
     pub default_format: MachineFormat,
     pub file_organization: MachineFileOrganization,
@@ -214,29 +215,32 @@ pub struct MachineWorkspace {
     pub downloads: Vec<MachineDownload>,
 }
 
-#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct MachineSnapshot {
     pub revision: u64,
     pub boot_id: Option<String>,
     pub sequence: u64,
     pub session: MachineSessionState,
     pub workspaces: Vec<MachineWorkspace>,
+    pub recent_emoji: Vec<String>,
     pub recovery_notices: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct MachineCommandReceipt {
     pub revision: u64,
     pub created_download_ids: Vec<String>,
 }
 
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MachineWorkspaceRequest {
     pub request_id: String,
     pub expected_revision: Option<u64>,
     pub workspace_id: String,
     pub name: String,
     pub icon: MachineWorkspaceIcon,
+    #[serde(default)]
+    pub appearance: WorkspaceAppearance,
     pub folder_id: String,
     pub folder_name: String,
     pub folder_path: String,
@@ -244,7 +248,22 @@ pub struct MachineWorkspaceRequest {
     pub file_organization: MachineFileOrganization,
 }
 
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct MachineWorkspaceDraft {
+    pub workspace_id: String,
+    pub folder_id: String,
+    pub appearance: WorkspaceAppearance,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct MachineWorkspaceAppearanceRequest {
+    pub request_id: String,
+    pub workspace_id: String,
+    pub emoji: String,
+    pub appearance: WorkspaceAppearance,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MachineFolderRequest {
     pub request_id: String,
     pub expected_revision: Option<u64>,
@@ -254,14 +273,14 @@ pub struct MachineFolderRequest {
     pub path: String,
 }
 
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MachineDownloadCommand {
     pub request_id: String,
     pub expected_revision: Option<u64>,
     pub download_id: String,
 }
 
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MachineTorrentRequest {
     pub request_id: String,
     pub expected_revision: Option<u64>,
@@ -272,7 +291,7 @@ pub struct MachineTorrentRequest {
     pub seed_ratio_limit: Option<f64>,
 }
 
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MachineMediaPolicy {
     pub download_subtitles: bool,
     pub subtitle_languages: Vec<String>,
@@ -283,7 +302,7 @@ pub struct MachineMediaPolicy {
     pub user_agent: Option<String>,
 }
 
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MachineMediaItem {
     pub url: String,
     pub title: String,
@@ -293,7 +312,7 @@ pub struct MachineMediaItem {
     pub playlist_index: Option<u32>,
 }
 
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MachineMediaRequest {
     pub request_id: String,
     pub expected_revision: Option<u64>,
@@ -306,7 +325,7 @@ pub struct MachineMediaRequest {
 
 /// A file or folder the shell may move to the Trash once it still matches the identity
 /// recorded for it.
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct MachineTrashTarget {
     pub path: String,
     pub expected_byte_length: Option<u64>,
@@ -314,7 +333,7 @@ pub struct MachineTrashTarget {
     pub expected_file_identifier: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct MachinePlatformEffect {
     pub effect_id: String,
     pub download_id: String,
@@ -326,7 +345,6 @@ struct GuidedInput {
     selection: GuidedDownloadSelection,
 }
 
-#[derive(uniffi::Object)]
 pub struct OpulStateMachine {
     actor: Arc<ApplicationActor>,
     torrent: Arc<TorrentEngine>,
@@ -338,9 +356,7 @@ pub struct OpulStateMachine {
     support_directory: PathBuf,
 }
 
-#[uniffi::export]
 impl OpulStateMachine {
-    #[uniffi::constructor]
     pub fn open(config: OpulMachineConfig) -> Result<Arc<Self>, StateMachineError> {
         let support_directory = PathBuf::from(&config.application_support_folder);
         let actor = Arc::new(
@@ -369,6 +385,18 @@ impl OpulStateMachine {
 
     pub fn snapshot(&self) -> MachineSnapshot {
         snapshot_view(self.actor.snapshot())
+    }
+
+    pub fn workspace_draft(&self) -> Result<MachineWorkspaceDraft, StateMachineError> {
+        let id = WorkspaceId::new();
+        Ok(MachineWorkspaceDraft {
+            workspace_id: id.to_string(),
+            folder_id: FolderId::new().to_string(),
+            appearance: self
+                .actor
+                .propose_workspace_appearance(id)
+                .map_err(actor_error)?,
+        })
     }
 
     pub fn wait_for_snapshot(
@@ -407,6 +435,7 @@ impl OpulStateMachine {
                 id: workspace_id,
                 name: request.name,
                 icon: icon_from_view(request.icon),
+                appearance: request.appearance,
                 folders: vec![SavedFolder {
                     id: folder_id,
                     name: request.folder_name,
@@ -438,6 +467,45 @@ impl OpulStateMachine {
         )
     }
 
+    pub fn workspace_appearance_draft(
+        &self,
+        workspace_id_value: String,
+    ) -> Result<WorkspaceAppearance, StateMachineError> {
+        let id = workspace_id(&workspace_id_value)?;
+        let snapshot = self.actor.snapshot();
+        let workspace = snapshot
+            .workspaces
+            .iter()
+            .find(|w| w.id == id)
+            .ok_or_else(|| StateMachineError::Rejected {
+                reason: "That workspace no longer exists.".into(),
+            })?;
+        let mut appearance = workspace.appearance.clone();
+        if appearance.automatic_folder.is_none() {
+            appearance.automatic_folder = self
+                .actor
+                .propose_workspace_appearance(id)
+                .map_err(actor_error)?
+                .automatic_folder;
+        }
+        Ok(appearance)
+    }
+
+    pub fn set_workspace_appearance(
+        &self,
+        request: MachineWorkspaceAppearanceRequest,
+    ) -> Result<MachineCommandReceipt, StateMachineError> {
+        self.dispatch_request(
+            request.request_id,
+            None,
+            Command::SetWorkspaceAppearance {
+                workspace: workspace_id(&request.workspace_id)?,
+                emoji: request.emoji,
+                appearance: request.appearance,
+            },
+        )
+    }
+
     pub fn delete_workspace(
         &self,
         request_id: String,
@@ -454,6 +522,7 @@ impl OpulStateMachine {
                     id: workspace_id,
                     name: request.name,
                     icon: icon_from_view(request.icon),
+                    appearance: request.appearance,
                     folders: vec![SavedFolder {
                         id: folder_id,
                         name: request.folder_name,
@@ -670,6 +739,21 @@ impl OpulStateMachine {
         &self,
         request: MachineMediaRequest,
     ) -> Result<MachineCommandReceipt, StateMachineError> {
+        self.add_media_items(request, false)
+    }
+
+    pub fn add_direct_media(
+        &self,
+        request: MachineMediaRequest,
+    ) -> Result<MachineCommandReceipt, StateMachineError> {
+        self.add_media_items(request, true)
+    }
+
+    fn add_media_items(
+        &self,
+        request: MachineMediaRequest,
+        direct: bool,
+    ) -> Result<MachineCommandReceipt, StateMachineError> {
         let folder = folder_id(&request.folder_id)?;
         let downloads = request
             .items
@@ -685,10 +769,17 @@ impl OpulStateMachine {
                 attempt: 0,
                 control_generation: 0,
                 source: DownloadSource::Media(MediaDownload {
-                    origin: MediaOrigin::Page {
-                        page_url: item.page_url,
-                        item_url: item.url,
-                        playlist_index: item.playlist_index,
+                    origin: if direct {
+                        MediaOrigin::Direct {
+                            url: item.url,
+                            referer: None,
+                        }
+                    } else {
+                        MediaOrigin::Page {
+                            page_url: item.page_url,
+                            item_url: item.url,
+                            playlist_index: item.playlist_index,
+                        }
                     },
                     format: format_from_view(request.format),
                     policy: policy_from_view(&request.policy),
@@ -920,7 +1011,7 @@ impl OpulStateMachine {
                 })?;
             effects[position].clone()
         };
-        // Either outcome resolves the retirement. On failure, Swift leaves the file untouched
+        // Either outcome resolves the retirement. On failure, the shell leaves the file untouched
         // and surfaces the reason; retaining an unexecutable effect would wedge the aggregate.
         let _file_was_moved = succeeded;
         self.actor
@@ -1339,6 +1430,7 @@ fn ensure_transfer(
                 media.ensure_download(
                     &id,
                     context.download.attempt,
+                    matches!(download.origin, MediaOrigin::Direct { .. }),
                     MediaProbeItem {
                         webpage_url: url,
                         title: context.download.name.clone(),
@@ -1626,6 +1718,7 @@ fn observe_adapters(actor: &ApplicationActor, torrent: &TorrentEngine, media: &M
 
 fn snapshot_view(projection: AppProjection) -> MachineSnapshot {
     MachineSnapshot {
+        recent_emoji: projection.recent_emoji,
         revision: projection.revision,
         boot_id: projection.boot.map(|id| id.to_string()),
         sequence: projection.sequence,
@@ -1655,6 +1748,7 @@ fn workspace_view(workspace: WorkspaceProjection) -> MachineWorkspace {
     MachineWorkspace {
         id: workspace.id.to_string(),
         name: workspace.name,
+        appearance: workspace.appearance,
         icon: match workspace.icon {
             WorkspaceIcon::Symbol(value) => MachineWorkspaceIcon {
                 kind: MachineWorkspaceIconKind::Symbol,

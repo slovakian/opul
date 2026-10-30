@@ -1,3 +1,4 @@
+use super::WorkspaceAppearance;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -34,6 +35,7 @@ id_type!(EffectId);
 id_type!(BootId);
 
 pub(crate) const STATE_SCHEMA_VERSION: u32 = 2;
+pub(crate) const RECENT_EMOJI_LIMIT: usize = 24;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct AppState {
@@ -41,6 +43,9 @@ pub(crate) struct AppState {
     pub(crate) revision: u64,
     pub(crate) session: SessionPhase,
     pub(crate) workspaces: Vec<Workspace>,
+    // Preserve checksums of checkpoints written before recent emoji existed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(crate) recent_emoji: Vec<String>,
     #[serde(default)]
     pub(crate) structural_changes: PendingStructuralChanges,
     pub(crate) outbox: BTreeMap<EffectId, PendingEffect>,
@@ -52,14 +57,15 @@ pub(crate) struct AppState {
 impl AppState {
     pub(crate) fn fresh(downloads_path: String) -> Self {
         let folder_id = FolderId::new();
-        Self {
+        let mut state = Self {
             schema_version: STATE_SCHEMA_VERSION,
             revision: 0,
             session: SessionPhase::Booting,
             workspaces: vec![Workspace {
                 id: WorkspaceId::new(),
+                appearance: WorkspaceAppearance::default(),
                 name: "Downloads".to_string(),
-                icon: WorkspaceIcon::Symbol("arrow.down.circle".to_string()),
+                icon: WorkspaceIcon::Emoji("📁".to_string()),
                 folders: vec![SavedFolder {
                     id: folder_id,
                     name: "Downloads".to_string(),
@@ -72,11 +78,14 @@ impl AppState {
                 downloads: Vec::new(),
             }],
             structural_changes: PendingStructuralChanges::default(),
+            recent_emoji: Vec::new(),
             outbox: BTreeMap::new(),
             receipts: BTreeMap::new(),
             recovery: Vec::new(),
             migration: None,
-        }
+        };
+        state.migrate_workspace_appearances();
+        state
     }
 
     pub(crate) fn validate(&self) -> Result<(), InvariantViolation> {
@@ -85,6 +94,14 @@ impl AppState {
         }
         if self.workspaces.is_empty() {
             return Err(InvariantViolation::NoWorkspace);
+        }
+        if self.recent_emoji.len() > RECENT_EMOJI_LIMIT
+            || self.recent_emoji.iter().collect::<BTreeSet<_>>().len() != self.recent_emoji.len()
+            || self.recent_emoji.iter().any(|emoji| {
+                emoji.trim().is_empty() || emoji.len() > 128 || emoji.chars().any(char::is_control)
+            })
+        {
+            return Err(InvariantViolation::InvalidRecentEmoji);
         }
 
         let mut workspace_ids = BTreeSet::new();
@@ -97,6 +114,9 @@ impl AppState {
             }
             if workspace.name.trim().is_empty() {
                 return Err(InvariantViolation::EmptyWorkspaceName(workspace.id));
+            }
+            if !workspace.appearance.valid() {
+                return Err(InvariantViolation::InvalidWorkspaceAppearance(workspace.id));
             }
             if workspace.folders.is_empty() {
                 return Err(InvariantViolation::NoFolder(workspace.id));
@@ -176,7 +196,8 @@ impl AppState {
                     .iter()
                     .map(|folder| folder.id)
                     .collect::<BTreeSet<_>>();
-                if replacement.name.trim().is_empty()
+                if !replacement.appearance.valid()
+                    || replacement.name.trim().is_empty()
                     || replacement.folders.is_empty()
                     || replacement_folders.len() != replacement.folders.len()
                     || !replacement_folders.contains(&replacement.default_folder)
@@ -204,6 +225,12 @@ impl AppState {
             }
         }
         Ok(())
+    }
+
+    pub(crate) fn record_recent_emoji(&mut self, emoji: &str) {
+        self.recent_emoji.retain(|saved| saved != emoji);
+        self.recent_emoji.insert(0, emoji.to_string());
+        self.recent_emoji.truncate(RECENT_EMOJI_LIMIT);
     }
 
     pub(crate) fn workspace(&self, id: WorkspaceId) -> Option<&Workspace> {
@@ -277,6 +304,9 @@ pub(crate) enum SessionPhase {
 pub(crate) struct Workspace {
     pub(crate) id: WorkspaceId,
     pub(crate) name: String,
+    // Omitting the empty default preserves checksums of checkpoints written before appearances.
+    #[serde(default, skip_serializing_if = "WorkspaceAppearance::is_unassigned")]
+    pub(crate) appearance: WorkspaceAppearance,
     pub(crate) icon: WorkspaceIcon,
     pub(crate) folders: Vec<SavedFolder>,
     pub(crate) default_folder: FolderId,
@@ -713,6 +743,10 @@ pub(crate) struct MigrationRecord {
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub(crate) enum InvariantViolation {
+    #[error("recent emoji must be valid, unique, and bounded")]
+    InvalidRecentEmoji,
+    #[error("workspace {0} has an invalid appearance")]
+    InvalidWorkspaceAppearance(WorkspaceId),
     #[error("unsupported application-state schema {0}")]
     UnsupportedSchema(u32),
     #[error("the application must contain at least one workspace")]

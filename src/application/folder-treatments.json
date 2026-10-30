@@ -1,0 +1,86 @@
+[
+  {
+    "preset_id": "gold",
+    "version": 1,
+    "hue": 185,
+    "saturation": 500,
+    "brightness": 105
+  },
+  {
+    "preset_id": "coral",
+    "version": 1,
+    "hue": 155,
+    "saturation": 600,
+    "brightness": 100
+  },
+  {
+    "preset_id": "rose",
+    "version": 1,
+    "hue": 125,
+    "saturation": 450,
+    "brightness": 105
+  },
+  {
+    "preset_id": "orchid",
+    "version": 1,
+    "hue": 95,
+    "saturation": 500,
+    "brightness": 105
+  },
+  {
+    "preset_id": "violet",
+    "version": 1,
+    "hue": 65,
+    "saturation": 500,
+    "brightness": 100
+  },
+  {
+    "preset_id": "iris",
+    "version": 1,
+    "hue": 40,
+    "saturation": 400,
+    "brightness": 100
+  },
+  {
+    "preset_id": "blue",
+    "version": 1,
+    "hue": 10,
+    "saturation": 500,
+    "brightness": 100
+  },
+  {
+    "preset_id": "sky",
+    "version": 1,
+    "hue": 345,
+    "saturation": 450,
+    "brightness": 110
+  },
+  {
+    "preset_id": "teal",
+    "version": 1,
+    "hue": 315,
+    "saturation": 500,
+    "brightness": 100
+  },
+  {
+    "preset_id": "mint",
+    "version": 1,
+    "hue": 285,
+    "saturation": 400,
+    "brightness": 110
+  },
+  {
+    "preset_id": "leaf",
+    "version": 1,
+    "hue": 255,
+    "saturation": 600,
+    "brightness": 100
+  },
+  {
+    "preset_id": "lime",
+    "version": 1,
+    "hue": 225,
+    "saturation": 500,
+    "brightness": 110
+  }
+]
