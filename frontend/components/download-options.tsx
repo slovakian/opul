@@ -20,10 +20,11 @@ import { downloadTypes } from "@/lib/download-options";
 import type { DownloadType } from "@/lib/download-options";
 import { useLibrary } from "@/lib/library";
 import { formatNames, formatSchema } from "@/lib/model";
-import type { Format, Workspace } from "@/lib/model";
+import type { Folder, Format, Workspace } from "@/lib/model";
 
 export const DownloadOptions = ({
   workspace,
+  folder,
   type,
   format,
   onType,
@@ -32,6 +33,7 @@ export const DownloadOptions = ({
   disabled,
 }: {
   workspace: Workspace | undefined;
+  folder?: Folder;
   type: DownloadType;
   format: Format;
   onType: (type: DownloadType) => void;
@@ -74,6 +76,11 @@ export const DownloadOptions = ({
       </Tooltip>
       <PopoverContent align="end">
         <PopoverTitle>Download options</PopoverTitle>
+        {workspace && folder && (
+          <p className="text-muted-foreground -mt-1 text-xs">
+            {workspace.name} › {folder.name}
+          </p>
+        )}
         <FieldGroup>
           <Field>
             <FieldLabel>Download type</FieldLabel>

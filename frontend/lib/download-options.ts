@@ -17,7 +17,13 @@ export const downloadMode = (link: string): DownloadMode | undefined => {
     return "Torrent";
   }
 
-  const { pathname } = new URL(link);
+  let pathname = "";
+
+  try {
+    ({ pathname } = new URL(link));
+  } catch {
+    return undefined;
+  }
 
   if (/\.torrent$/iu.test(pathname)) {
     return "Torrent";

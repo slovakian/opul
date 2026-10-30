@@ -164,7 +164,7 @@ export const AppHeader = ({
         location={location}
         lastUsed={lastDestination}
         onUsed={onSetLastDestination}
-        disabled={!canEdit}
+        disabled={!canEdit || busy}
         query={query}
         setQuery={setQuery}
         inputRef={searchRef}
@@ -176,7 +176,9 @@ export const AppHeader = ({
       display={display}
       showFilter={location.kind === "all" || location.kind === "workspace"}
       view={onViewChange}
-      disabled={!canEdit || (location.kind !== "workspace" && !preferences)}
+      disabled={
+        !canEdit || busy || (location.kind !== "workspace" && !preferences)
+      }
     />
     <WorkspaceActions
       busy={busy}

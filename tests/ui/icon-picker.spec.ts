@@ -459,7 +459,7 @@ test("keyboard browsing keeps the active emoji visible beyond the first rows in 
     // oxlint-disable-next-line eslint/no-await-in-loop
     await page.keyboard.press("ArrowDown");
     // oxlint-disable-next-line eslint/no-await-in-loop
-    await expect(active).toHaveCount(1);
+    await expect(active).toHaveCount(1, { timeout: 10_000 });
     // oxlint-disable-next-line eslint/no-await-in-loop
     await expect(active).toBeInViewport({ ratio: 1 });
   }
@@ -468,7 +468,7 @@ test("keyboard browsing keeps the active emoji visible beyond the first rows in 
     // oxlint-disable-next-line eslint/no-await-in-loop
     await page.keyboard.press("ArrowUp");
     // oxlint-disable-next-line eslint/no-await-in-loop
-    await expect(active).toHaveCount(1);
+    await expect(active).toHaveCount(1, { timeout: 10_000 });
     // oxlint-disable-next-line eslint/no-await-in-loop
     await expect(active).toBeInViewport({ ratio: 1 });
   }

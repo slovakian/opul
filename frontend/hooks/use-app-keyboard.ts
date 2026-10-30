@@ -54,13 +54,15 @@ export const useAppKeyboard = ({
       window.removeEventListener("keydown", keydown);
 
       for (const subscription of subscriptions) {
-        subscription
-          .then((unlisten) => {
-            unlisten();
+        void (async () => {
+          try {
+            const unlisten = await subscription;
 
-            return null;
-          })
-          .catch(() => null);
+            unlisten();
+          } catch {
+            // Ignore unlisten errors
+          }
+        })();
       }
     };
   }, [focusInput, newDownload, setModal]);

@@ -64,18 +64,31 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
     let timer: ReturnType<typeof setTimeout>;
 
     const poll = async () => {
-      await refresh();
+      try {
+        await refresh();
+      } catch {
+        // Ignore poll refresh errors
+      }
 
       if (!stopped) {
         timer = setTimeout(poll, 800);
       }
     };
 
-    poll().catch(() => null);
-    bridge
-      .preferences()
-      .then(setPreferences)
-      .catch(() => null);
+    const loadPreferences = async () => {
+      try {
+        const initialPreferences = await bridge.preferences();
+
+        if (!stopped) {
+          setPreferences(initialPreferences);
+        }
+      } catch {
+        // Ignore initial preference read errors
+      }
+    };
+
+    void poll();
+    void loadPreferences();
 
     return () => {
       stopped = true;

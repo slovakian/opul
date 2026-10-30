@@ -147,6 +147,19 @@ export const useDownloadSubmission = ({
     }
   };
 
+  const createUrlSubmission = (
+    mode: DownloadMode,
+    targetQuery: string
+  ): Submission => ({
+    format:
+      formatOverride?.navigation === navigation
+        ? formatOverride.format
+        : undefined,
+    kind: "url",
+    mode,
+    query: targetQuery,
+  });
+
   const submit = async () => {
     if (locked || inFlight.current) {
       return;
@@ -160,15 +173,7 @@ export const useDownloadSubmission = ({
       return;
     }
 
-    await dispatch({
-      format:
-        formatOverride?.navigation === navigation
-          ? formatOverride.format
-          : undefined,
-      kind: "url",
-      mode,
-      query,
-    });
+    await dispatch(createUrlSubmission(mode, query));
   };
 
   const importTorrent = async () => {
@@ -205,15 +210,7 @@ export const useDownloadSubmission = ({
       setUncertain(undefined);
 
       if (submitted !== undefined) {
-        await dispatch({
-          format:
-            formatOverride?.navigation === navigation
-              ? formatOverride.format
-              : undefined,
-          kind: "url",
-          mode,
-          query: submitted,
-        });
+        await dispatch(createUrlSubmission(mode, submitted));
       }
     },
     closeConfirmation: () => setConfirmation(undefined),

@@ -20,7 +20,44 @@ import { naturalDestination, recommendedWorkspace } from "@/lib/destination";
 import type { Destination } from "@/lib/destination";
 import { isDownloadLink } from "@/lib/download-link";
 import { useLibrary } from "@/lib/library";
-import type { Workspace } from "@/lib/model";
+import type { Folder, Preferences, Workspace } from "@/lib/model";
+
+interface DestinationOverride {
+  workspaceId: string;
+  folderId: string;
+  navigation: number;
+}
+
+const resolveDestination = (
+  workspaces: Workspace[],
+  override: DestinationOverride | undefined,
+  navigation: number,
+  location: Location,
+  preferences: Preferences | null
+): Destination | undefined => {
+  const overrideWorkspace = workspaces.find(
+    (item) =>
+      override?.navigation === navigation && item.id === override.workspaceId
+  );
+
+  const overrideFolder = overrideWorkspace?.folders.find(
+    (item) => item.id === override?.folderId
+  );
+
+  if (overrideWorkspace && overrideFolder) {
+    return { folder: overrideFolder, workspace: overrideWorkspace };
+  }
+
+  return naturalDestination(workspaces, location, preferences);
+};
+
+const resolveOptionsFolder = (
+  destination: Destination | undefined,
+  workspace: Workspace | undefined
+): Folder | undefined =>
+  destination?.folder ??
+  workspace?.folders.find((folder) => folder.is_default) ??
+  workspace?.folders[0];
 
 export const DownloadInput = ({
   workspaces,
@@ -47,25 +84,15 @@ export const DownloadInput = ({
 }) => {
   const { run, preferences } = useLibrary();
 
-  const [override, setOverride] = useState<{
-    workspaceId: string;
-    folderId: string;
-    navigation: number;
-  }>();
+  const [override, setOverride] = useState<DestinationOverride>();
 
-  const overrideWorkspace = workspaces.find(
-    (item) =>
-      override?.navigation === navigation && item.id === override.workspaceId
+  const destination = resolveDestination(
+    workspaces,
+    override,
+    navigation,
+    location,
+    preferences
   );
-
-  const overrideFolder = overrideWorkspace?.folders.find(
-    (item) => item.id === override?.folderId
-  );
-
-  const destination =
-    overrideWorkspace && overrideFolder
-      ? { folder: overrideFolder, workspace: overrideWorkspace }
-      : naturalDestination(workspaces, location, preferences);
 
   const recommended = recommendedWorkspace(workspaces, preferences, lastUsed);
 
@@ -80,6 +107,7 @@ export const DownloadInput = ({
   const isLink = isDownloadLink(query);
 
   const optionsWorkspace = destination?.workspace ?? recommended;
+  const optionsFolder = resolveOptionsFolder(destination, optionsWorkspace);
 
   const submission = useDownloadSubmission({
     destination,
@@ -222,6 +250,7 @@ export const DownloadInput = ({
               </InputGroupButton>
               <DownloadOptions
                 workspace={optionsWorkspace}
+                folder={optionsFolder}
                 type={submission.type}
                 format={submission.format}
                 onType={(...args) => submission.setType(...args)}
