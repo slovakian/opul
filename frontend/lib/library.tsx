@@ -102,16 +102,26 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
 
   const run = useCallback(
     async (command: Command) => {
-      setPending((count) => count + 1);
+      const affectsBusy = command.kind !== "view";
+
+      if (affectsBusy) {
+        setPending((count) => count + 1);
+      }
 
       try {
         const receipt = await bridge.execute(command);
         await refresh();
-        setPending((count) => count - 1);
+
+        if (affectsBusy) {
+          setPending((count) => count - 1);
+        }
 
         return receipt;
       } catch (error) {
-        setPending((count) => count - 1);
+        if (affectsBusy) {
+          setPending((count) => count - 1);
+        }
+
         toast.add({
           description: errorMessage(error),
           title: "Couldn't complete that action",
@@ -126,8 +136,6 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
 
   const saveAggregateView = useCallback(
     async (view: AggregateView, display: DisplayPreferences) => {
-      setPending((count) => count + 1);
-
       try {
         setPreferences(await bridge.saveAggregateView(view, display));
       } catch (error) {
@@ -137,8 +145,6 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
           type: "error",
         });
       }
-
-      setPending((count) => count - 1);
     },
     []
   );

@@ -270,3 +270,57 @@ test("aggregate sorting and grouping change the rendered downloads", async ({
     "Paused · 1",
   ]);
 });
+
+test("changing sort, grouping, or view layout in workspace view does not toggle disabled or flicker search bar controls", async ({
+  page,
+}) => {
+  await mockDesktop(page);
+  await page.goto("/");
+  await navigate(page, "Downloads workspace");
+
+  const destinationButton = page.getByRole("button", {
+    name: /^Save location:/u,
+  });
+
+  await expect(destinationButton).toBeEnabled();
+
+  await page.evaluate(() => {
+    sessionStorage.setItem("disabled-changes", "0");
+    const inputGroup = document.querySelector('[data-slot="input-group"]');
+
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (
+          mutation.type === "attributes" &&
+          mutation.attributeName === "disabled"
+        ) {
+          const current = Number(
+            sessionStorage.getItem("disabled-changes") ?? "0"
+          );
+
+          sessionStorage.setItem("disabled-changes", String(current + 1));
+        }
+      }
+    });
+
+    if (inputGroup) {
+      observer.observe(inputGroup, {
+        attributeFilter: ["disabled"],
+        attributes: true,
+        subtree: true,
+      });
+    }
+  });
+
+  await page.getByRole("button", { exact: true, name: "Table view" }).click();
+  await expect(page.getByRole("table")).toBeVisible();
+
+  await chooseView(page, "Name", "Sort by");
+  await chooseView(page, "File type", "Group by");
+
+  const changes = await page.evaluate(
+    () => sessionStorage.getItem("disabled-changes") ?? "0"
+  );
+
+  expect(changes).toBe("0");
+});
