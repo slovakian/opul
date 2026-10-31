@@ -275,4 +275,55 @@ mod tests {
             "sig-x64-test"
         );
     }
+
+    #[test]
+    fn stable_manifest_parses_valid_tauri_updater_format() {
+        let manifest_json = r#"{
+            "version": "0.2.0",
+            "notes": "Opul Release 0.2.0",
+            "pub_date": "2026-10-31T15:00:00Z",
+            "platforms": {
+                "darwin-aarch64": {
+                    "url": "https://github.com/slovakian/opul/releases/download/v0.2.0/Opul-arm64.app.tar.gz",
+                    "signature": "sig-arm64-test"
+                },
+                "darwin-x86_64": {
+                    "url": "https://github.com/slovakian/opul/releases/download/v0.2.0/Opul-x64.app.tar.gz",
+                    "signature": "sig-x64-test"
+                }
+            }
+        }"#;
+
+        let release: tauri_plugin_updater::RemoteRelease =
+            serde_json::from_str(manifest_json).expect("stable manifest should deserialize");
+
+        assert_eq!(release.version.to_string(), "0.2.0");
+        assert_eq!(
+            release
+                .download_url("darwin-aarch64")
+                .expect("darwin-aarch64 URL")
+                .as_str(),
+            "https://github.com/slovakian/opul/releases/download/v0.2.0/Opul-arm64.app.tar.gz"
+        );
+        assert_eq!(
+            release
+                .signature("darwin-aarch64")
+                .expect("darwin-aarch64 signature"),
+            "sig-arm64-test"
+        );
+
+        assert_eq!(
+            release
+                .download_url("darwin-x86_64")
+                .expect("darwin-x86_64 URL")
+                .as_str(),
+            "https://github.com/slovakian/opul/releases/download/v0.2.0/Opul-x64.app.tar.gz"
+        );
+        assert_eq!(
+            release
+                .signature("darwin-x86_64")
+                .expect("darwin-x86_64 signature"),
+            "sig-x64-test"
+        );
+    }
 }

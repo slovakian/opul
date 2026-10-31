@@ -18,13 +18,13 @@ Options:
   --notes <string>          Release notes description
   --pub-date <iso-date>     Publication timestamp (RFC 3339 / ISO 8601)
   --repo <owner/repo>       GitHub repository (default: slovakian/opul)
-  --tag <tag>               Release tag (default: nightly)
+  --tag <tag>               Release tag (default: nightly for nightly, v<version> for stable)
   --channel <channel>       Channel name (nightly or stable, default: nightly)
   --arm64-url <url>         Download URL for darwin-aarch64 updater bundle
   --arm64-sig <sig_or_file> Signature or path to .sig file for darwin-aarch64
   --x64-url <url>           Download URL for darwin-x86_64 updater bundle
   --x64-sig <sig_or_file>   Signature or path to .sig file for darwin-x86_64
-  --output, -o <file>       Output JSON path (default: nightly.json)
+  --output, -o <file>       Output JSON path (default: nightly.json or latest.json)
   --validate <file>         Validate an existing updater manifest JSON
   --help, -h                Show this help message`);
 };
@@ -101,7 +101,11 @@ const buildManifest = (values) => {
     `Opul ${channel === "nightly" ? "Nightly" : "Release"} ${normalizedVersion}`;
 
   const repo = values.repo || DEFAULT_REPO;
-  const tag = values.tag || "nightly";
+
+  const defaultTag =
+    channel === "nightly" ? "nightly" : `v${normalizedVersion}`;
+
+  const tag = values.tag || defaultTag;
   const prefix = channel === "nightly" ? "Opul-Nightly" : "Opul";
 
   const arm64Url =
@@ -145,10 +149,10 @@ const main = () => {
       channel: { default: "nightly", type: "string" },
       help: { short: "h", type: "boolean" },
       notes: { type: "string" },
-      output: { default: "nightly.json", short: "o", type: "string" },
+      output: { short: "o", type: "string" },
       "pub-date": { type: "string" },
       repo: { default: DEFAULT_REPO, type: "string" },
-      tag: { default: "nightly", type: "string" },
+      tag: { type: "string" },
       validate: { type: "string" },
       version: { type: "string" },
       "x64-sig": { type: "string" },
@@ -174,7 +178,13 @@ const main = () => {
 
   const manifest = buildManifest(values);
   const jsonStr = `${JSON.stringify(manifest, null, 2)}\n`;
-  const outputPath = values.output ?? "nightly.json";
+
+  const defaultOutput =
+    (values.channel || "nightly") === "nightly"
+      ? "nightly.json"
+      : "latest.json";
+
+  const outputPath = values.output ?? defaultOutput;
 
   writeFileSync(outputPath, jsonStr, "utf-8");
   console.log(`Generated valid updater manifest: ${outputPath}`);

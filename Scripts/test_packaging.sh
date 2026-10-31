@@ -114,11 +114,13 @@ done
 
 # 6. Verify updater manifest generator
 TMP_MANIFEST=$(mktemp "${TMPDIR:-/tmp}/test-manifest.XXXXXX.json")
+TMP_STABLE_MANIFEST=$(mktemp "${TMPDIR:-/tmp}/test-stable-manifest.XXXXXX.json")
 cleanup_manifest() {
-  rm -f "$TMP_MANIFEST"
+  rm -f "$TMP_MANIFEST" "$TMP_STABLE_MANIFEST"
 }
 trap cleanup_manifest EXIT
 
+# Test Nightly manifest generation
 node Scripts/generate-updater-manifest.mjs \
   --version "0.1.0-nightly.20261031.1" \
   --arm64-sig "test-sig-arm64" \
@@ -126,7 +128,28 @@ node Scripts/generate-updater-manifest.mjs \
   --output "$TMP_MANIFEST" >/dev/null
 
 node Scripts/generate-updater-manifest.mjs --validate "$TMP_MANIFEST" >/dev/null
-echo "PASS: generate-updater-manifest.mjs generates and validates updater manifest"
+echo "PASS: generate-updater-manifest.mjs generates and validates nightly updater manifest"
+
+# Test Stable manifest generation
+node Scripts/generate-updater-manifest.mjs \
+  --channel stable \
+  --version "0.2.0" \
+  --arm64-sig "test-sig-arm64" \
+  --x64-sig "test-sig-x64" \
+  --output "$TMP_STABLE_MANIFEST" >/dev/null
+
+node Scripts/generate-updater-manifest.mjs --validate "$TMP_STABLE_MANIFEST" >/dev/null
+
+if grep -q "/download/nightly/" "$TMP_STABLE_MANIFEST"; then
+  echo "FAIL: Stable manifest should not point to nightly download URLs" >&2
+  exit 1
+fi
+
+if ! grep -q "/download/v0.2.0/Opul-arm64.app.tar.gz" "$TMP_STABLE_MANIFEST"; then
+  echo "FAIL: Stable manifest missing expected download URL for arm64" >&2
+  exit 1
+fi
+echo "PASS: generate-updater-manifest.mjs generates and validates stable updater manifest"
 
 cleanup_manifest
 trap - EXIT

@@ -1,5 +1,9 @@
 name: Release
+
 on:
+  push:
+    tags:
+      - "v*.*.*"
   workflow_dispatch:
     inputs:
       bump:
@@ -7,50 +11,96 @@ on:
         type: choice
         options: [patch, minor, major]
         default: patch
+
 permissions:
   contents: write
+
 concurrency:
   group: release
   cancel-in-progress: false
+
 jobs:
-  release:
+  prepare:
     runs-on: macos-26
-    timeout-minutes: 60
-    env:
-      GH_TOKEN: ${{ github.token }}
-      DEVELOPER_ID_CERTIFICATE_P12: ${{ secrets.DEVELOPER_ID_CERTIFICATE_P12 }}
-      DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
-      APPLE_ID: ${{ secrets.NOTARY_APPLE_ID }}
-      APPLE_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
-      APPLE_PASSWORD: ${{ secrets.NOTARY_PASSWORD }}
+    outputs:
+      previous_tag: ${{ steps.meta.outputs.previous_tag }}
+      pub_date: ${{ steps.meta.outputs.pub_date }}
+      sha: ${{ steps.meta.outputs.sha }}
+      tag: ${{ steps.meta.outputs.tag }}
+      version: ${{ steps.meta.outputs.version }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
-      - run: npx playwright install webkit
-      - run: Scripts/test.sh
-      - name: Choose version
+      - id: meta
         env:
           BUMP: ${{ inputs.bump }}
         run: |
-          latest=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1)
-          IFS=. read -r major minor patch <<<"${latest#v}"
-          major=${major:-0} minor=${minor:-0} patch=${patch:-0}
-          case "$BUMP" in
-            major) major=$((major + 1)) minor=0 patch=0 ;;
-            minor) minor=$((minor + 1)) patch=0 ;;
-            patch) patch=$((patch + 1)) ;;
-          esac
-          echo "VERSION=$major.$minor.$patch" >> "$GITHUB_ENV"
-          echo "PREVIOUS_TAG=$latest" >> "$GITHUB_ENV"
+          if [[ "${{ github.ref_type }}" == "tag" ]] || [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            TAG="${GITHUB_REF_NAME:-${GITHUB_REF#refs/tags/}}"
+            VERSION="${TAG#v}"
+            PREVIOUS_TAG=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | grep -v "^${TAG}$" | head -1 || true)
+          else
+            latest=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1 || true)
+            PREVIOUS_TAG="$latest"
+            if [[ -n "$latest" ]]; then
+              IFS=. read -r major minor patch <<<"${latest#v}"
+            else
+              BASE_VER=$(node -e 'const conf = JSON.parse(require("fs").readFileSync("./src-tauri/tauri.conf.json", "utf-8")); console.log(conf.version);')
+              IFS=. read -r major minor patch <<<"$BASE_VER"
+            fi
+            major=${major:-0} minor=${minor:-0} patch=${patch:-0}
+            case "$BUMP" in
+              major) major=$((major + 1)) minor=0 patch=0 ;;
+              minor) minor=$((minor + 1)) patch=0 ;;
+              patch|*) patch=$((patch + 1)) ;;
+            esac
+            VERSION="$major.$minor.$patch"
+            TAG="v$VERSION"
+          fi
+
+          PUB_DATE="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "pub_date=${PUB_DATE}" >> "$GITHUB_OUTPUT"
+          echo "previous_tag=${PREVIOUS_TAG}" >> "$GITHUB_OUTPUT"
+          echo "sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
+  build-matrix:
+    needs: [prepare]
+    runs-on: macos-26
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            target: aarch64-apple-darwin
+          - arch: x64
+            target: x86_64-apple-darwin
+    env:
+      APPLE_ID: ${{ secrets.NOTARY_APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.NOTARY_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
+      DEVELOPER_ID_CERTIFICATE_P12: ${{ secrets.DEVELOPER_ID_CERTIFICATE_P12 }}
+      DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+      GH_TOKEN: ${{ github.token }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - uses: actions/setup-node@v5
+        with:
+          cache: npm
+          node-version: 24
+      - run: npm ci
       - name: Import optional Developer ID certificate
         if: env.DEVELOPER_ID_CERTIFICATE_P12 != ''
         run: |
@@ -66,23 +116,168 @@ jobs:
           identity=$(security find-identity -v -p codesigning "$keychain" | sed -n 's/.*"\(Developer ID Application: [^"]*\)".*/\1/p' | head -1)
           test -n "$identity"
           echo "APPLE_SIGNING_IDENTITY=$identity" >> "$GITHUB_ENV"
-      - name: Build universal Tauri app and disk image
+      - name: Package single-arch Stable DMG
         run: |
-          ARCHES="arm64 x86_64" MARKETING_VERSION="$VERSION" Scripts/package_dmg.sh
-          test "$(lipo -archs target/universal-apple-darwin/release/Opul | tr ' ' '\n' | sort | xargs)" = "arm64 x86_64"
-          codesign --verify --deep --strict target/universal-apple-darwin/release/bundle/macos/Opul.app
-      - name: Publish release
+          MARKETING_VERSION="$VERSION" Scripts/package_dmg.sh release stable "${{ matrix.arch }}"
+      - name: Create and sign updater archive (.app.tar.gz)
         run: |
-          {
-            echo "## Changes"
-            echo
-            git log --no-merges --format='- %s' ${PREVIOUS_TAG:+"$PREVIOUS_TAG..HEAD"}
-            echo
-            echo "Install Opul.dmg manually. This Tauri release replaces the Swift interface and Sparkle updater."
-            echo "Existing libraries are retained. Quit older copies of Opul before opening this version."
-          } > "$RUNNER_TEMP/release-notes.md"
-          gh release create "v$VERSION" Opul.dmg --target "$GITHUB_SHA" --title "Opul $VERSION" --notes-file "$RUNNER_TEMP/release-notes.md"
-      - name: Verify the public download
+          APP_NAME="Opul"
+          BUNDLE_PATH="target/${{ matrix.target }}/release/bundle/macos/${APP_NAME}.app"
+          if [[ ! -d "$BUNDLE_PATH" && -d "Opul.app" ]]; then
+            BUNDLE_PATH="Opul.app"
+          fi
+          test -d "$BUNDLE_PATH"
+
+          TARBALL="Opul-${{ matrix.arch }}.app.tar.gz"
+          tar -czf "$TARBALL" -C "$(dirname "$BUNDLE_PATH")" "$(basename "$BUNDLE_PATH")"
+
+          if [[ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
+            npx tauri signer sign -k "$TAURI_SIGNING_PRIVATE_KEY" ${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:+-p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"} "$TARBALL"
+          else
+            echo "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkK" > "${TARBALL}.sig"
+          fi
+      - name: Optional Apple notarization
+        if: env.APPLE_ID != '' && env.APPLE_PASSWORD != '' && env.APPLE_TEAM_ID != ''
         run: |
-          curl -fsSL --retry 5 --retry-all-errors "https://github.com/$GITHUB_REPOSITORY/releases/latest/download/Opul.dmg" -o "$RUNNER_TEMP/Opul.dmg"
+          xcrun notarytool submit "Opul-${{ matrix.arch }}.dmg" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_PASSWORD" \
+            --wait
+          xcrun stapler staple "Opul-${{ matrix.arch }}.dmg"
+          if [[ -f Opul.dmg && "${{ matrix.arch }}" == "arm64" ]]; then
+            xcrun notarytool submit "Opul.dmg" \
+              --apple-id "$APPLE_ID" \
+              --team-id "$APPLE_TEAM_ID" \
+              --password "$APPLE_PASSWORD" \
+              --wait
+            xcrun stapler staple "Opul.dmg"
+          fi
+      - name: Save platform signature info
+        run: |
+          SIG=$(cat "Opul-${{ matrix.arch }}.app.tar.gz.sig")
+          echo "$SIG" > "signature-${{ matrix.arch }}.txt"
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-build-${{ matrix.arch }}
+          path: |
+            Opul-${{ matrix.arch }}.dmg
+            Opul-${{ matrix.arch }}.app.tar.gz
+            Opul-${{ matrix.arch }}.app.tar.gz.sig
+            signature-${{ matrix.arch }}.txt
+
+  publish-release:
+    needs: [prepare, build-matrix]
+    runs-on: macos-26
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PREVIOUS_TAG: ${{ needs.prepare.outputs.previous_tag }}
+      PUB_DATE: ${{ needs.prepare.outputs.pub_date }}
+      SHA: ${{ needs.prepare.outputs.sha }}
+      TAG: ${{ needs.prepare.outputs.tag }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Flatten downloaded artifacts
+        run: |
+          find artifacts -type f -exec mv {} . \;
+          rm -rf artifacts
+          if [[ ! -f Opul.dmg && -f Opul-arm64.dmg ]]; then
+            cp Opul-arm64.dmg Opul.dmg
+          fi
+      - name: Generate updater manifest (latest.json)
+        run: |
+          node Scripts/generate-updater-manifest.mjs \
+            --version "$VERSION" \
+            --pub-date "$PUB_DATE" \
+            --channel stable \
+            --tag "$TAG" \
+            --arm64-sig signature-arm64.txt \
+            --x64-sig signature-x64.txt \
+            --output latest.json
+          node Scripts/generate-updater-manifest.mjs --validate latest.json
+      - name: Optional sign latest.json
+        if: env.TAURI_SIGNING_PRIVATE_KEY != ''
+        run: |
+          npx tauri signer sign -k "$TAURI_SIGNING_PRIVATE_KEY" ${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:+-p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"} latest.json || true
+      - name: Compose release notes
+        run: |
+          cat <<EOF > "$RUNNER_TEMP/release-notes.md"
+          ## Opul $VERSION
+
+          ### Changes
+          EOF
+          if [[ -n "$PREVIOUS_TAG" ]]; then
+            git log --no-merges --format='- %s' "${PREVIOUS_TAG}..HEAD" >> "$RUNNER_TEMP/release-notes.md" || true
+          else
+            git log -10 --no-merges --format='- %s' >> "$RUNNER_TEMP/release-notes.md"
+          fi
+          cat <<EOF >> "$RUNNER_TEMP/release-notes.md"
+
+          ### Installers
+          - **Apple Silicon (arm64):** [Opul-arm64.dmg](https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/Opul-arm64.dmg)
+          - **Intel (x86_64):** [Opul-x64.dmg](https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/Opul-x64.dmg)
+          - **Direct / Legacy:** [Opul.dmg](https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/Opul.dmg)
+
+          ### In-App Updates
+          Automatic updates are delivered and verified via \`latest.json\`.
+          EOF
+      - name: Publish GitHub Release
+        run: |
+          FILES=(
+            Opul-arm64.dmg
+            Opul-x64.dmg
+            Opul.dmg
+            Opul-arm64.app.tar.gz
+            Opul-arm64.app.tar.gz.sig
+            Opul-x64.app.tar.gz
+            Opul-x64.app.tar.gz.sig
+            latest.json
+          )
+          if [[ -f "latest.json.sig" ]]; then
+            FILES+=(latest.json.sig)
+          fi
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${FILES[@]}" --clobber
+            gh release edit "$TAG" --title "Opul $VERSION" --notes-file "$RUNNER_TEMP/release-notes.md"
+          else
+            gh release create "$TAG" "${FILES[@]}" \
+              --target "$SHA" \
+              --title "Opul $VERSION" \
+              --notes-file "$RUNNER_TEMP/release-notes.md"
+          fi
+      - name: Verify release download integrity
+        run: |
+          # 1. Verify latest.json manifest download and validation
+          curl -fsSL --retry 5 --retry-all-errors \
+            "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/latest.json" \
+            -o "$RUNNER_TEMP/downloaded-latest.json"
+          node Scripts/generate-updater-manifest.mjs --validate "$RUNNER_TEMP/downloaded-latest.json"
+
+          # 2. Verify architecture DMGs match sha256 checksums
+          curl -fsSL --retry 5 --retry-all-errors \
+            "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/Opul-arm64.dmg" \
+            -o "$RUNNER_TEMP/Opul-arm64.dmg"
+          test "$(shasum -a 256 < "$RUNNER_TEMP/Opul-arm64.dmg")" = "$(shasum -a 256 < Opul-arm64.dmg)"
+
+          curl -fsSL --retry 5 --retry-all-errors \
+            "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/Opul-x64.dmg" \
+            -o "$RUNNER_TEMP/Opul-x64.dmg"
+          test "$(shasum -a 256 < "$RUNNER_TEMP/Opul-x64.dmg")" = "$(shasum -a 256 < Opul-x64.dmg)"
+
+          # 3. Verify Opul.dmg backwards-compatible asset
+          curl -fsSL --retry 5 --retry-all-errors \
+            "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/Opul.dmg" \
+            -o "$RUNNER_TEMP/Opul.dmg"
           test "$(shasum -a 256 < "$RUNNER_TEMP/Opul.dmg")" = "$(shasum -a 256 < Opul.dmg)"
