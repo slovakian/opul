@@ -58,7 +58,7 @@ test("skin tones change the selected sequence and recents start with successful 
   await expect(editor(page)).toHaveCount(0);
   await openPicker(page);
   await expect(
-    editor(page).locator("[frimousse-category-header]:visible").first()
+    editor(page).locator('[data-slot="emoji-category-header"]:visible').first()
   ).toHaveText("Recently Used");
   await expect(editor(page).getByRole("gridcell").first()).toHaveText("👩🏽‍💻");
   await expect(
@@ -253,7 +253,7 @@ test("recent variants and joined sequences are searchable, keyboard selectable, 
   await expect(editor(page).getByRole("gridcell").first()).toHaveText("🫱🏻‍🫲🏿");
   await page.keyboard.press("ArrowUp");
   await expect(
-    editor(page).locator("[frimousse-emoji][data-active]")
+    editor(page).locator('[data-slot="emoji-cell"][data-active]')
   ).toHaveText("🫱🏻‍🫲🏿");
   await page.keyboard.press("Enter");
   await expect(

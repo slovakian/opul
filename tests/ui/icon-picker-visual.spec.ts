@@ -47,10 +47,10 @@ for (const theme of ["light", "dark"]) {
     }
 
     await openPicker(page);
-    const viewport = editor(page).locator("[frimousse-viewport]");
+    const viewport = editor(page).locator('[data-slot="emoji-viewport"]');
 
     const headers = viewport.locator(
-      "[frimousse-list-sizer] > [frimousse-category] > [frimousse-category-header]"
+      '[data-slot="emoji-grid"] > [data-slot="emoji-category"] > [data-slot="emoji-category-header"]'
     );
 
     await expect(headers.first()).toHaveText("Smileys & Emotion");
@@ -60,10 +60,10 @@ for (const theme of ["light", "dark"]) {
       const style = getComputedStyle(element);
 
       const rawHeaderHeight = style.getPropertyValue(
-        "--frimousse-category-header-height"
+        "--emoji-category-header-height"
       );
 
-      const rawRowHeight = style.getPropertyValue("--frimousse-row-height");
+      const rawRowHeight = style.getPropertyValue("--emoji-row-height");
 
       return {
         headerHeight: Number(rawHeaderHeight.replace(/px$/u, "")),

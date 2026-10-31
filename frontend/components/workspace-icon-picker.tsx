@@ -1,31 +1,13 @@
 import { Toggle as TogglePrimitive } from "@base-ui/react/toggle";
-import { EmojiPicker } from "frimousse";
-import type {
-  EmojiPickerListCategoryHeaderProps,
-  EmojiPickerListComponents,
-  EmojiPickerListEmojiProps,
-  EmojiPickerListRowProps,
-} from "frimousse";
-import { Search } from "lucide-react";
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import type { Dispatch, RefObject, SetStateAction } from "react";
+import { useMemo, useRef } from "react";
+import type { Dispatch, SetStateAction } from "react";
+import { useEffectReducer } from "use-effect-reducer";
+import type { EffectReducer } from "use-effect-reducer";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { EmojiFrame, emojiOptionClassName } from "@/components/ui/emoji-frame";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "@/components/ui/input-group";
+import { EmojiPicker } from "@/components/ui/emoji-picker";
 import {
   Popover,
   PopoverContent,
@@ -50,148 +32,44 @@ export interface IconDraft {
   emoji: string;
 }
 
-interface EmojiPickerContextValue {
-  chosenEmoji: string;
-  keyboardNavigation: RefObject<boolean>;
-}
+type BrowsingEvent =
+  | { type: "customize" }
+  | { type: "back" }
+  | { type: "change"; update: SetStateAction<IconDraft> };
 
-const EmojiPickerContext = createContext<EmojiPickerContextValue>({
-  chosenEmoji: "",
-  keyboardNavigation: { current: false },
-});
+type BrowsingEffect =
+  | { type: "customize" }
+  | { type: "focusCustom" }
+  | { type: "change"; update: SetStateAction<IconDraft> };
 
-const EmojiCategoryHeader = ({
-  category,
-  ...headerProps
-}: EmojiPickerListCategoryHeaderProps) => (
-  <div
-    {...headerProps}
-    // Fade through the sticky header's bottom padding at the same depth as the viewport's bottom fade.
-    className="from-popover text-muted-foreground bg-linear-to-b from-[calc(100%_-_var(--scroll-fade-size))] to-transparent px-1 py-2 text-xs font-medium"
-  >
-    {category.label.replaceAll(/\b[a-z]/gu, (letter) => letter.toUpperCase())}
-  </div>
-);
+const browsingReducer: EffectReducer<boolean, BrowsingEvent, BrowsingEffect> = (
+  state,
+  event,
+  exec
+) => {
+  switch (event.type) {
+    case "customize": {
+      exec({ type: "customize" });
 
-const EmojiRow = ({ children, ...rowProps }: EmojiPickerListRowProps) => {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useLayoutEffect(() => {
-    const list = ref.current?.closest<HTMLElement>("[frimousse-list]");
-
-    if (list && !list.dataset.patchedRowIndex) {
-      list.dataset.patchedRowIndex = "true";
-      const originalQuerySelector = list.querySelector.bind(list);
-
-      list.querySelector = function querySelector<E extends Element = Element>(
-        selector: string
-      ): E | null {
-        const match = selector.match(/^\[aria-rowindex="(?<rowIndex>\d+)"\]$/u);
-
-        if (match?.groups?.rowIndex) {
-          const adjusted = Number(match.groups.rowIndex) + 1;
-
-          return originalQuerySelector<E>(`[aria-rowindex="${adjusted}"]`);
-        }
-
-        return originalQuerySelector<E>(selector);
-      };
-    }
-  }, []);
-
-  return (
-    <div
-      {...rowProps}
-      ref={ref}
-      aria-rowindex={
-        rowProps["aria-rowindex"] === undefined
-          ? undefined
-          : rowProps["aria-rowindex"] + 1
-      }
-      className="scroll-my-1"
-    >
-      {children}
-    </div>
-  );
-};
-
-const EmojiGridCell = (props: EmojiPickerListEmojiProps) => {
-  const { chosenEmoji, keyboardNavigation } = useContext(EmojiPickerContext);
-  const { emoji } = props;
-  const chosen = emoji.emoji === chosenEmoji;
-  const ref = useRef<HTMLButtonElement>(null);
-
-  useLayoutEffect(() => {
-    if (!emoji.isActive || !keyboardNavigation.current) {
-      return;
+      return true;
     }
 
-    const cell = ref.current;
-    const viewport = cell?.closest<HTMLElement>("[frimousse-viewport]");
+    case "back": {
+      exec({ type: "focusCustom" });
 
-    if (!cell || !viewport) {
-      return;
-    }
-    // Frimousse 0.4 also uses its zero-based ARIA row index as a scroll target.
-    // After correcting indices, keep the actual active cell visible, without
-    // scrolling on hover or depending on the library's private row numbering.
-
-    const bounds = cell.getBoundingClientRect();
-    const frame = viewport.getBoundingClientRect();
-
-    const header = viewport.querySelector<HTMLElement>(
-      "[frimousse-category-header]"
-    );
-
-    const top =
-      frame.top +
-      Math.max(
-        0,
-        Math.min(header?.offsetHeight ?? 0, frame.height - bounds.height)
-      );
-
-    let delta = 0;
-
-    if (bounds.bottom > frame.bottom) {
-      delta = bounds.bottom - frame.bottom;
-    } else if (bounds.top < top) {
-      delta = bounds.top - top;
+      return false;
     }
 
-    if (delta) {
-      viewport.scrollBy({ behavior: "instant", top: delta });
+    case "change": {
+      exec(event);
+
+      return state;
     }
-  }, [emoji.isActive, keyboardNavigation]);
 
-  return (
-    <button
-      {...props}
-      ref={ref}
-      type="button"
-      // oxlint-disable-next-line jsx-a11y/role-supports-aria-props
-      aria-colindex={
-        props["aria-colindex"] === undefined
-          ? undefined
-          : props["aria-colindex"] + 1
-      }
-      // oxlint-disable-next-line jsx-a11y/role-supports-aria-props
-      aria-description={chosen ? "Selected icon" : undefined}
-      data-chosen={chosen}
-      data-keyboard-active={emoji.isActive && keyboardNavigation.current}
-      className={cn(
-        emojiOptionClassName,
-        "data-[keyboard-active=true]:outline-ring data-[keyboard-active=true]:outline-2"
-      )}
-    >
-      <EmojiFrame selected={chosen}>{emoji.emoji}</EmojiFrame>
-    </button>
-  );
-};
-
-const listComponents: EmojiPickerListComponents = {
-  CategoryHeader: EmojiCategoryHeader,
-  Emoji: EmojiGridCell,
-  Row: EmojiRow,
+    default: {
+      throw new Error(`Unhandled browsing event: ${event satisfies never}`);
+    }
+  }
 };
 
 // The browsing surface is controlled so creation can retain it in its own draft.
@@ -216,22 +94,30 @@ export const WorkspaceIconPicker = ({
   );
 
   const tones = useMemo(() => skinToneChoices(emoji), [emoji]);
-  const keyboardNavigation = useRef(false);
-  const [custom, setCustom] = useState(false);
   const customButton = useRef<HTMLButtonElement>(null);
-  const restoreFocus = useRef(false);
 
-  useLayoutEffect(() => {
-    if (!custom && restoreFocus.current) {
-      customButton.current?.focus({ preventScroll: true });
-      restoreFocus.current = false;
-    }
-  }, [custom]);
+  const [custom, dispatch] = useEffectReducer(browsingReducer, false, {
+    change: (_state, event) => onChange(event.update),
+    customize: () => {
+      onChange((prevDraft) => {
+        const current = emojiTreatment(prevDraft.emoji, prevDraft.appearance);
 
-  const pickerContextValue = useMemo(
-    () => ({ chosenEmoji: emoji, keyboardNavigation }),
-    [emoji]
-  );
+        return {
+          ...prevDraft,
+          appearance: {
+            ...prevDraft.appearance,
+            preference: {
+              brightness: current?.brightness ?? 100,
+              hue: current?.hue ?? 0,
+              kind: "Custom",
+              saturation: current?.saturation ?? 100,
+            },
+          },
+        };
+      });
+    },
+    focusCustom: () => customButton.current?.focus({ preventScroll: true }),
+  });
 
   return (
     <>
@@ -272,7 +158,10 @@ export const WorkspaceIconPicker = ({
                 const [selected] = values;
 
                 if (selected) {
-                  onChange((prevDraft) => ({ ...prevDraft, emoji: selected }));
+                  dispatch({
+                    type: "change",
+                    update: (prevDraft) => ({ ...prevDraft, emoji: selected }),
+                  });
                 }
               }}
             >
@@ -291,82 +180,22 @@ export const WorkspaceIconPicker = ({
               ))}
             </ToggleGroup>
           )}
-          <EmojiPicker.Root
-            className="flex min-h-[7.25rem] flex-1 flex-col gap-2"
-            columns={8}
-            locale="en"
-            resolveEmojiData={resolveEmojiData}
-            onKeyDownCapture={(event) => {
-              if (event.key.startsWith("Arrow")) {
-                keyboardNavigation.current = true;
-              }
-            }}
-            onPointerMoveCapture={() => {
-              keyboardNavigation.current = false;
-            }}
-            onEmojiSelect={({ emoji: selectedEmoji }) =>
-              onChange((prevDraft) => ({ ...prevDraft, emoji: selectedEmoji }))
+          <EmojiPicker
+            chosenEmoji={emoji}
+            resolveData={resolveEmojiData}
+            onSelect={(selected) =>
+              dispatch({
+                type: "change",
+                update: (prevDraft) => ({ ...prevDraft, emoji: selected }),
+              })
             }
-          >
-            <InputGroup>
-              <InputGroupInput
-                render={
-                  <EmojiPicker.Search
-                    autoFocus
-                    aria-label="Search emoji"
-                    placeholder="Search emoji…"
-                  />
-                }
-              />
-              <InputGroupAddon>
-                <Search />
-              </InputGroupAddon>
-            </InputGroup>
-            <EmojiPicker.Viewport
-              className="scroll-fade-b scroll-fade-2 focus-visible:ring-ring relative min-h-[4.5rem] flex-1 overscroll-contain rounded-md outline-none focus-visible:ring-2"
-              aria-label="Emoji categories"
-            >
-              <EmojiPicker.Loading className="text-muted-foreground p-4 text-sm">
-                Loading emoji…
-              </EmojiPicker.Loading>
-              <EmojiPicker.Empty className="text-muted-foreground p-4 text-sm">
-                No emoji found.
-              </EmojiPicker.Empty>
-              <EmojiPickerContext.Provider value={pickerContextValue}>
-                <EmojiPicker.List
-                  // Frimousse 0.4 emits zero-based ARIA indices; ARIA requires one-based indices.
-                  components={listComponents}
-                />
-              </EmojiPickerContext.Provider>
-            </EmojiPicker.Viewport>
-          </EmojiPicker.Root>
+          />
           <WorkspaceColorSuggestions
             workspaceId={workspaceId}
             draft={draft}
             onChange={onChange}
             customButton={customButton}
-            onCustomize={() => {
-              onChange((prevDraft) => {
-                const current = emojiTreatment(
-                  prevDraft.emoji,
-                  prevDraft.appearance
-                );
-
-                return {
-                  ...prevDraft,
-                  appearance: {
-                    ...prevDraft.appearance,
-                    preference: {
-                      brightness: current?.brightness ?? 100,
-                      hue: current?.hue ?? 0,
-                      kind: "Custom",
-                      saturation: current?.saturation ?? 100,
-                    },
-                  },
-                };
-              });
-              setCustom(true);
-            }}
+            onCustomize={() => dispatch("customize")}
           />
         </div>
         {custom &&
@@ -376,15 +205,92 @@ export const WorkspaceIconPicker = ({
               emoji={emoji}
               treatment={appearance.preference}
               onChange={onChange}
-              onBack={() => {
-                restoreFocus.current = true;
-                setCustom(false);
-              }}
+              onBack={() => dispatch("back")}
             />
           )}
       </div>
     </>
   );
+};
+
+interface EditorState {
+  draft: IconDraft;
+  status: "loading" | "ready" | "saving";
+  error: string | null;
+}
+
+type EditorEvent =
+  | { type: "change"; update: SetStateAction<IconDraft> }
+  | { type: "loaded"; appearance: Workspace["appearance"] }
+  | { type: "loadFailed"; error: string }
+  | { type: "retry" }
+  | { type: "save" }
+  | { type: "saved" }
+  | { type: "saveFailed" };
+
+type EditorEffect = { type: "load" } | { type: "save" } | { type: "close" };
+
+const editorReducer: EffectReducer<EditorState, EditorEvent, EditorEffect> = (
+  state,
+  event,
+  exec
+) => {
+  switch (event.type) {
+    case "change": {
+      return {
+        ...state,
+        draft:
+          "call" in event.update ? event.update(state.draft) : event.update,
+      };
+    }
+
+    case "loaded": {
+      return {
+        ...state,
+        draft: { ...state.draft, appearance: event.appearance },
+        error: null,
+        status: "ready",
+      };
+    }
+
+    case "loadFailed": {
+      return { ...state, error: event.error };
+    }
+
+    case "retry": {
+      exec({ type: "load" });
+
+      return { ...state, error: null };
+    }
+
+    case "save": {
+      if (state.status !== "ready") {
+        return state;
+      }
+
+      exec({ type: "save" });
+
+      return { ...state, error: null, status: "saving" };
+    }
+
+    case "saved": {
+      exec({ type: "close" });
+
+      return { ...state, status: "ready" };
+    }
+
+    case "saveFailed": {
+      return {
+        ...state,
+        error: "Couldn't save the icon. Your changes are kept here; try again.",
+        status: "ready",
+      };
+    }
+
+    default: {
+      throw new Error(`Unhandled editor event: ${event satisfies never}`);
+    }
+  }
 };
 
 export const WorkspaceIconEditor = ({
@@ -398,76 +304,68 @@ export const WorkspaceIconEditor = ({
 }) => {
   const { run } = useLibrary();
 
-  const [draft, setDraft] = useState<IconDraft>({
-    appearance: workspace.appearance,
-    emoji: workspaceEmoji(workspace),
-  });
-
-  const [ready, setReady] = useState(!!workspace.appearance.automatic_folder);
-  const [error, setError] = useState<string>();
-  const [saving, setSaving] = useState(false);
-  const [loadAttempt, setLoadAttempt] = useState(0);
   const submission = useRef<{ input: string; requestId: string } | null>(null);
 
-  useEffect(() => {
-    if (workspace.appearance.automatic_folder || loadAttempt < 0) {
-      return;
-    }
-
-    let canceled = false;
-
-    const loadAppearance = async () => {
-      try {
-        const appearance = await bridge.workspaceAppearanceDraft(workspace.id);
-
-        if (!canceled) {
-          setDraft((prevDraft) => ({ ...prevDraft, appearance }));
-          setReady(true);
-        }
-      } catch (error_) {
-        if (!canceled) {
-          setError(errorMessage(error_));
-        }
+  const [state, dispatch] = useEffectReducer(
+    editorReducer,
+    (exec) => {
+      if (!workspace.appearance.automatic_folder) {
+        exec({ type: "load" });
       }
-    };
 
-    loadAppearance().catch(() => null);
+      return {
+        draft: {
+          appearance: workspace.appearance,
+          emoji: workspaceEmoji(workspace),
+        },
+        error: null,
+        status: workspace.appearance.automatic_folder ? "ready" : "loading",
+      } satisfies EditorState;
+    },
+    {
+      close: () => onClose(),
+      load: async (_state, _effect, send, { signal }) => {
+        try {
+          const appearance = await bridge.workspaceAppearanceDraft(
+            workspace.id
+          );
 
-    return () => {
-      canceled = true;
-    };
-  }, [workspace.id, workspace.appearance.automatic_folder, loadAttempt]);
-
-  const save = async () => {
-    const input = JSON.stringify(draft);
-
-    if (submission.current?.input !== input) {
-      submission.current = { input, requestId: crypto.randomUUID() };
-    }
-
-    setSaving(true);
-    setError(undefined);
-
-    const receipt = await run({
-      kind: "set_workspace_appearance",
-      request: {
-        appearance: draft.appearance,
-        emoji: draft.emoji,
-        request_id: submission.current.requestId,
-        workspace_id: workspace.id,
+          if (!signal.aborted) {
+            send({ appearance, type: "loaded" });
+          }
+        } catch (error) {
+          if (!signal.aborted) {
+            send({ error: errorMessage(error), type: "loadFailed" });
+          }
+        }
       },
-    });
+      save: async ({ draft }, _effect, send, { signal }) => {
+        const input = JSON.stringify(draft);
 
-    setSaving(false);
+        if (submission.current?.input !== input) {
+          submission.current = { input, requestId: crypto.randomUUID() };
+        }
 
-    if (receipt) {
-      onClose();
-    } else {
-      setError(
-        "Couldn't save the icon. Your changes are kept here; try again."
-      );
+        const receipt = await run({
+          kind: "set_workspace_appearance",
+          request: {
+            appearance: draft.appearance,
+            emoji: draft.emoji,
+            request_id: submission.current.requestId,
+            workspace_id: workspace.id,
+          },
+        });
+
+        if (!signal.aborted) {
+          send(receipt ? "saved" : "saveFailed");
+        }
+      },
     }
-  };
+  );
+
+  const { draft, error, status } = state;
+  const ready = status !== "loading";
+  const saving = status === "saving";
 
   return (
     <Popover
@@ -493,7 +391,7 @@ export const WorkspaceIconEditor = ({
           <WorkspaceIconPicker
             workspaceId={workspace.id}
             draft={draft}
-            onChange={setDraft}
+            onChange={(update) => dispatch({ type: "change", update })}
           />
         ) : (
           <output className="text-muted-foreground flex-1 text-sm">
@@ -507,25 +405,14 @@ export const WorkspaceIconEditor = ({
         )}
         <div className="flex shrink-0 justify-end gap-2">
           {!ready && error && (
-            <Button
-              variant="outline"
-              onClick={() => {
-                setError(undefined);
-                setLoadAttempt((value) => value + 1);
-              }}
-            >
+            <Button variant="outline" onClick={() => dispatch("retry")}>
               Try again
             </Button>
           )}
           <Button variant="ghost" disabled={saving} onClick={onClose}>
             Cancel
           </Button>
-          <Button
-            disabled={!ready || saving}
-            onClick={() => {
-              save().catch(() => null);
-            }}
-          >
+          <Button disabled={!ready || saving} onClick={() => dispatch("save")}>
             {saving && (
               <Spinner
                 className="motion-reduce:animate-none"

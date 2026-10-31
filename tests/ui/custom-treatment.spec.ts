@@ -76,18 +76,18 @@ test("Custom replaces browsing, starts from the preview, and back preserves the 
   await expect(
     picker(page).getByRole("gridcell", { exact: true, name: "grinning face" })
   ).toBeVisible();
-  await picker(page).locator("[frimousse-viewport]").hover();
+  await picker(page).locator('[data-slot="emoji-viewport"]').hover();
   await page.mouse.wheel(0, 220);
   await expect
     .poll(() =>
       picker(page)
-        .locator("[frimousse-viewport]")
+        .locator('[data-slot="emoji-viewport"]')
         .evaluate((node) => node.scrollTop)
     )
     .toBeGreaterThan(0);
 
   const scroll = await picker(page)
-    .locator("[frimousse-viewport]")
+    .locator('[data-slot="emoji-viewport"]')
     .evaluate((node) => node.scrollTop);
 
   expect(scroll).toBeGreaterThan(0);
@@ -133,7 +133,7 @@ test("Custom replaces browsing, starts from the preview, and back preserves the 
   ).toHaveValue("face");
   expect(
     await picker(page)
-      .locator("[frimousse-viewport]")
+      .locator('[data-slot="emoji-viewport"]')
       .evaluate((node) => node.scrollTop)
   ).toBe(scroll);
   expect(
