@@ -56,6 +56,20 @@ test("torrent trackers and files render with trace, alignment, single-line trunc
 
   await expect(details).toBeVisible();
 
+  // Verify scroll-fade is applied to the scrollable content area
+  await expect(details.locator('[data-slot="sidebar-content"]')).toHaveClass(
+    /scroll-fade/u
+  );
+
+  // Verify scroll-fade is applied to the left sidebar overflow area
+  const leftSidebar = page.getByRole("navigation", {
+    name: "Workspace navigation",
+  });
+
+  await expect(
+    leftSidebar.locator('[data-slot="sidebar-content"]')
+  ).toHaveClass(/scroll-fade/u);
+
   // Check the Files collapsible trigger
   const fileTrigger = details.getByRole("button", {
     exact: true,
@@ -388,9 +402,9 @@ test("source link renders as trace line with hover copy and feedback without lay
   // Click to copy
   await linkButton.click();
 
-  // After click: title temporarily changes to "Copied" and right icon swaps to Check
-  await expect(title).toHaveText("Copied");
-  await expect(linkButton).toHaveText("Copied");
+  // After click: title temporarily changes to "Copied to clipboard" and right icon swaps to Check
+  await expect(title).toHaveText("Copied to clipboard");
+  await expect(linkButton).toHaveText("Copied to clipboard");
   await expect(icons.nth(0).locator("svg")).toBeVisible();
   await expect(icons.nth(1).locator("svg")).toBeVisible();
 

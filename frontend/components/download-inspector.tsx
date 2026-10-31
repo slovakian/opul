@@ -89,12 +89,14 @@ export const DownloadSourceLink = ({ download }: { download: Download }) => {
         type="button"
         className="group/trace"
         onClick={handleCopy}
-        aria-label={copied ? "Copied" : download.source_url}
+        aria-label={copied ? "Copied to clipboard" : download.source_url}
       >
         <TraceLine>
           <TraceIcon>{isTorrent ? <Magnet /> : <Link />}</TraceIcon>
-          <TraceTitle title={copied ? "Copied" : download.source_url}>
-            {copied ? "Copied" : download.source_url}
+          <TraceTitle
+            title={copied ? "Copied to clipboard" : download.source_url}
+          >
+            {copied ? "Copied to clipboard" : download.source_url}
           </TraceTitle>
           <TraceIcon
             className={
@@ -145,7 +147,7 @@ export const DownloadInspector = ({
           <X />
         </Button>
       </SidebarHeader>
-      <SidebarContent className="gap-6 px-5 pb-6">
+      <SidebarContent className="scroll-fade gap-6 px-5 pb-6">
         <div className="flex flex-col items-start gap-4 pt-4">
           <div className="bg-muted flex size-14 items-center justify-center rounded-xl">
             {createElement(fileIcon(download), {

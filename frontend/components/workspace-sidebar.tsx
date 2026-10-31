@@ -225,7 +225,7 @@ export const WorkspaceSidebar = ({
         </SidebarMenu>
       </SidebarHeader>
       <SidebarSeparator />
-      <SidebarContent>
+      <SidebarContent className="scroll-fade">
         <SidebarGroup>
           <SidebarGroupLabel>Workspaces</SidebarGroupLabel>
           <SidebarGroupAction
