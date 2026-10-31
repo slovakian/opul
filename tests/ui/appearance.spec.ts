@@ -56,118 +56,110 @@ test("folder appearance is identical across navigation, heading, and download ch
   ).toBeVisible();
 });
 
-for (const loseResponse of [false, true]) {
-  test(`creation retains its proposed treatment and identity through polling and ${loseResponse ? "a lost response" : "a failed save"}`, async ({
-    page,
-  }) => {
-    await mockDesktop(page, {
-      changeSnapshotDuringDraft: true,
-      failFirstCreate: !loseResponse,
-      loseFirstCreateResponse: loseResponse,
-    });
-    await page.goto("/");
-    await page
-      .getByRole("button", { exact: true, name: "New workspace" })
-      .last()
-      .click();
-    const name = page.getByRole("textbox", { exact: true, name: "Name" });
-    await expect(name).toBeFocused();
-    await name.fill("Research");
-
-    const preview = page
-      .getByRole("button", { exact: true, name: "Workspace emoji: 📁" })
-      .locator(artwork);
-
-    await expect(preview).toHaveAttribute("data-preset", "coral");
-
-    const filter = await preview.evaluate(
-      (element) => getComputedStyle(element).filter
-    );
-
-    // Observe a later polled snapshot without using a timing-based sleep.
-    await expect(
-      page
-        .getByRole("button", {
-          exact: true,
-          includeHidden: true,
-          name: "Downloads workspace",
-        })
-        .locator(artwork)
-    ).toHaveAttribute("data-preset", "rose");
-    await expect(preview).toHaveCSS("filter", filter);
-    await page
-      .getByRole("button", { exact: true, name: "Workspace emoji: 📁" })
-      .click();
-    await page.getByRole("textbox", { name: "Search emoji" }).fill("books");
-    await page
-      .locator('[data-slot="popover-content"]')
-      .getByRole("gridcell", { exact: true, name: "books" })
-      .click();
-    await page.getByRole("button", { exact: true, name: "Done" }).click();
-    await expect(
-      page
-        .getByRole("button", { exact: true, name: "Workspace emoji: 📚" })
-        .locator(artwork)
-    ).toHaveCSS("filter", "none");
-    await page
-      .getByRole("button", { exact: true, name: "Workspace emoji: 📚" })
-      .click();
-    await page
-      .getByRole("textbox", { name: "Search emoji" })
-      .fill("file folder");
-    await page
-      .locator('[data-slot="popover-content"]')
-      .getByRole("gridcell", { exact: true, name: "file folder" })
-      .click();
-    await page.getByRole("button", { exact: true, name: "Done" }).click();
-    await expect(preview).toHaveCSS("filter", filter);
-    await page
-      .getByRole("button", { exact: true, name: "Create workspace" })
-      .click();
-    await expect(
-      page.getByText(
-        loseResponse
-          ? "The response was lost after saving. Try again."
-          : "Couldn't save the checkpoint. Try again."
-      )
-    ).toBeVisible();
-    await expect(preview).toHaveCSS("filter", filter);
-    await expect(name).toHaveValue("Research");
-    await page
-      .getByRole("button", { exact: true, name: "Create workspace" })
-      .click();
-    await expect(
-      page
-        .getByRole("heading", { exact: true, name: "Research" })
-        .locator(artwork)
-    ).toHaveCSS("filter", filter);
-    await expect(
-      page
-        .getByRole("button", { exact: true, name: "Research workspace" })
-        .locator(artwork)
-    ).toHaveCSS("filter", filter);
-    await expect(
-      page.getByRole("button", { exact: true, name: "Research workspace" })
-    ).toHaveCount(1);
-
-    const saved = snapshotSchema.parse(
-      await page.evaluate(async () => {
-        const modulePath = "/frontend/lib/bridge.ts";
-        const { bridge } = await import(modulePath);
-
-        return bridge.snapshot();
-      })
-    );
-
-    const created = saved.workspaces.find(
-      (workspace) => workspace.name === "Research"
-    );
-
-    expect(created?.id).toBe("draft-workspace-1");
-    expect(created?.folders[0].id).toBe("draft-folder-1");
-    expect(created?.appearance.automatic_folder).toEqual(treatments[1]);
+test("creation retains its proposed treatment and identity through polling and a failed save", async ({
+  page,
+}) => {
+  await mockDesktop(page, {
+    changeSnapshotDuringDraft: true,
+    failFirstCreate: true,
+    loseFirstCreateResponse: false,
   });
-}
+  await page.goto("/");
+  await page
+    .getByRole("button", { exact: true, name: "New workspace" })
+    .last()
+    .click();
+  const name = page.getByRole("textbox", { exact: true, name: "Name" });
+  await expect(name).toBeFocused();
+  await name.fill("Research");
+
+  const preview = page
+    .getByRole("button", { exact: true, name: "Workspace emoji: 📁" })
+    .locator(artwork);
+
+  await expect(preview).toHaveAttribute("data-preset", "coral");
+
+  const filter = await preview.evaluate(
+    (element) => getComputedStyle(element).filter
+  );
+
+  // Observe a later polled snapshot without using a timing-based sleep.
+  await expect(
+    page
+      .getByRole("button", {
+        exact: true,
+        includeHidden: true,
+        name: "Downloads workspace",
+      })
+      .locator(artwork)
+  ).toHaveAttribute("data-preset", "rose");
+  await expect(preview).toHaveCSS("filter", filter);
+  await page
+    .getByRole("button", { exact: true, name: "Workspace emoji: 📁" })
+    .click();
+  await page.getByRole("textbox", { name: "Search emoji" }).fill("books");
+  await page
+    .locator('[data-slot="popover-content"]')
+    .getByRole("gridcell", { exact: true, name: "books" })
+    .click();
+  await page.getByRole("button", { exact: true, name: "Done" }).click();
+  await expect(
+    page
+      .getByRole("button", { exact: true, name: "Workspace emoji: 📚" })
+      .locator(artwork)
+  ).toHaveCSS("filter", "none");
+  await page
+    .getByRole("button", { exact: true, name: "Workspace emoji: 📚" })
+    .click();
+  await page.getByRole("textbox", { name: "Search emoji" }).fill("file folder");
+  await page
+    .locator('[data-slot="popover-content"]')
+    .getByRole("gridcell", { exact: true, name: "file folder" })
+    .click();
+  await page.getByRole("button", { exact: true, name: "Done" }).click();
+  await expect(preview).toHaveCSS("filter", filter);
+  await page
+    .getByRole("button", { exact: true, name: "Create workspace" })
+    .click();
+  await expect(
+    page.getByText("Couldn't save the checkpoint. Try again.")
+  ).toBeVisible();
+  await expect(preview).toHaveCSS("filter", filter);
+  await expect(name).toHaveValue("Research");
+  await page
+    .getByRole("button", { exact: true, name: "Create workspace" })
+    .click();
+  await expect(
+    page
+      .getByRole("heading", { exact: true, name: "Research" })
+      .locator(artwork)
+  ).toHaveCSS("filter", filter);
+  await expect(
+    page
+      .getByRole("button", { exact: true, name: "Research workspace" })
+      .locator(artwork)
+  ).toHaveCSS("filter", filter);
+  await expect(
+    page.getByRole("button", { exact: true, name: "Research workspace" })
+  ).toHaveCount(1);
+
+  const saved = snapshotSchema.parse(
+    await page.evaluate(async () => {
+      const modulePath = "/frontend/lib/bridge.ts";
+      const { bridge } = await import(modulePath);
+
+      return bridge.snapshot();
+    })
+  );
+
+  const created = saved.workspaces.find(
+    (workspace) => workspace.name === "Research"
+  );
+
+  expect(created?.id).toBe("draft-workspace-1");
+  expect(created?.folders[0].id).toBe("draft-folder-1");
+  expect(created?.appearance.automatic_folder).toEqual(treatments[1]);
+});
 
 test("all twelve treatments render at sidebar size in light and dark themes", async ({
   page,

@@ -1,30 +1,102 @@
 name: CI
+
 on:
   push:
     branches: [main]
   pull_request:
+
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
+      - name: Lint and type-check frontend
+        run: vp check
+      - name: Run frontend unit tests
+        run: vp test
+      - name: Check Rust formatting
+        run: cargo fmt --all --check
+      - name: Check Rust compilation
+        run: cargo check
+
+  test-rust:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run Rust unit and workspace tests
+        run: cargo test --workspace
+
+  test-e2e:
+    runs-on: macos-26
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ["1/2", "2/2"]
+        include:
+          - shard: "1/2"
+            shard-index: 1
+          - shard: "2/2"
+            shard-index: 2
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
       - run: npx playwright install webkit
-      - name: Test Rust, TypeScript, and the Base UI interface
-        run: Scripts/test.sh
-      - name: Package and launch the Tauri app
-        run: |
-          Scripts/package_app.sh debug
-          Scripts/smoke_test.sh
-      - uses: actions/upload-artifact@v4
+      - name: Run Playwright tests (shard ${{ matrix.shard }})
+        run: npx playwright test --shard=${{ matrix.shard }}
+      - name: Upload UI test results
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: ui-test-results
-          path: test-results/
+          name: ui-test-results-shard-${{ matrix.shard-index }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+
+  package-smoke:
+    runs-on: macos-26
+    needs: [check, test-rust, test-e2e]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Package the Tauri app
+        run: Scripts/package_app.sh debug
+      - name: Launch the packaged app
+        run: Scripts/smoke_test.sh
+      - name: Upload smoke test failure artifacts
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: smoke-test-artifacts
+          path: |
+            test-results/
+            /tmp/opul-smoke*
+          if-no-files-found: ignore

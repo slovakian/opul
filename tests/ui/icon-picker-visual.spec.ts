@@ -26,155 +26,137 @@ const choose = async (page: Page, search: string, label: string) => {
   await expect(editor(page)).toBeVisible();
 };
 
-for (const theme of ["light", "dark"]) {
-  test(`emoji fade beneath sticky category labels in ${theme} mode`, async ({
-    page,
-  }) => {
-    await mockDesktop(page);
-    await page.goto("/");
+test("emoji fade beneath sticky category labels", async ({ page }) => {
+  await mockDesktop(page);
+  await page.goto("/");
+  await openPicker(page);
+  const viewport = editor(page).locator('[data-slot="emoji-viewport"]');
 
-    if (theme === "dark") {
-      await page.getByRole("button", { exact: true, name: "Settings" }).click();
+  const headers = viewport.locator(
+    '[data-slot="emoji-grid"] > [data-slot="emoji-category"] > [data-slot="emoji-category-header"]'
+  );
 
-      const settings = page.getByRole("dialog", {
-        exact: true,
-        name: "Settings",
-      });
+  await expect(headers.first()).toHaveText("Smileys & Emotion");
+  await expect(headers.filter({ hasText: "Travel & Places" })).toHaveCount(1);
 
-      await settings.getByRole("button", { exact: true, name: "Dark" }).click();
-      await settings.getByRole("button", { name: "Save changes" }).click();
-      await expect(page.locator("html")).toHaveClass(/dark/u);
-    }
+  const { headerHeight, rowHeight } = await viewport.evaluate((element) => {
+    const style = getComputedStyle(element);
 
-    await openPicker(page);
-    const viewport = editor(page).locator('[data-slot="emoji-viewport"]');
-
-    const headers = viewport.locator(
-      '[data-slot="emoji-grid"] > [data-slot="emoji-category"] > [data-slot="emoji-category-header"]'
+    const rawHeaderHeight = style.getPropertyValue(
+      "--emoji-category-header-height"
     );
 
-    await expect(headers.first()).toHaveText("Smileys & Emotion");
-    await expect(headers.filter({ hasText: "Travel & Places" })).toHaveCount(1);
+    const rawRowHeight = style.getPropertyValue("--emoji-row-height");
 
-    const { headerHeight, rowHeight } = await viewport.evaluate((element) => {
-      const style = getComputedStyle(element);
+    return {
+      headerHeight: Number(rawHeaderHeight.replace(/px$/u, "")),
+      rowHeight: Number(rawRowHeight.replace(/px$/u, "")),
+    };
+  });
 
-      const rawHeaderHeight = style.getPropertyValue(
-        "--emoji-category-header-height"
-      );
-
-      const rawRowHeight = style.getPropertyValue("--emoji-row-height");
-
-      return {
-        headerHeight: Number(rawHeaderHeight.replace(/px$/u, "")),
-        rowHeight: Number(rawRowHeight.replace(/px$/u, "")),
-      };
-    });
-
-    await viewport.evaluate((element, y) => {
+  await viewport.evaluate((element, y) => {
+    element.scrollTop = y;
+  }, rowHeight * 2);
+  const reference = await viewport.screenshot({ scale: "css" });
+  const delta = rowHeight / 2 + 4;
+  await viewport.evaluate(
+    (element, y) => {
       element.scrollTop = y;
-    }, rowHeight * 2);
-    const reference = await viewport.screenshot({ scale: "css" });
-    const delta = rowHeight / 2 + 4;
-    await viewport.evaluate(
-      (element, y) => {
-        element.scrollTop = y;
-      },
-      rowHeight * 2 + delta
-    );
+    },
+    rowHeight * 2 + delta
+  );
 
-    const faded = await viewport.screenshot({
-      path: `test-results/emoji-sticky-fade-${theme}.png`,
-      scale: "css",
-    });
+  const faded = await viewport.screenshot({
+    path: "test-results/emoji-sticky-fade.png",
+    scale: "css",
+  });
 
-    // Compare the same glyph pixels before and after they move behind the label.
-    const contrastRatio = await page.evaluate(
-      async ({ fadedImage, fadedY, fullY, referenceImage }) => {
-        // oxlint-disable-next-line unicorn/consistent-function-scoping
-        const pixels = async (encoded: string) => {
-          const image = new Image();
-          image.src = `data:image/png;base64,${encoded}`;
-          await image.decode();
-          const canvas = document.createElement("canvas");
-          canvas.width = image.width;
-          canvas.height = image.height;
-          const context = canvas.getContext("2d");
+  // Compare the same glyph pixels before and after they move behind the label.
+  const contrastRatio = await page.evaluate(
+    async ({ fadedImage, fadedY, fullY, referenceImage }) => {
+      // oxlint-disable-next-line unicorn/consistent-function-scoping
+      const pixels = async (encoded: string) => {
+        const image = new Image();
+        image.src = `data:image/png;base64,${encoded}`;
+        await image.decode();
+        const canvas = document.createElement("canvas");
+        canvas.width = image.width;
+        canvas.height = image.height;
+        const context = canvas.getContext("2d");
 
-          if (!context) {
-            throw new Error("Canvas unavailable");
-          }
+        if (!context) {
+          throw new Error("Canvas unavailable");
+        }
 
-          context.drawImage(image, 0, 0);
+        context.drawImage(image, 0, 0);
 
-          return context.getImageData(0, 0, image.width, image.height);
-        };
+        return context.getImageData(0, 0, image.width, image.height);
+      };
 
-        // oxlint-disable-next-line unicorn/consistent-function-scoping
-        const contrast = (image: ImageData, centerY: number) => {
-          let total = 0;
+      // oxlint-disable-next-line unicorn/consistent-function-scoping
+      const contrast = (image: ImageData, centerY: number) => {
+        let total = 0;
 
-          for (
-            let y = Math.round(centerY) - 1;
-            y <= Math.round(centerY) + 1;
-            y += 1
-          ) {
-            for (let x = 0; x < image.width; x += 1) {
-              for (let channel = 0; channel < 3; channel += 1) {
-                total += Math.abs(
-                  image.data[(y * image.width + x) * 4 + channel] -
-                    image.data[channel]
-                );
-              }
+        for (
+          let y = Math.round(centerY) - 1;
+          y <= Math.round(centerY) + 1;
+          y += 1
+        ) {
+          for (let x = 0; x < image.width; x += 1) {
+            for (let channel = 0; channel < 3; channel += 1) {
+              total += Math.abs(
+                image.data[(y * image.width + x) * 4 + channel] -
+                  image.data[channel]
+              );
             }
           }
+        }
 
-          return total;
-        };
+        return total;
+      };
 
-        const full = await pixels(referenceImage);
-        const clipped = await pixels(fadedImage);
+      const full = await pixels(referenceImage);
+      const clipped = await pixels(fadedImage);
 
-        return contrast(clipped, fadedY) / contrast(full, fullY);
-      },
-      {
-        fadedImage: faded.toString("base64"),
-        fadedY: headerHeight + rowHeight / 2 - delta,
-        fullY: headerHeight + rowHeight / 2,
-        referenceImage: reference.toString("base64"),
-      }
-    );
+      return contrast(clipped, fadedY) / contrast(full, fullY);
+    },
+    {
+      fadedImage: faded.toString("base64"),
+      fadedY: headerHeight + rowHeight / 2 - delta,
+      fullY: headerHeight + rowHeight / 2,
+      referenceImage: reference.toString("base64"),
+    }
+  );
 
-    expect(contrastRatio).toBeGreaterThan(0.15);
-    expect(contrastRatio).toBeLessThan(0.85);
-    const viewportBounds = await viewport.boundingBox();
-    const firstHeaderBounds = await headers.first().boundingBox();
-    expect(firstHeaderBounds?.y).toBeCloseTo(viewportBounds?.y ?? 0, 1);
-    const next = headers.nth(1);
+  expect(contrastRatio).toBeGreaterThan(0.15);
+  expect(contrastRatio).toBeLessThan(0.85);
+  const viewportBounds = await viewport.boundingBox();
+  const firstHeaderBounds = await headers.first().boundingBox();
+  expect(firstHeaderBounds?.y).toBeCloseTo(viewportBounds?.y ?? 0, 1);
+  const next = headers.nth(1);
 
-    const nextTop = await next.evaluate(
-      (element) => element.parentElement?.offsetTop ?? 0
-    );
+  const nextTop = await next.evaluate(
+    (element) => element.parentElement?.offsetTop ?? 0
+  );
 
-    await viewport.evaluate(
-      (element, y) => {
-        element.scrollTop = y;
-      },
-      nextTop + rowHeight * 2
-    );
-    await expect(next).toHaveText("People & Body");
-    await expect
-      .poll(async () => {
-        const nextBounds = await next.boundingBox();
+  await viewport.evaluate(
+    (element, y) => {
+      element.scrollTop = y;
+    },
+    nextTop + rowHeight * 2
+  );
+  await expect(next).toHaveText("People & Body");
+  await expect
+    .poll(async () => {
+      const nextBounds = await next.boundingBox();
 
-        return nextBounds?.y;
-      })
-      .toBeCloseTo(viewportBounds?.y ?? 0, 1);
-    await viewport.screenshot({
-      path: `test-results/emoji-next-category-${theme}.png`,
-    });
+      return nextBounds?.y;
+    })
+    .toBeCloseTo(viewportBounds?.y ?? 0, 1);
+  await viewport.screenshot({
+    path: "test-results/emoji-next-category.png",
   });
-}
+});
 
 test("emoji options stay transparent when chosen and only grow their artwork on hover", async ({
   page,

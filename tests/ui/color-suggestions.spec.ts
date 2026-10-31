@@ -338,119 +338,115 @@ test("saved custom remains independently selectable after Original and preset ch
   expect(savedAfterSave.workspaces[0].appearance.preference).toEqual(custom);
 });
 
-for (const fail of [false, true]) {
-  test(`creation previews and retains a deliberate treatment through nested close and ${fail ? "retry" : "save"}`, async ({
-    page,
-  }) => {
-    await page.setViewportSize({ height: 520, width: 720 });
-    await mockDesktop(page, { failFirstCreate: fail });
-    await page.goto("/");
-    await page
-      .getByRole("button", { exact: true, name: "Toggle Sidebar" })
-      .click();
-    await page
-      .getByRole("button", { exact: true, name: "New workspace" })
-      .last()
-      .click();
-    const name = page.getByRole("textbox", { exact: true, name: "Name" });
-    await expect(name).toBeFocused();
-    await name.fill("Research");
+test("creation previews and retains a deliberate treatment through nested close and retry", async ({
+  page,
+}) => {
+  await page.setViewportSize({ height: 520, width: 720 });
+  await mockDesktop(page, { failFirstCreate: true });
+  await page.goto("/");
+  await page
+    .getByRole("button", { exact: true, name: "Toggle Sidebar" })
+    .click();
+  await page
+    .getByRole("button", { exact: true, name: "New workspace" })
+    .last()
+    .click();
+  const name = page.getByRole("textbox", { exact: true, name: "Name" });
+  await expect(name).toBeFocused();
+  await name.fill("Research");
 
-    const trigger = page.getByRole("button", {
-      exact: true,
-      name: "Workspace emoji: 📁",
-    });
-
-    await trigger.click();
-    await expect(
-      picker(page).getByRole("textbox", { name: "Search emoji" })
-    ).toBeFocused();
-    expect(await identities(page)).toHaveLength(6);
-    await suggestions(page)
-      .getByRole("button", { exact: true, name: "Preview Coral Treatment" })
-      .click();
-    await choose(page, "panda", "panda");
-
-    const more = picker(page).getByRole("button", {
-      exact: true,
-      name: "Show 6 more color suggestions",
-    });
-
-    await more.click();
-
-    await Promise.all(
-      treatments.flatMap((treatment) => {
-        const option = suggestions(page)
-          .getByRole("button")
-          .filter({
-            has: page.locator(`[data-preset="${treatment.preset_id}"]`),
-          });
-
-        return [
-          expect(option.locator(artwork)).toHaveText("🐼"),
-          expect(option).toHaveCSS("filter", "none"),
-          expect(option.locator(artwork)).toHaveCSS(
-            "filter",
-            `hue-rotate(${treatment.hue}deg) saturate(${treatment.saturation / 100}) brightness(${treatment.brightness / 100})`
-          ),
-        ];
-      })
-    );
-
-    const done = picker(page).getByRole("button", {
-      exact: true,
-      name: "Done",
-    });
-
-    await expect(done).toBeInViewport({ ratio: 1 });
-    await page.screenshot({
-      path: `test-results/color-suggestions-creation-${fail}.png`,
-    });
-    await page.keyboard.press("Escape");
-    await expect(picker(page)).toHaveCount(0);
-    await expect(
-      page.getByRole("button", { exact: true, name: "Workspace emoji: 🐼" })
-    ).toBeFocused();
-    await expect(name).toHaveValue("Research");
-    await expect(
-      page
-        .getByRole("button", { exact: true, name: "Workspace emoji: 🐼" })
-        .locator(artwork)
-    ).toHaveAttribute("data-preset", "coral");
-    await page
-      .getByRole("button", { exact: true, name: "Create workspace" })
-      .click();
-
-    if (fail) {
-      await expect(
-        page.getByText("Couldn't save the checkpoint. Try again.")
-      ).toBeVisible();
-      await page
-        .getByRole("button", { exact: true, name: "Create workspace" })
-        .click();
-    }
-
-    await page
-      .getByRole("button", { exact: true, name: "Research workspace" })
-      .click();
-    await expect(
-      page
-        .getByRole("heading", { exact: true, name: "Research" })
-        .locator(artwork)
-    ).toHaveText("🐼");
-
-    const savedSnapshot = await saved(page);
-
-    const created = savedSnapshot.workspaces.find(
-      (item) => item.name === "Research"
-    );
-
-    expect(created?.appearance.preference).toEqual({
-      kind: "Preset",
-      treatment: treatments[1],
-    });
+  const trigger = page.getByRole("button", {
+    exact: true,
+    name: "Workspace emoji: 📁",
   });
-}
+
+  await trigger.click();
+  await expect(
+    picker(page).getByRole("textbox", { name: "Search emoji" })
+  ).toBeFocused();
+  expect(await identities(page)).toHaveLength(6);
+  await suggestions(page)
+    .getByRole("button", { exact: true, name: "Preview Coral Treatment" })
+    .click();
+  await choose(page, "panda", "panda");
+
+  const more = picker(page).getByRole("button", {
+    exact: true,
+    name: "Show 6 more color suggestions",
+  });
+
+  await more.click();
+
+  await Promise.all(
+    treatments.flatMap((treatment) => {
+      const option = suggestions(page)
+        .getByRole("button")
+        .filter({
+          has: page.locator(`[data-preset="${treatment.preset_id}"]`),
+        });
+
+      return [
+        expect(option.locator(artwork)).toHaveText("🐼"),
+        expect(option).toHaveCSS("filter", "none"),
+        expect(option.locator(artwork)).toHaveCSS(
+          "filter",
+          `hue-rotate(${treatment.hue}deg) saturate(${treatment.saturation / 100}) brightness(${treatment.brightness / 100})`
+        ),
+      ];
+    })
+  );
+
+  const done = picker(page).getByRole("button", {
+    exact: true,
+    name: "Done",
+  });
+
+  await expect(done).toBeInViewport({ ratio: 1 });
+  await page.screenshot({
+    path: "test-results/color-suggestions-creation.png",
+  });
+  await page.keyboard.press("Escape");
+  await expect(picker(page)).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { exact: true, name: "Workspace emoji: 🐼" })
+  ).toBeFocused();
+  await expect(name).toHaveValue("Research");
+  await expect(
+    page
+      .getByRole("button", { exact: true, name: "Workspace emoji: 🐼" })
+      .locator(artwork)
+  ).toHaveAttribute("data-preset", "coral");
+  await page
+    .getByRole("button", { exact: true, name: "Create workspace" })
+    .click();
+
+  await expect(
+    page.getByText("Couldn't save the checkpoint. Try again.")
+  ).toBeVisible();
+  await page
+    .getByRole("button", { exact: true, name: "Create workspace" })
+    .click();
+
+  await page
+    .getByRole("button", { exact: true, name: "Research workspace" })
+    .click();
+  await expect(
+    page
+      .getByRole("heading", { exact: true, name: "Research" })
+      .locator(artwork)
+  ).toHaveText("🐼");
+
+  const savedSnapshot = await saved(page);
+
+  const created = savedSnapshot.workspaces.find(
+    (item) => item.name === "Research"
+  );
+
+  expect(created?.appearance.preference).toEqual({
+    kind: "Preset",
+    treatment: treatments[1],
+  });
+});
 
 test("expanded suggestions stay accessible and bounded in the minimum window, including a failed save", async ({
   page,

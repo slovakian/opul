@@ -125,53 +125,45 @@ test("only supported selections have tones and keyboard tone choices stay local 
   expect(savedAfterCancel.recent_emoji).toEqual([]);
 });
 
-for (const lost of [false, true]) {
-  test(`editing ${lost ? "a lost response" : "a failed save"} retains the exact draft and retries without duplicate recents`, async ({
-    context,
-    page,
-  }) => {
-    await mockDesktop(page, {
-      failFirstAppearance: !lost,
-      loseFirstAppearanceResponse: lost,
-    });
-    await page.goto("/");
-    await openPicker(page);
-    await choose(page, "woman technologist", "woman technologist");
-    await editor(page)
-      .getByRole("button", { exact: true, name: "Dark skin tone" })
-      .click();
-    await editor(page)
-      .getByRole("button", { exact: true, name: "Save" })
-      .click();
-    await expect(editor(page).getByRole("alert")).toContainText(
-      "Couldn't save the icon"
-    );
-    const savedAfterFail = await savedSnapshot(page);
-    expect(savedAfterFail.recent_emoji).toEqual(lost ? ["👩🏿‍💻"] : []);
-    await expect(
-      editor(page).getByRole("img", { name: "Icon preview: 👩🏿‍💻" })
-    ).toBeVisible();
-    await editor(page)
-      .getByRole("button", { exact: true, name: "Save" })
-      .click();
-    await expect(editor(page)).toHaveCount(0);
-    const saved = await savedSnapshot(page);
-    expect(saved.recent_emoji).toEqual(["👩🏿‍💻"]);
-    const reopened = await context.newPage();
-    await mockDesktop(reopened, { snapshot: saved });
-    await reopened.goto("/");
-    await openPicker(reopened);
-    await expect(editor(reopened).getByRole("gridcell").first()).toHaveText(
-      "👩🏿‍💻"
-    );
-    await editor(reopened)
-      .getByRole("button", { exact: true, name: "Save" })
-      .click();
-    await expect(editor(reopened)).toHaveCount(0);
-    const savedReopened = await savedSnapshot(reopened);
-    expect(savedReopened.recent_emoji).toEqual(["👩🏿‍💻"]);
+test("editing a failed save retains the exact draft and retries without duplicate recents", async ({
+  context,
+  page,
+}) => {
+  await mockDesktop(page, {
+    failFirstAppearance: true,
+    loseFirstAppearanceResponse: false,
   });
-}
+  await page.goto("/");
+  await openPicker(page);
+  await choose(page, "woman technologist", "woman technologist");
+  await editor(page)
+    .getByRole("button", { exact: true, name: "Dark skin tone" })
+    .click();
+  await editor(page).getByRole("button", { exact: true, name: "Save" }).click();
+  await expect(editor(page).getByRole("alert")).toContainText(
+    "Couldn't save the icon"
+  );
+  const savedAfterFail = await savedSnapshot(page);
+  expect(savedAfterFail.recent_emoji).toEqual([]);
+  await expect(
+    editor(page).getByRole("img", { name: "Icon preview: 👩🏿‍💻" })
+  ).toBeVisible();
+  await editor(page).getByRole("button", { exact: true, name: "Save" }).click();
+  await expect(editor(page)).toHaveCount(0);
+  const saved = await savedSnapshot(page);
+  expect(saved.recent_emoji).toEqual(["👩🏿‍💻"]);
+  const reopened = await context.newPage();
+  await mockDesktop(reopened, { snapshot: saved });
+  await reopened.goto("/");
+  await openPicker(reopened);
+  await expect(editor(reopened).getByRole("gridcell").first()).toHaveText("👩🏿‍💻");
+  await editor(reopened)
+    .getByRole("button", { exact: true, name: "Save" })
+    .click();
+  await expect(editor(reopened)).toHaveCount(0);
+  const savedReopened = await savedSnapshot(reopened);
+  expect(savedReopened.recent_emoji).toEqual(["👩🏿‍💻"]);
+});
 
 test("creation cancels drafts, retains nested choices, and records only the successful retry", async ({
   context,

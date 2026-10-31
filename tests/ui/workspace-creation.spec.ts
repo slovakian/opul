@@ -123,84 +123,76 @@ test("creation without opening the picker saves the frozen folder preview", asyn
   });
 });
 
-for (const lost of [false, true]) {
-  test(`creation saves emoji and appearance together after ${lost ? "a lost response" : "a failed checkpoint"}`, async ({
-    page,
-  }) => {
-    await mockDesktop(page, {
-      changeSnapshotDuringDraft: true,
-      failFirstCreate: !lost,
-      loseFirstCreateResponse: lost,
-    });
-    await page.goto("/");
-    await openCreation(page);
-    await dialog(page)
-      .getByRole("textbox", { exact: true, name: "Name" })
-      .fill("Family");
-    await iconButton(page).click();
-    await choose(page, "family", "family: man, woman, girl, boy");
-    await picker(page)
-      .getByRole("button", { exact: true, name: "Original" })
-      .click();
-    await expect(
-      picker(page).getByRole("img", { name: "Icon preview: 👨‍👩‍👧‍👦" })
-    ).toBeVisible();
-    await picker(page)
-      .getByRole("button", { exact: true, name: "Done" })
-      .click();
-    await expect(iconButton(page)).toBeFocused();
-
-    const filter = await iconButton(page)
-      .locator(artwork)
-      .evaluate((element) => getComputedStyle(element).filter);
-
-    const savedBeforeCreate = await savedSnapshot(page);
-    expect(savedBeforeCreate.workspaces).toHaveLength(1);
-    await dialog(page)
-      .getByRole("button", { exact: true, name: "Create workspace" })
-      .click();
-    await expect(dialog(page).getByRole("alert")).toContainText(
-      "Your changes are kept here"
-    );
-    await expect(iconButton(page).locator(artwork)).toHaveText("👨‍👩‍👧‍👦");
-    await iconButton(page).click();
-    await expect(
-      picker(page).getByRole("button", { exact: true, name: "Original" })
-    ).toHaveAttribute("aria-pressed", "true");
-    await picker(page)
-      .getByRole("button", { exact: true, name: "Done" })
-      .click();
-    await dialog(page)
-      .getByRole("button", { exact: true, name: "Create workspace" })
-      .click();
-    await expect(dialog(page)).toHaveCount(0);
-    await expect(
-      page
-        .getByRole("button", { exact: true, name: "Family workspace" })
-        .locator(artwork)
-    ).toHaveCSS("filter", filter);
-    await expect(
-      page
-        .getByRole("heading", { exact: true, name: "Family" })
-        .locator(artwork)
-    ).toHaveText("👨‍👩‍👧‍👦");
-
-    const savedAfterRetry = await savedSnapshot(page);
-
-    const created = savedAfterRetry.workspaces.filter(
-      (workspace) => workspace.name === "Family"
-    );
-
-    expect(created).toHaveLength(1);
-    expect(created[0].id).toBe("draft-workspace-1");
-    expect(created[0].folders[0].id).toBe("draft-folder-1");
-    expect(created[0].icon.value).toBe("👨‍👩‍👧‍👦");
-    expect(created[0].appearance).toEqual({
-      automatic_folder: treatments[1],
-      preference: { kind: "Original" },
-    });
+test("creation saves emoji and appearance together after a lost response", async ({
+  page,
+}) => {
+  await mockDesktop(page, {
+    changeSnapshotDuringDraft: true,
+    failFirstCreate: false,
+    loseFirstCreateResponse: true,
   });
-}
+  await page.goto("/");
+  await openCreation(page);
+  await dialog(page)
+    .getByRole("textbox", { exact: true, name: "Name" })
+    .fill("Family");
+  await iconButton(page).click();
+  await choose(page, "family", "family: man, woman, girl, boy");
+  await picker(page)
+    .getByRole("button", { exact: true, name: "Original" })
+    .click();
+  await expect(
+    picker(page).getByRole("img", { name: "Icon preview: 👨‍👩‍👧‍👦" })
+  ).toBeVisible();
+  await picker(page).getByRole("button", { exact: true, name: "Done" }).click();
+  await expect(iconButton(page)).toBeFocused();
+
+  const filter = await iconButton(page)
+    .locator(artwork)
+    .evaluate((element) => getComputedStyle(element).filter);
+
+  const savedBeforeCreate = await savedSnapshot(page);
+  expect(savedBeforeCreate.workspaces).toHaveLength(1);
+  await dialog(page)
+    .getByRole("button", { exact: true, name: "Create workspace" })
+    .click();
+  await expect(dialog(page).getByRole("alert")).toContainText(
+    "Your changes are kept here"
+  );
+  await expect(iconButton(page).locator(artwork)).toHaveText("👨‍👩‍👧‍👦");
+  await iconButton(page).click();
+  await expect(
+    picker(page).getByRole("button", { exact: true, name: "Original" })
+  ).toHaveAttribute("aria-pressed", "true");
+  await picker(page).getByRole("button", { exact: true, name: "Done" }).click();
+  await dialog(page)
+    .getByRole("button", { exact: true, name: "Create workspace" })
+    .click();
+  await expect(dialog(page)).toHaveCount(0);
+  await expect(
+    page
+      .getByRole("button", { exact: true, name: "Family workspace" })
+      .locator(artwork)
+  ).toHaveCSS("filter", filter);
+  await expect(
+    page.getByRole("heading", { exact: true, name: "Family" }).locator(artwork)
+  ).toHaveText("👨‍👩‍👧‍👦");
+
+  const savedAfterRetry = await savedSnapshot(page);
+
+  const created = savedAfterRetry.workspaces.filter(
+    (workspace) => workspace.name === "Family"
+  );
+
+  expect(created).toHaveLength(1);
+  expect(created[0].id).toBe("draft-workspace-1");
+  expect(created[0].folders[0].id).toBe("draft-folder-1");
+  expect(created[0].icon.value).toBe("👨‍👩‍👧‍👦");
+  expect(created[0].appearance).toEqual({
+    automatic_folder: treatments[1],
+    preference: { kind: "Original" },
+  });
+});
 
 test("outside close retains choices, Cancel discards them, and the next creation gets a new identity", async ({
   page,

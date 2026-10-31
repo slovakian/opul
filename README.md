@@ -38,7 +38,7 @@ Scripts/package_app.sh release
 Scripts/package_dmg.sh
 ```
 
-The scripts use Tauri's bundler and copy the output to `Opul.app` and `Opul.dmg`. For development, use `npm run tauri -- dev`. `npm run dev` runs only the web interface; downloads require the native shell.
+The scripts use Tauri's bundler and support standalone architecture targets (`--target aarch64-apple-darwin` or `x86_64-apple-darwin`), producing single-architecture installers (`Opul-arm64.dmg`, `Opul-x64.dmg`) and `Opul.app`. For development, use `npm run tauri -- dev`. `npm run dev` runs only the web interface; downloads require the native shell.
 
 ## Your library
 

@@ -1,0 +1,208 @@
+name: Nightly
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nightly-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: macos-26
+    outputs:
+      pub_date: ${{ steps.meta.outputs.pub_date }}
+      sha: ${{ steps.meta.outputs.sha }}
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: meta
+        run: |
+          BASE_VERSION=$(node -e 'const conf = JSON.parse(require("fs").readFileSync("./src-tauri/tauri.conf.json", "utf-8")); console.log(conf.version);')
+          COMMIT_DATE=$(git log -1 --format=%cd --date=format:%Y%m%d)
+          RUN_NUM="${{ github.run_number }}"
+          NIGHTLY_VERSION="${BASE_VERSION}-nightly.${COMMIT_DATE}.${RUN_NUM}"
+          PUB_DATE="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          echo "version=${NIGHTLY_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "pub_date=${PUB_DATE}" >> "$GITHUB_OUTPUT"
+          echo "sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
+  build-matrix:
+    needs: [prepare]
+    runs-on: macos-26
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            target: aarch64-apple-darwin
+          - arch: x64
+            target: x86_64-apple-darwin
+    env:
+      APPLE_ID: ${{ secrets.NOTARY_APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.NOTARY_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
+      DEVELOPER_ID_CERTIFICATE_P12: ${{ secrets.DEVELOPER_ID_CERTIFICATE_P12 }}
+      DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+      GH_TOKEN: ${{ github.token }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - uses: actions/setup-node@v5
+        with:
+          cache: npm
+          node-version: 24
+      - run: npm ci
+      - name: Import optional Developer ID certificate
+        if: env.DEVELOPER_ID_CERTIFICATE_P12 != ''
+        run: |
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password=$(uuidgen)
+          echo "$DEVELOPER_ID_CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$keychain" -P "$DEVELOPER_ID_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain"
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          identity=$(security find-identity -v -p codesigning "$keychain" | sed -n 's/.*"\(Developer ID Application: [^"]*\)".*/\1/p' | head -1)
+          test -n "$identity"
+          echo "APPLE_SIGNING_IDENTITY=$identity" >> "$GITHUB_ENV"
+      - name: Package single-arch Nightly DMG
+        run: |
+          MARKETING_VERSION="$VERSION" Scripts/package_dmg.sh release nightly "${{ matrix.arch }}"
+      - name: Create and sign updater archive (.app.tar.gz)
+        run: |
+          APP_NAME="Opul Nightly"
+          BUNDLE_PATH="target/${{ matrix.target }}/release/bundle/macos/${APP_NAME}.app"
+          if [[ ! -d "$BUNDLE_PATH" && -d "Opul Nightly.app" ]]; then
+            BUNDLE_PATH="Opul Nightly.app"
+          fi
+          test -d "$BUNDLE_PATH"
+
+          TARBALL="Opul-Nightly-${{ matrix.arch }}.app.tar.gz"
+          tar -czf "$TARBALL" -C "$(dirname "$BUNDLE_PATH")" "$(basename "$BUNDLE_PATH")"
+
+          if [[ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
+            npx tauri signer sign -k "$TAURI_SIGNING_PRIVATE_KEY" ${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:+-p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"} "$TARBALL"
+          else
+            echo "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkK" > "${TARBALL}.sig"
+          fi
+      - name: Optional Apple notarization
+        if: env.APPLE_ID != '' && env.APPLE_PASSWORD != '' && env.APPLE_TEAM_ID != ''
+        run: |
+          xcrun notarytool submit "Opul-Nightly-${{ matrix.arch }}.dmg" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_PASSWORD" \
+            --wait
+          xcrun stapler staple "Opul-Nightly-${{ matrix.arch }}.dmg"
+      - name: Save platform signature info
+        run: |
+          SIG=$(cat "Opul-Nightly-${{ matrix.arch }}.app.tar.gz.sig")
+          echo "$SIG" > "signature-${{ matrix.arch }}.txt"
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-build-${{ matrix.arch }}
+          path: |
+            Opul-Nightly-${{ matrix.arch }}.dmg
+            Opul-Nightly-${{ matrix.arch }}.app.tar.gz
+            Opul-Nightly-${{ matrix.arch }}.app.tar.gz.sig
+            signature-${{ matrix.arch }}.txt
+
+  publish-release:
+    needs: [prepare, build-matrix]
+    runs-on: macos-26
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PUB_DATE: ${{ needs.prepare.outputs.pub_date }}
+      SHA: ${{ needs.prepare.outputs.sha }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Flatten downloaded artifacts
+        run: |
+          find artifacts -type f -exec mv {} . \;
+          rm -rf artifacts
+      - name: Generate updater manifest (nightly.json)
+        run: |
+          node Scripts/generate-updater-manifest.mjs \
+            --version "$VERSION" \
+            --pub-date "$PUB_DATE" \
+            --channel nightly \
+            --arm64-sig signature-arm64.txt \
+            --x64-sig signature-x64.txt \
+            --output nightly.json
+          node Scripts/generate-updater-manifest.mjs --validate nightly.json
+      - name: Optional sign nightly.json
+        if: env.TAURI_SIGNING_PRIVATE_KEY != ''
+        run: |
+          npx tauri signer sign -k "$TAURI_SIGNING_PRIVATE_KEY" ${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:+-p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"} nightly.json || true
+      - name: Compose release notes
+        run: |
+          cat <<EOF > "$RUNNER_TEMP/release-notes.md"
+          ## Opul Nightly ($VERSION)
+
+          Automated preview build from commit \`$SHA\`.
+
+          ### Installers
+          - **Apple Silicon (arm64):** [Opul-Nightly-arm64.dmg](https://github.com/$GITHUB_REPOSITORY/releases/download/nightly/Opul-Nightly-arm64.dmg)
+          - **Intel (x86_64):** [Opul-Nightly-x64.dmg](https://github.com/$GITHUB_REPOSITORY/releases/download/nightly/Opul-Nightly-x64.dmg)
+
+          ### In-App Updates
+          Rolling preview updates are delivered automatically via \`nightly.json\`.
+          EOF
+      - name: Publish rolling pre-release
+        run: |
+          if gh release view nightly >/dev/null 2>&1; then
+            gh release delete nightly --yes --cleanup-tag || true
+          fi
+
+          FILES=(
+            Opul-Nightly-arm64.dmg
+            Opul-Nightly-x64.dmg
+            Opul-Nightly-arm64.app.tar.gz
+            Opul-Nightly-arm64.app.tar.gz.sig
+            Opul-Nightly-x64.app.tar.gz
+            Opul-Nightly-x64.app.tar.gz.sig
+            nightly.json
+          )
+          if [[ -f "nightly.json.sig" ]]; then
+            FILES+=(nightly.json.sig)
+          fi
+
+          gh release create nightly "${FILES[@]}" \
+            --target "$SHA" \
+            --title "Opul Nightly ($VERSION)" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
+            --prerelease
+      - name: Verify public assets
+        run: |
+          curl -fsSL --retry 5 --retry-all-errors \
+            "https://github.com/$GITHUB_REPOSITORY/releases/download/nightly/nightly.json" \
+            -o "$RUNNER_TEMP/downloaded-nightly.json"
+          node Scripts/generate-updater-manifest.mjs --validate "$RUNNER_TEMP/downloaded-nightly.json"

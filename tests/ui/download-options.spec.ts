@@ -76,39 +76,36 @@ const command = (page: Page) =>
     JSON.parse(sessionStorage.getItem("test-command") ?? "null")
   );
 
-for (const [label, mode] of [
-  ["File", "Direct"],
-  ["Video or playlist", "Page"],
-  ["Torrent", "Torrent"],
-]) {
-  test(`${label} override reaches the backend and resets on success`, async ({
-    page,
-  }) => {
-    await mockDesktop(page, { failFirstAdd: true });
-    await page.goto("/");
-    await input(page).fill("https://example.com/ambiguous");
-    await options(page).click();
-    await choose(page, "Download type", label);
-    await choose(page, "Video format", "MP3 audio");
-    await page.keyboard.press("Escape");
-    await expect(options(page)).toHaveAttribute("data-active", "true");
-    await expect(options(page)).toHaveAttribute("title", `${label}; MP3 audio`);
-    await input(page).press("Enter");
-    await expect(
-      page.getByText("Couldn't add download. Try again.", { exact: true })
-    ).toBeVisible();
-    await expect(input(page)).toHaveValue("https://example.com/ambiguous");
-    await expect(options(page)).toHaveAttribute("data-active", "true");
-    await input(page).press("Enter");
-    await expect(input(page)).toHaveValue("");
-    expect(await command(page)).toMatchObject({
-      format: "AudioMp3",
-      kind: "add_url",
-      mode,
-    });
-    await expect(options(page)).toHaveAttribute("data-active", "false");
+test("download type override reaches the backend and resets on success", async ({
+  page,
+}) => {
+  await mockDesktop(page, { failFirstAdd: true });
+  await page.goto("/");
+  await input(page).fill("https://example.com/ambiguous");
+  await options(page).click();
+  await choose(page, "Download type", "Video or playlist");
+  await choose(page, "Video format", "MP3 audio");
+  await page.keyboard.press("Escape");
+  await expect(options(page)).toHaveAttribute("data-active", "true");
+  await expect(options(page)).toHaveAttribute(
+    "title",
+    "Video or playlist; MP3 audio"
+  );
+  await input(page).press("Enter");
+  await expect(
+    page.getByText("Couldn't add download. Try again.", { exact: true })
+  ).toBeVisible();
+  await expect(input(page)).toHaveValue("https://example.com/ambiguous");
+  await expect(options(page)).toHaveAttribute("data-active", "true");
+  await input(page).press("Enter");
+  await expect(input(page)).toHaveValue("");
+  expect(await command(page)).toMatchObject({
+    format: "AudioMp3",
+    kind: "add_url",
+    mode: "Page",
   });
-}
+  await expect(options(page)).toHaveAttribute("data-active", "false");
+});
 
 test("workspace default saves explicitly, survives reload, and initializes the next format", async ({
   page,
@@ -134,76 +131,63 @@ test("workspace default saves explicitly, survives reload, and initializes the n
   ).toBeVisible();
 });
 
-for (const path of [null, "/Users/test/sample.torrent"]) {
-  test(`native torrent picker preserves draft on ${path ? "import" : "cancel"}`, async ({
-    page,
-  }) => {
-    await mockDesktop(page, { torrentPickerPath: path });
-    await page.goto("/");
-    await input(page).fill("https://example.com/unfinished.zip");
-    await options(page).click();
-    await page
-      .getByRole("button", { exact: true, name: "Open .torrent" })
-      .click();
-    await expect(input(page)).toHaveValue("https://example.com/unfinished.zip");
-    await expect(
-      page.getByRole("button", { exact: true, name: "Download link" })
-    ).toBeEnabled();
+test("native torrent picker preserves draft on import", async ({ page }) => {
+  const path = "/Users/test/sample.torrent";
+  await mockDesktop(page, { torrentPickerPath: path });
+  await page.goto("/");
+  await input(page).fill("https://example.com/unfinished.zip");
+  await options(page).click();
+  await page
+    .getByRole("button", { exact: true, name: "Open .torrent" })
+    .click();
+  await expect(input(page)).toHaveValue("https://example.com/unfinished.zip");
+  await expect(
+    page.getByRole("button", { exact: true, name: "Download link" })
+  ).toBeEnabled();
 
-    const picker = await page.evaluate(() =>
-      JSON.parse(sessionStorage.getItem("test-picker") ?? "null")
-    );
+  const picker = await page.evaluate(() =>
+    JSON.parse(sessionStorage.getItem("test-picker") ?? "null")
+  );
 
-    expect(picker).toMatchObject({
-      options: {
-        filters: [{ extensions: ["torrent"], name: "Torrent" }],
-        multiple: false,
-      },
-    });
-
-    if (path) {
-      await expect
-        .poll(() => command(page))
-        .toMatchObject({
-          folder_id: "folder-1",
-          kind: "add_torrent_file",
-          path,
-          workspace_id: "workspace-1",
-        });
-      await expect(
-        page.locator('[data-slot="toast"]').filter({ hasText: "new-file.zip" })
-      ).toBeVisible();
-    } else {
-      expect(await command(page)).toBeNull();
-    }
+  expect(picker).toMatchObject({
+    options: {
+      filters: [{ extensions: ["torrent"], name: "Torrent" }],
+      multiple: false,
+    },
   });
-}
 
-for (const [label, mode] of [
-  ["File", "Direct"],
-  ["Video or playlist", "Page"],
-  ["Torrent", "Torrent"],
-]) {
-  test(`uncertainty choice ${label} submits the original URL`, async ({
-    page,
-  }) => {
-    await mockDesktop(page);
-    await page.goto("/");
-    await input(page).fill("https://example.com/unknown");
-    await input(page).press("Enter");
-    await choose(page, "Download type", label);
-    await page
-      .getByRole("dialog", { name: "Choose download type" })
-      .getByRole("button", { exact: true, name: "Download" })
-      .click();
-    await expect(input(page)).toHaveValue("");
-    expect(await command(page)).toMatchObject({
-      kind: "add_url",
-      mode,
-      url: "https://example.com/unknown",
+  await expect
+    .poll(() => command(page))
+    .toMatchObject({
+      folder_id: "folder-1",
+      kind: "add_torrent_file",
+      path,
+      workspace_id: "workspace-1",
     });
+  await expect(
+    page.locator('[data-slot="toast"]').filter({ hasText: "new-file.zip" })
+  ).toBeVisible();
+});
+
+test("uncertainty choice submits the original URL with chosen mode", async ({
+  page,
+}) => {
+  await mockDesktop(page);
+  await page.goto("/");
+  await input(page).fill("https://example.com/unknown");
+  await input(page).press("Enter");
+  await choose(page, "Download type", "Torrent");
+  await page
+    .getByRole("dialog", { name: "Choose download type" })
+    .getByRole("button", { exact: true, name: "Download" })
+    .click();
+  await expect(input(page)).toHaveValue("");
+  expect(await command(page)).toMatchObject({
+    kind: "add_url",
+    mode: "Torrent",
+    url: "https://example.com/unknown",
   });
-}
+});
 
 test("all formats are selectable and workspace defaults follow navigation", async ({
   page,

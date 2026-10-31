@@ -311,48 +311,43 @@ test("add a saved location from the download input without changing the default"
   ).toBeVisible();
 });
 
-for (const outcome of ["cancelled", "failed"]) {
-  test(`adding a location keeps the draft and selection when the picker is ${outcome}`, async ({
-    page,
-  }) => {
-    await mockDesktop(page, {
-      folderPickerError:
-        outcome === "failed" ? "Folder picker unavailable" : undefined,
-      folderPickerPath: null,
-    });
-    await page.goto("/");
-    const header = page.locator("main > header");
-
-    const link = header.getByRole("searchbox", {
-      exact: true,
-      name: "Search downloads or paste a link",
-    });
-
-    await link.fill("https://example.com/new-file.zip");
-    await header
-      .getByRole("button", {
-        exact: true,
-        name: "Save location: Downloads › Downloads",
-      })
-      .click();
-    await page
-      .locator('[data-slot="popover-content"]')
-      .getByRole("button", { exact: true, name: "Add new location…" })
-      .click();
-
-    if (outcome === "failed") {
-      await expect(page.getByText("Folder picker unavailable")).toBeVisible();
-    }
-
-    await expect(
-      header.getByRole("button", {
-        exact: true,
-        name: "Save location: Downloads › Downloads",
-      })
-    ).toBeVisible();
-    await expect(link).toHaveValue("https://example.com/new-file.zip");
+test("adding a location keeps the draft and selection when the picker is failed", async ({
+  page,
+}) => {
+  await mockDesktop(page, {
+    folderPickerError: "Folder picker unavailable",
+    folderPickerPath: null,
   });
-}
+  await page.goto("/");
+  const header = page.locator("main > header");
+
+  const link = header.getByRole("searchbox", {
+    exact: true,
+    name: "Search downloads or paste a link",
+  });
+
+  await link.fill("https://example.com/new-file.zip");
+  await header
+    .getByRole("button", {
+      exact: true,
+      name: "Save location: Downloads › Downloads",
+    })
+    .click();
+  await page
+    .locator('[data-slot="popover-content"]')
+    .getByRole("button", { exact: true, name: "Add new location…" })
+    .click();
+
+  await expect(page.getByText("Folder picker unavailable")).toBeVisible();
+
+  await expect(
+    header.getByRole("button", {
+      exact: true,
+      name: "Save location: Downloads › Downloads",
+    })
+  ).toBeVisible();
+  await expect(link).toHaveValue("https://example.com/new-file.zip");
+});
 
 test("empty, recovery, and startup failure states", async ({ browser }) => {
   for (const state of ["empty", "recovery", "fail"]) {

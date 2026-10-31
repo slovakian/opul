@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Opul Nightly",
+  "mainBinaryName": "Opul Nightly",
+  "identifier": "dev.opul.app.nightly",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Opul Nightly"
+      }
+    ]
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/slovakian/opul/releases/download/nightly/nightly.json"
+      ]
+    }
+  }
+}
