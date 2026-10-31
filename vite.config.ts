@@ -27,6 +27,7 @@ const sharedIgnorePatterns = [
   "**/.roo/**",
   "**/.windsurf/**",
   "skills-lock.json",
+  "AGENTS.md",
   // Internal tooling and vendored plugins
   "**/.vite-hooks/**",
   "tools/oxlint/anti-slop/**",
