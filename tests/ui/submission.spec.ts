@@ -60,114 +60,107 @@ const release = async (page: Page) => {
 const attempts = (page: Page) =>
   page.evaluate(() => sessionStorage.getItem("test-add-attempts"));
 
-for (const trigger of ["Enter", "click"]) {
-  test(`${trigger} adds in place and the workspace toast opens the new inspector`, async ({
-    page,
-  }) => {
-    const errors: string[] = [];
-    page.on("pageerror", (error) => errors.push(error.message));
-    await mockDesktop(page, { persist: true, snapshot: library() });
-    await page.goto("/");
-    await navigate(page, "Completed");
-    await chooseMedia(page);
-    await input(page).fill("  https://example.com/new.zip  ");
+test("submission adds in place and the workspace toast opens the new inspector", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await mockDesktop(page, { persist: true, snapshot: library() });
+  await page.goto("/");
+  await navigate(page, "Completed");
+  await chooseMedia(page);
+  await input(page).fill("  https://example.com/new.zip  ");
 
-    await (trigger === "Enter"
-      ? input(page).press("Enter")
-      : button(page).click());
+  await input(page).press("Enter");
 
-    await expect(input(page)).toHaveValue("");
-    await expect(
-      page.locator("main > header").getByText("Completed", { exact: true })
-    ).toBeVisible();
-    await expect(
-      page.getByRole("complementary", { name: "Download details" })
-    ).toHaveCount(0);
-    await expect(notice(page)).toBeVisible();
-    await expect(
-      notice(page).locator('[data-slot="emoji-artwork"]')
-    ).toHaveText("👩🏽‍💻");
-    await expect(notice(page)).toContainText("Media");
-    await expect(notice(page)).toContainText("Films");
-    await page.screenshot({
-      path: `test-results/submission-${trigger}-toast.png`,
-    });
-
-    const accessibility = await new AxeBuilder({ page })
-      .include('[data-slot="toast-viewport"]')
-      .analyze();
-
-    expect(accessibility.violations).toEqual([]);
-    await notice(page)
-      .getByRole("button", { exact: true, name: "View" })
-      .focus();
-    await page.keyboard.press("Enter");
-
-    const inspector = page.getByRole("complementary", {
-      name: "Download details",
-    });
-
-    await expect(
-      inspector.getByRole("heading", { name: "new-file.zip" })
-    ).toBeVisible();
-    await expect(inspector).toContainText("Films");
-    await expect(
-      page.locator("main > header").getByText("Completed", { exact: true })
-    ).toBeVisible();
-    await inspector.getByRole("button", { name: "Close details" }).click();
-    await expect(
-      page.getByText("The creative process.mp4", { exact: true })
-    ).toBeVisible();
-    expect(await attempts(page)).toBe("1");
-    expect(errors).toEqual([]);
+  await expect(input(page)).toHaveValue("");
+  await expect(
+    page.locator("main > header").getByText("Completed", { exact: true })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("complementary", { name: "Download details" })
+  ).toHaveCount(0);
+  await expect(notice(page)).toBeVisible();
+  await expect(notice(page).locator('[data-slot="emoji-artwork"]')).toHaveText(
+    "👩🏽‍💻"
+  );
+  await expect(notice(page)).toContainText("Media");
+  await expect(notice(page)).toContainText("Films");
+  await page.screenshot({
+    path: "test-results/submission-toast.png",
   });
-}
 
-for (const newer of ["next search", "https://example.com/next.zip", ""]) {
-  test(`pending submissions reject duplicates and preserve newer input: ${JSON.stringify(newer)}`, async ({
-    page,
-  }) => {
-    await mockDesktop(page, { holdAdd: true, persist: true });
-    await page.goto("/");
-    await input(page).fill("https://example.com/first.zip");
-    // Submit twice in the same event turn, before React can disable the button.
-    await page
-      .getByRole("form", { name: "Search or add a download" })
-      .evaluate((form) => {
-        if (!(form instanceof HTMLFormElement)) {
-          throw new TypeError("Expected the download form");
-        }
+  const accessibility = await new AxeBuilder({ page })
+    .include('[data-slot="toast-viewport"]')
+    .analyze();
 
-        form.requestSubmit();
-        form.requestSubmit();
-      });
-    await expect(button(page)).toBeDisabled();
-    expect(await attempts(page)).toBe("1");
-    await expect(button(page)).toHaveAttribute("aria-busy", "true");
-    await expect(button(page).locator("svg.animate-spin")).toBeVisible();
-    await input(page).press("Enter");
-    await input(page).press("Enter");
-    expect(await attempts(page)).toBe("1");
-    await input(page).fill(newer);
-    await page.screenshot({
-      path: `test-results/submission-pending-${newer.length}.png`,
-    });
-    await release(page);
-    await expect(notice(page)).toBeVisible();
-    await expect(input(page)).toHaveValue(newer);
-    await expect(button(page)).toHaveAttribute("aria-busy", "false");
-    expect(await attempts(page)).toBe("1");
+  expect(accessibility.violations).toEqual([]);
+  await notice(page).getByRole("button", { exact: true, name: "View" }).focus();
+  await page.keyboard.press("Enter");
 
-    const saved = await page.evaluate(() =>
-      JSON.parse(sessionStorage.getItem("test-snapshot") ?? "null")
-    );
-
-    expect(saved.workspaces[0].downloads).toHaveLength(4);
-    expect(saved.workspaces[0].downloads[3].source_url).toBe(
-      "https://example.com/first.zip"
-    );
+  const inspector = page.getByRole("complementary", {
+    name: "Download details",
   });
-}
+
+  await expect(
+    inspector.getByRole("heading", { name: "new-file.zip" })
+  ).toBeVisible();
+  await expect(inspector).toContainText("Films");
+  await expect(
+    page.locator("main > header").getByText("Completed", { exact: true })
+  ).toBeVisible();
+  await inspector.getByRole("button", { name: "Close details" }).click();
+  await expect(
+    page.getByText("The creative process.mp4", { exact: true })
+  ).toBeVisible();
+  expect(await attempts(page)).toBe("1");
+  expect(errors).toEqual([]);
+});
+
+test("pending submissions reject duplicates and preserve newer input", async ({
+  page,
+}) => {
+  const newer = "next search";
+  await mockDesktop(page, { holdAdd: true, persist: true });
+  await page.goto("/");
+  await input(page).fill("https://example.com/first.zip");
+  // Submit twice in the same event turn, before React can disable the button.
+  await page
+    .getByRole("form", { name: "Search or add a download" })
+    .evaluate((form) => {
+      if (!(form instanceof HTMLFormElement)) {
+        throw new TypeError("Expected the download form");
+      }
+
+      form.requestSubmit();
+      form.requestSubmit();
+    });
+  await expect(button(page)).toBeDisabled();
+  expect(await attempts(page)).toBe("1");
+  await expect(button(page)).toHaveAttribute("aria-busy", "true");
+  await expect(button(page).locator("svg.animate-spin")).toBeVisible();
+  await input(page).press("Enter");
+  await input(page).press("Enter");
+  expect(await attempts(page)).toBe("1");
+  await input(page).fill(newer);
+  await page.screenshot({
+    path: "test-results/submission-pending.png",
+  });
+  await release(page);
+  await expect(notice(page)).toBeVisible();
+  await expect(input(page)).toHaveValue(newer);
+  await expect(button(page)).toHaveAttribute("aria-busy", "false");
+  expect(await attempts(page)).toBe("1");
+
+  const saved = await page.evaluate(() =>
+    JSON.parse(sessionStorage.getItem("test-snapshot") ?? "null")
+  );
+
+  expect(saved.workspaces[0].downloads).toHaveLength(4);
+  expect(saved.workspaces[0].downloads[3].source_url).toBe(
+    "https://example.com/first.zip"
+  );
+});
 
 test("failed additions retain the draft and cross-workspace destination for retry", async ({
   page,

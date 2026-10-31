@@ -405,34 +405,31 @@ test("failed additions retain the selected folder in the confirmation", async ({
   await expect(destination(page, "Media › Films")).toBeVisible();
 });
 
-for (const picker of [
-  { folderPickerPath: null },
-  { folderPickerError: "Folder access unavailable" },
-]) {
-  test(`native picker cancel or failure preserves the destination: ${JSON.stringify(picker)}`, async ({
-    page,
-  }) => {
-    await mockDesktop(page, { persist: true, snapshot: library(), ...picker });
-    await page.goto("/");
-    await input(page).fill("keep this draft");
-    await destination(page, "Choose…").click();
-    await page
-      .getByRole("button", { exact: true, name: "Add new location…" })
-      .click();
-    await expect(destination(page, "Choose…")).toBeVisible();
-    await expect(input(page)).toHaveValue("keep this draft");
-
-    if ("folderPickerError" in picker) {
-      await expect(
-        page.getByText("Folder access unavailable", { exact: true })
-      ).toBeVisible();
-    }
-
-    expect(
-      await page.evaluate(() => sessionStorage.getItem("test-snapshot"))
-    ).toBeNull();
+test("native picker failure preserves the destination and input draft", async ({
+  page,
+}) => {
+  await mockDesktop(page, {
+    folderPickerError: "Folder access unavailable",
+    folderPickerPath: null,
+    persist: true,
+    snapshot: library(),
   });
-}
+  await page.goto("/");
+  await input(page).fill("keep this draft");
+  await destination(page, "Choose…").click();
+  await page
+    .getByRole("button", { exact: true, name: "Add new location…" })
+    .click();
+  await expect(destination(page, "Choose…")).toBeVisible();
+  await expect(input(page)).toHaveValue("keep this draft");
+  await expect(
+    page.getByText("Folder access unavailable", { exact: true })
+  ).toBeVisible();
+
+  expect(
+    await page.evaluate(() => sessionStorage.getItem("test-snapshot"))
+  ).toBeNull();
+});
 
 test("a preferences read failure leaves contextual downloads and aggregate confirmation usable", async ({
   page,

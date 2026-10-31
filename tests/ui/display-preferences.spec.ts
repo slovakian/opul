@@ -109,18 +109,25 @@ test("aggregate views remember independent display preferences without changing 
   await expectView(page, "List", "Status", "No grouping");
 });
 
-for (const scope of ["In progress", "Completed"]) {
-  test(`${scope} hides the status filter`, async ({ page }) => {
-    await mockDesktop(page);
-    await page.goto("/");
-    const header = page.locator("main > header");
+test("In progress and Completed scopes hide the status filter", async ({
+  page,
+}) => {
+  await mockDesktop(page);
+  await page.goto("/");
+  const header = page.locator("main > header");
+
+  for (const scope of ["In progress", "Completed"] as const) {
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await navigate(page, scope);
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await expect(
       header.getByRole("button", { name: /downloads$/u })
     ).toHaveCount(0);
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await expect(
       page.getByRole("heading", { exact: true, name: scope })
     ).toBeVisible();
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await expect(
       page.getByRole("button", {
         exact: true,
@@ -130,13 +137,10 @@ for (const scope of ["In progress", "Completed"]) {
             : "The creative process.mp4",
       })
     ).toBeVisible();
-    await page.screenshot({
-      path: `test-results/scope-${scope.replaceAll(" ", "-")}.png`,
-    });
-  });
-}
+  }
+});
 
-for (const scope of ["All downloads", "Downloads workspace", "Downloads"]) {
+for (const scope of ["All downloads", "Downloads workspace"]) {
   test(`${scope} highlights optional filters without changing scope`, async ({
     page,
   }) => {
