@@ -112,4 +112,23 @@ for ARCH_SUFFIX in arm64 x64; do
   fi
 done
 
+# 6. Verify updater manifest generator
+TMP_MANIFEST=$(mktemp "${TMPDIR:-/tmp}/test-manifest.XXXXXX.json")
+cleanup_manifest() {
+  rm -f "$TMP_MANIFEST"
+}
+trap cleanup_manifest EXIT
+
+node Scripts/generate-updater-manifest.mjs \
+  --version "0.1.0-nightly.20261031.1" \
+  --arm64-sig "test-sig-arm64" \
+  --x64-sig "test-sig-x64" \
+  --output "$TMP_MANIFEST" >/dev/null
+
+node Scripts/generate-updater-manifest.mjs --validate "$TMP_MANIFEST" >/dev/null
+echo "PASS: generate-updater-manifest.mjs generates and validates updater manifest"
+
+cleanup_manifest
+trap - EXIT
+
 echo "All packaging tests passed successfully."

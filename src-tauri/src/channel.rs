@@ -224,4 +224,55 @@ mod tests {
         stable_machine.begin_shutdown().expect("shutdown stable");
         nightly_machine.begin_shutdown().expect("shutdown nightly");
     }
+
+    #[test]
+    fn nightly_manifest_parses_valid_tauri_updater_format() {
+        let manifest_json = r#"{
+            "version": "0.1.0-nightly.20261031.1",
+            "notes": "Opul Nightly pre-release",
+            "pub_date": "2026-10-31T15:00:00Z",
+            "platforms": {
+                "darwin-aarch64": {
+                    "url": "https://github.com/slovakian/opul/releases/download/nightly/Opul-Nightly-arm64.app.tar.gz",
+                    "signature": "sig-arm64-test"
+                },
+                "darwin-x86_64": {
+                    "url": "https://github.com/slovakian/opul/releases/download/nightly/Opul-Nightly-x64.app.tar.gz",
+                    "signature": "sig-x64-test"
+                }
+            }
+        }"#;
+
+        let release: tauri_plugin_updater::RemoteRelease =
+            serde_json::from_str(manifest_json).expect("manifest should deserialize");
+
+        assert_eq!(release.version.to_string(), "0.1.0-nightly.20261031.1");
+        assert_eq!(
+            release
+                .download_url("darwin-aarch64")
+                .expect("darwin-aarch64 URL")
+                .as_str(),
+            "https://github.com/slovakian/opul/releases/download/nightly/Opul-Nightly-arm64.app.tar.gz"
+        );
+        assert_eq!(
+            release
+                .signature("darwin-aarch64")
+                .expect("darwin-aarch64 signature"),
+            "sig-arm64-test"
+        );
+
+        assert_eq!(
+            release
+                .download_url("darwin-x86_64")
+                .expect("darwin-x86_64 URL")
+                .as_str(),
+            "https://github.com/slovakian/opul/releases/download/nightly/Opul-Nightly-x64.app.tar.gz"
+        );
+        assert_eq!(
+            release
+                .signature("darwin-x86_64")
+                .expect("darwin-x86_64 signature"),
+            "sig-x64-test"
+        );
+    }
 }

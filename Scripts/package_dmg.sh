@@ -149,7 +149,7 @@ case "${RAW_TARGET:-}" in
     ;;
 esac
 
-ARGS=(build --bundles dmg --target "$TARGET_TRIPLE")
+ARGS=(build --bundles app,dmg --target "$TARGET_TRIPLE")
 if [[ "$BUILD_CONF" == "debug" ]]; then
   ARGS+=(--debug)
 fi
@@ -164,6 +164,15 @@ fi
 
 export APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}"
 npm run tauri -- "${ARGS[@]}"
+
+BUNDLE_SRC="$TARGET_DIR/$BUILD_CONF/bundle/macos/$BUNDLE_NAME"
+if [[ ! -d "$BUNDLE_SRC" && -d "$ROOT_DIR/target/$BUILD_CONF/bundle/macos/$BUNDLE_NAME" ]]; then
+  BUNDLE_SRC="$ROOT_DIR/target/$BUILD_CONF/bundle/macos/$BUNDLE_NAME"
+fi
+if [[ -d "$BUNDLE_SRC" ]]; then
+  rm -rf "$ROOT_DIR/$BUNDLE_NAME"
+  ditto "$BUNDLE_SRC" "$ROOT_DIR/$BUNDLE_NAME"
+fi
 
 shopt -s nullglob
 DMGS=("$TARGET_DIR/$BUILD_CONF/bundle/dmg/"*.dmg)
