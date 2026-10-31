@@ -73,19 +73,47 @@ const EmojiCategoryHeader = ({
   </div>
 );
 
-const EmojiRow = ({ children, ...rowProps }: EmojiPickerListRowProps) => (
-  <div
-    {...rowProps}
-    aria-rowindex={
-      rowProps["aria-rowindex"] === undefined
-        ? undefined
-        : rowProps["aria-rowindex"] + 1
+const EmojiRow = ({ children, ...rowProps }: EmojiPickerListRowProps) => {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const list = ref.current?.closest<HTMLElement>("[frimousse-list]");
+
+    if (list && !list.dataset.patchedRowIndex) {
+      list.dataset.patchedRowIndex = "true";
+      const originalQuerySelector = list.querySelector.bind(list);
+
+      list.querySelector = function querySelector<E extends Element = Element>(
+        selector: string
+      ): E | null {
+        const match = selector.match(/^\[aria-rowindex="(?<rowIndex>\d+)"\]$/u);
+
+        if (match?.groups?.rowIndex) {
+          const adjusted = Number(match.groups.rowIndex) + 1;
+
+          return originalQuerySelector<E>(`[aria-rowindex="${adjusted}"]`);
+        }
+
+        return originalQuerySelector<E>(selector);
+      };
     }
-    className="scroll-my-1"
-  >
-    {children}
-  </div>
-);
+  }, []);
+
+  return (
+    <div
+      {...rowProps}
+      ref={ref}
+      aria-rowindex={
+        rowProps["aria-rowindex"] === undefined
+          ? undefined
+          : rowProps["aria-rowindex"] + 1
+      }
+      className="scroll-my-1"
+    >
+      {children}
+    </div>
+  );
+};
 
 const EmojiGridCell = (props: EmojiPickerListEmojiProps) => {
   const { chosenEmoji, keyboardNavigation } = useContext(EmojiPickerContext);
