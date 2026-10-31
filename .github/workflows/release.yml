@@ -145,14 +145,6 @@ jobs:
             --password "$APPLE_PASSWORD" \
             --wait
           xcrun stapler staple "Opul-${{ matrix.arch }}.dmg"
-          if [[ -f Opul.dmg && "${{ matrix.arch }}" == "arm64" ]]; then
-            xcrun notarytool submit "Opul.dmg" \
-              --apple-id "$APPLE_ID" \
-              --team-id "$APPLE_TEAM_ID" \
-              --password "$APPLE_PASSWORD" \
-              --wait
-            xcrun stapler staple "Opul.dmg"
-          fi
       - name: Save platform signature info
         run: |
           SIG=$(cat "Opul-${{ matrix.arch }}.app.tar.gz.sig")

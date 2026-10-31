@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, slovakian/ci-speed-up-github]
+    branches: [main]
   pull_request:
 
 permissions:
@@ -27,6 +27,8 @@ jobs:
       - run: echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
       - name: Lint and type-check frontend
         run: vp check
+      - name: Run frontend unit tests
+        run: vp test
       - name: Check Rust formatting
         run: cargo fmt --all --check
       - name: Check Rust compilation

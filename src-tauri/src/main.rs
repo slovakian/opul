@@ -181,7 +181,6 @@ fn main() {
             commands::preferences::save_aggregate_view,
             commands::tool_status,
             commands::reveal_download,
-            channel::channel_info
         ])
         .build(tauri::generate_context!())
         .expect("Could not start Opul");

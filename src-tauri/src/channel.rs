@@ -12,7 +12,7 @@ impl ReleaseChannel {
     pub fn detect(id: &str, product_name: &str, env_var: Option<&str>) -> Self {
         if let Some(env) = env_var {
             let env_lower = env.trim().to_ascii_lowercase();
-            if env_lower == "nightly" || env_lower == "rolling" || env_lower == "preview" {
+            if env_lower == "nightly" {
                 return Self::Nightly;
             }
             if env_lower == "stable" {
@@ -40,6 +40,7 @@ impl ReleaseChannel {
     }
 
     #[must_use]
+    #[allow(dead_code)]
     pub fn bundle_identifier(self) -> &'static str {
         match self {
             Self::Stable => "dev.opul.app",
@@ -48,6 +49,7 @@ impl ReleaseChannel {
     }
 
     #[must_use]
+    #[allow(dead_code)]
     pub fn default_updater_endpoint(self) -> &'static str {
         match self {
             Self::Stable => {
@@ -75,39 +77,6 @@ pub fn resolve_data_directory(
         return PathBuf::from(path);
     }
     base_dir.join(channel.data_directory_name())
-}
-
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ChannelInfo {
-    pub channel: &'static str,
-    pub app_name: &'static str,
-    pub bundle_identifier: &'static str,
-    pub updater_endpoint: &'static str,
-}
-
-#[tauri::command]
-pub fn channel_info(app: tauri::AppHandle) -> ChannelInfo {
-    let env_override = std::env::var("OPUL_CHANNEL").ok();
-    let product_name = app
-        .config()
-        .product_name
-        .as_deref()
-        .unwrap_or(&app.package_info().name);
-    let channel = ReleaseChannel::detect(
-        &app.config().identifier,
-        product_name,
-        env_override.as_deref(),
-    );
-    ChannelInfo {
-        channel: match channel {
-            ReleaseChannel::Stable => "stable",
-            ReleaseChannel::Nightly => "nightly",
-        },
-        app_name: channel.app_name(),
-        bundle_identifier: channel.bundle_identifier(),
-        updater_endpoint: channel.default_updater_endpoint(),
-    }
 }
 
 #[cfg(test)]

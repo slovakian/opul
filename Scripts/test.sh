@@ -10,5 +10,6 @@ case "${1:-}" in
 esac
 cargo fmt --all --check
 cargo test --workspace
+vp test
 npm run build
 npm test
