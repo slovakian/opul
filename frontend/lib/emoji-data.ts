@@ -1,6 +1,26 @@
-import type { EmojiData, EmojiDataResolver, EmojiDetails } from "frimousse";
-
 import bundled from "@/assets/emoji/data.json";
+
+type SkinTone = "light" | "medium-light" | "medium" | "medium-dark" | "dark";
+
+export type EmojiDetails = Omit<
+  (typeof bundled.emojis)[number],
+  "skins" | "countryFlag"
+> & {
+  countryFlag?: boolean;
+  skins?: Record<SkinTone, string>;
+};
+
+export interface EmojiData {
+  categories: typeof bundled.categories;
+  emojis: EmojiDetails[];
+  locale: string;
+  skinTones: Record<SkinTone, string>;
+}
+
+export type EmojiDataResolver = (
+  locale: string,
+  options: { emojiVersion?: number; signal?: AbortSignal }
+) => EmojiData | Promise<EmojiData>;
 
 const data: EmojiData = {
   ...bundled,

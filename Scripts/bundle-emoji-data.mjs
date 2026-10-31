@@ -1,4 +1,4 @@
-// Regenerate the offline Frimousse dataset from the locked Emojibase dependency.
+// Regenerate the offline emoji dataset from the locked Emojibase dependency.
 import { readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 

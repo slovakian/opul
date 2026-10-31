@@ -122,7 +122,7 @@ test("six unique suggestions include a saved preset; expansion preserves selecti
     await page.keyboard.press("ArrowDown");
   }
 
-  const viewport = picker(page).locator("[frimousse-viewport]");
+  const viewport = picker(page).locator('[data-slot="emoji-viewport"]');
   const scroll = await viewport.evaluate((node) => node.scrollTop);
   expect(scroll).toBeGreaterThan(0);
 

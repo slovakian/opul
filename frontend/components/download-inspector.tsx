@@ -1,11 +1,20 @@
-import { Copy, FolderOpen, X } from "lucide-react";
-import { createElement, useState } from "react";
+import {
+  ArrowUpRightIcon,
+  Check,
+  Copy,
+  FileIcon,
+  FolderOpen,
+  GlobeIcon,
+  Link,
+  Magnet,
+  X,
+} from "lucide-react";
+import { createElement, useEffect, useRef, useState } from "react";
 
 import { DownloadActions, reveal } from "@/components/download-actions";
 import { DownloadStatus, fileIcon } from "@/components/downloads";
 import { InspectorPanel } from "@/components/inspector-panel";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Field,
   FieldDescription,
@@ -13,23 +22,94 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  Item,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemTitle,
-} from "@/components/ui/item";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { SidebarContent, SidebarHeader } from "@/components/ui/sidebar";
 import { toast } from "@/components/ui/toast";
+import {
+  Trace,
+  TraceCollapsible,
+  TraceCollapsibleContent,
+  TraceCollapsibleTrigger,
+  TraceDescription,
+  TraceIcon,
+  TraceLine,
+  TraceTitle,
+} from "@/components/ui/trace";
 import { errorMessage } from "@/lib/bridge";
 import { useLibrary } from "@/lib/library";
 import { bytes, formatNames, sourceNames, timeRemaining } from "@/lib/model";
 import type { Download, Workspace } from "@/lib/model";
 
 const noop = () => null;
+
+export const DownloadSourceLink = ({ download }: { download: Download }) => {
+  const [copied, setCopied] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    },
+    []
+  );
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(download.source_url);
+      setCopied(true);
+
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+
+      timeoutRef.current = setTimeout(() => {
+        setCopied(false);
+      }, 2000);
+    } catch (error) {
+      toast.add({
+        description: errorMessage(error),
+        title: "Couldn't copy link",
+        type: "error",
+      });
+    }
+  };
+
+  if (!download.source_url) {
+    return null;
+  }
+
+  const isTorrent = download.source === "Torrent";
+
+  return (
+    <Trace>
+      <button
+        type="button"
+        className="group/trace"
+        onClick={handleCopy}
+        aria-label={copied ? "Copied to clipboard" : download.source_url}
+      >
+        <TraceLine>
+          <TraceIcon>{isTorrent ? <Magnet /> : <Link />}</TraceIcon>
+          <TraceTitle
+            title={copied ? "Copied to clipboard" : download.source_url}
+          >
+            {copied ? "Copied to clipboard" : download.source_url}
+          </TraceTitle>
+          <TraceIcon
+            className={
+              copied ? "text-foreground" : "invisible group-hover/trace:visible"
+            }
+          >
+            {copied ? <Check /> : <Copy />}
+          </TraceIcon>
+        </TraceLine>
+      </button>
+    </Trace>
+  );
+};
 
 export const DownloadInspector = ({
   download,
@@ -67,7 +147,7 @@ export const DownloadInspector = ({
           <X />
         </Button>
       </SidebarHeader>
-      <SidebarContent className="gap-6 px-5 pb-6">
+      <SidebarContent className="scroll-fade gap-6 px-5 pb-6">
         <div className="flex flex-col items-start gap-4 pt-4">
           <div className="bg-muted flex size-14 items-center justify-center rounded-xl">
             {createElement(fileIcon(download), {
@@ -154,34 +234,7 @@ export const DownloadInspector = ({
             Show in Finder
           </Button>
         )}
-        <FieldGroup>
-          <Field>
-            <FieldLabel>Original link</FieldLabel>
-            <p className="text-muted-foreground text-xs leading-relaxed break-all select-text">
-              {download.source_url}
-            </p>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="self-start"
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(download.source_url);
-                  toast.add({ title: "Link copied" });
-                } catch (error) {
-                  toast.add({
-                    description: errorMessage(error),
-                    title: "Couldn't copy link",
-                    type: "error",
-                  });
-                }
-              }}
-            >
-              <Copy data-icon="inline-start" />
-              Copy link
-            </Button>
-          </Field>
-        </FieldGroup>
+        <DownloadSourceLink key={download.id} download={download} />
         {download.source === "Torrent" && (
           <>
             <Separator />
@@ -232,74 +285,102 @@ export const DownloadInspector = ({
         {download.files.length > 0 && (
           <>
             <Separator />
-            <section className="flex flex-col gap-2">
-              <h3 className="flex items-center justify-between text-sm font-medium">
-                Files
-                <span className="text-muted-foreground text-xs">
-                  {
-                    download.files.filter((file) => file.priority !== "skip")
-                      .length
-                  }{" "}
-                  of {download.files.length}
-                </span>
-              </h3>
-              <ItemGroup className="gap-1">
-                {download.files.map((file) => (
-                  <Item key={file.index} size="xs" className="px-0">
-                    <Checkbox
-                      aria-label={`Download ${file.path}`}
-                      checked={file.priority !== "skip"}
-                      disabled={
-                        busy || !download.capabilities.can_change_file_selection
-                      }
-                      onCheckedChange={(checked) => {
-                        run({
-                          download_id: download.id,
-                          files: download.files.map((current) =>
-                            current.index === file.index
-                              ? {
-                                  ...current,
-                                  priority: checked ? "normal" : "skip",
-                                }
-                              : current
-                          ),
-                          kind: "torrent_files",
-                        }).catch(() => null);
-                      }}
-                    />
-                    <ItemContent className="min-w-0">
-                      <ItemTitle
-                        className="max-w-full truncate text-xs"
-                        title={file.path}
-                      >
-                        {file.path}
-                      </ItemTitle>
-                      <ItemDescription className="text-xs">
-                        {bytes(file.size)}
-                      </ItemDescription>
-                    </ItemContent>
-                  </Item>
-                ))}
-              </ItemGroup>
-            </section>
+            {download.files.length === 1 ? (
+              <Trace>
+                <TraceLine>
+                  <TraceIcon>
+                    <FileIcon />
+                  </TraceIcon>
+                  <TraceTitle title={download.files[0].path}>
+                    {download.files[0].path}
+                  </TraceTitle>
+                  <TraceDescription>
+                    {bytes(download.files[0].size)}
+                  </TraceDescription>
+                </TraceLine>
+              </Trace>
+            ) : (
+              <TraceCollapsible>
+                <TraceCollapsibleTrigger>
+                  <TraceLine>
+                    <TraceIcon>
+                      <FileIcon />
+                    </TraceIcon>
+                    <TraceTitle>{`${download.files.length} files`}</TraceTitle>
+                  </TraceLine>
+                </TraceCollapsibleTrigger>
+                <TraceCollapsibleContent>
+                  <Trace>
+                    {download.files.map((file) => (
+                      <TraceLine key={file.index}>
+                        <TraceTitle title={file.path}>{file.path}</TraceTitle>
+                        <TraceDescription>{bytes(file.size)}</TraceDescription>
+                      </TraceLine>
+                    ))}
+                  </Trace>
+                </TraceCollapsibleContent>
+              </TraceCollapsible>
+            )}
           </>
         )}
-        {download.trackers.length > 0 && (
-          <>
-            <Separator />
-            <section className="flex flex-col gap-2">
-              <h3 className="text-sm font-medium">Trackers</h3>
-              {download.trackers.map((tracker) => (
-                <p
-                  key={tracker}
-                  className="text-muted-foreground text-xs break-all select-text"
-                >
-                  {tracker}
-                </p>
-              ))}
-            </section>
-          </>
-        )}
+        {download.trackers.length > 0 &&
+          (download.trackers.length === 1 ? (
+            <Trace>
+              <a
+                href={download.trackers[0]}
+                aria-label={download.trackers[0]}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <TraceLine>
+                  <TraceIcon>
+                    <GlobeIcon />
+                  </TraceIcon>
+                  <TraceTitle title={download.trackers[0]}>
+                    {download.trackers[0]}
+                    <span className="sr-only"> (opens in a new tab)</span>
+                  </TraceTitle>
+                  <TraceIcon>
+                    <ArrowUpRightIcon />
+                  </TraceIcon>
+                </TraceLine>
+              </a>
+            </Trace>
+          ) : (
+            <TraceCollapsible>
+              <TraceCollapsibleTrigger>
+                <TraceLine>
+                  <TraceIcon>
+                    <GlobeIcon />
+                  </TraceIcon>
+                  <TraceTitle>{`${download.trackers.length} trackers`}</TraceTitle>
+                </TraceLine>
+              </TraceCollapsibleTrigger>
+              <TraceCollapsibleContent>
+                <Trace>
+                  {download.trackers.map((tracker) => (
+                    <a
+                      key={tracker}
+                      href={tracker}
+                      aria-label={tracker}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <TraceLine>
+                        <TraceTitle title={tracker}>
+                          {tracker}
+                          <span className="sr-only"> (opens in a new tab)</span>
+                        </TraceTitle>
+                        <TraceIcon>
+                          <ArrowUpRightIcon />
+                        </TraceIcon>
+                      </TraceLine>
+                    </a>
+                  ))}
+                </Trace>
+              </TraceCollapsibleContent>
+            </TraceCollapsible>
+          ))}
       </SidebarContent>
     </InspectorPanel>
   );
