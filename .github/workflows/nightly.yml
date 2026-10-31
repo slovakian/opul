@@ -21,9 +21,18 @@ jobs:
       version: ${{ steps.meta.outputs.version }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - id: meta
         run: |
-          BASE_VERSION=$(node -e 'const conf = JSON.parse(require("fs").readFileSync("./src-tauri/tauri.conf.json", "utf-8")); console.log(conf.version);')
+          # Stable versions come from vX.Y.Z tags, so nightlies preview the next patch.
+          latest=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1 || true)
+          if [[ -n "$latest" ]]; then
+            IFS=. read -r major minor patch <<<"${latest#v}"
+            BASE_VERSION="$major.$minor.$((patch + 1))"
+          else
+            BASE_VERSION=$(node -e 'const conf = JSON.parse(require("fs").readFileSync("./src-tauri/tauri.conf.json", "utf-8")); console.log(conf.version);')
+          fi
           COMMIT_DATE=$(git log -1 --format=%cd --date=format:%Y%m%d)
           RUN_NUM="${{ github.run_number }}"
           NIGHTLY_VERSION="${BASE_VERSION}-nightly.${COMMIT_DATE}.${RUN_NUM}"
