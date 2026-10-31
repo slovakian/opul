@@ -29,6 +29,8 @@ jobs:
         run: vp check
       - name: Run frontend unit tests
         run: vp test
+      - name: Check packaging configuration
+        run: Scripts/test_packaging.sh
       - name: Check Rust formatting
         run: cargo fmt --all --check
       - name: Check Rust compilation
@@ -100,3 +102,35 @@ jobs:
             test-results/
             /tmp/opul-smoke*
           if-no-files-found: ignore
+
+  package-dmg:
+    runs-on: macos-26
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            target: aarch64-apple-darwin
+          - arch: x64
+            target: x86_64-apple-darwin
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Package nightly DMG without notarization credentials
+        env:
+          APPLE_ID: ""
+          APPLE_PASSWORD: ""
+          APPLE_TEAM_ID: ""
+          MARKETING_VERSION: 0.1.0-nightly.${{ github.run_number }}
+        run: Scripts/package_dmg.sh release nightly "${{ matrix.arch }}"
