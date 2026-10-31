@@ -1,0 +1,37 @@
+name: Notify website
+
+on:
+  # Release events created by GITHUB_TOKEN do not trigger workflows. Waiting for
+  # the publisher also covers asset replacements on an existing rolling tag.
+  workflow_run:
+    workflows: [Release, Nightly]
+    types: [completed]
+  release:
+    types: [published, edited, deleted]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notify-website
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    if: >-
+      github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || (github.event_name == 'release' &&
+        (github.event.release.tag_name == 'nightly' || startsWith(github.event.release.tag_name, 'v')))
+    runs-on: ubuntu-latest
+    steps:
+      # No checkout: never execute app code in a workflow that can access this token.
+      - name: Rebuild the static website
+        env:
+          GH_TOKEN: ${{ secrets.OPUL_WEBSITE_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::Set OPUL_WEBSITE_DISPATCH_TOKEN to a fine-grained token with Contents: write on slovakian/opul-website."
+            exit 1
+          fi
+          gh api --method POST repos/slovakian/opul-website/dispatches \
+            -f event_type=opul-release
