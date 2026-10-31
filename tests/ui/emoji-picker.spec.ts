@@ -20,6 +20,8 @@ const openPicker = async (page: Page) => {
 test("the complete emoji grid exposes positive one-based indices and passes every Axe rule", async ({
   page,
 }) => {
+  // Auditing the complete emoji dataset can exceed 30 seconds on CI WebKit.
+  test.slow();
   await mockDesktop(page);
   await page.goto("/");
   await openPicker(page);
