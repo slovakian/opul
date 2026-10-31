@@ -92,23 +92,17 @@ export const DownloadSourceLink = ({ download }: { download: Download }) => {
         aria-label={copied ? "Copied" : download.source_url}
       >
         <TraceLine>
-          <TraceIcon className="relative">
-            {copied ? (
-              <Check className="text-foreground" />
-            ) : (
-              <>
-                <span className="flex size-4 items-center justify-center transition-opacity group-hover/trace:opacity-0 group-focus-visible/trace:opacity-0">
-                  {isTorrent ? <Magnet /> : <Link />}
-                </span>
-                <span className="absolute inset-0 flex size-4 items-center justify-center opacity-0 transition-opacity group-hover/trace:opacity-100 group-focus-visible/trace:opacity-100">
-                  <Copy />
-                </span>
-              </>
-            )}
-          </TraceIcon>
+          <TraceIcon>{isTorrent ? <Magnet /> : <Link />}</TraceIcon>
           <TraceTitle title={copied ? "Copied" : download.source_url}>
             {copied ? "Copied" : download.source_url}
           </TraceTitle>
+          <TraceIcon
+            className={
+              copied ? "text-foreground" : "invisible group-hover/trace:visible"
+            }
+          >
+            {copied ? <Check /> : <Copy />}
+          </TraceIcon>
         </TraceLine>
       </button>
     </Trace>
