@@ -92,8 +92,8 @@ let bundled = load(app.appendingPathComponent("Contents/Resources/" + iconFile))
 try check(bundled, name: "bundled-icns")
 
 // Finder caches icons across rebuilds. A fresh copy exercises the shipped bundle
-// without reusing an older icon cached for Opul.app's path.
-let freshApp = temporary.appendingPathComponent("Opul.app")
+// without reusing an older icon cached for the app's path.
+let freshApp = temporary.appendingPathComponent(app.lastPathComponent)
 try FileManager.default.copyItem(at: app, to: freshApp)
 var finderReference = reference
 if #available(macOS 26, *) {

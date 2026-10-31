@@ -37,5 +37,13 @@
     "category": "public.app-category.utilities",
     "shortDescription": "A quiet home for your downloads.",
     "macOS": { "minimumSystemVersion": "13.0" }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/slovakian/opul/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQ1QTQ2NzZGNDE3Q0RBQTYKUldTbTJueEJiMmVrMVRDSHpzZkNkcmpoc1RmcDVaRVh5YVVGRG9zZXVjdDBzRTZqdkxGMldhelUK"
+    }
   }
 }

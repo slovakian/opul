@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod channel;
 mod commands;
 mod preferences;
 
@@ -66,15 +67,28 @@ fn open_machine(
     .map_err(|error| error.to_string())
 }
 
+fn current_channel(app: &tauri::App) -> channel::ReleaseChannel {
+    let env_override = std::env::var("OPUL_CHANNEL").ok();
+    let product_name = app
+        .config()
+        .product_name
+        .as_deref()
+        .unwrap_or(&app.package_info().name);
+    channel::ReleaseChannel::detect(
+        &app.config().identifier,
+        product_name,
+        env_override.as_deref(),
+    )
+}
+
 fn data_directory(app: &tauri::App) -> Result<PathBuf, String> {
-    if let Some(path) = std::env::var_os("OPUL_DATA_DIR") {
-        return Ok(PathBuf::from(path));
-    }
-    // Match the Swift application's directory so core checkpoints and legacy libraries reopen.
-    app.path()
-        .data_dir()
-        .map(|path| path.join("Opul"))
-        .map_err(|error| error.to_string())
+    let channel = current_channel(app);
+    let base = app.path().data_dir().map_err(|error| error.to_string())?;
+    Ok(channel::resolve_data_directory(
+        channel,
+        &base,
+        std::env::var_os("OPUL_DATA_DIR").as_deref(),
+    ))
 }
 
 fn main() {
@@ -82,6 +96,13 @@ fn main() {
     let application = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin({
+            let mut builder = tauri_plugin_updater::Builder::new();
+            if let Ok(key) = std::env::var("TAURI_SIGNING_PUBLIC_KEY") {
+                builder = builder.pubkey(key);
+            }
+            builder.build()
+        })
         .setup(|app| {
             let preferences = data_directory(app).and_then(|directory| {
                 std::fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
@@ -98,6 +119,9 @@ fn main() {
             #[cfg(target_os = "macos")]
             {
                 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
+                let channel = current_channel(app);
+                let app_name = channel.app_name();
+                let about_title = format!("About {app_name}");
                 let settings =
                     MenuItem::with_id(app, "settings", "Settings…", true, Some("CmdOrCtrl+,"))?;
                 let add = MenuItem::with_id(
@@ -109,10 +133,10 @@ fn main() {
                 )?;
                 let app_menu = Submenu::with_items(
                     app,
-                    "Opul",
+                    app_name,
                     true,
                     &[
-                        &PredefinedMenuItem::about(app, Some("About Opul"), None)?,
+                        &PredefinedMenuItem::about(app, Some(&about_title), None)?,
                         &settings,
                         &PredefinedMenuItem::separator(app)?,
                         &PredefinedMenuItem::hide(app, None)?,
@@ -156,7 +180,8 @@ fn main() {
             commands::preferences::save_preferences,
             commands::preferences::save_aggregate_view,
             commands::tool_status,
-            commands::reveal_download
+            commands::reveal_download,
+            channel::channel_info
         ])
         .build(tauri::generate_context!())
         .expect("Could not start Opul");

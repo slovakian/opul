@@ -114,7 +114,7 @@ export default defineConfig({
   },
   server: { port: 1420, strictPort: true },
   staged: {
-    "*": "vp fmt",
+    "frontend/**": "vp fmt",
   },
   test: {
     clearMocks: false,
