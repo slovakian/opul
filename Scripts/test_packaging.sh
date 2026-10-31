@@ -76,6 +76,51 @@ if Scripts/package_dmg.sh --channel invalid-channel 2>/dev/null; then
 fi
 echo "PASS: Packaging scripts reject invalid options and channels"
 
+# Check the environment actually passed to Tauri without building an app.
+TEST_DIR=$(mktemp -d "${TMPDIR:-/tmp}/opul-packaging-env.XXXXXX")
+trap 'rm -rf "$TEST_DIR"' EXIT
+mkdir -p "$TEST_DIR/Scripts" "$TEST_DIR/bin"
+cp Scripts/package_app.sh Scripts/package_dmg.sh "$TEST_DIR/Scripts/"
+cat > "$TEST_DIR/bin/npm" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+for credential in APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+  if [[ "$EXPECT_CREDENTIALS" == present ]]; then
+    [[ "${!credential}" == test-value ]] || exit 1
+  else
+    if printenv "$credential" >/dev/null; then exit 1; fi
+  fi
+done
+# Stop before the packaging script looks for generated bundles.
+exit 42
+EOF
+chmod +x "$TEST_DIR/bin/npm"
+for script in package_app.sh package_dmg.sh; do
+  for channel in stable nightly; do
+    for credentials in absent empty present; do
+      status=0
+      (
+        export PATH="$TEST_DIR/bin:$PATH"
+        export EXPECT_CREDENTIALS="$credentials"
+        unset APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
+        if [[ "$credentials" == empty ]]; then
+          export APPLE_ID="" APPLE_PASSWORD="" APPLE_TEAM_ID=""
+        elif [[ "$credentials" == present ]]; then
+          export APPLE_ID=test-value APPLE_PASSWORD=test-value APPLE_TEAM_ID=test-value
+        fi
+        bash "$TEST_DIR/Scripts/$script" release "$channel" arm64
+      ) || status=$?
+      if [[ "$status" != 42 ]]; then
+        echo "FAIL: $script ($channel, $credentials credentials), status $status" >&2
+        exit 1
+      fi
+    done
+  done
+done
+rm -rf "$TEST_DIR"
+trap - EXIT
+echo "PASS: Packaging omits empty credentials and preserves configured credentials"
+
 # 5. Verify existing built single-arch DMGs if available
 for ARCH_SUFFIX in arm64 x64; do
   DMG="$ROOT_DIR/Opul-${ARCH_SUFFIX}.dmg"

@@ -163,6 +163,13 @@ if [[ -n "${MARKETING_VERSION:-}" ]]; then
 fi
 
 export APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}"
+# GitHub exposes missing secrets as empty strings. Tauri treats their presence
+# as a request to notarize, so omit empty credentials before invoking it.
+for credential in APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+  if [[ -z "${!credential:-}" ]]; then
+    unset "$credential"
+  fi
+done
 npm run tauri -- "${ARGS[@]}"
 
 BUNDLE_SRC="$TARGET_DIR/$BUILD_CONF/bundle/macos/$BUNDLE_NAME"
