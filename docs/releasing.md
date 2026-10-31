@@ -5,8 +5,8 @@ Opul now packages with Tauri. SwiftPM, UniFFI bindings, and Sparkle are no longe
 ## Local packages
 
 ```bash
-npm ci
-npx playwright install webkit
+vp install --frozen-lockfile
+pnpm exec playwright install webkit
 Scripts/test.sh
 Scripts/package_app.sh debug
 Scripts/smoke_test.sh

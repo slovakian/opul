@@ -6,11 +6,11 @@ Folder workspaces receive one of 12 stable color treatments. Existing libraries 
 
 ## Develop
 
-Install Xcode Command Line Tools, a stable Rust toolchain, and Node.js 24 or newer.
+Install Xcode Command Line Tools, a stable Rust toolchain, Node.js 24 or newer, and the [Vite+ CLI](https://viteplus.dev/guide/). Vite+ downloads the pnpm version pinned in `package.json`. See [toolchain setup](docs/toolchain.md) for pnpm configuration and migration notes.
 
 ```bash
-npm ci
-npm run tauri -- dev
+vp install --frozen-lockfile
+pnpm exec tauri dev
 ```
 
 Video pages need [yt-dlp](https://github.com/yt-dlp/yt-dlp). Audio conversion needs [FFmpeg](https://ffmpeg.org). Direct files and torrents work without either.
@@ -24,7 +24,7 @@ Opul detects Homebrew installations. Custom executable paths can be set in Setti
 ## Verify and package
 
 ```bash
-npx playwright install webkit
+pnpm exec playwright install webkit
 Scripts/test.sh
 Scripts/package_app.sh debug
 Scripts/smoke_test.sh
@@ -38,7 +38,7 @@ Scripts/package_app.sh release
 Scripts/package_dmg.sh
 ```
 
-The scripts use Tauri's bundler and support standalone architecture targets (`--target aarch64-apple-darwin` or `x86_64-apple-darwin`), producing single-architecture installers (`Opul-arm64.dmg`, `Opul-x64.dmg`) and `Opul.app`. For development, use `npm run tauri -- dev`. `npm run dev` runs only the web interface; downloads require the native shell.
+The scripts use Tauri's bundler and support standalone architecture targets (`--target aarch64-apple-darwin` or `x86_64-apple-darwin`), producing single-architecture installers (`Opul-arm64.dmg`, `Opul-x64.dmg`) and `Opul.app`. For development, use `pnpm exec tauri dev`. `vp run dev` runs only the web interface; downloads require the native shell.
 
 ## Your library
 
@@ -47,7 +47,7 @@ The Tauri app opens the existing `~/Library/Application Support/Opul` library. T
 Development and smoke tests can use isolated data:
 
 ```bash
-OPUL_DATA_DIR=/tmp/opul-dev-state OPUL_DOWNLOAD_DIR=/tmp/opul-dev-downloads npm run tauri -- dev
+OPUL_DATA_DIR=/tmp/opul-dev-state OPUL_DOWNLOAD_DIR=/tmp/opul-dev-downloads pnpm exec tauri dev
 ```
 
 All downloads, In progress, and Completed each remember their own layout, sort, and grouping across restarts. Workspaces and their saved folders continue to share workspace display settings. In progress and Completed have fixed status scopes; other views highlight the status filter button while a filter is active.

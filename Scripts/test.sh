@@ -11,5 +11,5 @@ esac
 cargo fmt --all --check
 cargo test --workspace
 vp test
-npm run build
-npm test
+vp run build
+vp run test

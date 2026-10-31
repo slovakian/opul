@@ -81,9 +81,10 @@ TEST_DIR=$(mktemp -d "${TMPDIR:-/tmp}/opul-packaging-env.XXXXXX")
 trap 'rm -rf "$TEST_DIR"' EXIT
 mkdir -p "$TEST_DIR/Scripts" "$TEST_DIR/bin"
 cp Scripts/package_app.sh Scripts/package_dmg.sh "$TEST_DIR/Scripts/"
-cat > "$TEST_DIR/bin/npm" <<'EOF'
+cat > "$TEST_DIR/bin/pnpm" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+[[ "$1" == exec && "$2" == tauri && "$3" == build ]] || exit 1
 for credential in APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
   if [[ "$EXPECT_CREDENTIALS" == present ]]; then
     [[ "${!credential}" == test-value ]] || exit 1
@@ -94,7 +95,7 @@ done
 # Stop before the packaging script looks for generated bundles.
 exit 42
 EOF
-chmod +x "$TEST_DIR/bin/npm"
+chmod +x "$TEST_DIR/bin/pnpm"
 for script in package_app.sh package_dmg.sh; do
   for channel in stable nightly; do
     for credentials in absent empty present; do

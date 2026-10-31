@@ -55,7 +55,7 @@ Tests in `tests/ui/color-suggestions.spec.ts` cover unique sampling, saved prese
 
 Final #14 verification on macOS: 101 Rust tests, TypeScript/production build, and 36 WebKit tests passed. Standards and Spec reviews have no remaining findings. The six-suggestion regression failed before implementation and passes afterward. `Scripts/package_app.sh debug` and `Scripts/smoke_test.sh` passed with strict bundle signature and icon checks. Native app inspection used an isolated library and confirmed all twelve folder and multicolored rainbow previews, preset selection, creation, saved resolved values, and reopening after process restart.
 
-For machines with limited resources, run the checks sequentially with `CARGO_BUILD_JOBS=2 CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 cargo test --workspace`, `npm run build`, and `OPUL_TEST_PORT=1541 npm test -- --workers=1`.
+For machines with limited resources, run the checks sequentially with `CARGO_BUILD_JOBS=2 CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 cargo test --workspace`, `vp run build`, and `OPUL_TEST_PORT=1541 vp run test --workers=1`.
 
 ## Integrated creation verification
 
