@@ -27,7 +27,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: `npm run dev -- --port ${port}`,
+    command: `vp run dev --port ${port}`,
     reuseExistingServer: !process.env.CI && !process.env.OPUL_TEST_PORT,
     url: baseURL,
   },

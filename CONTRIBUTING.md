@@ -2,10 +2,10 @@
 
 Focused pull requests and bug reports are welcome. Discuss large changes in an issue before starting, unless the maintainer has already requested the work.
 
-Install dependencies with `npm ci`, then run:
+Install dependencies with `vp install --frozen-lockfile`, then run:
 
 ```bash
-npx playwright install webkit
+pnpm exec playwright install webkit
 Scripts/test.sh
 Scripts/package_app.sh debug
 Scripts/smoke_test.sh

@@ -121,7 +121,7 @@ HOW TO SPLIT THIS FILE:
    • Verify the split files each stay well under 5,000 tokens ($MAX_BYTES bytes).
    • Run project checks:
        vp check
-       npm test
+       vp run test
        cargo test --workspace
 
 4. Stage and Commit:

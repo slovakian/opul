@@ -33,8 +33,8 @@ This project uses **Ultracite**, a zero-config preset that enforces strict code 
 
 ## Quick Reference
 
-- **Format code**: `vp fmt` (or `npm run format`)
-- **Check for issues**: `vp check` (or `npm run check`)
+- **Format code**: `vp fmt` (or `pnpm run format`)
+- **Check for issues**: `vp check` (or `pnpm run check`)
 - **Diagnose setup**: `vp env doctor`
 
 Oxlint + Oxfmt (the underlying engine) provides robust linting and formatting. Most issues are automatically fixable.

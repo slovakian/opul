@@ -168,7 +168,7 @@ for credential in APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
     unset "$credential"
   fi
 done
-npm run tauri -- "${ARGS[@]}"
+pnpm exec tauri "${ARGS[@]}"
 
 BUNDLE_SRC="$TARGET_DIR/$BUILD_CONF/bundle/macos/$BUNDLE_NAME"
 if [[ ! -d "$BUNDLE_SRC" && -d "$ROOT_DIR/target/$BUILD_CONF/bundle/macos/$BUNDLE_NAME" ]]; then

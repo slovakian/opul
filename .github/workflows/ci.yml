@@ -19,12 +19,12 @@ jobs:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - uses: actions/setup-node@v5
+      - uses: voidzero-dev/setup-vp@v1.22.0
         with:
           node-version: 24
-          cache: npm
-      - run: npm ci
-      - run: echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
+          cache: true
+          run-install: false
+      - run: vp install --frozen-lockfile
       - name: Lint and type-check frontend
         run: vp check
       - name: Run frontend unit tests
@@ -58,15 +58,15 @@ jobs:
             shard-index: 2
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v5
+      - uses: voidzero-dev/setup-vp@v1.22.0
         with:
           node-version: 24
-          cache: npm
-      - run: npm ci
-      - run: echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
-      - run: npx playwright install webkit
+          cache: true
+          run-install: false
+      - run: vp install --frozen-lockfile
+      - run: pnpm exec playwright install webkit
       - name: Run Playwright tests (shard ${{ matrix.shard }})
-        run: npx playwright test --shard=${{ matrix.shard }}
+        run: pnpm exec playwright test --shard=${{ matrix.shard }}
       - name: Upload UI test results
         uses: actions/upload-artifact@v4
         if: failure()
@@ -84,11 +84,12 @@ jobs:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - uses: actions/setup-node@v5
+      - uses: voidzero-dev/setup-vp@v1.22.0
         with:
           node-version: 24
-          cache: npm
-      - run: npm ci
+          cache: true
+          run-install: false
+      - run: vp install --frozen-lockfile
       - name: Package the Tauri app
         run: Scripts/package_app.sh debug
       - name: Launch the packaged app
@@ -122,11 +123,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
-      - uses: actions/setup-node@v5
+      - uses: voidzero-dev/setup-vp@v1.22.0
         with:
           node-version: 24
-          cache: npm
-      - run: npm ci
+          cache: true
+          run-install: false
+      - run: vp install --frozen-lockfile
       - name: Package nightly DMG without notarization credentials
         env:
           APPLE_ID: ""
