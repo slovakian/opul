@@ -48,7 +48,7 @@ test("search previews locally, keeps the picker open, and saves the full sequenc
   await page.goto("/");
   await openPicker(page);
   await expect(
-    editor(page).locator("[frimousse-category-header]:visible").first()
+    editor(page).locator('[data-slot="emoji-category-header"]:visible').first()
   ).toHaveText("Smileys & Emotion");
   await choose(page, "family", "family: man, woman, girl, boy");
   await expect(
