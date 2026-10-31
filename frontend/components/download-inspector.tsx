@@ -40,7 +40,6 @@ import { errorMessage } from "@/lib/bridge";
 import { useLibrary } from "@/lib/library";
 import { bytes, formatNames, sourceNames, timeRemaining } from "@/lib/model";
 import type { Download, Workspace } from "@/lib/model";
-import { cn } from "@/lib/utils";
 
 const noop = () => null;
 
@@ -93,20 +92,23 @@ export const DownloadSourceLink = ({ download }: { download: Download }) => {
         aria-label={copied ? "Copied" : download.source_url}
       >
         <TraceLine>
-          <TraceIcon>{isTorrent ? <Magnet /> : <Link />}</TraceIcon>
+          <TraceIcon className="relative">
+            {copied ? (
+              <Check className="text-foreground" />
+            ) : (
+              <>
+                <span className="flex size-4 items-center justify-center transition-opacity group-hover/trace:opacity-0 group-focus-visible/trace:opacity-0">
+                  {isTorrent ? <Magnet /> : <Link />}
+                </span>
+                <span className="absolute inset-0 flex size-4 items-center justify-center opacity-0 transition-opacity group-hover/trace:opacity-100 group-focus-visible/trace:opacity-100">
+                  <Copy />
+                </span>
+              </>
+            )}
+          </TraceIcon>
           <TraceTitle title={copied ? "Copied" : download.source_url}>
             {copied ? "Copied" : download.source_url}
           </TraceTitle>
-          <TraceIcon
-            className={cn(
-              "transition-opacity",
-              copied
-                ? "text-foreground opacity-100"
-                : "opacity-0 group-hover/trace:opacity-100 group-focus-visible/trace:opacity-100"
-            )}
-          >
-            {copied ? <Check /> : <Copy />}
-          </TraceIcon>
         </TraceLine>
       </button>
     </Trace>

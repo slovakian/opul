@@ -373,12 +373,12 @@ test("source link renders as trace line with hover copy and feedback without lay
   expect(isTruncatedAndSingleLine.isTextEllipsis).toBe(true);
   expect(isTruncatedAndSingleLine.singleLineHeight).toBe(true);
 
-  // Verify left icon is Magnet (SVG exists) and right icon is Copy
-  const icons = linkButton.locator('[data-slot="trace-icon"]');
+  // Verify single trace icon container with resting icon and hover copy icon
+  const icon = linkButton.locator('[data-slot="trace-icon"]');
 
-  await expect(icons).toHaveCount(2);
-  await expect(icons.nth(0).locator("svg")).toBeVisible();
-  await expect(icons.nth(1).locator("svg")).toBeVisible();
+  await expect(icon).toHaveCount(1);
+  await expect(icon.locator("svg")).toHaveCount(2);
+  await expect(icon.locator("svg").first()).toBeVisible();
 
   // Record height before click to check for layout shift
   const heightBefore = await linkButton.evaluate(
@@ -388,9 +388,11 @@ test("source link renders as trace line with hover copy and feedback without lay
   // Click to copy
   await linkButton.click();
 
-  // After click: title temporarily changes to "Copied"
+  // After click: title temporarily changes to "Copied" and icon swaps to Check
   await expect(title).toHaveText("Copied");
   await expect(linkButton).toHaveText("Copied");
+  await expect(icon.locator("svg")).toHaveCount(1);
+  await expect(icon.locator("svg")).toBeVisible();
 
   // Verify clipboard received the magnet URL
   const clipboardText = await page.evaluate(() =>
