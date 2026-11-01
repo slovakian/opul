@@ -1,6 +1,15 @@
 import type { Download, Preferences, Snapshot } from "../../frontend/lib/model";
 import folderTreatments from "../../src/application/folder-treatments.json" with { type: "json" };
 
+export const toolStatus = {
+  ffmpeg_path: "/opt/homebrew/bin/ffmpeg",
+  ffmpeg_version: "8.0",
+  message: "yt-dlp and FFmpeg are available.",
+  ready: true,
+  yt_dlp_path: "/opt/homebrew/bin/yt-dlp",
+  yt_dlp_version: "2026.10",
+};
+
 export const baseDownload: Download = {
   bytes_downloaded: 23_592_960,
   bytes_uploaded: 0,

@@ -55,7 +55,12 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
           : { kind: "ready", snapshot }
       );
     } catch (error) {
-      setState({ kind: "failed", message: errorMessage(error) });
+      // A failed read is not evidence that library containers disappeared.
+      setState((previous) =>
+        previous.kind === "ready"
+          ? previous
+          : { kind: "failed", message: errorMessage(error) }
+      );
     }
   }, []);
 

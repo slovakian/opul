@@ -1,4 +1,18 @@
-import type { Preferences, Snapshot } from "../../frontend/lib/model";
+import type {
+  AggregateView,
+  Command,
+  DisplayPreferences,
+  Preferences,
+  Snapshot,
+} from "../../frontend/lib/model";
+
+export interface DesktopInvokeArgs {
+  command?: Command;
+  preferences?: Preferences | DisplayPreferences;
+  view?: AggregateView;
+  workspaceId?: string;
+  choices?: Preferences["workspace_expansion"];
+}
 
 export interface DesktopOptions {
   changeSnapshotDuringDraft?: boolean;
@@ -16,6 +30,7 @@ export interface DesktopOptions {
   folderPickerPath?: string | null;
   torrentPickerPath?: string | null;
   holdAdd?: boolean;
+  folderRemoval?: "immediate" | "deferred" | "rejected";
   loseFirstAppearanceResponse?: boolean;
   loseFirstCreateResponse?: boolean;
   persist?: boolean;

@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/sidebar";
 import { toast } from "@/components/ui/toast";
 import { WorkspaceIcon } from "@/components/workspace-icon";
+import { useWorkspaceRemovalFocus } from "@/hooks/use-workspace-removal-focus";
 import { bridge, errorMessage } from "@/lib/bridge";
 import { useLibrary } from "@/lib/library";
 import { aggregateNames, bytes } from "@/lib/model";
@@ -91,7 +92,13 @@ export const WorkspaceSidebar = ({
   onNew: () => void;
 }) => {
   const { run, busy, state } = useLibrary();
-  const { isMobile, setOpenMobile } = useSidebar();
+  const { isMobile, openMobile, setOpenMobile } = useSidebar();
+
+  const workspaceFocusTarget = useWorkspaceRemovalFocus(
+    workspaces,
+    !isMobile || openMobile
+  );
+
   const allDownloads = workspaces.flatMap((workspace) => workspace.downloads);
 
   const active = allDownloads.filter(
@@ -245,6 +252,7 @@ export const WorkspaceSidebar = ({
               {workspaces.map((workspace) => (
                 <Collapsible
                   key={workspace.id}
+                  data-workspace-id={workspace.id}
                   className="group/workspace"
                   open={workspaceExpansion.get(workspace.id) ?? false}
                   onOpenChange={(expanded) =>
@@ -253,6 +261,7 @@ export const WorkspaceSidebar = ({
                   render={<SidebarMenuItem />}
                 >
                   <SidebarMenuButton
+                    data-workspace-navigation
                     aria-label={`${workspace.name} workspace`}
                     isActive={
                       location.kind === "workspace" &&
@@ -282,6 +291,7 @@ export const WorkspaceSidebar = ({
                         <SidebarMenuAction
                           className="right-auto left-1.5 opacity-0 group-focus-within/workspace:opacity-100 group-hover/workspace:opacity-100 data-panel-open:rotate-90"
                           aria-label={`Toggle ${workspace.name} folders`}
+                          data-workspace-disclosure
                         />
                       }
                     >
@@ -342,6 +352,7 @@ export const WorkspaceSidebar = ({
                                   type="button"
                                   tabIndex={0}
                                   aria-label={folder.name}
+                                  data-folder-id={folder.id}
                                 />
                               }
                               isActive={
@@ -363,10 +374,14 @@ export const WorkspaceSidebar = ({
                             </SidebarMenuSubButton>
                             <SidebarPopover
                               title={`${folder.name} folder actions`}
+                              fallbackFocus={() =>
+                                workspaceFocusTarget(workspace.id)
+                              }
                               trigger={
                                 <SidebarMenuAction
                                   className="top-0 opacity-0 group-hover/folder:opacity-100 focus-visible:opacity-100"
                                   aria-label={`${folder.name} folder actions`}
+                                  data-folder-id={folder.id}
                                 >
                                   <MoreHorizontal />
                                 </SidebarMenuAction>

@@ -42,11 +42,13 @@ export const SidebarPopover = ({
   title,
   groups,
   align = "end",
+  fallbackFocus,
 }: {
   trigger: ReactElement;
   title: string;
   groups: MenuGroup[];
   align?: "start" | "end";
+  fallbackFocus?: () => HTMLElement | null;
 }) => {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -56,6 +58,11 @@ export const SidebarPopover = ({
       <PopoverTrigger ref={triggerRef} render={trigger} />
       <PopoverContent
         align={align}
+        finalFocus={
+          fallbackFocus
+            ? () => triggerRef.current ?? fallbackFocus()
+            : undefined
+        }
         className="w-60 overflow-hidden p-0"
         onKeyDown={(event) => {
           if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
