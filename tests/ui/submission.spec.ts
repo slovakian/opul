@@ -6,6 +6,12 @@ import { mockDesktop, snapshot } from "./fixture";
 
 const library = () => {
   const value = structuredClone(snapshot);
+  value.workspaces[0].folders.push({
+    id: "archive",
+    is_default: false,
+    name: "Archive",
+    path: "/Users/test/Archive",
+  });
   value.workspaces.push({
     ...structuredClone(value.workspaces[0]),
     downloads: [],

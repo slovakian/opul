@@ -16,6 +16,7 @@ import { useDownloadNotifications } from "@/hooks/use-download-notifications";
 import {
   filterAndSortDownloads,
   groupDownloads,
+  normalizeWorkspaceLocation,
   useWorkspaceView,
 } from "@/hooks/use-workspace-view";
 import { useLibrary } from "@/lib/library";
@@ -124,11 +125,17 @@ const App = () => {
   const groups = groupDownloads(downloads, display.grouping, workspaces);
 
   const navigate = (next: Location) => {
-    setLocation(next);
+    setLocation(normalizeWorkspaceLocation(next, workspaces));
     setNavigation((count) => count + 1);
     setFilter("all");
     setSelectedId(undefined);
   };
+
+  const canonicalLocation = normalizeWorkspaceLocation(location, workspaces);
+
+  if (canonicalLocation !== location) {
+    navigate(canonicalLocation);
+  }
 
   const view = (change: Partial<DisplayPreferences>) => {
     if (location.kind !== "workspace") {

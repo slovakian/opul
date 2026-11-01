@@ -47,6 +47,7 @@ import { bridge, errorMessage } from "@/lib/bridge";
 import { useLibrary } from "@/lib/library";
 import { aggregateNames, bytes } from "@/lib/model";
 import type { AggregateView, Folder, Workspace } from "@/lib/model";
+import { cn } from "@/lib/utils";
 
 export type Location =
   | { kind: AggregateView }
@@ -257,22 +258,28 @@ export const WorkspaceSidebar = ({
                   >
                     <span
                       aria-hidden
-                      className="flex size-4 shrink-0 items-center justify-center group-focus-within/workspace:invisible group-hover/workspace:invisible"
+                      className={cn(
+                        "flex size-4 shrink-0 items-center justify-center",
+                        workspace.folders.length > 1 &&
+                          "group-focus-within/workspace:invisible group-hover/workspace:invisible"
+                      )}
                     >
                       <WorkspaceIcon workspace={workspace} />
                     </span>
                     <span>{workspace.name}</span>
                   </SidebarMenuButton>
-                  <CollapsibleTrigger
-                    render={
-                      <SidebarMenuAction
-                        className="right-auto left-1.5 opacity-0 group-focus-within/workspace:opacity-100 group-hover/workspace:opacity-100 data-panel-open:rotate-90"
-                        aria-label={`Toggle ${workspace.name} folders`}
-                      />
-                    }
-                  >
-                    <ChevronRight />
-                  </CollapsibleTrigger>
+                  {workspace.folders.length > 1 && (
+                    <CollapsibleTrigger
+                      render={
+                        <SidebarMenuAction
+                          className="right-auto left-1.5 opacity-0 group-focus-within/workspace:opacity-100 group-hover/workspace:opacity-100 data-panel-open:rotate-90"
+                          aria-label={`Toggle ${workspace.name} folders`}
+                        />
+                      }
+                    >
+                      <ChevronRight />
+                    </CollapsibleTrigger>
+                  )}
                   <SidebarPopover
                     title={`${workspace.name} actions`}
                     trigger={
@@ -313,87 +320,92 @@ export const WorkspaceSidebar = ({
                       },
                     ]}
                   />
-                  <CollapsibleContent>
-                    <SidebarMenuSub>
-                      {workspace.folders.map((folder) => (
-                        <SidebarMenuSubItem
-                          key={folder.id}
-                          className="group/folder relative"
-                        >
-                          <SidebarMenuSubButton
-                            render={
-                              <button type="button" aria-label={folder.name} />
-                            }
-                            isActive={
-                              location.kind === "workspace" &&
-                              location.folderId === folder.id
-                            }
-                            onClick={() =>
-                              go({
-                                folderId: folder.id,
-                                kind: "workspace",
-                                workspaceId: workspace.id,
-                              })
-                            }
-                            title={folder.path}
+                  {workspace.folders.length > 1 && (
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        {workspace.folders.map((folder) => (
+                          <SidebarMenuSubItem
+                            key={folder.id}
+                            className="group/folder relative"
                           >
-                            <FolderClosed />
-                            <span>{folder.name}</span>
-                          </SidebarMenuSubButton>
-                          <SidebarPopover
-                            title={`${folder.name} folder actions`}
-                            trigger={
-                              <SidebarMenuAction
-                                className="top-0 opacity-0 group-hover/folder:opacity-100 focus-visible:opacity-100"
-                                aria-label={`${folder.name} folder actions`}
-                              >
-                                <MoreHorizontal />
-                              </SidebarMenuAction>
-                            }
-                            groups={[
-                              {
-                                actions: [
-                                  {
-                                    disabled: folder.is_default || busy,
-                                    icon: Check,
-                                    label: "Set as default",
-                                    onClick: () => {
-                                      run({
-                                        kind: "default_folder",
-                                        request: folderRequest(
-                                          workspace,
-                                          folder
-                                        ),
-                                      }).catch(() => null);
+                            <SidebarMenuSubButton
+                              render={
+                                <button
+                                  type="button"
+                                  aria-label={folder.name}
+                                />
+                              }
+                              isActive={
+                                location.kind === "workspace" &&
+                                location.folderId === folder.id
+                              }
+                              onClick={() =>
+                                go({
+                                  folderId: folder.id,
+                                  kind: "workspace",
+                                  workspaceId: workspace.id,
+                                })
+                              }
+                              title={folder.path}
+                            >
+                              <FolderClosed />
+                              <span>{folder.name}</span>
+                            </SidebarMenuSubButton>
+                            <SidebarPopover
+                              title={`${folder.name} folder actions`}
+                              trigger={
+                                <SidebarMenuAction
+                                  className="top-0 opacity-0 group-hover/folder:opacity-100 focus-visible:opacity-100"
+                                  aria-label={`${folder.name} folder actions`}
+                                >
+                                  <MoreHorizontal />
+                                </SidebarMenuAction>
+                              }
+                              groups={[
+                                {
+                                  actions: [
+                                    {
+                                      disabled: folder.is_default || busy,
+                                      icon: Check,
+                                      label: "Set as default",
+                                      onClick: () => {
+                                        run({
+                                          kind: "default_folder",
+                                          request: folderRequest(
+                                            workspace,
+                                            folder
+                                          ),
+                                        }).catch(() => null);
+                                      },
                                     },
-                                  },
-                                  {
-                                    destructive: true,
-                                    disabled:
-                                      workspace.folders.length === 1 || busy,
-                                    icon: Trash2,
-                                    label: "Remove saved folder",
-                                    onClick: () => {
-                                      run({
-                                        kind: "remove_folder",
-                                        request: folderRequest(
-                                          workspace,
-                                          folder
-                                        ),
-                                      }).catch(() => null);
+                                    {
+                                      destructive: true,
+                                      disabled:
+                                        workspace.folders.length === 1 || busy,
+                                      icon: Trash2,
+                                      label: "Remove saved folder",
+                                      onClick: () => {
+                                        run({
+                                          kind: "remove_folder",
+                                          request: folderRequest(
+                                            workspace,
+                                            folder
+                                          ),
+                                        }).catch(() => null);
+                                      },
                                     },
-                                  },
-                                ],
-                                label: folder.is_default
-                                  ? "Default save location"
-                                  : "Save location",
-                              },
-                            ]}
-                          />
-                        </SidebarMenuSubItem>
-                      ))}
-                    </SidebarMenuSub>
-                  </CollapsibleContent>
+                                  ],
+                                  label: folder.is_default
+                                    ? "Default save location"
+                                    : "Save location",
+                                },
+                              ]}
+                            />
+                          </SidebarMenuSubItem>
+                        ))}
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  )}
                 </Collapsible>
               ))}
               <SidebarMenuItem>

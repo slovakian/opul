@@ -1,6 +1,8 @@
 # Workspace header
 
-The header uses one row for navigation, the current view, a shared search and download input, and display controls. Saved folders show `Workspace › Folder`, retaining the workspace icon. The workspace breadcrumb navigates up; the current folder is a label. Hover reveals the full breadcrumb. Collapsed or overlay navigation reserves 80px at the left for native macOS window controls. Docked navigation already reserves that space. Empty header areas and the current view label remain draggable.
+The header uses one row for navigation, the current view, a shared search and download input, and display controls. A workspace with one saved folder has a single emoji-and-name sidebar row and a workspace-only breadcrumb. Its emoji stays visible on hover and keyboard focus, and its actions menu retains icon changes, editing, and folder addition. Navigation and accepted library snapshots normalize any folder selection in that workspace to whole-workspace scope. The search bar continues to show the saved folder name and full destination path.
+
+Saved-folder views in workspaces with multiple folders show `Workspace › Folder`, retaining the workspace icon. The workspace breadcrumb navigates up; the current folder is a label. Hover reveals the full breadcrumb. Collapsed or overlay navigation reserves 80px at the left for native macOS window controls. Docked navigation already reserves that space. Empty header areas and the current view label remain draggable.
 
 Typing filters downloads by name or source URL in the active view. Navigation preserves the query, including when switching workspaces. A complete HTTP, HTTPS, or supported BTIH magnet link changes the leading search icon to a link and enables Download. Domains, filenames, incomplete links, and unsupported protocols remain search text. Typing and pasting never submit automatically.
 

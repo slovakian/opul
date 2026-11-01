@@ -9,7 +9,14 @@ const artwork = '[data-slot="emoji-artwork"]';
 test("workspace artwork stays consistent while save locations use a folder icon", async ({
   page,
 }) => {
-  await mockDesktop(page);
+  const library = structuredClone(snapshot);
+  library.workspaces[0].folders.push({
+    id: "archive",
+    is_default: false,
+    name: "Archive",
+    path: "/Users/test/Archive",
+  });
+  await mockDesktop(page, { snapshot: library });
   await page.goto("/");
 
   const workspace = page.getByRole("button", {

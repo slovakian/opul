@@ -120,6 +120,14 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
         ? JSON.parse(savedSnapshot)
         : structuredClone(initSnapshot);
 
+      window.addEventListener("test:replace-snapshot", () => {
+        const replacement = sessionStorage.getItem("test-snapshot");
+
+        if (replacement) {
+          Object.assign(currentSnapshot, JSON.parse(replacement));
+        }
+      });
+
       let currentPreferences: Preferences = savedPreferences
         ? JSON.parse(savedPreferences)
         : structuredClone(initPreferences);

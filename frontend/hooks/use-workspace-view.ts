@@ -112,9 +112,25 @@ export interface WorkspaceViewState {
   workspace: Workspace | undefined;
 }
 
+export const normalizeWorkspaceLocation = (
+  location: Location,
+  workspaces: Workspace[]
+): Location => {
+  if (
+    location.kind === "workspace" &&
+    location.folderId &&
+    workspaces.find((item) => item.id === location.workspaceId)?.folders
+      .length === 1
+  ) {
+    return { kind: "workspace", workspaceId: location.workspaceId };
+  }
+
+  return location;
+};
+
 export const useWorkspaceView = ({
   filter,
-  location,
+  location: selectedLocation,
   preferences,
   workspaces,
 }: {
@@ -123,6 +139,8 @@ export const useWorkspaceView = ({
   preferences: ReturnType<typeof useLibrary>["preferences"];
   workspaces: Workspace[];
 }): WorkspaceViewState => {
+  const location = normalizeWorkspaceLocation(selectedLocation, workspaces);
+
   const workspace =
     (location.kind === "workspace"
       ? workspaces.find((item) => item.id === location.workspaceId)

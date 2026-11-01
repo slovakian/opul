@@ -279,6 +279,12 @@ test("long folder breadcrumbs and Choose remain usable throughout window resizin
   page,
 }) => {
   const library = structuredClone(snapshot);
+  library.workspaces[0].folders.push({
+    id: "archive",
+    is_default: false,
+    name: "Archive",
+    path: "/Users/test/Archive",
+  });
   library.workspaces[0].name = "Workspace with a very long descriptive name";
   library.workspaces[0].folders[0].name =
     "A long descriptive saved folder name";

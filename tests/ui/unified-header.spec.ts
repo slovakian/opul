@@ -8,6 +8,12 @@ test("workspace identity stays first when navigating into a saved folder", async
   page,
 }) => {
   const library = structuredClone(snapshot);
+  library.workspaces[0].folders.push({
+    id: "archive",
+    is_default: false,
+    name: "Archive",
+    path: "/Users/test/Archive",
+  });
   library.workspaces[0].name = "Research";
   library.workspaces[0].icon = { kind: "Emoji", value: "🤢" };
   await mockDesktop(page, { snapshot: library });
