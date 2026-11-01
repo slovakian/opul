@@ -478,8 +478,11 @@ test("expanded suggestions stay accessible and bounded in the minimum window, in
     picker(page).getByRole("button", { exact: true, name: "Save" })
   ).toBeInViewport({ ratio: 1 });
 
+  // Exclude the full emoji grid from this popover scan to avoid re-auditing
+  // 2,200+ emoji elements (covered by emoji-picker.spec.ts) and prevent CI timeouts.
   const accessibility = await new AxeBuilder({ page })
     .include('[data-slot="popover-content"]')
+    .exclude('[data-slot="emoji-grid"]')
     .disableRules(["button-name"])
     .analyze();
 
