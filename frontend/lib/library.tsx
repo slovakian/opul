@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type { ReactNode } from "react";
@@ -17,6 +18,7 @@ import type {
   Preferences,
   Receipt,
   Snapshot,
+  WorkspaceExpansion,
 } from "@/lib/model";
 
 type LibraryState =
@@ -24,12 +26,25 @@ type LibraryState =
   | { kind: "failed"; message: string }
   | { kind: "ready"; snapshot: Snapshot };
 
+type PreferenceStatus =
+  | { kind: "unread" }
+  | { kind: "failed"; message: string }
+  | { kind: "ready" };
+
 interface Library {
   state: LibraryState;
   preferences: Preferences | null;
+  preferenceStatus: PreferenceStatus;
   busy: boolean;
   refresh: () => Promise<void>;
-  run: (command: Command) => Promise<Receipt | null>;
+  retryPreferences: () => Promise<void>;
+  saveWorkspaceExpansion: (
+    choices: WorkspaceExpansion
+  ) => Promise<WorkspaceExpansion>;
+  run: (
+    command: Command,
+    onAccepted?: (receipt: Receipt) => void
+  ) => Promise<Receipt | null>;
   savePreferences: (preferences: Preferences) => Promise<boolean>;
   saveAggregateView: (
     view: AggregateView,
@@ -42,6 +57,15 @@ const LibraryContext = createContext<Library | null>(null);
 export const LibraryProvider = ({ children }: { children: ReactNode }) => {
   const [state, setState] = useState<LibraryState>({ kind: "loading" });
   const [preferences, setPreferences] = useState<Preferences | null>(null);
+
+  const [preferenceStatus, setPreferenceStatus] = useState<PreferenceStatus>({
+    kind: "unread",
+  });
+
+  const preferenceRead = useRef(0);
+
+  const preferenceSave = useRef(0);
+  const aggregateViewSave = useRef(new Map<AggregateView, number>());
   const [pending, setPending] = useState(0);
 
   const refresh = useCallback(async () => {
@@ -55,7 +79,12 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
           : { kind: "ready", snapshot }
       );
     } catch (error) {
-      setState({ kind: "failed", message: errorMessage(error) });
+      // A failed read is not evidence that library containers disappeared.
+      setState((previous) =>
+        previous.kind === "ready"
+          ? previous
+          : { kind: "failed", message: errorMessage(error) }
+      );
     }
   }, []);
 
@@ -76,14 +105,24 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const loadPreferences = async () => {
+      const read = preferenceRead.current + 1;
+      preferenceRead.current = read;
+      setPreferenceStatus({ kind: "unread" });
+
       try {
         const initialPreferences = await bridge.preferences();
 
-        if (!stopped) {
+        if (!stopped && preferenceRead.current === read) {
           setPreferences(initialPreferences);
+          setPreferenceStatus({ kind: "ready" });
         }
-      } catch {
-        // Ignore initial preference read errors
+      } catch (error) {
+        if (!stopped && preferenceRead.current === read) {
+          setPreferenceStatus({
+            kind: "failed",
+            message: errorMessage(error),
+          });
+        }
       }
     };
 
@@ -95,6 +134,27 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
       clearTimeout(timer);
     };
   }, [refresh]);
+
+  const retryPreferences = useCallback(async () => {
+    const read = preferenceRead.current + 1;
+    preferenceRead.current = read;
+    setPreferenceStatus({ kind: "unread" });
+
+    try {
+      const next = await bridge.preferences();
+
+      if (preferenceRead.current !== read) {
+        return;
+      }
+
+      setPreferences(next);
+      setPreferenceStatus({ kind: "ready" });
+    } catch (error) {
+      if (preferenceRead.current === read) {
+        setPreferenceStatus({ kind: "failed", message: errorMessage(error) });
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const media = matchMedia("(prefers-color-scheme: dark)");
@@ -114,7 +174,7 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
   }, [preferences?.theme]);
 
   const run = useCallback(
-    async (command: Command) => {
+    async (command: Command, onAccepted?: (receipt: Receipt) => void) => {
       const affectsBusy = command.kind !== "view";
 
       if (affectsBusy) {
@@ -123,6 +183,7 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
 
       try {
         const receipt = await bridge.execute(command);
+        onAccepted?.(receipt);
         await refresh();
 
         if (affectsBusy) {
@@ -149,8 +210,27 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
 
   const saveAggregateView = useCallback(
     async (view: AggregateView, display: DisplayPreferences) => {
+      const request = (aggregateViewSave.current.get(view) ?? 0) + 1;
+      aggregateViewSave.current.set(view, request);
+
       try {
-        setPreferences(await bridge.saveAggregateView(view, display));
+        const saved = await bridge.saveAggregateView(view, display);
+
+        if (aggregateViewSave.current.get(view) !== request) {
+          return;
+        }
+
+        setPreferences((current) => {
+          const next = {
+            ...(current ?? saved),
+            aggregate_views: {
+              ...(current?.aggregate_views ?? saved.aggregate_views),
+              [view]: saved.aggregate_views[view],
+            },
+          };
+
+          return next;
+        });
       } catch (error) {
         toast.add({
           description: errorMessage(error),
@@ -162,9 +242,53 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
     []
   );
 
+  const saveWorkspaceExpansion = useCallback(
+    async (choices: WorkspaceExpansion) => {
+      const saved = await bridge.saveWorkspaceExpansion(choices);
+
+      setPreferences((current) => {
+        if (!current) {
+          return current;
+        }
+
+        const next = {
+          ...current,
+          workspace_expansion: {
+            ...current.workspace_expansion,
+            ...saved,
+          },
+        };
+
+        return next;
+      });
+
+      return saved;
+    },
+    []
+  );
+
   const savePreferences = useCallback(async (next: Preferences) => {
+    const request = preferenceSave.current + 1;
+    preferenceSave.current = request;
+
     try {
-      setPreferences(await bridge.savePreferences(next));
+      const saved = await bridge.savePreferences(next);
+
+      if (preferenceSave.current !== request) {
+        return true;
+      }
+
+      setPreferences((current) => {
+        const nextPreferences = {
+          ...(current ?? saved),
+          ...saved,
+          aggregate_views: current?.aggregate_views ?? saved.aggregate_views,
+          workspace_expansion:
+            current?.workspace_expansion ?? saved.workspace_expansion,
+        };
+
+        return nextPreferences;
+      });
       toast.add({ title: "Settings saved" });
 
       return true;
@@ -182,20 +306,26 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
   const value = useMemo(
     () => ({
       busy: pending > 0,
+      preferenceStatus,
       preferences,
       refresh,
+      retryPreferences,
       run,
       saveAggregateView,
       savePreferences,
+      saveWorkspaceExpansion,
       state,
     }),
     [
       pending,
       preferences,
+      preferenceStatus,
       refresh,
+      retryPreferences,
       run,
       saveAggregateView,
       savePreferences,
+      saveWorkspaceExpansion,
       state,
     ]
   );

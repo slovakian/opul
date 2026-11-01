@@ -1,5 +1,5 @@
 import { Download, Link, Loader2, Search, X } from "lucide-react";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { Dispatch, FormEvent, RefObject, SetStateAction } from "react";
 
 import { DestinationDialog } from "@/components/destination-dialog";
@@ -12,10 +12,9 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from "@/components/ui/input-group";
-import { toast } from "@/components/ui/toast";
 import type { Location } from "@/components/workspace-sidebar";
 import { useDownloadSubmission } from "@/hooks/use-download-submission";
-import { bridge, errorMessage } from "@/lib/bridge";
+import type { AddSavedFolder } from "@/hooks/use-saved-folder-addition";
 import { naturalDestination, recommendedWorkspace } from "@/lib/destination";
 import type { Destination } from "@/lib/destination";
 import { isDownloadLink } from "@/lib/download-link";
@@ -64,6 +63,7 @@ export const DownloadInput = ({
   location,
   navigation,
   onAdded,
+  onAddFolder,
   lastUsed,
   onUsed,
   disabled,
@@ -75,6 +75,7 @@ export const DownloadInput = ({
   location: Location;
   navigation: number;
   onAdded: (ids: string[]) => void;
+  onAddFolder: AddSavedFolder;
   lastUsed?: string;
   onUsed: (workspaceId: string) => void;
   disabled: boolean;
@@ -82,7 +83,12 @@ export const DownloadInput = ({
   setQuery: Dispatch<SetStateAction<string>>;
   inputRef: RefObject<HTMLInputElement | null>;
 }) => {
-  const { run, preferences } = useLibrary();
+  const { preferences } = useLibrary();
+  const currentNavigation = useRef(navigation);
+
+  useLayoutEffect(() => {
+    currentNavigation.current = navigation;
+  }, [navigation]);
 
   const [override, setOverride] = useState<DestinationOverride>();
 
@@ -130,37 +136,15 @@ export const DownloadInput = ({
       return;
     }
 
-    try {
-      const path = await bridge.chooseFolder();
-
-      if (!path) {
-        return;
-      }
-
-      const folderId = crypto.randomUUID();
-
-      const receipt = await run({
-        kind: "add_folder",
-        request: {
-          expected_revision: null,
-          folder_id: folderId,
-          name: path.split("/").findLast(Boolean) || "Folder",
-          path,
-          request_id: crypto.randomUUID(),
-          workspace_id: workspace.id,
-        },
-      });
-
-      if (receipt) {
-        setOverride({ folderId, navigation, workspaceId: workspace.id });
-      }
-    } catch (error) {
-      toast.add({
-        description: errorMessage(error),
-        title: "Couldn't add location",
-        type: "error",
-      });
-    }
+    await onAddFolder(
+      workspace.id,
+      (folderId) => {
+        if (currentNavigation.current === navigation) {
+          setOverride({ folderId, navigation, workspaceId: workspace.id });
+        }
+      },
+      "Couldn't add location"
+    );
   };
 
   const submit = async (event: FormEvent) => {

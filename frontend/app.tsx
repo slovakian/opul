@@ -13,9 +13,12 @@ import { WorkspaceSidebar } from "@/components/workspace-sidebar";
 import type { Location, StatusFilter } from "@/components/workspace-sidebar";
 import { useAppKeyboard } from "@/hooks/use-app-keyboard";
 import { useDownloadNotifications } from "@/hooks/use-download-notifications";
+import { useSavedFolderAddition } from "@/hooks/use-saved-folder-addition";
+import { useWorkspaceExpansion } from "@/hooks/use-workspace-expansion";
 import {
   filterAndSortDownloads,
   groupDownloads,
+  normalizeWorkspaceLocation,
   useWorkspaceView,
 } from "@/hooks/use-workspace-view";
 import { useLibrary } from "@/lib/library";
@@ -66,8 +69,16 @@ const EngineAlert = ({ busy, run, state }: EngineAlertProps) => {
 };
 
 const App = () => {
-  const { busy, preferences, refresh, run, saveAggregateView, state } =
-    useLibrary();
+  const {
+    busy,
+    preferences,
+    preferenceStatus,
+    refresh,
+    retryPreferences,
+    run,
+    saveAggregateView,
+    state,
+  } = useLibrary();
 
   useEffect(() => {
     if (state.kind !== "loading" && isTauri()) {
@@ -76,6 +87,12 @@ const App = () => {
   }, [state.kind]);
 
   const [location, setLocation] = useState<Location>({ kind: "all" });
+
+  const workspaceExpansion = useWorkspaceExpansion(
+    preferences,
+    state.kind === "ready"
+  );
+
   const [navigation, setNavigation] = useState(0);
   const [lastDestination, setLastDestination] = useState<string>();
   const [filter, setFilter] = useState<StatusFilter>("all");
@@ -85,6 +102,11 @@ const App = () => {
   const [modal, setModal] = useState<Modal | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const { setOpenMobile } = useSidebar();
+
+  const addFolder = useSavedFolderAddition(
+    workspaceExpansion.handleExpansionChange
+  );
+
   const workspaces = state.kind === "ready" ? state.snapshot.workspaces : [];
 
   const {
@@ -130,6 +152,12 @@ const App = () => {
     setSelectedId(undefined);
   };
 
+  const canonicalLocation = normalizeWorkspaceLocation(location, workspaces);
+
+  if (canonicalLocation !== location) {
+    navigate(canonicalLocation);
+  }
+
   const view = (change: Partial<DisplayPreferences>) => {
     if (location.kind !== "workspace") {
       saveAggregateView(location.kind, { ...display, ...change }).catch(
@@ -170,6 +198,23 @@ const App = () => {
     <>
       <WorkspaceSidebar
         workspaces={workspaces}
+        workspaceExpansion={workspaceExpansion.expansion}
+        onExpansionChange={workspaceExpansion.handleExpansionChange}
+        onAddFolder={(item) => {
+          addFolder(
+            item.id,
+            (newFolderId) => {
+              workspaceExpansion.handleExpansionChange(item.id, true);
+              navigate({
+                folderId: newFolderId,
+                kind: "workspace",
+                workspaceId: item.id,
+              });
+              setOpenMobile(false);
+            },
+            "Couldn't add folder"
+          ).catch(() => null);
+        }}
         location={location}
         navigate={navigate}
         onCreate={() => setModal({ kind: "workspace", workspace: null })}
@@ -192,6 +237,7 @@ const App = () => {
           navigation={navigation}
           newDownload={newDownload}
           onAdded={notifyAdded}
+          onAddFolder={addFolder}
           onNavigateWorkspace={(id) =>
             navigate({ kind: "workspace", workspaceId: id })
           }
@@ -215,6 +261,42 @@ const App = () => {
         >
           <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6 lg:px-10">
             <EngineAlert busy={busy} run={run} state={state} />
+            {preferenceStatus.kind === "failed" && (
+              <Alert variant="destructive">
+                <CircleAlert />
+                <AlertTitle>Couldn&apos;t load preferences</AlertTitle>
+                <AlertDescription>
+                  <p>{preferenceStatus.message}</p>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      void retryPreferences();
+                    }}
+                  >
+                    Retry
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+            {workspaceExpansion.error && (
+              <Alert variant="destructive">
+                <CircleAlert />
+                <AlertTitle>Couldn&apos;t save workspace expansion</AlertTitle>
+                <AlertDescription>
+                  <p>{workspaceExpansion.error}</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={workspaceExpansion.saving}
+                    onClick={() => {
+                      void workspaceExpansion.retry();
+                    }}
+                  >
+                    Retry
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
             <AppContent
               display={display}
               effectiveFilter={effectiveFilter}

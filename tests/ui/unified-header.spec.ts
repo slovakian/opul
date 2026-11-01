@@ -8,6 +8,12 @@ test("workspace identity stays first when navigating into a saved folder", async
   page,
 }) => {
   const library = structuredClone(snapshot);
+  library.workspaces[0].folders.push({
+    id: "archive",
+    is_default: false,
+    name: "Archive",
+    path: "/Users/test/Archive",
+  });
   library.workspaces[0].name = "Research";
   library.workspaces[0].icon = { kind: "Emoji", value: "🤢" };
   await mockDesktop(page, { snapshot: library });
@@ -20,6 +26,7 @@ test("workspace identity stays first when navigating into a saved folder", async
   await expect(breadcrumb.locator('[data-slot="emoji-artwork"]')).toHaveCount(
     0
   );
+  await page.getByRole("button", { name: "Toggle Research folders" }).click();
   await page.getByRole("button", { exact: true, name: "Downloads" }).click();
   await expect(breadcrumb.locator('[data-slot="breadcrumb-item"]')).toHaveText([
     "🤢Research",
@@ -81,6 +88,7 @@ test("one header row preserves searches across views and breadcrumb navigation",
   await expect(
     page.getByRole("button", { exact: true, name: "Field notes.pdf" })
   ).toBeVisible();
+  await page.getByRole("button", { name: "Toggle Downloads folders" }).click();
   await page.getByRole("button", { exact: true, name: "Archive" }).click();
   await expect(input).toHaveValue("Field notes");
   const breadcrumb = header.getByRole("navigation", { name: "breadcrumb" });
@@ -214,14 +222,16 @@ test("search and new-download shortcuts and menus focus the shared input", async
     await expect(input).toBeFocused();
     await page.keyboard.press(`${modifier}+n`);
     await expect(input).toBeFocused();
-    expect(
-      await input.evaluate((element: HTMLInputElement) =>
-        element.value.slice(
-          element.selectionStart ?? 0,
-          element.selectionEnd ?? 0
+    await expect
+      .poll(() =>
+        input.evaluate((element: HTMLInputElement) =>
+          element.value.slice(
+            element.selectionStart ?? 0,
+            element.selectionEnd ?? 0
+          )
         )
       )
-    ).toBe("replace me");
+      .toBe("replace me");
   }
 
   for (const name of ["Workspace actions", "Opul"]) {
@@ -232,9 +242,11 @@ test("search and new-download shortcuts and menus focus the shared input", async
       .click();
     await expect(input).toBeFocused();
     await expect(page.getByRole("dialog")).toHaveCount(0);
-    expect(
-      await input.evaluate((element: HTMLInputElement) => element.selectionEnd)
-    ).toBe("replace me".length);
+    await expect
+      .poll(() =>
+        input.evaluate((element: HTMLInputElement) => element.selectionEnd)
+      )
+      .toBe("replace me".length);
   }
 });
 

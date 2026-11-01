@@ -1,103 +1,20 @@
 import type { Page } from "@playwright/test";
 
-import type {
-  AggregateView,
-  DisplayPreferences,
-  Command,
-  Preferences,
-  Snapshot,
-  Receipt,
-} from "../../frontend/lib/model";
+import type { Receipt } from "../../frontend/lib/model";
 import folderTreatments from "../../src/application/folder-treatments.json" with { type: "json" };
-import { baseDownload } from "./fixture-data";
-import type { DesktopOptions } from "./fixture-options";
+import {
+  baseDownload,
+  preferences,
+  snapshot,
+  toolStatus,
+} from "./fixture-data";
+import type { DesktopInvokeArgs, DesktopOptions } from "./fixture-options";
+import { mockFolderAddition } from "./folder-addition-fixture";
 
-export const preferences: Preferences = {
-  aggregate_destination: { kind: "prompt" },
-  aggregate_views: {
-    active: { grouping: "None", layout: "List", sort: "Order" },
-    all: { grouping: "None", layout: "List", sort: "Order" },
-    finished: { grouping: "None", layout: "List", sort: "Order" },
-  },
-  concurrent_downloads: 3,
-  enable_dht: true,
-  ffmpeg_path: null,
-  listen_port: 6881,
-  max_connections: 200,
-  max_download_kbps: 0,
-  max_upload_kbps: 0,
-  randomize_port: true,
-  theme: "light",
-  yt_dlp_path: null,
-};
-
-export const snapshot: Snapshot = {
-  boot_id: "boot-1",
-  recent_emoji: [],
-  recovery_notices: [],
-  revision: 1,
-  sequence: 1,
-  session: "Running",
-  workspaces: [
-    {
-      appearance: {
-        automatic_folder: folderTreatments[0],
-        preference: { kind: "Automatic" },
-      },
-      default_format: "Best",
-      downloads: [
-        baseDownload,
-        {
-          ...baseDownload,
-          bytes_downloaded: 52_428_800,
-          capabilities: {
-            ...baseDownload.capabilities,
-            can_cancel: false,
-            can_move: true,
-            can_pause: false,
-            can_reveal_output: true,
-          },
-          download_rate: 0,
-          id: "download-2",
-          name: "The creative process.mp4",
-          output_path: "/Users/test/Downloads/Film.mp4",
-          progress_millionths: 1_000_000,
-          source: "VideoPage",
-          state: "Finished",
-        },
-        {
-          ...baseDownload,
-          capabilities: {
-            ...baseDownload.capabilities,
-            can_pause: false,
-            can_resume: true,
-          },
-          download_rate: 0,
-          id: "download-3",
-          name: "Field notes.pdf",
-          state: "Paused",
-        },
-      ],
-      file_organization: "Automatic",
-      folders: [
-        {
-          id: "folder-1",
-          is_default: true,
-          name: "Downloads",
-          path: "/Users/test/Downloads",
-        },
-      ],
-      grouping: "None",
-      icon: { kind: "Symbol", value: "arrow.down.circle" },
-      id: "workspace-1",
-      layout: "List",
-      name: "Downloads",
-      sort: "Order",
-    },
-  ],
-};
+export { preferences, snapshot } from "./fixture-data";
 
 export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
+  await mockFolderAddition(page, options);
   await page.addInitScript(
     ({
       defaultDownload,
@@ -105,24 +22,37 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
       initSnapshot,
       mockOpts,
       treatments,
+      tools,
     }) => {
       const [, defaultTreatment, alternateTreatment] = treatments;
 
-      const savedSnapshot = mockOpts.persist
-        ? sessionStorage.getItem("test-snapshot")
-        : null;
+      const restore = <T>(key: string, initial: T): T => {
+        const saved = mockOpts.persist ? sessionStorage.getItem(key) : null;
 
-      const savedPreferences = mockOpts.persist
-        ? sessionStorage.getItem("test-preferences")
-        : null;
+        return saved ? JSON.parse(saved) : structuredClone(initial);
+      };
 
-      const currentSnapshot: Snapshot = savedSnapshot
-        ? JSON.parse(savedSnapshot)
-        : structuredClone(initSnapshot);
+      const currentSnapshot = restore("test-snapshot", initSnapshot);
 
-      let currentPreferences: Preferences = savedPreferences
-        ? JSON.parse(savedPreferences)
-        : structuredClone(initPreferences);
+      let snapshotReadFailure = false;
+
+      window.addEventListener("test:fail-snapshot", () => {
+        snapshotReadFailure = true;
+      });
+
+      window.addEventListener("test:resume-snapshot", () => {
+        snapshotReadFailure = false;
+      });
+
+      window.addEventListener("test:replace-snapshot", () => {
+        const replacement = sessionStorage.getItem("test-snapshot");
+
+        if (replacement) {
+          Object.assign(currentSnapshot, JSON.parse(replacement));
+        }
+      });
+
+      let currentPreferences = restore("test-preferences", initPreferences);
 
       if (mockOpts.empty) {
         currentSnapshot.workspaces[0].downloads = [];
@@ -142,6 +72,7 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
       let draftCalls = 0;
       let createAttempts = 0;
       let appearanceAttempts = 0;
+      let expansionAttempts = 0;
       const receipts = new Map<string, Receipt>();
 
       Object.defineProperty(window, "isTauri", { value: true });
@@ -151,19 +82,24 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
       Object.defineProperty(window, "__TAURI_INTERNALS__", {
         value: {
           // oxlint-disable-next-line eslint/complexity
-          invoke: async (
-            name: string,
-            args: {
-              command?: Command;
-              preferences?: Preferences | DisplayPreferences;
-              view?: AggregateView;
-              workspaceId?: string;
-            } = {}
-          ) => {
+          invoke: async (name: string, args: DesktopInvokeArgs = {}) => {
             if (name === "snapshot") {
-              if (mockOpts.fail) {
+              const held =
+                await window.testFolderAddition.snapshot(currentSnapshot);
+
+              if (held) {
+                return held;
+              }
+
+              if (mockOpts.fail || snapshotReadFailure) {
+                sessionStorage.setItem("test-snapshot-failed", "true");
                 throw new Error("The state directory is already in use");
               }
+
+              sessionStorage.setItem(
+                "test-snapshot-sequence",
+                String(currentSnapshot.sequence)
+              );
 
               return structuredClone(currentSnapshot);
             }
@@ -174,6 +110,51 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
               }
 
               return currentPreferences;
+            }
+
+            if (name === "save_workspace_expansion" && args.choices) {
+              expansionAttempts += 1;
+
+              const attempts = JSON.parse(
+                sessionStorage.getItem("test-expansion-attempts") ?? "[]"
+              );
+
+              attempts.push(args.choices);
+              sessionStorage.setItem(
+                "test-expansion-attempts",
+                JSON.stringify(attempts)
+              );
+
+              if (mockOpts.holdFirstExpansion && expansionAttempts === 1) {
+                // oxlint-disable-next-line promise/avoid-new
+                await new Promise<void>((resolve) => {
+                  window.addEventListener(
+                    "test:release-expansion",
+                    () => resolve(),
+                    { once: true }
+                  );
+                });
+              }
+
+              if (mockOpts.failFirstExpansion && expansionAttempts === 1) {
+                throw new Error(
+                  "Couldn't write workspace expansion. Try again."
+                );
+              }
+
+              Object.assign(
+                currentPreferences.workspace_expansion,
+                args.choices
+              );
+
+              if (mockOpts.persist) {
+                sessionStorage.setItem(
+                  "test-preferences",
+                  JSON.stringify(currentPreferences)
+                );
+              }
+
+              return structuredClone(currentPreferences.workspace_expansion);
             }
 
             if (name === "workspace_appearance_draft") {
@@ -230,6 +211,7 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
               currentPreferences = {
                 ...args.preferences,
                 aggregate_views: currentPreferences.aggregate_views,
+                workspace_expansion: currentPreferences.workspace_expansion,
               };
 
               if (mockOpts.persist) {
@@ -269,30 +251,11 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
             }
 
             if (name === "tool_status") {
-              return {
-                ffmpeg_path: "/opt/homebrew/bin/ffmpeg",
-                ffmpeg_version: "8.0",
-                message: "yt-dlp and FFmpeg are available.",
-                ready: true,
-                yt_dlp_path: "/opt/homebrew/bin/yt-dlp",
-                yt_dlp_version: "2026.10",
-              };
+              return tools;
             }
 
             if (name === "plugin:dialog|open") {
-              sessionStorage.setItem("test-picker", JSON.stringify(args));
-
-              if (JSON.stringify(args).includes("Open a torrent")) {
-                return mockOpts.torrentPickerPath ?? null;
-              }
-
-              if (mockOpts.folderPickerError) {
-                throw new Error(mockOpts.folderPickerError);
-              }
-
-              return mockOpts.folderPickerPath === undefined
-                ? "/Users/test/Downloads"
-                : mockOpts.folderPickerPath;
+              return window.testFolderAddition.choose(args);
             }
 
             if (name === "execute") {
@@ -453,16 +416,14 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
               }
 
               if (command.kind === "add_folder") {
-                const targetWorkspace = currentSnapshot.workspaces.find(
-                  (item) => item.id === command.request.workspace_id
+                const result = window.testFolderAddition.execute(
+                  command.request,
+                  currentSnapshot
                 );
 
-                targetWorkspace?.folders.push({
-                  id: command.request.folder_id,
-                  is_default: false,
-                  name: command.request.name,
-                  path: command.request.path,
-                });
+                if (result !== undefined) {
+                  return result;
+                }
               }
 
               if (command.kind === "remove_downloads") {
@@ -470,6 +431,35 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
                   item.downloads = item.downloads.filter(
                     (download) => !command.download_ids.includes(download.id)
                   );
+                }
+              }
+
+              if (command.kind === "remove_folder") {
+                if (mockOpts.folderRemoval === "rejected") {
+                  throw new Error("Couldn't remove saved folder. Try again.");
+                }
+
+                const targetWorkspace = currentSnapshot.workspaces.find(
+                  (item) => item.id === command.request.workspace_id
+                );
+
+                if (!targetWorkspace || targetWorkspace.folders.length === 1) {
+                  throw new Error("A workspace must keep a saved folder.");
+                }
+
+                if (mockOpts.folderRemoval !== "deferred") {
+                  targetWorkspace.folders = targetWorkspace.folders.filter(
+                    (item) => item.id !== command.request.folder_id
+                  );
+                  targetWorkspace.downloads = targetWorkspace.downloads.filter(
+                    (item) => item.folder_id !== command.request.folder_id
+                  );
+
+                  if (
+                    !targetWorkspace.folders.some((item) => item.is_default)
+                  ) {
+                    targetWorkspace.folders[0].is_default = true;
+                  }
                 }
               }
 
@@ -569,6 +559,10 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
                 );
               }
 
+              if (command.kind === "add_folder") {
+                await window.testFolderAddition.waitForReceipt();
+              }
+
               return receipt;
             }
 
@@ -592,6 +586,7 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
       initPreferences: options.preferences ?? preferences,
       initSnapshot: options.snapshot ?? snapshot,
       mockOpts: options,
+      tools: toolStatus,
       treatments: folderTreatments,
     }
   );

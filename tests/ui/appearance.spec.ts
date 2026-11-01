@@ -9,7 +9,14 @@ const artwork = '[data-slot="emoji-artwork"]';
 test("workspace artwork stays consistent while save locations use a folder icon", async ({
   page,
 }) => {
-  await mockDesktop(page);
+  const library = structuredClone(snapshot);
+  library.workspaces[0].folders.push({
+    id: "archive",
+    is_default: false,
+    name: "Archive",
+    path: "/Users/test/Archive",
+  });
+  await mockDesktop(page, { snapshot: library });
   await page.goto("/");
 
   const workspace = page.getByRole("button", {
@@ -30,7 +37,6 @@ test("workspace artwork stays consistent while save locations use a folder icon"
       .getByRole("heading", { exact: true, name: "Downloads" })
       .locator(artwork)
   ).toHaveCSS("filter", filter);
-  await page.getByRole("button", { name: "Toggle Downloads folders" }).click();
   await expect(
     page.getByRole("button", { name: "Toggle Downloads folders" })
   ).toHaveAttribute("aria-expanded", "false");

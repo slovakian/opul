@@ -307,6 +307,9 @@ test("add a saved location from the download input without changing the default"
     .getByRole("button", { exact: true, name: "All downloads" })
     .click();
   await expect(
+    page.getByRole("button", { name: "Toggle Downloads folders" })
+  ).toHaveAttribute("aria-expanded", "true");
+  await expect(
     page.getByRole("button", { exact: true, name: "Research" })
   ).toBeVisible();
 });

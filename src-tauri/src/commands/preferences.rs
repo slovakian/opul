@@ -5,7 +5,20 @@ use crate::{
     Desktop,
     preferences::{AggregateView, DisplayPreferences, Preferences},
 };
+use std::collections::BTreeMap;
 use tauri::State;
+
+#[tauri::command]
+pub fn save_workspace_expansion(
+    state: State<'_, Desktop>,
+    choices: BTreeMap<String, bool>,
+) -> Result<BTreeMap<String, bool>, String> {
+    state
+        .preferences
+        .as_ref()
+        .map_err(Clone::clone)?
+        .save_workspace_expansion(choices)
+}
 
 #[tauri::command]
 pub fn get_preferences(state: State<'_, Desktop>) -> Result<Preferences, String> {

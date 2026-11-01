@@ -1,5 +1,6 @@
 use opul_core::{MachineGrouping, MachineLayout, MachineSort};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -11,6 +12,7 @@ pub struct Preferences {
     pub theme: Theme,
     pub aggregate_views: AggregateViews,
     pub aggregate_destination: AggregateDestination,
+    pub workspace_expansion: BTreeMap<String, bool>,
     pub max_download_kbps: u32,
     pub max_upload_kbps: u32,
     pub concurrent_downloads: u32,
@@ -81,6 +83,7 @@ impl Default for Preferences {
             theme: Theme::System,
             aggregate_views: AggregateViews::default(),
             aggregate_destination: AggregateDestination::default(),
+            workspace_expansion: BTreeMap::new(),
             max_download_kbps: 0,
             max_upload_kbps: 0,
             concurrent_downloads: 3,
@@ -134,8 +137,9 @@ impl PreferenceStore {
             .value
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        // Settings drafts do not own aggregate display preferences.
+        // Settings drafts do not own live display or expansion preferences.
         preferences.aggregate_views = value.aggregate_views.clone();
+        preferences.workspace_expansion = value.workspace_expansion.clone();
         self.persist(&preferences)?;
         *value = preferences.clone();
         Ok(preferences)
@@ -162,7 +166,29 @@ impl PreferenceStore {
         Ok(next)
     }
 
-    // Both callers hold the value lock until the atomic write has completed.
+    pub fn save_workspace_expansion(
+        &self,
+        choices: BTreeMap<String, bool>,
+    ) -> Result<BTreeMap<String, bool>, String> {
+        let mut value = self
+            .value
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if choices
+            .iter()
+            .all(|(id, expanded)| value.workspace_expansion.get(id) == Some(expanded))
+        {
+            return Ok(value.workspace_expansion.clone());
+        }
+        let mut next = value.clone();
+        next.workspace_expansion.extend(choices);
+        self.persist(&next)?;
+        let saved = next.workspace_expansion.clone();
+        *value = next;
+        Ok(saved)
+    }
+
+    // Callers hold the value lock until the atomic write has completed.
     fn persist(&self, preferences: &Preferences) -> Result<(), String> {
         let temporary = self.path.with_extension("json.tmp");
         let mut options = OpenOptions::new();
@@ -187,6 +213,98 @@ impl PreferenceStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn workspace_expansion_defaults_and_live_choices_survive_stale_settings_and_display_saves() {
+        let directory =
+            std::env::temp_dir().join(format!("opul-expansion-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(
+            directory.join("desktop-preferences.json"),
+            br#"{"theme":"dark"}"#,
+        )
+        .unwrap();
+        let store = PreferenceStore::open(&directory).unwrap();
+        assert!(store.get().workspace_expansion.is_empty());
+        let mut stale_settings = store.get();
+        stale_settings.max_download_kbps = 2048;
+        store.save(stale_settings.clone()).unwrap();
+        let display = DisplayPreferences {
+            layout: MachineLayout::Table,
+            ..DisplayPreferences::default()
+        };
+        store
+            .save_aggregate_view(AggregateView::Active, display.clone())
+            .unwrap();
+        store
+            .save_workspace_expansion([("research".into(), true)].into())
+            .unwrap();
+        store
+            .save_workspace_expansion([("media".into(), false)].into())
+            .unwrap();
+        store.save(stale_settings).unwrap();
+        store
+            .save_aggregate_view(
+                AggregateView::All,
+                DisplayPreferences {
+                    layout: MachineLayout::Table,
+                    ..DisplayPreferences::default()
+                },
+            )
+            .unwrap();
+        let restored = PreferenceStore::open(&directory).unwrap().get();
+        assert_eq!(
+            restored.workspace_expansion,
+            [("research".into(), true), ("media".into(), false)].into()
+        );
+        assert_eq!(restored.max_download_kbps, 2048);
+        assert_eq!(restored.aggregate_views.all.layout, MachineLayout::Table);
+        assert_eq!(restored.aggregate_views.active, display);
+        assert!(matches!(restored.theme, Theme::Dark));
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn failed_workspace_expansion_save_preserves_memory_and_disk_and_retries_latest_choices() {
+        let directory =
+            std::env::temp_dir().join(format!("opul-expansion-failure-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let store = PreferenceStore::open(&directory).unwrap();
+        store
+            .save_workspace_expansion([("research".into(), true)].into())
+            .unwrap();
+        let before = fs::read(&store.path).unwrap();
+        let temporary = store.path.with_extension("json.tmp");
+        fs::create_dir(&temporary).unwrap();
+        assert!(
+            store
+                .save_workspace_expansion(
+                    [("research".into(), false), ("media".into(), true)].into()
+                )
+                .is_err()
+        );
+        assert_eq!(
+            store.get().workspace_expansion,
+            [("research".into(), true)].into()
+        );
+        assert_eq!(fs::read(&store.path).unwrap(), before);
+        // A no-op must not touch the filesystem, even while writes are blocked.
+        store
+            .save_workspace_expansion([("research".into(), true)].into())
+            .unwrap();
+        fs::remove_dir(&temporary).unwrap();
+        store
+            .save_workspace_expansion([("research".into(), false), ("media".into(), false)].into())
+            .unwrap();
+        assert_eq!(
+            PreferenceStore::open(&directory)
+                .unwrap()
+                .get()
+                .workspace_expansion,
+            [("research".into(), false), ("media".into(), false)].into()
+        );
+        fs::remove_dir_all(directory).unwrap();
+    }
 
     #[test]
     fn aggregate_destination_defaults_and_round_trips_without_changing_display_preferences() {

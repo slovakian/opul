@@ -179,6 +179,7 @@ fn main() {
             commands::preferences::get_preferences,
             commands::preferences::save_preferences,
             commands::preferences::save_aggregate_view,
+            commands::preferences::save_workspace_expansion,
             commands::tool_status,
             commands::reveal_download,
         ])
