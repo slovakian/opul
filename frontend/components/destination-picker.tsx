@@ -2,6 +2,7 @@ import { ChevronDown, FolderClosed, FolderPlus } from "lucide-react";
 
 import { SidebarPopover } from "@/components/sidebar-popover";
 import { InputGroupButton } from "@/components/ui/input-group";
+import { WorkspaceIcon } from "@/components/workspace-icon";
 import { folderName } from "@/lib/destination";
 import type { Destination } from "@/lib/destination";
 import type { Workspace } from "@/lib/model";
@@ -21,12 +22,15 @@ export const DestinationPicker = ({
   onSelect: (destination: Destination) => void;
   onAdd: () => void;
 }) => {
+  const showWorkspace = viewedWorkspaceId === undefined;
   let label = "Choose…";
 
   if (destination) {
     label = folderName(destination.folder.path);
 
-    if (destination.workspace.id !== viewedWorkspaceId) {
+    if (showWorkspace) {
+      label = destination.workspace.name;
+    } else if (destination.workspace.id !== viewedWorkspaceId) {
       label = `${destination.workspace.name} › ${label}`;
     }
   }
@@ -44,7 +48,11 @@ export const DestinationPicker = ({
           }
           disabled={disabled}
         >
-          <FolderClosed data-icon="inline-start" />
+          {showWorkspace && destination ? (
+            <WorkspaceIcon workspace={destination.workspace} />
+          ) : (
+            <FolderClosed data-icon="inline-start" />
+          )}
           <span
             className="header-location max-w-36 truncate"
             data-choose={!destination}

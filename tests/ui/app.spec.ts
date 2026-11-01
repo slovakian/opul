@@ -261,7 +261,7 @@ test("add a saved location from the download input without changing the default"
   await header
     .getByRole("button", {
       exact: true,
-      name: "Save location: Downloads › Downloads",
+      name: "Save location: Downloads",
     })
     .click();
   const menu = page.locator('[data-slot="popover-content"]');
@@ -271,14 +271,14 @@ test("add a saved location from the download input without changing the default"
   await expect(
     header.getByRole("button", {
       exact: true,
-      name: "Save location: Downloads › Research",
+      name: "Save location: Downloads",
     })
   ).toBeVisible();
   await expect(link).toHaveValue("https://example.com/new-file.zip");
   await header
     .getByRole("button", {
       exact: true,
-      name: "Save location: Downloads › Research",
+      name: "Save location: Downloads",
     })
     .click();
   await expect(menu.locator('[data-slot="sidebar-group-label"]')).toHaveText(
@@ -330,7 +330,7 @@ test("adding a location keeps the draft and selection when the picker is failed"
   await header
     .getByRole("button", {
       exact: true,
-      name: "Save location: Downloads › Downloads",
+      name: "Save location: Downloads",
     })
     .click();
   await page
@@ -343,7 +343,7 @@ test("adding a location keeps the draft and selection when the picker is failed"
   await expect(
     header.getByRole("button", {
       exact: true,
-      name: "Save location: Downloads › Downloads",
+      name: "Save location: Downloads",
     })
   ).toBeVisible();
   await expect(link).toHaveValue("https://example.com/new-file.zip");

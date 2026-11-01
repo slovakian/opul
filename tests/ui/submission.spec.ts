@@ -258,7 +258,7 @@ test("a failed pending request preserves newer typing and enables a corrected re
   await expect(
     page.locator("main > header").getByRole("button", {
       exact: true,
-      name: "Save location: Media › Films",
+      name: "Save location: Media",
     })
   ).toBeEnabled();
   await input(page).press("Enter");
