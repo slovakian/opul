@@ -15,7 +15,7 @@ import type {
   Command,
   DisplayPreferences,
   Preferences,
-  WorkspaceExpansion,
+  WorkspaceExpansionChanges,
 } from "@/lib/model";
 
 const requireDesktop = () => {
@@ -63,7 +63,7 @@ export const bridge = {
       await invoke("save_preferences", { preferences })
     );
   },
-  async saveWorkspaceExpansion(choices: WorkspaceExpansion) {
+  async saveWorkspaceExpansion(choices: WorkspaceExpansionChanges) {
     return workspaceExpansionSchema.parse(
       await invoke("save_workspace_expansion", { choices })
     );

@@ -11,7 +11,7 @@ use tauri::State;
 #[tauri::command]
 pub fn save_workspace_expansion(
     state: State<'_, Desktop>,
-    choices: BTreeMap<String, bool>,
+    choices: BTreeMap<String, Option<bool>>,
 ) -> Result<BTreeMap<String, bool>, String> {
     state
         .preferences

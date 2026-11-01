@@ -90,7 +90,7 @@ const App = () => {
 
   const workspaceExpansion = useWorkspaceExpansion(
     preferences,
-    state.kind === "ready"
+    state.kind === "ready" ? state.snapshot : null
   );
 
   const [navigation, setNavigation] = useState(0);

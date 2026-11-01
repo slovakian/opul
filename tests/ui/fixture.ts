@@ -10,11 +10,13 @@ import {
 } from "./fixture-data";
 import type { DesktopInvokeArgs, DesktopOptions } from "./fixture-options";
 import { mockFolderAddition } from "./folder-addition-fixture";
+import { mockWorkspaceExpansion } from "./workspace-expansion-fixture";
 
 export { preferences, snapshot } from "./fixture-data";
 
 export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
   await mockFolderAddition(page, options);
+  await mockWorkspaceExpansion(page, options);
   await page.addInitScript(
     ({
       defaultDownload,
@@ -72,7 +74,6 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
       let draftCalls = 0;
       let createAttempts = 0;
       let appearanceAttempts = 0;
-      let expansionAttempts = 0;
       const receipts = new Map<string, Receipt>();
 
       Object.defineProperty(window, "isTauri", { value: true });
@@ -113,48 +114,10 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
             }
 
             if (name === "save_workspace_expansion" && args.choices) {
-              expansionAttempts += 1;
-
-              const attempts = JSON.parse(
-                sessionStorage.getItem("test-expansion-attempts") ?? "[]"
+              return await window.testSaveWorkspaceExpansion(
+                args.choices,
+                currentPreferences
               );
-
-              attempts.push(args.choices);
-              sessionStorage.setItem(
-                "test-expansion-attempts",
-                JSON.stringify(attempts)
-              );
-
-              if (mockOpts.holdFirstExpansion && expansionAttempts === 1) {
-                // oxlint-disable-next-line promise/avoid-new
-                await new Promise<void>((resolve) => {
-                  window.addEventListener(
-                    "test:release-expansion",
-                    () => resolve(),
-                    { once: true }
-                  );
-                });
-              }
-
-              if (mockOpts.failFirstExpansion && expansionAttempts === 1) {
-                throw new Error(
-                  "Couldn't write workspace expansion. Try again."
-                );
-              }
-
-              Object.assign(
-                currentPreferences.workspace_expansion,
-                args.choices
-              );
-
-              if (mockOpts.persist) {
-                sessionStorage.setItem(
-                  "test-preferences",
-                  JSON.stringify(currentPreferences)
-                );
-              }
-
-              return structuredClone(currentPreferences.workspace_expansion);
             }
 
             if (name === "workspace_appearance_draft") {
@@ -431,6 +394,19 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
                   item.downloads = item.downloads.filter(
                     (download) => !command.download_ids.includes(download.id)
                   );
+                }
+              }
+
+              if (command.kind === "delete_workspace") {
+                if (mockOpts.workspaceDeletion === "rejected") {
+                  throw new Error("Couldn't delete workspace. Try again.");
+                }
+
+                if (mockOpts.workspaceDeletion !== "deferred") {
+                  currentSnapshot.workspaces =
+                    currentSnapshot.workspaces.filter(
+                      (workspace) => workspace.id !== command.workspace_id
+                    );
                 }
               }
 

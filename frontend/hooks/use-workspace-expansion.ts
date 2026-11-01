@@ -2,11 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { errorMessage } from "@/lib/bridge";
 import { useLibrary } from "@/lib/library";
-import type { Preferences } from "@/lib/model";
+import type { Preferences, Snapshot } from "@/lib/model";
 
 export const useWorkspaceExpansion = (
   preferences: Preferences | null,
-  libraryReady: boolean
+  snapshot: Snapshot | null
 ) => {
   const { saveWorkspaceExpansion } = useLibrary();
 
@@ -18,7 +18,7 @@ export const useWorkspaceExpansion = (
   const [saving, setSaving] = useState(false);
   const session = useRef(new Map<string, boolean>());
   const persisted = useRef<Map<string, boolean> | null>(null);
-  const pending = useRef(new Map<string, boolean>());
+  const pending = useRef(new Map<string, boolean | null>());
   const writing = useRef(false);
   const initialized = useRef(false);
 
@@ -33,7 +33,11 @@ export const useWorkspaceExpansion = (
     try {
       while (true) {
         for (const [id, expanded] of pending.current) {
-          if ((persisted.current.get(id) ?? false) === expanded) {
+          if (
+            expanded === null
+              ? !persisted.current.has(id)
+              : (persisted.current.get(id) ?? false) === expanded
+          ) {
             pending.current.delete(id);
           }
         }
@@ -49,10 +53,7 @@ export const useWorkspaceExpansion = (
         // oxlint-disable-next-line no-await-in-loop
         const saved = await saveWorkspaceExpansion(Object.fromEntries(choices));
 
-        persisted.current = new Map([
-          ...persisted.current,
-          ...Object.entries(saved),
-        ]);
+        persisted.current = new Map(Object.entries(saved));
 
         for (const [id, expanded] of choices) {
           if (pending.current.get(id) === expanded) {
@@ -69,25 +70,52 @@ export const useWorkspaceExpansion = (
   }, [saveWorkspaceExpansion]);
 
   useEffect(() => {
-    if (initialized.current || !preferences || !libraryReady) {
+    if (!preferences || !snapshot) {
       return;
     }
 
-    initialized.current = true;
-    persisted.current = new Map(
-      Object.entries(preferences.workspace_expansion)
+    const firstSnapshot = !initialized.current;
+
+    if (firstSnapshot) {
+      initialized.current = true;
+      persisted.current = new Map(
+        Object.entries(preferences.workspace_expansion)
+      );
+
+      const initial =
+        preferences.workspace_expansion_startup === "collapsed"
+          ? new Map<string, boolean>()
+          : persisted.current;
+
+      session.current = new Map([...initial, ...session.current]);
+    }
+
+    const surviving = new Set(
+      snapshot.workspaces.map((workspace) => workspace.id)
     );
 
-    const initial =
-      preferences.workspace_expansion_startup === "collapsed"
-        ? new Map<string, boolean>()
-        : persisted.current;
+    const known = new Set([
+      ...(persisted.current?.keys() ?? []),
+      ...session.current.keys(),
+      ...pending.current.keys(),
+    ]);
 
-    session.current = new Map([...initial, ...session.current]);
+    let removed = false;
 
-    setExpansion(new Map(session.current));
-    void save();
-  }, [libraryReady, preferences, save]);
+    for (const id of known) {
+      if (!surviving.has(id) && pending.current.get(id) !== null) {
+        session.current.delete(id);
+        // A tombstone supersedes queued intent and survives an older acknowledgement.
+        pending.current.set(id, null);
+        removed = true;
+      }
+    }
+
+    if (firstSnapshot || removed) {
+      setExpansion(new Map(session.current));
+      void save();
+    }
+  }, [snapshot, preferences, save]);
 
   const handleExpansionChange = useCallback(
     (workspaceId: string, expanded: boolean) => {

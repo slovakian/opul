@@ -178,7 +178,7 @@ impl PreferenceStore {
 
     pub fn save_workspace_expansion(
         &self,
-        choices: BTreeMap<String, bool>,
+        choices: BTreeMap<String, Option<bool>>,
     ) -> Result<BTreeMap<String, bool>, String> {
         let mut value = self
             .value
@@ -186,12 +186,18 @@ impl PreferenceStore {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         if choices
             .iter()
-            .all(|(id, expanded)| value.workspace_expansion.get(id) == Some(expanded))
+            .all(|(id, expanded)| value.workspace_expansion.get(id) == expanded.as_ref())
         {
             return Ok(value.workspace_expansion.clone());
         }
         let mut next = value.clone();
-        next.workspace_expansion.extend(choices);
+        for (id, expanded) in choices {
+            if let Some(expanded) = expanded {
+                next.workspace_expansion.insert(id, expanded);
+            } else {
+                next.workspace_expansion.remove(&id);
+            }
+        }
         self.persist(&next)?;
         let saved = next.workspace_expansion.clone();
         *value = next;
@@ -252,10 +258,10 @@ mod tests {
             .save_aggregate_view(AggregateView::Active, display.clone())
             .unwrap();
         store
-            .save_workspace_expansion([("research".into(), true)].into())
+            .save_workspace_expansion([("research".into(), Some(true))].into())
             .unwrap();
         store
-            .save_workspace_expansion([("media".into(), false)].into())
+            .save_workspace_expansion([("media".into(), Some(false))].into())
             .unwrap();
         store.save(stale_settings).unwrap();
         store
@@ -290,7 +296,7 @@ mod tests {
         fs::create_dir_all(&directory).unwrap();
         let store = PreferenceStore::open(&directory).unwrap();
         store
-            .save_workspace_expansion([("research".into(), true)].into())
+            .save_workspace_expansion([("research".into(), Some(true))].into())
             .unwrap();
         let before = fs::read(&store.path).unwrap();
         let temporary = store.path.with_extension("json.tmp");
@@ -298,7 +304,11 @@ mod tests {
         assert!(
             store
                 .save_workspace_expansion(
-                    [("research".into(), false), ("media".into(), true)].into()
+                    [
+                        ("research".into(), Some(false)),
+                        ("media".into(), Some(true))
+                    ]
+                    .into()
                 )
                 .is_err()
         );
@@ -309,11 +319,17 @@ mod tests {
         assert_eq!(fs::read(&store.path).unwrap(), before);
         // A no-op must not touch the filesystem, even while writes are blocked.
         store
-            .save_workspace_expansion([("research".into(), true)].into())
+            .save_workspace_expansion([("research".into(), Some(true))].into())
             .unwrap();
         fs::remove_dir(&temporary).unwrap();
         store
-            .save_workspace_expansion([("research".into(), false), ("media".into(), false)].into())
+            .save_workspace_expansion(
+                [
+                    ("research".into(), Some(false)),
+                    ("media".into(), Some(false)),
+                ]
+                .into(),
+            )
             .unwrap();
         assert_eq!(
             PreferenceStore::open(&directory)
@@ -471,3 +487,7 @@ mod tests {
         fs::remove_dir_all(directory).unwrap();
     }
 }
+
+#[cfg(test)]
+#[path = "preferences/expansion_tests.rs"]
+mod expansion_tests;

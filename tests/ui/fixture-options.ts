@@ -4,6 +4,7 @@ import type {
   DisplayPreferences,
   Preferences,
   Snapshot,
+  WorkspaceExpansionChanges,
 } from "../../frontend/lib/model";
 
 export interface DesktopInvokeArgs {
@@ -11,7 +12,7 @@ export interface DesktopInvokeArgs {
   preferences?: Preferences | DisplayPreferences;
   view?: AggregateView;
   workspaceId?: string;
-  choices?: Preferences["workspace_expansion"];
+  choices?: WorkspaceExpansionChanges;
 }
 
 export interface DesktopOptions {
@@ -23,6 +24,7 @@ export interface DesktopOptions {
   failFirstCreate?: boolean;
   failFirstPreferences?: boolean;
   failFirstExpansion?: boolean;
+  failExpansionAttempts?: number;
   holdFirstExpansion?: boolean;
   failFirstView?: boolean;
   failPreferencesRead?: boolean;
@@ -33,6 +35,7 @@ export interface DesktopOptions {
   holdFolderReceipt?: boolean;
   torrentPickerPath?: string | null;
   holdAdd?: boolean;
+  workspaceDeletion?: "immediate" | "deferred" | "rejected";
   folderRemoval?: "immediate" | "deferred" | "rejected";
   loseFirstAppearanceResponse?: boolean;
   loseFirstCreateResponse?: boolean;

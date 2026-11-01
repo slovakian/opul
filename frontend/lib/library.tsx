@@ -19,6 +19,7 @@ import type {
   Receipt,
   Snapshot,
   WorkspaceExpansion,
+  WorkspaceExpansionChanges,
 } from "@/lib/model";
 
 type LibraryState =
@@ -39,7 +40,7 @@ interface Library {
   refresh: () => Promise<void>;
   retryPreferences: () => Promise<void>;
   saveWorkspaceExpansion: (
-    choices: WorkspaceExpansion
+    choices: WorkspaceExpansionChanges
   ) => Promise<WorkspaceExpansion>;
   run: (
     command: Command,
@@ -243,7 +244,7 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const saveWorkspaceExpansion = useCallback(
-    async (choices: WorkspaceExpansion) => {
+    async (choices: WorkspaceExpansionChanges) => {
       const saved = await bridge.saveWorkspaceExpansion(choices);
 
       setPreferences((current) => {
@@ -253,10 +254,7 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
 
         const next = {
           ...current,
-          workspace_expansion: {
-            ...current.workspace_expansion,
-            ...saved,
-          },
+          workspace_expansion: saved,
         };
 
         return next;

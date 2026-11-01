@@ -192,6 +192,8 @@ export const workspaceExpansionSchema = z.record(z.string(), z.boolean());
 
 export type WorkspaceExpansion = z.infer<typeof workspaceExpansionSchema>;
 
+export type WorkspaceExpansionChanges = Record<string, boolean | null>;
+
 export const preferencesSchema = z.object({
   aggregate_destination: z
     .discriminatedUnion("kind", [
