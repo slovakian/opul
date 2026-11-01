@@ -11,7 +11,6 @@ use opul_core::{
     MachineWorkspaceIcon, MachineWorkspaceIconKind, MachineWorkspaceRequest, OpulStateMachine,
 };
 use serde::Deserialize;
-use std::sync::Arc;
 use tauri::{AppHandle, State};
 use tauri_plugin_opener::OpenerExt;
 use uuid::Uuid;
@@ -358,7 +357,7 @@ pub async fn execute(
     state: State<'_, Desktop>,
     command: DesktopCommand,
 ) -> Result<MachineCommandReceipt, String> {
-    let machine = Arc::clone(state.machine()?);
+    let machine = state.machine()?;
     tauri::async_runtime::spawn_blocking(move || command.execute(&machine))
         .await
         .map_err(|error| error.to_string())?
@@ -403,6 +402,7 @@ mod tests {
         EngineConfig, MachineDownloadState, MachineSource, MediaEngineConfig, OpulMachineConfig,
     };
     use std::io::{Read, Write};
+    use std::sync::Arc;
     use std::time::{Duration, Instant};
 
     fn test_machine(root: &std::path::Path) -> Arc<OpulStateMachine> {

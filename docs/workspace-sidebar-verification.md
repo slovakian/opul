@@ -84,3 +84,29 @@ The retained local artifacts are under `/tmp/opul-52-native`, including accessib
 ## Limits
 
 Native picker success and cancellation were reproducible. An operating-system picker exception was not reproducible; the WebKit addition suites cover rejected picker promises and rejected commands separately. Browser reload/session-storage tests establish frontend lifecycle behavior; actual PreferenceStore reopen tests and native process relaunches establish file durability. No release or main-branch merge was performed.
+
+## Preference read recovery follow-up
+
+PR [#54](https://github.com/slovakian/opul/pull/54) exposed a native recovery gap: startup cached both the failed preference read and the resulting application-machine failure. The frontend Retry action called `get_preferences` again, but could never reopen the repaired file.
+
+Desktop initialization now distinguishes unavailable preferences from an initialized store and machine result. A preference read retries initialization only while preferences are unavailable. Successful reads retain the live PreferenceStore and application machine; independent engine failures retain their existing behavior. Settings and expansion persistence still use the existing store methods. The frontend already keeps session intents pending until preferences and an authoritative library snapshot arrive, then merges those intents over restored startup choices.
+
+The three new tests in `src-tauri/src/desktop_tests.rs` exercise the same desktop initialization and read methods used by setup and `get_preferences`, with actual temporary preference files and a real OpulStateMachine. Both malformed and unreadable-file recovery cases failed with the cached-error implementation, then passed with the fix. Coverage includes repeated failures without writes, refreshed error messages, concurrent retries, a running library after recovery, preserved saved settings and untouched expansion entries, pending expansion persistence, and reuse of the live store and machine. A separate case protects the live store when disk contents change and initialization fails for an unrelated engine reason.
+
+Fresh checks passed:
+
+```sh
+vp check
+vp test
+vp run build
+cargo test --workspace
+cargo check --workspace
+cargo fmt --all --check
+vp run test --project=webkit tests/ui/workspace-preference-lifecycle.spec.ts tests/ui/workspace-expansion.spec.ts tests/ui/workspace-expansion-cleanup.spec.ts tests/ui/display-preferences.spec.ts --workers=2
+scripts/package_app.sh debug
+scripts/smoke_test.sh
+```
+
+Results: 37 frontend unit tests, 122 Rust tests, and 34 WebKit tests. The WebKit cases verify that Retry preserves early session expansion choices and restores untouched choices, including delayed reads and response races.
+
+An additional isolated packaged-app run launched with malformed preferences and showed both preference and library errors. After repairing the file and clicking the visible Retry control through macOS accessibility, the same process opened its Downloads workspace and cleared both errors. The repaired preferences remained byte-for-byte unchanged. No IPC mock was installed. The isolated run used `open -n -a "$PWD/Opul.app"` with explicit `--env OPUL_DATA_DIR=...` and `--env OPUL_DOWNLOAD_DIR=...`; local accessibility captures and file evidence are under `$TMPDIR/opul-54-recovery-4ac_5vlh`.

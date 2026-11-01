@@ -2,10 +2,12 @@
 
 mod channel;
 mod commands;
+mod desktop;
 mod preferences;
 
+use desktop::Desktop;
 use opul_core::{EngineConfig, MediaEngineConfig, OpulMachineConfig, OpulStateMachine};
-use preferences::{PreferenceStore, Preferences};
+use preferences::Preferences;
 use std::path::PathBuf;
 use std::sync::{
     Arc,
@@ -13,19 +15,8 @@ use std::sync::{
 };
 use tauri::{Emitter, Manager};
 
-struct Desktop {
-    machine: Result<Arc<OpulStateMachine>, String>,
-    preferences: Result<PreferenceStore, String>,
-}
-
-impl Desktop {
-    fn machine(&self) -> Result<&Arc<OpulStateMachine>, String> {
-        self.machine.as_ref().map_err(Clone::clone)
-    }
-}
-
 fn open_machine(
-    app: &tauri::App,
+    app: &tauri::AppHandle,
     preferences: &Preferences,
 ) -> Result<Arc<OpulStateMachine>, String> {
     let support = data_directory(app)?;
@@ -67,7 +58,7 @@ fn open_machine(
     .map_err(|error| error.to_string())
 }
 
-fn current_channel(app: &tauri::App) -> channel::ReleaseChannel {
+fn current_channel(app: &tauri::AppHandle) -> channel::ReleaseChannel {
     let env_override = std::env::var("OPUL_CHANNEL").ok();
     let product_name = app
         .config()
@@ -81,7 +72,7 @@ fn current_channel(app: &tauri::App) -> channel::ReleaseChannel {
     )
 }
 
-fn data_directory(app: &tauri::App) -> Result<PathBuf, String> {
+fn data_directory(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let channel = current_channel(app);
     let base = app.path().data_dir().map_err(|error| error.to_string())?;
     Ok(channel::resolve_data_directory(
@@ -104,22 +95,13 @@ fn main() {
             builder.build()
         })
         .setup(|app| {
-            let preferences = data_directory(app).and_then(|directory| {
-                std::fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
-                PreferenceStore::open(&directory)
-            });
-            let machine = match &preferences {
-                Ok(store) => open_machine(app, &store.get()),
-                Err(error) => Err(error.clone()),
-            };
-            app.manage(Desktop {
-                machine,
-                preferences,
-            });
+            app.manage(Desktop::open(data_directory(app.handle()), |preferences| {
+                open_machine(app.handle(), preferences)
+            }));
             #[cfg(target_os = "macos")]
             {
                 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
-                let channel = current_channel(app);
+                let channel = current_channel(app.handle());
                 let app_name = channel.app_name();
                 let about_title = format!("About {app_name}");
                 let settings =
@@ -194,7 +176,7 @@ fn main() {
             api.prevent_exit();
             if !shutting_down.swap(true, Ordering::SeqCst) {
                 let app = app.clone();
-                let machine = app.state::<Desktop>().machine.clone();
+                let machine = app.state::<Desktop>().machine();
                 std::thread::spawn(move || {
                     if let Ok(machine) = machine {
                         let _ = machine.begin_shutdown();
