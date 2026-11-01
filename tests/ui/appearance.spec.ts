@@ -37,7 +37,6 @@ test("workspace artwork stays consistent while save locations use a folder icon"
       .getByRole("heading", { exact: true, name: "Downloads" })
       .locator(artwork)
   ).toHaveCSS("filter", filter);
-  await page.getByRole("button", { name: "Toggle Downloads folders" }).click();
   await expect(
     page.getByRole("button", { name: "Toggle Downloads folders" })
   ).toHaveAttribute("aria-expanded", "false");

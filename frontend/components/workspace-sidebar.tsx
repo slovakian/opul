@@ -66,6 +66,8 @@ const folderRequest = (workspace: Workspace, folder: Folder) => ({
 
 export const WorkspaceSidebar = ({
   workspaces,
+  workspaceExpansion,
+  onExpansionChange,
   location,
   navigate,
   onCreate,
@@ -75,6 +77,8 @@ export const WorkspaceSidebar = ({
   onNew,
 }: {
   workspaces: Workspace[];
+  workspaceExpansion: ReadonlyMap<string, boolean>;
+  onExpansionChange: (workspaceId: string, expanded: boolean) => void;
   location: Location;
   navigate: (location: Location) => void;
   onCreate: () => void;
@@ -242,7 +246,10 @@ export const WorkspaceSidebar = ({
                 <Collapsible
                   key={workspace.id}
                   className="group/workspace"
-                  defaultOpen
+                  open={workspaceExpansion.get(workspace.id) ?? false}
+                  onOpenChange={(expanded) =>
+                    onExpansionChange(workspace.id, expanded)
+                  }
                   render={<SidebarMenuItem />}
                 >
                   <SidebarMenuButton
@@ -250,7 +257,8 @@ export const WorkspaceSidebar = ({
                     isActive={
                       location.kind === "workspace" &&
                       location.workspaceId === workspace.id &&
-                      !location.folderId
+                      (!location.folderId ||
+                        !workspaceExpansion.get(workspace.id))
                     }
                     onClick={() =>
                       go({ kind: "workspace", workspaceId: workspace.id })
@@ -332,11 +340,13 @@ export const WorkspaceSidebar = ({
                               render={
                                 <button
                                   type="button"
+                                  tabIndex={0}
                                   aria-label={folder.name}
                                 />
                               }
                               isActive={
                                 location.kind === "workspace" &&
+                                location.workspaceId === workspace.id &&
                                 location.folderId === folder.id
                               }
                               onClick={() =>

@@ -26,6 +26,7 @@ test("workspace identity stays first when navigating into a saved folder", async
   await expect(breadcrumb.locator('[data-slot="emoji-artwork"]')).toHaveCount(
     0
   );
+  await page.getByRole("button", { name: "Toggle Research folders" }).click();
   await page.getByRole("button", { exact: true, name: "Downloads" }).click();
   await expect(breadcrumb.locator('[data-slot="breadcrumb-item"]')).toHaveText([
     "🤢Research",
@@ -87,6 +88,7 @@ test("one header row preserves searches across views and breadcrumb navigation",
   await expect(
     page.getByRole("button", { exact: true, name: "Field notes.pdf" })
   ).toBeVisible();
+  await page.getByRole("button", { name: "Toggle Downloads folders" }).click();
   await page.getByRole("button", { exact: true, name: "Archive" }).click();
   await expect(input).toHaveValue("Field notes");
   const breadcrumb = header.getByRole("navigation", { name: "breadcrumb" });

@@ -1,59 +1,14 @@
 import { AxeBuilder } from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
-import type { Page } from "@playwright/test";
 
-import type { Snapshot } from "../../frontend/lib/model";
-import { mockDesktop, snapshot } from "./fixture";
-
-const sidebar = (page: Page) =>
-  page.getByRole("navigation", { name: "Workspace navigation" });
-
-const breadcrumb = (page: Page) =>
-  page.locator("main > header").getByRole("navigation", { name: "breadcrumb" });
-
-const input = (page: Page) =>
-  page.getByRole("searchbox", { name: "Search downloads or paste a link" });
-
-const library = () => {
-  const value = structuredClone(snapshot);
-  const [workspace] = value.workspaces;
-  workspace.name = "Research and reference material with a long workspace name";
-  workspace.folders[0].name = "Saved reports";
-  workspace.folders[0].path = "/Users/test/Research/Saved reports";
-  workspace.downloads[0].name = "Report designs.zip";
-  workspace.downloads[1].name = "Report interview.mp4";
-  workspace.downloads[2].name = "Unrelated notes.pdf";
-  value.workspaces.push({
-    ...structuredClone(workspace),
-    downloads: [],
-    folders: [
-      {
-        id: "films",
-        is_default: true,
-        name: "Films",
-        path: "/Users/test/Films",
-      },
-      {
-        id: "archive",
-        is_default: false,
-        name: "Archive",
-        path: "/Users/test/Archive",
-      },
-    ],
-    icon: { kind: "Emoji", value: "🍿" },
-    id: "media",
-    name: "Media",
-  });
-
-  return value;
-};
-
-const replaceSnapshot = async (page: Page, value: Snapshot) => {
-  await page.evaluate((next) => {
-    sessionStorage.setItem("test-snapshot", JSON.stringify(next));
-    window.dispatchEvent(new Event("test:replace-snapshot"));
-  }, value);
-};
+import { mockDesktop } from "./fixture";
+import {
+  breadcrumb,
+  input,
+  library,
+  replaceSnapshot,
+  sidebar,
+} from "./workspace-sidebar-fixture";
 
 test("one saved folder has a simple workspace row with persistent artwork and keyboard actions", async ({
   page,
@@ -172,6 +127,7 @@ test("an empty workspace keeps custom artwork and keyboard navigation in the nar
   await page.goto("/");
   await input(page).fill("Report");
   await page
+    .locator("main > header")
     .getByRole("button", { exact: true, name: "Toggle Sidebar" })
     .click();
 
@@ -293,6 +249,11 @@ for (const selectedFolder of ["Saved reports", "Drafts"]) {
     await mockDesktop(page, { snapshot: saved });
     await page.goto("/");
     await input(page).fill("Report");
+    await sidebar(page)
+      .getByRole("button", {
+        name: `Toggle ${saved.workspaces[0].name} folders`,
+      })
+      .click();
     await sidebar(page)
       .getByRole("button", { exact: true, name: selectedFolder })
       .click();

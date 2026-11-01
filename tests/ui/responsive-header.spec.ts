@@ -20,6 +20,11 @@ test("breadcrumbs shorten before destinations and display controls combine", asy
   await mockDesktop(page, { snapshot: library });
   await page.goto("/");
   await page
+    .getByRole("button", {
+      name: `Toggle ${library.workspaces[0].name} folders`,
+    })
+    .click();
+  await page
     .getByRole("button", { exact: true, name: "Collected references" })
     .click();
   const header = page.locator("main > header");
@@ -325,6 +330,11 @@ test("long folder breadcrumbs and Choose remain usable throughout window resizin
   }
 
   await page.setViewportSize({ height: 800, width: 1600 });
+  await page
+    .getByRole("button", {
+      name: `Toggle ${library.workspaces[0].name} folders`,
+    })
+    .click();
   await page
     .getByRole("button", {
       exact: true,

@@ -41,6 +41,12 @@ const notice = (page: Page) =>
   page.locator('[data-slot="toast"]').filter({ hasText: "new-file.zip" });
 
 const navigate = async (page: Page, name: string) => {
+  if (name === "Downloads") {
+    await page
+      .getByRole("button", { name: "Toggle Downloads folders" })
+      .click();
+  }
+
   await page
     .getByRole("navigation", { name: "Workspace navigation" })
     .getByRole("button", { exact: true, name })

@@ -77,6 +77,11 @@ const App = () => {
   }, [state.kind]);
 
   const [location, setLocation] = useState<Location>({ kind: "all" });
+
+  const [workspaceExpansion, setWorkspaceExpansion] = useState<
+    ReadonlyMap<string, boolean>
+  >(() => new Map());
+
   const [navigation, setNavigation] = useState(0);
   const [lastDestination, setLastDestination] = useState<string>();
   const [filter, setFilter] = useState<StatusFilter>("all");
@@ -177,6 +182,12 @@ const App = () => {
     <>
       <WorkspaceSidebar
         workspaces={workspaces}
+        workspaceExpansion={workspaceExpansion}
+        onExpansionChange={(workspaceId, expanded) => {
+          setWorkspaceExpansion((previous) =>
+            new Map(previous).set(workspaceId, expanded)
+          );
+        }}
         location={location}
         navigate={navigate}
         onCreate={() => setModal({ kind: "workspace", workspace: null })}
