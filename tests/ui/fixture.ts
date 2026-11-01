@@ -9,93 +9,10 @@ import type {
   Receipt,
 } from "../../frontend/lib/model";
 import folderTreatments from "../../src/application/folder-treatments.json" with { type: "json" };
-import { baseDownload } from "./fixture-data";
+import { baseDownload, preferences, snapshot } from "./fixture-data";
 import type { DesktopOptions } from "./fixture-options";
 
-export const preferences: Preferences = {
-  aggregate_destination: { kind: "prompt" },
-  aggregate_views: {
-    active: { grouping: "None", layout: "List", sort: "Order" },
-    all: { grouping: "None", layout: "List", sort: "Order" },
-    finished: { grouping: "None", layout: "List", sort: "Order" },
-  },
-  concurrent_downloads: 3,
-  enable_dht: true,
-  ffmpeg_path: null,
-  listen_port: 6881,
-  max_connections: 200,
-  max_download_kbps: 0,
-  max_upload_kbps: 0,
-  randomize_port: true,
-  theme: "light",
-  yt_dlp_path: null,
-};
-
-export const snapshot: Snapshot = {
-  boot_id: "boot-1",
-  recent_emoji: [],
-  recovery_notices: [],
-  revision: 1,
-  sequence: 1,
-  session: "Running",
-  workspaces: [
-    {
-      appearance: {
-        automatic_folder: folderTreatments[0],
-        preference: { kind: "Automatic" },
-      },
-      default_format: "Best",
-      downloads: [
-        baseDownload,
-        {
-          ...baseDownload,
-          bytes_downloaded: 52_428_800,
-          capabilities: {
-            ...baseDownload.capabilities,
-            can_cancel: false,
-            can_move: true,
-            can_pause: false,
-            can_reveal_output: true,
-          },
-          download_rate: 0,
-          id: "download-2",
-          name: "The creative process.mp4",
-          output_path: "/Users/test/Downloads/Film.mp4",
-          progress_millionths: 1_000_000,
-          source: "VideoPage",
-          state: "Finished",
-        },
-        {
-          ...baseDownload,
-          capabilities: {
-            ...baseDownload.capabilities,
-            can_pause: false,
-            can_resume: true,
-          },
-          download_rate: 0,
-          id: "download-3",
-          name: "Field notes.pdf",
-          state: "Paused",
-        },
-      ],
-      file_organization: "Automatic",
-      folders: [
-        {
-          id: "folder-1",
-          is_default: true,
-          name: "Downloads",
-          path: "/Users/test/Downloads",
-        },
-      ],
-      grouping: "None",
-      icon: { kind: "Symbol", value: "arrow.down.circle" },
-      id: "workspace-1",
-      layout: "List",
-      name: "Downloads",
-      sort: "Order",
-    },
-  ],
-};
+export { preferences, snapshot } from "./fixture-data";
 
 export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
   await page.addInitScript(
@@ -150,6 +67,7 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
       let draftCalls = 0;
       let createAttempts = 0;
       let appearanceAttempts = 0;
+      let expansionAttempts = 0;
       const receipts = new Map<string, Receipt>();
 
       Object.defineProperty(window, "isTauri", { value: true });
@@ -166,6 +84,7 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
               preferences?: Preferences | DisplayPreferences;
               view?: AggregateView;
               workspaceId?: string;
+              choices?: Preferences["workspace_expansion"];
             } = {}
           ) => {
             if (name === "snapshot") {
@@ -182,6 +101,51 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
               }
 
               return currentPreferences;
+            }
+
+            if (name === "save_workspace_expansion" && args.choices) {
+              expansionAttempts += 1;
+
+              const attempts = JSON.parse(
+                sessionStorage.getItem("test-expansion-attempts") ?? "[]"
+              );
+
+              attempts.push(args.choices);
+              sessionStorage.setItem(
+                "test-expansion-attempts",
+                JSON.stringify(attempts)
+              );
+
+              if (mockOpts.holdFirstExpansion && expansionAttempts === 1) {
+                // oxlint-disable-next-line promise/avoid-new
+                await new Promise<void>((resolve) => {
+                  window.addEventListener(
+                    "test:release-expansion",
+                    () => resolve(),
+                    { once: true }
+                  );
+                });
+              }
+
+              if (mockOpts.failFirstExpansion && expansionAttempts === 1) {
+                throw new Error(
+                  "Couldn't write workspace expansion. Try again."
+                );
+              }
+
+              Object.assign(
+                currentPreferences.workspace_expansion,
+                args.choices
+              );
+
+              if (mockOpts.persist) {
+                sessionStorage.setItem(
+                  "test-preferences",
+                  JSON.stringify(currentPreferences)
+                );
+              }
+
+              return structuredClone(currentPreferences.workspace_expansion);
             }
 
             if (name === "workspace_appearance_draft") {
@@ -238,6 +202,7 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
               currentPreferences = {
                 ...args.preferences,
                 aggregate_views: currentPreferences.aggregate_views,
+                workspace_expansion: currentPreferences.workspace_expansion,
               };
 
               if (mockOpts.persist) {

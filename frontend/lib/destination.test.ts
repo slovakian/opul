@@ -109,6 +109,7 @@ describe("destination helpers", () => {
         max_upload_kbps: 0,
         randomize_port: true,
         theme: "light",
+        workspace_expansion: {},
         yt_dlp_path: null,
       };
 
@@ -133,6 +134,7 @@ describe("destination helpers", () => {
         max_upload_kbps: 0,
         randomize_port: true,
         theme: "light",
+        workspace_expansion: {},
         yt_dlp_path: null,
       };
 
@@ -159,6 +161,7 @@ describe("destination helpers", () => {
         max_upload_kbps: 0,
         randomize_port: true,
         theme: "light",
+        workspace_expansion: {},
         yt_dlp_path: null,
       };
 

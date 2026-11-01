@@ -8,6 +8,8 @@ export interface DesktopOptions {
   failFirstAppearance?: boolean;
   failFirstCreate?: boolean;
   failFirstPreferences?: boolean;
+  failFirstExpansion?: boolean;
+  holdFirstExpansion?: boolean;
   failFirstView?: boolean;
   failPreferencesRead?: boolean;
   folderPickerError?: string;

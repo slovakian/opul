@@ -211,7 +211,7 @@ test("independent session choices survive navigation, settings, polling, rename,
   page,
 }) => {
   const saved = multiFolderLibrary();
-  await mockDesktop(page, { snapshot: saved });
+  await mockDesktop(page, { persist: true, snapshot: saved });
   await page.goto("/");
 
   const firstToggle = sidebar(page).getByRole("button", {
@@ -339,6 +339,13 @@ test("independent session choices survive navigation, settings, polling, rename,
   await expect(
     sheet.getByRole("button", { name: "Toggle Media folders" })
   ).toHaveAttribute("aria-expanded", "true");
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        JSON.parse(sessionStorage.getItem("test-preferences") ?? "null")
+      )
+    )
+    .toMatchObject({ workspace_expansion: { media: true } });
   await page.reload();
   await page
     .locator("main > header")
@@ -346,7 +353,7 @@ test("independent session choices survive navigation, settings, polling, rename,
     .click();
   await expect(
     sheet.getByRole("button", { name: "Toggle Media folders" })
-  ).toHaveAttribute("aria-expanded", "false");
+  ).toHaveAttribute("aria-expanded", "true");
 });
 
 test("keyboard disclosure, navigation, artwork, and management remain independent in a narrow window", async ({

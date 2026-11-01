@@ -13,6 +13,7 @@ import { WorkspaceSidebar } from "@/components/workspace-sidebar";
 import type { Location, StatusFilter } from "@/components/workspace-sidebar";
 import { useAppKeyboard } from "@/hooks/use-app-keyboard";
 import { useDownloadNotifications } from "@/hooks/use-download-notifications";
+import { useWorkspaceExpansion } from "@/hooks/use-workspace-expansion";
 import {
   filterAndSortDownloads,
   groupDownloads,
@@ -78,9 +79,10 @@ const App = () => {
 
   const [location, setLocation] = useState<Location>({ kind: "all" });
 
-  const [workspaceExpansion, setWorkspaceExpansion] = useState<
-    ReadonlyMap<string, boolean>
-  >(() => new Map());
+  const workspaceExpansion = useWorkspaceExpansion(
+    preferences,
+    state.kind === "ready"
+  );
 
   const [navigation, setNavigation] = useState(0);
   const [lastDestination, setLastDestination] = useState<string>();
@@ -182,12 +184,8 @@ const App = () => {
     <>
       <WorkspaceSidebar
         workspaces={workspaces}
-        workspaceExpansion={workspaceExpansion}
-        onExpansionChange={(workspaceId, expanded) => {
-          setWorkspaceExpansion((previous) =>
-            new Map(previous).set(workspaceId, expanded)
-          );
-        }}
+        workspaceExpansion={workspaceExpansion.expansion}
+        onExpansionChange={workspaceExpansion.handleExpansionChange}
         location={location}
         navigate={navigate}
         onCreate={() => setModal({ kind: "workspace", workspace: null })}
@@ -233,6 +231,25 @@ const App = () => {
         >
           <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6 lg:px-10">
             <EngineAlert busy={busy} run={run} state={state} />
+            {workspaceExpansion.error && (
+              <Alert variant="destructive">
+                <CircleAlert />
+                <AlertTitle>Couldn&apos;t save workspace expansion</AlertTitle>
+                <AlertDescription>
+                  <p>{workspaceExpansion.error}</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={workspaceExpansion.saving}
+                    onClick={() => {
+                      void workspaceExpansion.retry();
+                    }}
+                  >
+                    Retry
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
             <AppContent
               display={display}
               effectiveFilter={effectiveFilter}

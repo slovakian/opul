@@ -188,6 +188,10 @@ export const snapshotSchema = z.object({
   workspaces: z.array(workspaceSchema),
 });
 
+export const workspaceExpansionSchema = z.record(z.string(), z.boolean());
+
+export type WorkspaceExpansion = z.infer<typeof workspaceExpansionSchema>;
+
 export const preferencesSchema = z.object({
   aggregate_destination: z
     .discriminatedUnion("kind", [
@@ -205,6 +209,7 @@ export const preferencesSchema = z.object({
   max_upload_kbps: z.number(),
   randomize_port: z.boolean(),
   theme: z.enum(["system", "light", "dark"]),
+  workspace_expansion: workspaceExpansionSchema.default({}),
   yt_dlp_path: z.string().nullable(),
 });
 
