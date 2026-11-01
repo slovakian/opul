@@ -31,6 +31,16 @@ const library = () => {
 };
 
 const navigate = async (page: Page, name: string) => {
+  if (name === "Downloads" || name === "Archive") {
+    const toggle = page.getByRole("button", {
+      name: "Toggle Downloads folders",
+    });
+
+    if ((await toggle.getAttribute("aria-expanded")) === "false") {
+      await toggle.click();
+    }
+  }
+
   await page
     .getByRole("navigation", { name: "Workspace navigation" })
     .getByRole("button", { exact: true, name })

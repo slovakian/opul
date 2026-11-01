@@ -15,6 +15,7 @@ import { SidebarPopover } from "@/components/sidebar-popover";
 import { Button } from "@/components/ui/button";
 import { WorkspaceHeader } from "@/components/workspace-header";
 import type { Location, StatusFilter } from "@/components/workspace-sidebar";
+import type { AddSavedFolder } from "@/hooks/use-saved-folder-addition";
 import type { useLibrary } from "@/lib/library";
 import type { DisplayPreferences, Workspace } from "@/lib/model";
 
@@ -108,6 +109,7 @@ export interface AppHeaderProps {
   navigation: number;
   newDownload: () => void;
   onAdded: (ids: string[]) => void;
+  onAddFolder: AddSavedFolder;
   onNavigateWorkspace: (id: string) => void;
   onSetLastDestination: (dest: string | undefined) => void;
   onViewChange: (change: Partial<DisplayPreferences>) => void;
@@ -133,6 +135,7 @@ export const AppHeader = ({
   navigation,
   newDownload,
   onAdded,
+  onAddFolder,
   onNavigateWorkspace,
   onSetLastDestination,
   onViewChange,
@@ -160,6 +163,7 @@ export const AppHeader = ({
       <DownloadInput
         navigation={navigation}
         onAdded={onAdded}
+        onAddFolder={onAddFolder}
         workspaces={workspaces}
         location={location}
         lastUsed={lastDestination}

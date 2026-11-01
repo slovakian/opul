@@ -6,6 +6,12 @@ import { mockDesktop, snapshot } from "./fixture";
 
 const library = () => {
   const value = structuredClone(snapshot);
+  value.workspaces[0].folders.push({
+    id: "archive",
+    is_default: false,
+    name: "Archive",
+    path: "/Users/test/Archive",
+  });
   value.workspaces.push({
     ...structuredClone(value.workspaces[0]),
     downloads: [],
@@ -35,6 +41,12 @@ const notice = (page: Page) =>
   page.locator('[data-slot="toast"]').filter({ hasText: "new-file.zip" });
 
 const navigate = async (page: Page, name: string) => {
+  if (name === "Downloads") {
+    await page
+      .getByRole("button", { name: "Toggle Downloads folders" })
+      .click();
+  }
+
   await page
     .getByRole("navigation", { name: "Workspace navigation" })
     .getByRole("button", { exact: true, name })

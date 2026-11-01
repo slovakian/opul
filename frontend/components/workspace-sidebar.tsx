@@ -12,6 +12,7 @@ import {
   Settings2,
   Trash2,
 } from "lucide-react";
+import { useEffect, useRef } from "react";
 
 import opulLogo from "@/assets/opul-logo.png";
 import { SidebarPopover } from "@/components/sidebar-popover";
@@ -41,12 +42,12 @@ import {
   SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { toast } from "@/components/ui/toast";
 import { WorkspaceIcon } from "@/components/workspace-icon";
-import { bridge, errorMessage } from "@/lib/bridge";
+import { useWorkspaceRemovalFocus } from "@/hooks/use-workspace-removal-focus";
 import { useLibrary } from "@/lib/library";
 import { aggregateNames, bytes } from "@/lib/model";
 import type { AggregateView, Folder, Workspace } from "@/lib/model";
+import { cn } from "@/lib/utils";
 
 export type Location =
   | { kind: AggregateView }
@@ -65,6 +66,9 @@ const folderRequest = (workspace: Workspace, folder: Folder) => ({
 
 export const WorkspaceSidebar = ({
   workspaces,
+  workspaceExpansion,
+  onExpansionChange,
+  onAddFolder,
   location,
   navigate,
   onCreate,
@@ -74,6 +78,9 @@ export const WorkspaceSidebar = ({
   onNew,
 }: {
   workspaces: Workspace[];
+  workspaceExpansion: ReadonlyMap<string, boolean>;
+  onExpansionChange: (workspaceId: string, expanded: boolean) => void;
+  onAddFolder: (workspace: Workspace) => void;
   location: Location;
   navigate: (location: Location) => void;
   onCreate: () => void;
@@ -86,7 +93,42 @@ export const WorkspaceSidebar = ({
   onNew: () => void;
 }) => {
   const { run, busy, state } = useLibrary();
-  const { isMobile, setOpenMobile } = useSidebar();
+  const { isMobile, open, openMobile, setOpenMobile } = useSidebar();
+  const selectedFolderRef = useRef<HTMLButtonElement>(null);
+
+  const selectedWorkspaceId =
+    location.kind === "workspace" ? location.workspaceId : undefined;
+
+  const selectedFolderId =
+    location.kind === "workspace" ? location.folderId : undefined;
+
+  const selectedExpanded =
+    selectedWorkspaceId !== undefined &&
+    workspaceExpansion.get(selectedWorkspaceId);
+
+  useEffect(() => {
+    if (
+      selectedFolderId &&
+      selectedWorkspaceId &&
+      selectedExpanded &&
+      (isMobile ? openMobile : open)
+    ) {
+      selectedFolderRef.current?.scrollIntoView({ block: "nearest" });
+    }
+  }, [
+    isMobile,
+    open,
+    openMobile,
+    selectedExpanded,
+    selectedFolderId,
+    selectedWorkspaceId,
+  ]);
+
+  const workspaceFocusTarget = useWorkspaceRemovalFocus(
+    workspaces,
+    !isMobile || openMobile
+  );
+
   const allDownloads = workspaces.flatMap((workspace) => workspace.downloads);
 
   const active = allDownloads.filter(
@@ -104,34 +146,6 @@ export const WorkspaceSidebar = ({
 
     if (isMobile) {
       setOpenMobile(false);
-    }
-  };
-
-  const addFolder = async (workspace: Workspace) => {
-    try {
-      const path = await bridge.chooseFolder();
-
-      if (!path) {
-        return;
-      }
-
-      await run({
-        kind: "add_folder",
-        request: {
-          expected_revision: null,
-          folder_id: crypto.randomUUID(),
-          name: path.split("/").findLast(Boolean) || "Folder",
-          path,
-          request_id: crypto.randomUUID(),
-          workspace_id: workspace.id,
-        },
-      });
-    } catch (error) {
-      toast.add({
-        description: errorMessage(error),
-        title: "Couldn't add folder",
-        type: "error",
-      });
     }
   };
 
@@ -240,16 +254,22 @@ export const WorkspaceSidebar = ({
               {workspaces.map((workspace) => (
                 <Collapsible
                   key={workspace.id}
+                  data-workspace-id={workspace.id}
                   className="group/workspace"
-                  defaultOpen
+                  open={workspaceExpansion.get(workspace.id) ?? false}
+                  onOpenChange={(expanded) =>
+                    onExpansionChange(workspace.id, expanded)
+                  }
                   render={<SidebarMenuItem />}
                 >
                   <SidebarMenuButton
+                    data-workspace-navigation
                     aria-label={`${workspace.name} workspace`}
                     isActive={
                       location.kind === "workspace" &&
                       location.workspaceId === workspace.id &&
-                      !location.folderId
+                      (!location.folderId ||
+                        !workspaceExpansion.get(workspace.id))
                     }
                     onClick={() =>
                       go({ kind: "workspace", workspaceId: workspace.id })
@@ -257,22 +277,29 @@ export const WorkspaceSidebar = ({
                   >
                     <span
                       aria-hidden
-                      className="flex size-4 shrink-0 items-center justify-center group-focus-within/workspace:invisible group-hover/workspace:invisible"
+                      className={cn(
+                        "flex size-4 shrink-0 items-center justify-center",
+                        workspace.folders.length > 1 &&
+                          "group-focus-within/workspace:invisible group-hover/workspace:invisible"
+                      )}
                     >
                       <WorkspaceIcon workspace={workspace} />
                     </span>
                     <span>{workspace.name}</span>
                   </SidebarMenuButton>
-                  <CollapsibleTrigger
-                    render={
-                      <SidebarMenuAction
-                        className="right-auto left-1.5 opacity-0 group-focus-within/workspace:opacity-100 group-hover/workspace:opacity-100 data-panel-open:rotate-90"
-                        aria-label={`Toggle ${workspace.name} folders`}
-                      />
-                    }
-                  >
-                    <ChevronRight />
-                  </CollapsibleTrigger>
+                  {workspace.folders.length > 1 && (
+                    <CollapsibleTrigger
+                      render={
+                        <SidebarMenuAction
+                          className="right-auto left-1.5 opacity-0 group-focus-within/workspace:opacity-100 group-hover/workspace:opacity-100 data-panel-open:rotate-90"
+                          aria-label={`Toggle ${workspace.name} folders`}
+                          data-workspace-disclosure
+                        />
+                      }
+                    >
+                      <ChevronRight />
+                    </CollapsibleTrigger>
+                  )}
                   <SidebarPopover
                     title={`${workspace.name} actions`}
                     trigger={
@@ -306,94 +333,112 @@ export const WorkspaceSidebar = ({
                             icon: FolderPlus,
                             label: "Add saved folder",
                             onClick: () => {
-                              addFolder(workspace).catch(() => null);
+                              onAddFolder(workspace);
                             },
                           },
                         ],
                       },
                     ]}
                   />
-                  <CollapsibleContent>
-                    <SidebarMenuSub>
-                      {workspace.folders.map((folder) => (
-                        <SidebarMenuSubItem
-                          key={folder.id}
-                          className="group/folder relative"
-                        >
-                          <SidebarMenuSubButton
-                            render={
-                              <button type="button" aria-label={folder.name} />
-                            }
-                            isActive={
-                              location.kind === "workspace" &&
-                              location.folderId === folder.id
-                            }
-                            onClick={() =>
-                              go({
-                                folderId: folder.id,
-                                kind: "workspace",
-                                workspaceId: workspace.id,
-                              })
-                            }
-                            title={folder.path}
+                  {workspace.folders.length > 1 && (
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        {workspace.folders.map((folder) => (
+                          <SidebarMenuSubItem
+                            key={folder.id}
+                            className="group/folder relative"
                           >
-                            <FolderClosed />
-                            <span>{folder.name}</span>
-                          </SidebarMenuSubButton>
-                          <SidebarPopover
-                            title={`${folder.name} folder actions`}
-                            trigger={
-                              <SidebarMenuAction
-                                className="top-0 opacity-0 group-hover/folder:opacity-100 focus-visible:opacity-100"
-                                aria-label={`${folder.name} folder actions`}
-                              >
-                                <MoreHorizontal />
-                              </SidebarMenuAction>
-                            }
-                            groups={[
-                              {
-                                actions: [
-                                  {
-                                    disabled: folder.is_default || busy,
-                                    icon: Check,
-                                    label: "Set as default",
-                                    onClick: () => {
-                                      run({
-                                        kind: "default_folder",
-                                        request: folderRequest(
-                                          workspace,
-                                          folder
-                                        ),
-                                      }).catch(() => null);
+                            <SidebarMenuSubButton
+                              render={
+                                <button
+                                  ref={
+                                    selectedWorkspaceId === workspace.id &&
+                                    selectedFolderId === folder.id
+                                      ? selectedFolderRef
+                                      : undefined
+                                  }
+                                  type="button"
+                                  tabIndex={0}
+                                  aria-label={folder.name}
+                                  data-folder-id={folder.id}
+                                />
+                              }
+                              isActive={
+                                location.kind === "workspace" &&
+                                location.workspaceId === workspace.id &&
+                                location.folderId === folder.id
+                              }
+                              onClick={() =>
+                                go({
+                                  folderId: folder.id,
+                                  kind: "workspace",
+                                  workspaceId: workspace.id,
+                                })
+                              }
+                              title={folder.path}
+                            >
+                              <FolderClosed />
+                              <span>{folder.name}</span>
+                            </SidebarMenuSubButton>
+                            <SidebarPopover
+                              title={`${folder.name} folder actions`}
+                              fallbackFocus={() =>
+                                workspaceFocusTarget(workspace.id)
+                              }
+                              trigger={
+                                <SidebarMenuAction
+                                  className="top-0 opacity-0 group-hover/folder:opacity-100 focus-visible:opacity-100"
+                                  aria-label={`${folder.name} folder actions`}
+                                  data-folder-id={folder.id}
+                                >
+                                  <MoreHorizontal />
+                                </SidebarMenuAction>
+                              }
+                              groups={[
+                                {
+                                  actions: [
+                                    {
+                                      disabled: folder.is_default || busy,
+                                      icon: Check,
+                                      label: "Set as default",
+                                      onClick: () => {
+                                        run({
+                                          kind: "default_folder",
+                                          request: folderRequest(
+                                            workspace,
+                                            folder
+                                          ),
+                                        }).catch(() => null);
+                                      },
                                     },
-                                  },
-                                  {
-                                    destructive: true,
-                                    disabled:
-                                      workspace.folders.length === 1 || busy,
-                                    icon: Trash2,
-                                    label: "Remove saved folder",
-                                    onClick: () => {
-                                      run({
-                                        kind: "remove_folder",
-                                        request: folderRequest(
-                                          workspace,
-                                          folder
-                                        ),
-                                      }).catch(() => null);
+                                    {
+                                      destructive: true,
+                                      disabled:
+                                        workspace.folders.length === 1 || busy,
+                                      icon: Trash2,
+                                      label: "Remove saved folder",
+                                      onClick: () => {
+                                        run({
+                                          kind: "remove_folder",
+                                          request: folderRequest(
+                                            workspace,
+                                            folder
+                                          ),
+                                        }).catch(() => null);
+                                      },
                                     },
-                                  },
-                                ],
-                                label: folder.is_default
-                                  ? "Default save location"
-                                  : "Save location",
-                              },
-                            ]}
-                          />
-                        </SidebarMenuSubItem>
-                      ))}
-                    </SidebarMenuSub>
-                  </CollapsibleContent>
+                                  ],
+                                  label: folder.is_default
+                                    ? "Default save location"
+                                    : "Save location",
+                                },
+                              ]}
+                            />
+                          </SidebarMenuSubItem>
+                        ))}
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  )}
                 </Collapsible>
               ))}
               <SidebarMenuItem>

@@ -8,12 +8,14 @@ import {
   snapshotSchema,
   toolStatusSchema,
   workspaceDraftSchema,
+  workspaceExpansionSchema,
 } from "@/lib/model";
 import type {
   AggregateView,
   Command,
   DisplayPreferences,
   Preferences,
+  WorkspaceExpansionChanges,
 } from "@/lib/model";
 
 const requireDesktop = () => {
@@ -59,6 +61,11 @@ export const bridge = {
   async savePreferences(preferences: Preferences) {
     return preferencesSchema.parse(
       await invoke("save_preferences", { preferences })
+    );
+  },
+  async saveWorkspaceExpansion(choices: WorkspaceExpansionChanges) {
+    return workspaceExpansionSchema.parse(
+      await invoke("save_workspace_expansion", { choices })
     );
   },
   async snapshot() {

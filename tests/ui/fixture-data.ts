@@ -1,4 +1,14 @@
-import type { Download } from "../../frontend/lib/model";
+import type { Download, Preferences, Snapshot } from "../../frontend/lib/model";
+import folderTreatments from "../../src/application/folder-treatments.json" with { type: "json" };
+
+export const toolStatus = {
+  ffmpeg_path: "/opt/homebrew/bin/ffmpeg",
+  ffmpeg_version: "8.0",
+  message: "yt-dlp and FFmpeg are available.",
+  ready: true,
+  yt_dlp_path: "/opt/homebrew/bin/yt-dlp",
+  yt_dlp_version: "2026.10",
+};
 
 export const baseDownload: Download = {
   bytes_downloaded: 23_592_960,
@@ -44,4 +54,91 @@ export const baseDownload: Download = {
   total_size: 52_428_800,
   trackers: [],
   upload_rate: 0,
+};
+
+export const preferences: Preferences = {
+  aggregate_destination: { kind: "prompt" },
+  aggregate_views: {
+    active: { grouping: "None", layout: "List", sort: "Order" },
+    all: { grouping: "None", layout: "List", sort: "Order" },
+    finished: { grouping: "None", layout: "List", sort: "Order" },
+  },
+  concurrent_downloads: 3,
+  enable_dht: true,
+  ffmpeg_path: null,
+  listen_port: 6881,
+  max_connections: 200,
+  max_download_kbps: 0,
+  max_upload_kbps: 0,
+  randomize_port: true,
+  theme: "light",
+  workspace_expansion: {},
+  workspace_expansion_startup: "remember",
+  yt_dlp_path: null,
+};
+
+export const snapshot: Snapshot = {
+  boot_id: "boot-1",
+  recent_emoji: [],
+  recovery_notices: [],
+  revision: 1,
+  sequence: 1,
+  session: "Running",
+  workspaces: [
+    {
+      appearance: {
+        automatic_folder: folderTreatments[0],
+        preference: { kind: "Automatic" },
+      },
+      default_format: "Best",
+      downloads: [
+        baseDownload,
+        {
+          ...baseDownload,
+          bytes_downloaded: 52_428_800,
+          capabilities: {
+            ...baseDownload.capabilities,
+            can_cancel: false,
+            can_move: true,
+            can_pause: false,
+            can_reveal_output: true,
+          },
+          download_rate: 0,
+          id: "download-2",
+          name: "The creative process.mp4",
+          output_path: "/Users/test/Downloads/Film.mp4",
+          progress_millionths: 1_000_000,
+          source: "VideoPage",
+          state: "Finished",
+        },
+        {
+          ...baseDownload,
+          capabilities: {
+            ...baseDownload.capabilities,
+            can_pause: false,
+            can_resume: true,
+          },
+          download_rate: 0,
+          id: "download-3",
+          name: "Field notes.pdf",
+          state: "Paused",
+        },
+      ],
+      file_organization: "Automatic",
+      folders: [
+        {
+          id: "folder-1",
+          is_default: true,
+          name: "Downloads",
+          path: "/Users/test/Downloads",
+        },
+      ],
+      grouping: "None",
+      icon: { kind: "Symbol", value: "arrow.down.circle" },
+      id: "workspace-1",
+      layout: "List",
+      name: "Downloads",
+      sort: "Order",
+    },
+  ],
 };
