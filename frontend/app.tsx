@@ -13,6 +13,7 @@ import { WorkspaceSidebar } from "@/components/workspace-sidebar";
 import type { Location, StatusFilter } from "@/components/workspace-sidebar";
 import { useAppKeyboard } from "@/hooks/use-app-keyboard";
 import { useDownloadNotifications } from "@/hooks/use-download-notifications";
+import { useSavedFolderAddition } from "@/hooks/use-saved-folder-addition";
 import { useWorkspaceExpansion } from "@/hooks/use-workspace-expansion";
 import {
   filterAndSortDownloads,
@@ -93,6 +94,11 @@ const App = () => {
   const [modal, setModal] = useState<Modal | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const { setOpenMobile } = useSidebar();
+
+  const addFolder = useSavedFolderAddition(
+    workspaceExpansion.handleExpansionChange
+  );
+
   const workspaces = state.kind === "ready" ? state.snapshot.workspaces : [];
 
   const {
@@ -132,7 +138,7 @@ const App = () => {
   const groups = groupDownloads(downloads, display.grouping, workspaces);
 
   const navigate = (next: Location) => {
-    setLocation(normalizeWorkspaceLocation(next, workspaces));
+    setLocation(next);
     setNavigation((count) => count + 1);
     setFilter("all");
     setSelectedId(undefined);
@@ -186,6 +192,21 @@ const App = () => {
         workspaces={workspaces}
         workspaceExpansion={workspaceExpansion.expansion}
         onExpansionChange={workspaceExpansion.handleExpansionChange}
+        onAddFolder={(item) => {
+          addFolder(
+            item.id,
+            (newFolderId) => {
+              workspaceExpansion.handleExpansionChange(item.id, true);
+              navigate({
+                folderId: newFolderId,
+                kind: "workspace",
+                workspaceId: item.id,
+              });
+              setOpenMobile(false);
+            },
+            "Couldn't add folder"
+          ).catch(() => null);
+        }}
         location={location}
         navigate={navigate}
         onCreate={() => setModal({ kind: "workspace", workspace: null })}
@@ -208,6 +229,7 @@ const App = () => {
           navigation={navigation}
           newDownload={newDownload}
           onAdded={notifyAdded}
+          onAddFolder={addFolder}
           onNavigateWorkspace={(id) =>
             navigate({ kind: "workspace", workspaceId: id })
           }

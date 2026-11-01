@@ -29,7 +29,10 @@ interface Library {
   preferences: Preferences | null;
   busy: boolean;
   refresh: () => Promise<void>;
-  run: (command: Command) => Promise<Receipt | null>;
+  run: (
+    command: Command,
+    onAccepted?: (receipt: Receipt) => void
+  ) => Promise<Receipt | null>;
   savePreferences: (preferences: Preferences) => Promise<boolean>;
   saveAggregateView: (
     view: AggregateView,
@@ -119,7 +122,7 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
   }, [preferences?.theme]);
 
   const run = useCallback(
-    async (command: Command) => {
+    async (command: Command, onAccepted?: (receipt: Receipt) => void) => {
       const affectsBusy = command.kind !== "view";
 
       if (affectsBusy) {
@@ -128,6 +131,7 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
 
       try {
         const receipt = await bridge.execute(command);
+        onAccepted?.(receipt);
         await refresh();
 
         if (affectsBusy) {

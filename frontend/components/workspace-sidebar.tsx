@@ -12,6 +12,7 @@ import {
   Settings2,
   Trash2,
 } from "lucide-react";
+import { useEffect, useRef } from "react";
 
 import opulLogo from "@/assets/opul-logo.png";
 import { SidebarPopover } from "@/components/sidebar-popover";
@@ -41,10 +42,8 @@ import {
   SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { toast } from "@/components/ui/toast";
 import { WorkspaceIcon } from "@/components/workspace-icon";
 import { useWorkspaceRemovalFocus } from "@/hooks/use-workspace-removal-focus";
-import { bridge, errorMessage } from "@/lib/bridge";
 import { useLibrary } from "@/lib/library";
 import { aggregateNames, bytes } from "@/lib/model";
 import type { AggregateView, Folder, Workspace } from "@/lib/model";
@@ -69,6 +68,7 @@ export const WorkspaceSidebar = ({
   workspaces,
   workspaceExpansion,
   onExpansionChange,
+  onAddFolder,
   location,
   navigate,
   onCreate,
@@ -80,6 +80,7 @@ export const WorkspaceSidebar = ({
   workspaces: Workspace[];
   workspaceExpansion: ReadonlyMap<string, boolean>;
   onExpansionChange: (workspaceId: string, expanded: boolean) => void;
+  onAddFolder: (workspace: Workspace) => void;
   location: Location;
   navigate: (location: Location) => void;
   onCreate: () => void;
@@ -92,7 +93,36 @@ export const WorkspaceSidebar = ({
   onNew: () => void;
 }) => {
   const { run, busy, state } = useLibrary();
-  const { isMobile, openMobile, setOpenMobile } = useSidebar();
+  const { isMobile, open, openMobile, setOpenMobile } = useSidebar();
+  const selectedFolderRef = useRef<HTMLButtonElement>(null);
+
+  const selectedWorkspaceId =
+    location.kind === "workspace" ? location.workspaceId : undefined;
+
+  const selectedFolderId =
+    location.kind === "workspace" ? location.folderId : undefined;
+
+  const selectedExpanded =
+    selectedWorkspaceId !== undefined &&
+    workspaceExpansion.get(selectedWorkspaceId);
+
+  useEffect(() => {
+    if (
+      selectedFolderId &&
+      selectedWorkspaceId &&
+      selectedExpanded &&
+      (isMobile ? openMobile : open)
+    ) {
+      selectedFolderRef.current?.scrollIntoView({ block: "nearest" });
+    }
+  }, [
+    isMobile,
+    open,
+    openMobile,
+    selectedExpanded,
+    selectedFolderId,
+    selectedWorkspaceId,
+  ]);
 
   const workspaceFocusTarget = useWorkspaceRemovalFocus(
     workspaces,
@@ -116,34 +146,6 @@ export const WorkspaceSidebar = ({
 
     if (isMobile) {
       setOpenMobile(false);
-    }
-  };
-
-  const addFolder = async (workspace: Workspace) => {
-    try {
-      const path = await bridge.chooseFolder();
-
-      if (!path) {
-        return;
-      }
-
-      await run({
-        kind: "add_folder",
-        request: {
-          expected_revision: null,
-          folder_id: crypto.randomUUID(),
-          name: path.split("/").findLast(Boolean) || "Folder",
-          path,
-          request_id: crypto.randomUUID(),
-          workspace_id: workspace.id,
-        },
-      });
-    } catch (error) {
-      toast.add({
-        description: errorMessage(error),
-        title: "Couldn't add folder",
-        type: "error",
-      });
     }
   };
 
@@ -331,7 +333,7 @@ export const WorkspaceSidebar = ({
                             icon: FolderPlus,
                             label: "Add saved folder",
                             onClick: () => {
-                              addFolder(workspace).catch(() => null);
+                              onAddFolder(workspace);
                             },
                           },
                         ],
@@ -349,6 +351,12 @@ export const WorkspaceSidebar = ({
                             <SidebarMenuSubButton
                               render={
                                 <button
+                                  ref={
+                                    selectedWorkspaceId === workspace.id &&
+                                    selectedFolderId === folder.id
+                                      ? selectedFolderRef
+                                      : undefined
+                                  }
                                   type="button"
                                   tabIndex={0}
                                   aria-label={folder.name}

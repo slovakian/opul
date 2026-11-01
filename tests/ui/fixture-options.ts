@@ -28,6 +28,9 @@ export interface DesktopOptions {
   failPreferencesRead?: boolean;
   folderPickerError?: string;
   folderPickerPath?: string | null;
+  folderAddition?: "rejected" | "null" | "deferred" | "refresh-failure";
+  holdFolderRefresh?: boolean;
+  holdFolderReceipt?: boolean;
   torrentPickerPath?: string | null;
   holdAdd?: boolean;
   folderRemoval?: "immediate" | "deferred" | "rejected";

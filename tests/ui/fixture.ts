@@ -9,10 +9,12 @@ import {
   toolStatus,
 } from "./fixture-data";
 import type { DesktopInvokeArgs, DesktopOptions } from "./fixture-options";
+import { mockFolderAddition } from "./folder-addition-fixture";
 
 export { preferences, snapshot } from "./fixture-data";
 
 export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
+  await mockFolderAddition(page, options);
   await page.addInitScript(
     ({
       defaultDownload,
@@ -82,6 +84,13 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
           // oxlint-disable-next-line eslint/complexity
           invoke: async (name: string, args: DesktopInvokeArgs = {}) => {
             if (name === "snapshot") {
+              const held =
+                await window.testFolderAddition.snapshot(currentSnapshot);
+
+              if (held) {
+                return held;
+              }
+
               if (mockOpts.fail || snapshotReadFailure) {
                 sessionStorage.setItem("test-snapshot-failed", "true");
                 throw new Error("The state directory is already in use");
@@ -246,19 +255,7 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
             }
 
             if (name === "plugin:dialog|open") {
-              sessionStorage.setItem("test-picker", JSON.stringify(args));
-
-              if (JSON.stringify(args).includes("Open a torrent")) {
-                return mockOpts.torrentPickerPath ?? null;
-              }
-
-              if (mockOpts.folderPickerError) {
-                throw new Error(mockOpts.folderPickerError);
-              }
-
-              return mockOpts.folderPickerPath === undefined
-                ? "/Users/test/Downloads"
-                : mockOpts.folderPickerPath;
+              return window.testFolderAddition.choose(args);
             }
 
             if (name === "execute") {
@@ -419,16 +416,14 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
               }
 
               if (command.kind === "add_folder") {
-                const targetWorkspace = currentSnapshot.workspaces.find(
-                  (item) => item.id === command.request.workspace_id
+                const result = window.testFolderAddition.execute(
+                  command.request,
+                  currentSnapshot
                 );
 
-                targetWorkspace?.folders.push({
-                  id: command.request.folder_id,
-                  is_default: false,
-                  name: command.request.name,
-                  path: command.request.path,
-                });
+                if (result !== undefined) {
+                  return result;
+                }
               }
 
               if (command.kind === "remove_downloads") {
@@ -562,6 +557,10 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
                   "test-snapshot",
                   JSON.stringify(currentSnapshot)
                 );
+              }
+
+              if (command.kind === "add_folder") {
+                await window.testFolderAddition.waitForReceipt();
               }
 
               return receipt;
