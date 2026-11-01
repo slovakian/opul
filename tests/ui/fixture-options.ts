@@ -16,6 +16,7 @@ export interface DesktopInvokeArgs {
 }
 
 export interface DesktopOptions {
+  holdPreferenceResponses?: PreferenceResponse[];
   changeSnapshotDuringDraft?: boolean;
   empty?: boolean;
   fail?: boolean;
@@ -44,3 +45,5 @@ export interface DesktopOptions {
   recovery?: boolean;
   snapshot?: Snapshot;
 }
+
+export type PreferenceResponse = "read" | "settings" | "display" | "expansion";

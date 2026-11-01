@@ -10,6 +10,7 @@ import {
 } from "./fixture-data";
 import type { DesktopInvokeArgs, DesktopOptions } from "./fixture-options";
 import { mockFolderAddition } from "./folder-addition-fixture";
+import { mockPreferenceResponses } from "./preference-response-fixture";
 import { mockWorkspaceExpansion } from "./workspace-expansion-fixture";
 
 export { preferences, snapshot } from "./fixture-data";
@@ -17,6 +18,7 @@ export { preferences, snapshot } from "./fixture-data";
 export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
   await mockFolderAddition(page, options);
   await mockWorkspaceExpansion(page, options);
+  await mockPreferenceResponses(page, options);
   await page.addInitScript(
     ({
       defaultDownload,
@@ -106,18 +108,19 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
             }
 
             if (name === "get_preferences") {
-              if (mockOpts.failPreferencesRead) {
-                throw new Error("Preferences are unavailable");
-              }
-
-              return currentPreferences;
+              return await window.testPreferenceResponse(
+                "read",
+                currentPreferences
+              );
             }
 
             if (name === "save_workspace_expansion" && args.choices) {
-              return await window.testSaveWorkspaceExpansion(
+              const saved = await window.testSaveWorkspaceExpansion(
                 args.choices,
                 currentPreferences
               );
+
+              return await window.testPreferenceResponse("expansion", saved);
             }
 
             if (name === "workspace_appearance_draft") {
@@ -184,7 +187,10 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
                 );
               }
 
-              return structuredClone(currentPreferences);
+              return await window.testPreferenceResponse(
+                "settings",
+                currentPreferences
+              );
             }
 
             if (
@@ -210,7 +216,10 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
                 );
               }
 
-              return structuredClone(currentPreferences);
+              return await window.testPreferenceResponse(
+                "display",
+                currentPreferences
+              );
             }
 
             if (name === "tool_status") {

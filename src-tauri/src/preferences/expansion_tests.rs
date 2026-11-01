@@ -1,6 +1,73 @@
 use super::*;
 
 #[test]
+fn concurrent_settings_display_and_expansion_writes_survive_file_reopen() {
+    let directory = tempfile::tempdir().unwrap();
+    let store = PreferenceStore::open(directory.path()).unwrap();
+    store
+        .save_workspace_expansion([("deleted".into(), Some(true))].into())
+        .unwrap();
+    let mut stale_settings = store.get();
+    stale_settings.workspace_expansion_startup = WorkspaceExpansionStartup::Collapsed;
+    stale_settings.max_download_kbps = 2048;
+    let barrier = std::sync::Barrier::new(3);
+    std::thread::scope(|scope| {
+        scope.spawn(|| {
+            barrier.wait();
+            store.save(stale_settings).unwrap();
+        });
+        scope.spawn(|| {
+            barrier.wait();
+            for view in [AggregateView::All, AggregateView::Finished] {
+                store
+                    .save_aggregate_view(
+                        view,
+                        DisplayPreferences {
+                            layout: MachineLayout::Table,
+                            ..DisplayPreferences::default()
+                        },
+                    )
+                    .unwrap();
+            }
+        });
+        scope.spawn(|| {
+            barrier.wait();
+            for expanded in [true, false, true] {
+                store
+                    .save_workspace_expansion(
+                        [
+                            ("media".into(), Some(expanded)),
+                            ("dormant".into(), Some(false)),
+                            ("deleted".into(), None),
+                        ]
+                        .into(),
+                    )
+                    .unwrap();
+            }
+        });
+    });
+    let restored = PreferenceStore::open(directory.path()).unwrap().get();
+    assert_eq!(
+        restored.workspace_expansion_startup,
+        WorkspaceExpansionStartup::Collapsed
+    );
+    assert_eq!(restored.max_download_kbps, 2048);
+    assert_eq!(restored.aggregate_views.all.layout, MachineLayout::Table);
+    assert_eq!(
+        restored.aggregate_views.finished.layout,
+        MachineLayout::Table
+    );
+    assert_eq!(
+        restored.aggregate_views.active,
+        DisplayPreferences::default()
+    );
+    assert_eq!(
+        restored.workspace_expansion,
+        [("media".into(), true), ("dormant".into(), false)].into()
+    );
+}
+
+#[test]
 fn expansion_cleanup_is_atomic_preserves_dormant_choices_and_retries_latest_map() {
     let directory = tempfile::tempdir().unwrap();
     let store = PreferenceStore::open(directory.path()).unwrap();
