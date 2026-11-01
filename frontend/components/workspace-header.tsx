@@ -43,7 +43,7 @@ export const WorkspaceHeader = ({
         <SidebarTrigger />
         <Separator
           orientation="vertical"
-          className="data-vertical:h-4 data-vertical:self-center"
+          className="mr-1 data-vertical:h-4 data-vertical:self-center"
         />
         <Breadcrumb
           className="header-identity min-w-0"
