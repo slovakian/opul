@@ -222,14 +222,16 @@ test("search and new-download shortcuts and menus focus the shared input", async
     await expect(input).toBeFocused();
     await page.keyboard.press(`${modifier}+n`);
     await expect(input).toBeFocused();
-    expect(
-      await input.evaluate((element: HTMLInputElement) =>
-        element.value.slice(
-          element.selectionStart ?? 0,
-          element.selectionEnd ?? 0
+    await expect
+      .poll(() =>
+        input.evaluate((element: HTMLInputElement) =>
+          element.value.slice(
+            element.selectionStart ?? 0,
+            element.selectionEnd ?? 0
+          )
         )
       )
-    ).toBe("replace me");
+      .toBe("replace me");
   }
 
   for (const name of ["Workspace actions", "Opul"]) {
@@ -240,9 +242,11 @@ test("search and new-download shortcuts and menus focus the shared input", async
       .click();
     await expect(input).toBeFocused();
     await expect(page.getByRole("dialog")).toHaveCount(0);
-    expect(
-      await input.evaluate((element: HTMLInputElement) => element.selectionEnd)
-    ).toBe("replace me".length);
+    await expect
+      .poll(() =>
+        input.evaluate((element: HTMLInputElement) => element.selectionEnd)
+      )
+      .toBe("replace me".length);
   }
 });
 
