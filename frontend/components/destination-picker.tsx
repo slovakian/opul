@@ -2,7 +2,6 @@ import { ChevronDown, FolderClosed, FolderPlus } from "lucide-react";
 
 import { SidebarPopover } from "@/components/sidebar-popover";
 import { InputGroupButton } from "@/components/ui/input-group";
-import { WorkspaceIcon } from "@/components/workspace-icon";
 import { folderName } from "@/lib/destination";
 import type { Destination } from "@/lib/destination";
 import type { Workspace } from "@/lib/model";
@@ -45,11 +44,7 @@ export const DestinationPicker = ({
           }
           disabled={disabled}
         >
-          {destination ? (
-            <WorkspaceIcon workspace={destination.workspace} />
-          ) : (
-            <FolderClosed data-icon="inline-start" />
-          )}
+          <FolderClosed data-icon="inline-start" />
           <span
             className="header-location max-w-36 truncate"
             data-choose={!destination}

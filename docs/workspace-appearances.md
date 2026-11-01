@@ -12,7 +12,7 @@ Verification on macOS 26.2:
 
 - 95 Rust tests, the TypeScript/production build, and 14 WebKit tests passed.
 - State-machine tests cover deterministic migration, balanced allocation, invalid parameters, old checkpoint checksums, one migration checkpoint, reads without writes, restart, creation, replacement Downloads, rename, reorder, and deletion.
-- WebKit flows compare the creation preview, sidebar, heading, and download selector, including polling and failures before and after a committed save.
+- WebKit flows compare the creation preview, sidebar, and heading, including polling and failures before and after a committed save. Save-location triggers use a plain folder icon.
 - Inspected all 12 folders at sidebar size in light and dark themes in WebKit and a signed debug Tauri bundle using an isolated library. Native checks also included 🐼, 👀, 🌈, 👩🏽‍💻, and 👨‍👩‍👧‍👦. A separate WebKit matrix exercised all filters on native colored, neutral, eye, skin-tone, and joined artwork.
 
 Run `Scripts/test.sh`, `Scripts/package_app.sh debug`, and `Scripts/smoke_test.sh`. Appearance tests write `test-results/folders-light.png`, `folders-dark.png`, and `native-emoji.png`. If port 1420 belongs to another worktree, run Playwright with a dedicated Vite port and matching base URL. `OPUL_TEST_PORT=1531 Scripts/test.sh` starts an isolated server on that port.

@@ -6,7 +6,7 @@ import { mockDesktop, snapshot } from "./fixture";
 
 const artwork = '[data-slot="emoji-artwork"]';
 
-test("folder appearance is identical across navigation, heading, and download choices", async ({
+test("workspace artwork stays consistent while save locations use a folder icon", async ({
   page,
 }) => {
   await mockDesktop(page);
@@ -48,7 +48,8 @@ test("folder appearance is identical across navigation, heading, and download ch
     name: "Save location: Downloads",
   });
 
-  await expect(selector.locator(artwork)).toHaveCSS("filter", filter);
+  await expect(selector.locator(artwork)).toHaveCount(0);
+  await expect(selector.locator('svg[data-icon="inline-start"]')).toBeVisible();
   await expect(selector).toHaveCSS("filter", "none");
 
   await expect(

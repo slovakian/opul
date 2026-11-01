@@ -218,7 +218,8 @@ test("custom save matches every workspace surface and a fresh page; exclusions s
     name: "Save location: Downloads",
   });
 
-  await expect(selector.locator(artwork)).toHaveCSS("filter", filter);
+  await expect(selector.locator(artwork)).toHaveCount(0);
+  await expect(selector.locator('svg[data-icon="inline-start"]')).toBeVisible();
   await expect(selector).toHaveCSS("filter", "none");
 });
 
