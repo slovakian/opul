@@ -1,4 +1,11 @@
-import { Download, Info, Monitor, Network, Wrench } from "lucide-react";
+import {
+  Download,
+  Info,
+  Monitor,
+  Network,
+  Settings2,
+  Wrench,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 
 import opulLogo from "@/assets/opul-logo.png";
@@ -38,10 +45,48 @@ const sections = [
   { icon: Monitor, label: "Appearance" },
   { icon: Download, label: "Downloads" },
   { icon: Network, label: "BitTorrent" },
+  { icon: Settings2, label: "Workspaces" },
   { icon: Wrench, label: "Tools" },
   { icon: Info, label: "About" },
 ];
 
+const WorkspaceSettings = ({
+  draft,
+  setDraft,
+}: {
+  draft: Preferences;
+  setDraft: (draft: Preferences) => void;
+}) => (
+  <>
+    <p className="text-muted-foreground text-sm">
+      Choose how saved-folder branches appear when Opul starts.
+    </p>
+    <FieldGroup>
+      <Field>
+        <FieldLabel>Saved folders on startup</FieldLabel>
+        <Choice
+          label="Saved folders on startup"
+          value={draft.workspace_expansion_startup}
+          options={[
+            { label: "Remember previous state", value: "remember" },
+            { label: "Start collapsed", value: "collapsed" },
+          ]}
+          onChange={(value) => {
+            if (value === "remember" || value === "collapsed") {
+              setDraft({ ...draft, workspace_expansion_startup: value });
+            }
+          }}
+        />
+        <FieldDescription>
+          This setting applies the next time Opul launches. You can still expand
+          and collapse folders during this session.
+        </FieldDescription>
+      </Field>
+    </FieldGroup>
+  </>
+);
+
+// oxlint-disable-next-line complexity -- Settings intentionally keeps all sections in one draft form.
 const SettingsContent = ({
   initial,
   onClose,
@@ -316,6 +361,9 @@ const SettingsContent = ({
                 )}
               </FieldGroup>
             </>
+          )}
+          {section === "Workspaces" && (
+            <WorkspaceSettings draft={draft} setDraft={setDraft} />
           )}
           {section === "Tools" && (
             <>

@@ -20,6 +20,7 @@ export const useWorkspaceExpansion = (
   const persisted = useRef<Map<string, boolean> | null>(null);
   const pending = useRef(new Map<string, boolean>());
   const writing = useRef(false);
+  const initialized = useRef(false);
 
   const save = useCallback(async () => {
     if (writing.current || !persisted.current) {
@@ -68,14 +69,22 @@ export const useWorkspaceExpansion = (
   }, [saveWorkspaceExpansion]);
 
   useEffect(() => {
-    if (persisted.current || !preferences || !libraryReady) {
+    if (initialized.current || !preferences || !libraryReady) {
       return;
     }
 
+    initialized.current = true;
     persisted.current = new Map(
       Object.entries(preferences.workspace_expansion)
     );
-    session.current = new Map([...persisted.current, ...session.current]);
+
+    const initial =
+      preferences.workspace_expansion_startup === "collapsed"
+        ? new Map<string, boolean>()
+        : persisted.current;
+
+    session.current = new Map([...initial, ...session.current]);
+
     setExpansion(new Map(session.current));
     void save();
   }, [libraryReady, preferences, save]);

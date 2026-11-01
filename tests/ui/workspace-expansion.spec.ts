@@ -305,3 +305,70 @@ test("Settings drafts and display saves preserve live expansion on relaunch", as
   await expect(media).toHaveAttribute("aria-expanded", "true");
   await expect.poll(() => attempts(page)).toEqual([{ media: true }]);
 });
+
+test("startup policy changes apply on the next launch without changing the session", async ({
+  page,
+}) => {
+  await mockDesktop(page, {
+    persist: true,
+    preferences: {
+      ...preferences,
+      workspace_expansion: { media: true },
+      workspace_expansion_startup: "collapsed",
+    },
+    snapshot: twoBranches(),
+  });
+  await page.goto("/");
+
+  const media = sidebar(page).getByRole("button", {
+    name: "Toggle Media folders",
+  });
+
+  await expect(media).toHaveAttribute("aria-expanded", "false");
+
+  await sidebar(page)
+    .getByRole("button", { exact: true, name: "Settings" })
+    .click();
+  const settings = page.getByRole("dialog", { exact: true, name: "Settings" });
+  await settings
+    .getByRole("button", { exact: true, name: "Workspaces" })
+    .click();
+  await settings
+    .getByRole("button", {
+      name: "Saved folders on startup: Start collapsed",
+    })
+    .click();
+  await page
+    .getByRole("button", { exact: true, name: "Remember previous state" })
+    .click();
+  await settings
+    .getByRole("button", { exact: true, name: "Save changes" })
+    .click();
+
+  await expect(media).toHaveAttribute("aria-expanded", "false");
+  await page.reload();
+  await expect(media).toHaveAttribute("aria-expanded", "true");
+
+  await sidebar(page)
+    .getByRole("button", { exact: true, name: "Settings" })
+    .click();
+  const reopened = page.getByRole("dialog", { exact: true, name: "Settings" });
+  await reopened
+    .getByRole("button", { exact: true, name: "Workspaces" })
+    .click();
+  await reopened
+    .getByRole("button", {
+      name: "Saved folders on startup: Remember previous state",
+    })
+    .click();
+  await page
+    .getByRole("button", { exact: true, name: "Start collapsed" })
+    .click();
+  await reopened
+    .getByRole("button", { exact: true, name: "Save changes" })
+    .click();
+
+  await expect(media).toHaveAttribute("aria-expanded", "true");
+  await page.reload();
+  await expect(media).toHaveAttribute("aria-expanded", "false");
+});

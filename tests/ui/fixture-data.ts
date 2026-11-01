@@ -73,6 +73,7 @@ export const preferences: Preferences = {
   randomize_port: true,
   theme: "light",
   workspace_expansion: {},
+  workspace_expansion_startup: "remember",
   yt_dlp_path: null,
 };
 

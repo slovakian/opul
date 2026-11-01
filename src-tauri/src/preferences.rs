@@ -13,6 +13,7 @@ pub struct Preferences {
     pub aggregate_views: AggregateViews,
     pub aggregate_destination: AggregateDestination,
     pub workspace_expansion: BTreeMap<String, bool>,
+    pub workspace_expansion_startup: WorkspaceExpansionStartup,
     pub max_download_kbps: u32,
     pub max_upload_kbps: u32,
     pub concurrent_downloads: u32,
@@ -22,6 +23,14 @@ pub struct Preferences {
     pub max_connections: u32,
     pub yt_dlp_path: Option<String>,
     pub ffmpeg_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum WorkspaceExpansionStartup {
+    #[default]
+    Remember,
+    Collapsed,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -84,6 +93,7 @@ impl Default for Preferences {
             aggregate_views: AggregateViews::default(),
             aggregate_destination: AggregateDestination::default(),
             workspace_expansion: BTreeMap::new(),
+            workspace_expansion_startup: WorkspaceExpansionStartup::Remember,
             max_download_kbps: 0,
             max_upload_kbps: 0,
             concurrent_downloads: 3,
@@ -226,8 +236,13 @@ mod tests {
         .unwrap();
         let store = PreferenceStore::open(&directory).unwrap();
         assert!(store.get().workspace_expansion.is_empty());
+        assert_eq!(
+            store.get().workspace_expansion_startup,
+            WorkspaceExpansionStartup::Remember
+        );
         let mut stale_settings = store.get();
         stale_settings.max_download_kbps = 2048;
+        stale_settings.workspace_expansion_startup = WorkspaceExpansionStartup::Collapsed;
         store.save(stale_settings.clone()).unwrap();
         let display = DisplayPreferences {
             layout: MachineLayout::Table,
@@ -261,6 +276,10 @@ mod tests {
         assert_eq!(restored.aggregate_views.all.layout, MachineLayout::Table);
         assert_eq!(restored.aggregate_views.active, display);
         assert!(matches!(restored.theme, Theme::Dark));
+        assert_eq!(
+            restored.workspace_expansion_startup,
+            WorkspaceExpansionStartup::Collapsed
+        );
         fs::remove_dir_all(directory).unwrap();
     }
 

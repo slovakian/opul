@@ -210,6 +210,9 @@ export const preferencesSchema = z.object({
   randomize_port: z.boolean(),
   theme: z.enum(["system", "light", "dark"]),
   workspace_expansion: workspaceExpansionSchema.default({}),
+  workspace_expansion_startup: z
+    .enum(["remember", "collapsed"])
+    .default("remember"),
   yt_dlp_path: z.string().nullable(),
 });
 
