@@ -45,6 +45,98 @@ const destination = (page: Page, name: string) =>
     .locator("main > header")
     .getByRole("button", { exact: true, name: `Save location: ${name}` });
 
+test("aggregate tabs show the default workspace and workspace views show the save folder", async ({
+  page,
+}) => {
+  const saved = library();
+  saved.workspaces[1].icon = { kind: "Emoji", value: "🍿" };
+  await mockDesktop(page, {
+    preferences: {
+      ...preferences,
+      aggregate_destination: { kind: "workspace", workspace_id: "media" },
+    },
+    snapshot: saved,
+  });
+  await page.goto("/");
+  await expect(destination(page, "Media")).toBeVisible();
+  await expect(
+    destination(page, "Media").locator('[data-slot="emoji-artwork"]')
+  ).toHaveText("🍿");
+  await expect(destination(page, "Media")).toHaveAttribute(
+    "title",
+    "Media\n/Users/test/Films"
+  );
+  await page.screenshot({
+    path: "test-results/aggregate-destination-workspace.png",
+  });
+  await navigate(page, "In progress");
+  await expect(destination(page, "Media")).toBeVisible();
+  await navigate(page, "Completed");
+  await expect(destination(page, "Media")).toBeVisible();
+  await navigate(page, "Media workspace");
+  await expect(destination(page, "Films")).toBeVisible();
+  await expect(
+    destination(page, "Films").locator('[data-slot="emoji-artwork"]')
+  ).toHaveCount(0);
+  await expect(
+    destination(page, "Films").locator('svg[data-icon="inline-start"]')
+  ).toBeVisible();
+  await page.screenshot({
+    path: "test-results/workspace-destination-folder.png",
+  });
+  await navigate(page, "Archive");
+  await expect(destination(page, "Archive")).toBeVisible();
+  await expect(
+    destination(page, "Archive").locator('[data-slot="emoji-artwork"]')
+  ).toHaveCount(0);
+  await navigate(page, "All downloads");
+  await expect(destination(page, "Media")).toBeVisible();
+  await input(page).fill("https://example.com/default.zip");
+  await input(page).press("Enter");
+  await expect(input(page)).toHaveValue("");
+  expect(
+    await page.evaluate(() =>
+      JSON.parse(sessionStorage.getItem("test-command") ?? "null")
+    )
+  ).toMatchObject({ folder_id: "films", workspace_id: "media" });
+});
+
+test("saved workspace labels do not hide the actual download folder", async ({
+  page,
+}) => {
+  const saved = library();
+  saved.workspaces[0].folders[0].path = "/Users/test/Clips/";
+  saved.workspaces[1].folders[0].name = "Media";
+  await mockDesktop(page, { snapshot: saved });
+  await page.goto("/");
+  await navigate(page, "Downloads workspace");
+  await expect(destination(page, "Clips")).toBeVisible();
+  await expect(destination(page, "Clips")).toHaveAttribute(
+    "title",
+    "Clips\n/Users/test/Clips/"
+  );
+  await page.screenshot({
+    path: "test-results/download-location-folder-name.png",
+  });
+  await destination(page, "Clips").click();
+  const popover = page.locator('[data-slot="popover-content"]');
+  await expect(
+    popover.getByRole("button", { exact: true, name: "Clips (Default)" })
+  ).toBeVisible();
+  await popover
+    .getByRole("button", { exact: true, name: "Films (Default)" })
+    .click();
+  await expect(destination(page, "Media › Films")).toBeVisible();
+  await input(page).fill("https://example.com/new.zip");
+  await input(page).press("Enter");
+  await expect(input(page)).toHaveValue("");
+  expect(
+    await page.evaluate(() =>
+      JSON.parse(sessionStorage.getItem("test-command") ?? "null")
+    )
+  ).toMatchObject({ folder_id: "films", workspace_id: "media" });
+});
+
 test("context defaults and cross-workspace overrides survive downloads and reset on navigation", async ({
   page,
 }) => {
@@ -143,7 +235,7 @@ test("aggregate confirmation cancels safely, remembers last used and saves the a
   await dialog.getByRole("button", { exact: true, name: "Download" }).click();
   await expect(dialog).toHaveCount(0);
   await page.reload();
-  await expect(destination(page, "Media › Films")).toBeVisible();
+  await expect(destination(page, "Media")).toBeVisible();
   await page.keyboard.press("Meta+,");
   const settings = page.getByRole("dialog", { exact: true, name: "Settings" });
   await settings
@@ -186,11 +278,14 @@ test("new locations target the selected workspace and keep an accessible compact
   await page
     .getByRole("button", { exact: true, name: "Films (Default)" })
     .click();
-  await destination(page, "Media › Films").click();
+  await destination(page, "Media").click();
   await page
     .getByRole("button", { exact: true, name: "Add new location…" })
     .click();
-  await expect(destination(page, "Media › Movies")).toBeVisible();
+  await expect(destination(page, "Media")).toHaveAttribute(
+    "title",
+    "Media\n/Users/test/Movies"
+  );
 
   const saved = await page.evaluate(() =>
     JSON.parse(sessionStorage.getItem("test-snapshot") ?? "null")
@@ -198,7 +293,7 @@ test("new locations target the selected workspace and keep an accessible compact
 
   expect(saved.workspaces[1].folders[1].path).toBe("/Users/test/Movies");
   expect(saved.workspaces[0].folders).toHaveLength(2);
-  await destination(page, "Media › Movies").click();
+  await destination(page, "Media").click();
   await expect(
     page
       .locator('[data-slot="popover-content"]')
@@ -220,9 +315,9 @@ test("single workspace defaults stay visible in empty, search, and link states",
 }) => {
   await mockDesktop(page, { empty: true });
   await page.goto("/");
-  await expect(destination(page, "Downloads › Downloads")).toBeVisible();
+  await expect(destination(page, "Downloads")).toBeVisible();
   await input(page).fill("search text");
-  await expect(destination(page, "Downloads › Downloads")).toBeVisible();
+  await expect(destination(page, "Downloads")).toBeVisible();
   await input(page).fill("https://example.com/new.zip");
   await input(page).press("Enter");
   await expect(
@@ -264,7 +359,7 @@ test("Settings can choose an automatic workspace without altering view defaults"
   await settings
     .getByRole("button", { exact: true, name: "Save changes" })
     .click();
-  await expect(destination(page, "Media › Films")).toBeVisible();
+  await expect(destination(page, "Media")).toBeVisible();
   await input(page).fill("https://example.com/new.zip");
   await input(page).press("Enter");
   await expect(input(page)).toHaveValue("");
@@ -277,9 +372,9 @@ test("Settings can choose an automatic workspace without altering view defaults"
   await navigate(page, "Archive");
   await expect(destination(page, "Archive")).toBeVisible();
   await navigate(page, "In progress");
-  await expect(destination(page, "Media › Films")).toBeVisible();
+  await expect(destination(page, "Media")).toBeVisible();
   await page.reload();
-  await expect(destination(page, "Media › Films")).toBeVisible();
+  await expect(destination(page, "Media")).toBeVisible();
 });
 
 test("an unavailable configured workspace falls back to prompting", async ({
@@ -322,7 +417,10 @@ test("an unavailable configured workspace falls back to prompting", async ({
 
   expect(accessibility.violations).toEqual([]);
   await dialog.getByRole("button", { exact: true, name: "Download" }).click();
-  await expect(destination(page, "Downloads › Archive")).toBeVisible();
+  await expect(destination(page, "Downloads")).toHaveAttribute(
+    "title",
+    "Downloads\n/Users/test/Archive"
+  );
 });
 
 test("failed preference saves keep the confirmation and draft available for retry", async ({
@@ -402,7 +500,7 @@ test("failed additions retain the selected folder in the confirmation", async ({
   ).toHaveValue("https://example.com/new.zip");
   await dialog.getByRole("button", { exact: true, name: "Download" }).click();
   await expect(dialog).toHaveCount(0);
-  await expect(destination(page, "Media › Films")).toBeVisible();
+  await expect(destination(page, "Media")).toBeVisible();
 });
 
 test("native picker failure preserves the destination and input draft", async ({

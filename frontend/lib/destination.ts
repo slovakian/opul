@@ -6,6 +6,9 @@ export interface Destination {
   folder: Workspace["folders"][number];
 }
 
+export const folderName = (path: string): string =>
+  path.split("/").findLast(Boolean) || path;
+
 export const workspaceDestination = (
   workspace?: Workspace,
   folderId?: string
