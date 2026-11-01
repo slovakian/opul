@@ -69,8 +69,16 @@ const EngineAlert = ({ busy, run, state }: EngineAlertProps) => {
 };
 
 const App = () => {
-  const { busy, preferences, refresh, run, saveAggregateView, state } =
-    useLibrary();
+  const {
+    busy,
+    preferences,
+    preferenceStatus,
+    refresh,
+    retryPreferences,
+    run,
+    saveAggregateView,
+    state,
+  } = useLibrary();
 
   useEffect(() => {
     if (state.kind !== "loading" && isTauri()) {
@@ -253,6 +261,23 @@ const App = () => {
         >
           <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6 lg:px-10">
             <EngineAlert busy={busy} run={run} state={state} />
+            {preferenceStatus.kind === "failed" && (
+              <Alert variant="destructive">
+                <CircleAlert />
+                <AlertTitle>Couldn&apos;t load preferences</AlertTitle>
+                <AlertDescription>
+                  <p>{preferenceStatus.message}</p>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      void retryPreferences();
+                    }}
+                  >
+                    Retry
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
             {workspaceExpansion.error && (
               <Alert variant="destructive">
                 <CircleAlert />

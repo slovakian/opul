@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { bridge, errorMessage } from "@/lib/bridge";
+import { errorMessage } from "@/lib/bridge";
+import { useLibrary } from "@/lib/library";
 import type { Preferences } from "@/lib/model";
 
 export const useWorkspaceExpansion = (
   preferences: Preferences | null,
   libraryReady: boolean
 ) => {
+  const { saveWorkspaceExpansion } = useLibrary();
+
   const [expansion, setExpansion] = useState<ReadonlyMap<string, boolean>>(
     () => new Map()
   );
@@ -43,11 +46,12 @@ export const useWorkspaceExpansion = (
 
         // One request at a time; responses acknowledge persistence, never session state.
         // oxlint-disable-next-line no-await-in-loop
-        const saved = await bridge.saveWorkspaceExpansion(
-          Object.fromEntries(choices)
-        );
+        const saved = await saveWorkspaceExpansion(Object.fromEntries(choices));
 
-        persisted.current = new Map(Object.entries(saved));
+        persisted.current = new Map([
+          ...persisted.current,
+          ...Object.entries(saved),
+        ]);
 
         for (const [id, expanded] of choices) {
           if (pending.current.get(id) === expanded) {
@@ -61,7 +65,7 @@ export const useWorkspaceExpansion = (
 
     writing.current = false;
     setSaving(false);
-  }, []);
+  }, [saveWorkspaceExpansion]);
 
   useEffect(() => {
     if (persisted.current || !preferences || !libraryReady) {
