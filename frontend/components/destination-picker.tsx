@@ -3,6 +3,7 @@ import { ChevronDown, FolderClosed, FolderPlus } from "lucide-react";
 import { SidebarPopover } from "@/components/sidebar-popover";
 import { InputGroupButton } from "@/components/ui/input-group";
 import { WorkspaceIcon } from "@/components/workspace-icon";
+import { folderName } from "@/lib/destination";
 import type { Destination } from "@/lib/destination";
 import type { Workspace } from "@/lib/model";
 
@@ -24,10 +25,10 @@ export const DestinationPicker = ({
   let label = "Choose…";
 
   if (destination) {
-    label = destination.folder.name;
+    label = folderName(destination.folder.path);
 
     if (destination.workspace.id !== viewedWorkspaceId) {
-      label = `${destination.workspace.name} › ${destination.folder.name}`;
+      label = `${destination.workspace.name} › ${label}`;
     }
   }
 
@@ -65,7 +66,7 @@ export const DestinationPicker = ({
             ...workspace.folders.filter((folder) => !folder.is_default),
           ].map((folder) => ({
             icon: FolderClosed,
-            label: `${folder.name}${folder.is_default ? " (Default)" : ""}`,
+            label: `${folderName(folder.path)}${folder.is_default ? " (Default)" : ""}`,
             onClick: () => onSelect({ folder, workspace }),
             selected:
               workspace.id === destination?.workspace.id &&

@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { WorkspaceIcon } from "@/components/workspace-icon";
-import { workspaceDestination } from "@/lib/destination";
+import { folderName, workspaceDestination } from "@/lib/destination";
 import type { Destination } from "@/lib/destination";
 import type { Workspace } from "@/lib/model";
 
@@ -99,7 +99,7 @@ export const DestinationDialog = ({
                 value={selected?.folder.id ?? ""}
                 disabled={disabled}
                 options={(selected?.workspace.folders ?? []).map((folder) => ({
-                  label: folder.name,
+                  label: folderName(folder.path),
                   value: folder.id,
                 }))}
                 onChange={setFolderId}

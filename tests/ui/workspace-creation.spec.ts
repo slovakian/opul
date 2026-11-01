@@ -47,6 +47,38 @@ const savedSnapshot = async (page: Page) =>
     })
   );
 
+test("a custom workspace folder is named after its download directory", async ({
+  page,
+}) => {
+  await mockDesktop(page);
+  await page.goto("/");
+  await openCreation(page);
+  await dialog(page)
+    .getByRole("textbox", { exact: true, name: "Name" })
+    .fill("Media");
+  await dialog(page)
+    .getByRole("textbox", { exact: true, name: "Save downloads to" })
+    .fill("/Users/test/Clips/");
+  await dialog(page)
+    .getByRole("button", { exact: true, name: "Create workspace" })
+    .click();
+  await expect(dialog(page)).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { exact: true, name: "Save location: Clips" })
+  ).toBeVisible();
+
+  const saved = await savedSnapshot(page);
+
+  const created = saved.workspaces.find(
+    (workspace) => workspace.name === "Media"
+  );
+
+  expect(created?.folders[0]).toMatchObject({
+    name: "Clips",
+    path: "/Users/test/Clips/",
+  });
+});
+
 test("nested Escape retains icon choices and restores focus before canceling the whole draft", async ({
   page,
 }) => {

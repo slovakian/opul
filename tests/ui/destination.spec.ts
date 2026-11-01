@@ -45,6 +45,42 @@ const destination = (page: Page, name: string) =>
     .locator("main > header")
     .getByRole("button", { exact: true, name: `Save location: ${name}` });
 
+test("saved workspace labels do not hide the actual download folder", async ({
+  page,
+}) => {
+  const saved = library();
+  saved.workspaces[0].folders[0].path = "/Users/test/Clips/";
+  saved.workspaces[1].folders[0].name = "Media";
+  await mockDesktop(page, { snapshot: saved });
+  await page.goto("/");
+  await navigate(page, "Downloads workspace");
+  await expect(destination(page, "Clips")).toBeVisible();
+  await expect(destination(page, "Clips")).toHaveAttribute(
+    "title",
+    "Clips\n/Users/test/Clips/"
+  );
+  await page.screenshot({
+    path: "test-results/download-location-folder-name.png",
+  });
+  await destination(page, "Clips").click();
+  const popover = page.locator('[data-slot="popover-content"]');
+  await expect(
+    popover.getByRole("button", { exact: true, name: "Clips (Default)" })
+  ).toBeVisible();
+  await popover
+    .getByRole("button", { exact: true, name: "Films (Default)" })
+    .click();
+  await expect(destination(page, "Media › Films")).toBeVisible();
+  await input(page).fill("https://example.com/new.zip");
+  await input(page).press("Enter");
+  await expect(input(page)).toHaveValue("");
+  expect(
+    await page.evaluate(() =>
+      JSON.parse(sessionStorage.getItem("test-command") ?? "null")
+    )
+  ).toMatchObject({ folder_id: "films", workspace_id: "media" });
+});
+
 test("context defaults and cross-workspace overrides survive downloads and reset on navigation", async ({
   page,
 }) => {

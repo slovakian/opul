@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  folderName,
   naturalDestination,
   recommendedWorkspace,
   workspaceDestination,
@@ -41,6 +42,15 @@ describe("destination helpers", () => {
   const ws1 = makeWorkspace("ws-1", "Workspace 1");
   const ws2 = makeWorkspace("ws-2", "Workspace 2");
   const workspaces = [ws1, ws2];
+
+  it.each([
+    ["/Users/test/Clips", "Clips"],
+    ["/Users/test/Clips///", "Clips"],
+    ["/Users/test/영화 모음", "영화 모음"],
+    ["/", "/"],
+  ])("names the download directory %s as %s", (path, expected) => {
+    expect(folderName(path)).toBe(expected);
+  });
 
   describe("workspaceDestination", () => {
     it("returns explicit folder when found", () => {

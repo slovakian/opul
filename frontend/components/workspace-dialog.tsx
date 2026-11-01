@@ -32,6 +32,7 @@ import { toast } from "@/components/ui/toast";
 import { WorkspaceIcon } from "@/components/workspace-icon";
 import { WorkspaceIconPicker } from "@/components/workspace-icon-picker";
 import { bridge, errorMessage } from "@/lib/bridge";
+import { folderName } from "@/lib/destination";
 import { useLibrary } from "@/lib/library";
 import { workspaceEmoji } from "@/lib/model";
 import type { Workspace, WorkspaceDraft, WorkspaceRequest } from "@/lib/model";
@@ -378,7 +379,7 @@ export const WorkspaceDialog = ({
       expected_revision: null,
       file_organization: workspace?.file_organization ?? "Automatic",
       folder_id: draft.folder_id,
-      folder_name: defaultFolder?.name ?? "Downloads",
+      folder_name: defaultFolder?.name ?? folderName(path.trim()),
       folder_path: path.trim(),
       icon: { kind: "Emoji", value: emoji },
       name: name.trim(),
