@@ -11,6 +11,11 @@
       }
     ]
   },
+  "bundle": {
+    "macOS": {
+      "bundleName": "Opul Nightly"
+    }
+  },
   "plugins": {
     "updater": {
       "endpoints": [

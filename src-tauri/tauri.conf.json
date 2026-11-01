@@ -36,7 +36,10 @@
     "icon": ["icons/icon.icns", "icons/icon.png"],
     "category": "public.app-category.utilities",
     "shortDescription": "A quiet home for your downloads.",
-    "macOS": { "minimumSystemVersion": "13.0" }
+    "macOS": {
+      "minimumSystemVersion": "13.0",
+      "bundleName": "Opul"
+    }
   },
   "plugins": {
     "updater": {
