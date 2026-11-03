@@ -1,0 +1,90 @@
+name: Built-in FFmpeg
+
+on:
+  push:
+    branches: [main, integration/58-opul-managed-tools]
+    paths: [tools/ffmpeg/sources.env]
+  pull_request:
+    paths: [tools/ffmpeg/sources.env]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ffmpeg-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  pins:
+    runs-on: macos-26
+    outputs:
+      build: ${{ steps.pins.outputs.build }}
+      tag: ${{ steps.pins.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: pins
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          source tools/ffmpeg/sources.env
+          echo "tag=$FFMPEG_RELEASE" >> "$GITHUB_OUTPUT"
+          if gh release view "$FFMPEG_RELEASE" >/dev/null 2>&1; then
+            echo 'build=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'build=true' >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: pins
+    if: needs.pins.outputs.build == 'true'
+    runs-on: macos-26
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm64, x64]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Require Apple silicon and Intel execution through Rosetta
+        run: |
+          test "$(uname -m)" = arm64
+          /usr/bin/arch -x86_64 /usr/bin/uname -m
+      - name: Build pinned LGPL tools and smoke-test all five jobs
+        run: |
+          set -o pipefail
+          tools/ffmpeg/build.sh '${{ matrix.arch }}' "$RUNNER_TEMP/ffmpeg" 2>&1 | tee "$RUNNER_TEMP/ffmpeg-${{ matrix.arch }}.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ffmpeg-${{ matrix.arch }}
+          path: |
+            ${{ runner.temp }}/ffmpeg/*.tar.gz
+            ${{ runner.temp }}/ffmpeg/sources/*
+            ${{ runner.temp }}/ffmpeg-${{ matrix.arch }}.log
+
+  publish:
+    needs: [pins, build]
+    if: github.event_name != 'pull_request'
+    runs-on: macos-26
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ffmpeg-*
+          path: ${{ runner.temp }}/ffmpeg
+          merge-multiple: true
+      - name: Publish immutable tools and exact source as a pre-release
+        run: |
+          source tools/ffmpeg/sources.env
+          cd "$RUNNER_TEMP/ffmpeg"
+          shasum -a 256 ./*.tar.gz > SHA256SUMS
+          cat SHA256SUMS >> "$GITHUB_STEP_SUMMARY"
+          gh release create "$FFMPEG_RELEASE" ./*.tar.gz SHA256SUMS sources/* ./*.log \
+            --target "$GITHUB_SHA" --title "Built-in FFmpeg $FFMPEG_VERSION ($FFMPEG_RELEASE)" \
+            --notes 'Minimal LGPL FFmpeg and ffprobe for macOS 13+. Intel cross-compiled on Apple silicon and executed through Rosetta. Exact source, build recipe and smoke-test logs attached. Pin archive checksums from SHA256SUMS in tools/ffmpeg/release.env.' \
+            --prerelease --latest=false
