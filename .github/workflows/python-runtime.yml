@@ -1,0 +1,148 @@
+name: Python runtime
+
+on:
+  push:
+    branches: [main, integration/58-opul-managed-tools]
+    paths: [tools/python-runtime/runtime.lock.json]
+  pull_request:
+    paths:
+      - tools/python-runtime/**
+      - .github/workflows/python-runtime.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # Serializes both immutable publication and replacement of the fixed pointer.
+  group: python-runtime
+  cancel-in-progress: false
+
+jobs:
+  pins:
+    runs-on: macos-26
+    outputs:
+      build: ${{ steps.pins.outputs.build }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: pins
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="python-runtime-$(python3 -c 'import json; print(json.load(open("tools/python-runtime/runtime.lock.json"))["runtime"])')"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo 'build=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'build=true' >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: pins
+    if: needs.pins.outputs.build == 'true' || github.event_name == 'pull_request'
+    runs-on: macos-26
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm64, x64]
+    env:
+      DEVELOPER_ID_CERTIFICATE_P12: ${{ github.event_name != 'pull_request' && secrets.DEVELOPER_ID_CERTIFICATE_P12 || '' }}
+      DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD || '' }}
+      NOTARY_APPLE_ID: ${{ github.event_name != 'pull_request' && secrets.NOTARY_APPLE_ID || '' }}
+      NOTARY_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.NOTARY_PASSWORD || '' }}
+      NOTARY_TEAM_ID: ${{ github.event_name != 'pull_request' && secrets.NOTARY_TEAM_ID || '' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Require Apple silicon and Intel execution through Rosetta
+        run: |
+          test "$(uname -m)" = arm64
+          /usr/bin/arch -x86_64 /usr/bin/uname -m
+      - name: Validate signed manifest contract
+        run: |
+          export PATH="$(brew --prefix openssl@3)/bin:$PATH"
+          python3 tools/python-runtime/test_release.py
+      - name: Import optional Developer ID certificate
+        if: env.DEVELOPER_ID_CERTIFICATE_P12 != '' && github.event_name != 'pull_request'
+        run: |
+          keychain="$RUNNER_TEMP/runtime-signing.keychain-db"
+          password=$(uuidgen)
+          echo "$DEVELOPER_ID_CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$keychain" -P "$DEVELOPER_ID_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain"
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          identity=$(security find-identity -v -p codesigning "$keychain" | sed -n 's/.*"\(Developer ID Application: [^"]*\)".*/\1/p' | head -1)
+          test -n "$identity"
+          echo "APPLE_SIGNING_IDENTITY=$identity" >> "$GITHUB_ENV"
+      - name: Prepare pinned Python and cross-compile sandboxed QuickJS
+        run: python3 tools/python-runtime/build.py '${{ matrix.arch }}' "$RUNNER_TEMP/runtime"
+      - name: Sign all native code, notarize with Developer ID, and smoke-test
+        run: |
+          set -o pipefail
+          tools/python-runtime/sign.sh "$RUNNER_TEMP/runtime/${{ matrix.arch }}"
+          python3 tools/python-runtime/verify.py "$RUNNER_TEMP/runtime/${{ matrix.arch }}" '${{ matrix.arch }}' 2>&1 | tee "$RUNNER_TEMP/runtime/verification-${{ matrix.arch }}.log"
+          python3 - '${{ matrix.arch }}' "$RUNNER_TEMP/runtime" <<'PY'
+          import json, pathlib, sys
+          sys.path.insert(0, 'tools/python-runtime')
+          from release import pack
+          arch, output = sys.argv[1], pathlib.Path(sys.argv[2])
+          runtime = json.loads(pathlib.Path('tools/python-runtime/runtime.lock.json').read_text())['runtime']
+          pack(output / arch, output / f'python-runtime-{runtime}-{arch}.tar.gz')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: python-runtime-${{ matrix.arch }}
+          path: |
+            ${{ runner.temp }}/runtime/*.tar.gz
+            ${{ runner.temp }}/runtime/verification-*.log
+          if-no-files-found: error
+      - name: Remove temporary signing keychain
+        if: always() && env.APPLE_SIGNING_IDENTITY != ''
+        run: security delete-keychain "$RUNNER_TEMP/runtime-signing.keychain-db"
+
+  publish:
+    needs: [pins, build]
+    if: github.event_name != 'pull_request'
+    runs-on: macos-26
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      OPUL_RUNTIME_SIGNING_KEY: ${{ secrets.OPUL_RUNTIME_SIGNING_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: python-runtime-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/runtime
+      - name: Require Opul key, verify actual archives, sign and publish pre-releases
+        run: |
+          set -o pipefail
+          test -n "$OPUL_RUNTIME_SIGNING_KEY"
+          export PATH="$(brew --prefix openssl@3)/bin:$PATH"
+          umask 077
+          key=$(mktemp "$RUNNER_TEMP/runtime-key.XXXXXX")
+          trap 'rm -f "$key"' EXIT
+          printf '%s\n' "$OPUL_RUNTIME_SIGNING_KEY" > "$key"
+          unset OPUL_RUNTIME_SIGNING_KEY
+          python3 tools/python-runtime/release.py "$RUNNER_TEMP/runtime" --key "$key" --publish 2>&1 | tee "$RUNNER_TEMP/runtime/publication.log"
+          cat "$RUNNER_TEMP/runtime/python-runtime.json" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: python-runtime-publication
+          path: |
+            ${{ runner.temp }}/runtime/publication.log
+            ${{ runner.temp }}/runtime/python-runtime.json*
+            ${{ runner.temp }}/runtime/SHA256SUMS*

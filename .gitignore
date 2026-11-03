@@ -19,3 +19,5 @@
 
 /src-tauri/resources/media-tools
 /src-tauri/resources/.ffmpeg.*
+
+/tools/python-runtime/__pycache__/

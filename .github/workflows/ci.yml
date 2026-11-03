@@ -31,6 +31,13 @@ jobs:
         run: vp check
       - name: Run frontend unit tests
         run: vp test
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Test Python runtime manifest and signature contract
+        run: |
+          export PATH="$(brew --prefix openssl@3)/bin:$PATH"
+          python3 tools/python-runtime/test_release.py
       - name: Reject corrupted built-in tools
         run: Scripts/test_ffmpeg_fetch.sh
       - name: Check packaging configuration
