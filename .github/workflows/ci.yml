@@ -142,3 +142,10 @@ jobs:
           APPLE_TEAM_ID: ""
           MARKETING_VERSION: 0.1.0-nightly.${{ github.run_number }}
         run: Scripts/package_dmg.sh release nightly "${{ matrix.arch }}"
+      - name: Upload verified single-architecture DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: managed-tools-dmg-${{ matrix.arch }}
+          path: Opul-Nightly-${{ matrix.arch }}.dmg
+          if-no-files-found: error
+          retention-days: 7

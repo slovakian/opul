@@ -32,7 +32,7 @@ SMOKE_PID=$!
 for _ in {1..40}; do
   kill -0 "$SMOKE_PID" 2>/dev/null || { cat "$SMOKE_DIR/launch.log"; exit 1; }
   if [[ -f "$SMOKE_DIR/frontend-ready" ]]; then
-    echo "$APP_NAME's packaged frontend rendered and connected to Rust."
+    echo "$APP_NAME's packaged frontend rendered, connected to Rust, and resolved built-in FFmpeg and ffprobe."
     echo "Smoke artifacts: $SMOKE_DIR"
     exit 0
   fi

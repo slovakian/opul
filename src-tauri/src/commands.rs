@@ -342,6 +342,10 @@ pub fn frontend_ready(
 ) -> Result<(), String> {
     window.show().map_err(|error| error.to_string())?;
     if let Some(path) = std::env::var_os("OPUL_SMOKE_READY_FILE") {
+        let tools = state.machine()?.media_tool_status();
+        if tools.ffmpeg_path.is_none() {
+            return Err(format!("Smoke built-in media tools: {}", tools.message));
+        }
         let snapshot = state.machine()?.snapshot();
         if snapshot.session != MachineSessionState::Running {
             return Err(format!("Smoke engine is {:?}", snapshot.session));
