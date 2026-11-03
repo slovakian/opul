@@ -81,10 +81,10 @@ jobs:
       - name: Publish immutable tools and exact source as a pre-release
         run: |
           source tools/ffmpeg/sources.env
-          cd "$RUNNER_TEMP/ffmpeg"
+          cd "$RUNNER_TEMP/ffmpeg/ffmpeg"
           shasum -a 256 ./*.tar.gz > SHA256SUMS
           cat SHA256SUMS >> "$GITHUB_STEP_SUMMARY"
-          gh release create "$FFMPEG_RELEASE" ./*.tar.gz SHA256SUMS sources/* ./*.log \
+          gh release create "$FFMPEG_RELEASE" ./*.tar.gz SHA256SUMS sources/* ../*.log \
             --target "$GITHUB_SHA" --title "Built-in FFmpeg $FFMPEG_VERSION ($FFMPEG_RELEASE)" \
             --notes 'Minimal LGPL FFmpeg and ffprobe for macOS 13+. Intel cross-compiled on Apple silicon and executed through Rosetta. Exact source, build recipe and smoke-test logs attached. Pin archive checksums from SHA256SUMS in tools/ffmpeg/release.env.' \
             --prerelease --latest=false
