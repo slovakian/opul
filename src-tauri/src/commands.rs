@@ -369,7 +369,8 @@ pub fn tool_status(state: State<'_, Desktop>) -> Result<serde_json::Value, Strin
     Ok(
         serde_json::json!({ "ready": status.ready, "message": status.message,
         "yt_dlp_path": status.yt_dlp_path, "yt_dlp_version": status.yt_dlp_version,
-        "ffmpeg_path": status.ffmpeg_path, "ffmpeg_version": status.ffmpeg_version }),
+        "ffmpeg_path": status.ffmpeg_path, "ffmpeg_version": status.ffmpeg_version,
+        "ffprobe_version": status.ffprobe_version }),
     )
 }
 
@@ -428,7 +429,6 @@ mod tests {
                     .into_owned(),
                 resources_folder: None,
                 yt_dlp_path: Some("/not-installed".into()),
-                ffmpeg_path: Some("/not-installed".into()),
                 max_concurrent_downloads: 1,
                 max_download_bps: 0,
             },

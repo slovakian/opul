@@ -149,6 +149,10 @@ case "${RAW_TARGET:-}" in
     ;;
 esac
 
+if [[ "$TARGET_TRIPLE" == "universal-apple-darwin" ]]; then
+  echo "Built-in tools require separate arm64 and x64 installers." >&2
+  exit 1
+fi
 ARGS=(build --bundles app,dmg --target "$TARGET_TRIPLE")
 if [[ "$BUILD_CONF" == "debug" ]]; then
   ARGS+=(--debug)
@@ -206,6 +210,7 @@ hdiutil attach -nobrowse -readonly -mountpoint "$MOUNT_DIR" "$OUT_DMG" >/dev/nul
 APP_IN_DMG="$MOUNT_DIR/$BUNDLE_NAME"
 [[ -d "$APP_IN_DMG" ]] || { echo "$BUNDLE_NAME missing in mounted DMG." >&2; exit 1; }
 
+"$ROOT_DIR/Scripts/verify_ffmpeg.sh" "$APP_IN_DMG/Contents/Resources/media-tools" "$ARCH_SUFFIX"
 codesign --verify --deep --strict "$APP_IN_DMG"
 
 ACTUAL_ARCH=$(lipo -archs "$APP_IN_DMG/Contents/MacOS/$APP_NAME" | tr ' ' '\n' | sort | xargs)

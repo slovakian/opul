@@ -13,13 +13,13 @@ vp install --frozen-lockfile
 pnpm exec tauri dev
 ```
 
-Video pages need [yt-dlp](https://github.com/yt-dlp/yt-dlp). Audio conversion needs [FFmpeg](https://ffmpeg.org). Direct files and torrents work without either.
+FFmpeg and ffprobe are built in for merging, MP3 and M4A audio, subtitles, and JPG thumbnails on macOS 13 and later. Video pages currently need a separately installed [yt-dlp](https://github.com/yt-dlp/yt-dlp). Direct files and torrents work on their own.
 
 ```bash
-brew install yt-dlp ffmpeg
+brew install yt-dlp
 ```
 
-Opul detects Homebrew installations. Custom executable paths can be set in Settings.
+Opul currently detects yt-dlp in Homebrew locations or on PATH, or uses its path from Settings. FFmpeg always comes from app Resources. See [built-in tools](docs/built-in-tools.md) for pinned builds and [third-party notices](THIRD_PARTY_NOTICES.md) for licenses and exact sources.
 
 ## Verify and package
 

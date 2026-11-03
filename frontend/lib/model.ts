@@ -204,7 +204,6 @@ export const preferencesSchema = z.object({
   aggregate_views: aggregateViewsSchema.prefault({}),
   concurrent_downloads: z.number(),
   enable_dht: z.boolean(),
-  ffmpeg_path: z.string().nullable(),
   listen_port: z.number(),
   max_connections: z.number(),
   max_download_kbps: z.number(),
@@ -221,6 +220,7 @@ export const preferencesSchema = z.object({
 export const toolStatusSchema = z.object({
   ffmpeg_path: z.string().nullable(),
   ffmpeg_version: z.string().nullable(),
+  ffprobe_version: z.string().nullable(),
   message: z.string(),
   ready: z.boolean(),
   yt_dlp_path: z.string().nullable(),

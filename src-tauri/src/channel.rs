@@ -168,7 +168,6 @@ mod tests {
                 session_folder: dir.join("media-session").to_string_lossy().into_owned(),
                 resources_folder: None,
                 yt_dlp_path: None,
-                ffmpeg_path: None,
                 max_concurrent_downloads: 2,
                 max_download_bps: 0,
             },

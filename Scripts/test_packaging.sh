@@ -141,6 +141,7 @@ for ARCH_SUFFIX in arm64 x64; do
     trap cleanup_mount EXIT
 
     hdiutil attach -nobrowse -readonly -mountpoint "$MOUNT_DIR" "$DMG" >/dev/null
+    "$ROOT_DIR/Scripts/verify_ffmpeg.sh" "$MOUNT_DIR/Opul.app/Contents/Resources/media-tools" "$ARCH_SUFFIX"
     codesign --verify --deep --strict "$MOUNT_DIR/Opul.app"
     LIPO_ARCH=$(lipo -archs "$MOUNT_DIR/Opul.app/Contents/MacOS/Opul" | tr ' ' '\n' | sort | xargs)
     

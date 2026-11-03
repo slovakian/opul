@@ -79,7 +79,6 @@ pub struct MediaEngineConfig {
     pub session_folder: String,
     pub resources_folder: Option<String>,
     pub yt_dlp_path: Option<String>,
-    pub ffmpeg_path: Option<String>,
     pub max_concurrent_downloads: u32,
     pub max_download_bps: u64,
 }
@@ -90,6 +89,7 @@ pub struct MediaToolStatus {
     pub yt_dlp_version: Option<String>,
     pub ffmpeg_path: Option<String>,
     pub ffmpeg_version: Option<String>,
+    pub ffprobe_version: Option<String>,
     pub ready: bool,
     pub message: String,
 }
@@ -1028,6 +1028,7 @@ pub struct MediaEngine {
     yt_dlp_version: Option<String>,
     ffmpeg: Option<PathBuf>,
     ffmpeg_version: Option<String>,
+    ffprobe_version: Option<String>,
     cookie_path: PathBuf,
     store_path: PathBuf,
     items: Arc<Mutex<HashMap<String, StoredMediaDownload>>>,
@@ -1055,19 +1056,19 @@ fn open_media_engine(
         &["/opt/homebrew/bin/yt-dlp", "/usr/local/bin/yt-dlp"],
         &["--version"],
     );
-    let ffmpeg = locate_tool(
-        config.ffmpeg_path.as_deref(),
-        resource_folder,
-        "ffmpeg",
-        &["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"],
-        &["-version"],
-    );
+    // FFmpeg is always bundled. Only yt-dlp retains legacy discovery until managed setup lands.
+    let built_in_folder = resource_folder.map(|path| path.join("media-tools"));
+    let ffmpeg = built_in_folder.as_ref().map(|path| path.join("ffmpeg"));
+    let ffprobe_version = built_in_folder
+        .as_ref()
+        .and_then(|path| tool_version(&path.join("ffprobe"), &["-version"]));
     let yt_dlp_version = yt_dlp
         .as_ref()
         .and_then(|path| tool_version(path, &["--version"]));
     let ffmpeg_version = ffmpeg
         .as_ref()
         .and_then(|path| tool_version(path, &["-version"]));
+    let ffmpeg = ffmpeg.filter(|_| ffmpeg_version.is_some() && ffprobe_version.is_some());
     let store_path = session_folder.join("media-downloads.json");
     let cookie_path = session_folder.join("browser-cookies.txt");
     let loaded = load_downloads(&store_path).map_err(|reason| CoreError::Engine { reason })?;
@@ -1077,6 +1078,7 @@ fn open_media_engine(
         yt_dlp_version,
         ffmpeg,
         ffmpeg_version,
+        ffprobe_version,
         cookie_path,
         store_path,
         items,
@@ -1109,7 +1111,7 @@ impl MediaEngine {
     }
 
     pub fn tool_status(&self) -> MediaToolStatus {
-        let ready = self.yt_dlp.is_some();
+        let ready = self.yt_dlp.is_some() && self.ffmpeg.is_some();
         MediaToolStatus {
             yt_dlp_path: self
                 .yt_dlp
@@ -1121,16 +1123,15 @@ impl MediaEngine {
                 .as_ref()
                 .map(|path| path.to_string_lossy().into_owned()),
             ffmpeg_version: self.ffmpeg_version.clone(),
+            ffprobe_version: self.ffprobe_version.clone(),
             ready,
-            message: if ready {
-                if self.ffmpeg.is_some() {
-                    "Video extraction and post-processing are ready.".to_string()
-                } else {
-                    "Video extraction is ready. Install FFmpeg to merge formats, convert audio, and embed subtitles.".to_string()
-                }
-            } else {
-                "Install yt-dlp to download video pages. Torrents and direct guided files remain available."
+            message: if self.ffmpeg.is_none() {
+                "Opul’s built-in media tools are unavailable. Reinstall Opul to restore them."
                     .to_string()
+            } else if ready {
+                "Video extraction and post-processing are ready.".to_string()
+            } else {
+                "Install yt-dlp to download video pages. Torrents and direct guided files remain available.".to_string()
             },
         }
     }
@@ -1447,19 +1448,12 @@ impl MediaEngine {
         validate_http_url(&item.webpage_url)?;
         validate_filename_template(&options.filename_template)?;
         validate_output_folder(&output_folder)?;
-        if !direct_download
-            && self.ffmpeg.is_none()
-            && matches!(
-                options.format,
-                MediaFormat::AudioMp3 | MediaFormat::AudioM4a
-            )
-        {
-            return Err(CoreError::DependencyUnavailable {
-                reason: "FFmpeg is required for audio conversion. Install it or select its path in Settings."
-                    .to_string(),
-            });
-        }
         if !direct_download {
+            if self.ffmpeg.is_none() {
+                return Err(CoreError::DependencyUnavailable {
+                    reason: "Opul’s built-in media tools are unavailable. Reinstall Opul to restore them.".to_string(),
+                });
+            }
             self.require_yt_dlp()?;
         }
         let title = if item.title.trim().is_empty() {
@@ -2524,7 +2518,9 @@ fn run_download(context: &WorkerContext, id: &str) -> Result<(), String> {
         command.arg("--cookies").arg(cookie_file);
     }
     if let Some(ffmpeg) = context.ffmpeg.as_ref() {
-        command.arg("--ffmpeg-location").arg(ffmpeg);
+        command
+            .arg("--ffmpeg-location")
+            .arg(ffmpeg.parent().expect("bundled FFmpeg has a parent"));
     }
     let max_download_bps = *context
         .max_download_bps
@@ -3599,7 +3595,13 @@ fn tool_version(path: &Path, arguments: &[&str]) -> Option<String> {
         .next()
         .map(str::trim)
         .filter(|line| !line.is_empty())
-        .map(str::to_string)
+        .map(|line| {
+            line.strip_prefix("ffmpeg version ")
+                .or_else(|| line.strip_prefix("ffprobe version "))
+                .and_then(|version| version.split_whitespace().next())
+                .unwrap_or(line)
+                .to_string()
+        })
 }
 
 fn signal_process(pid: u32, signal: &str) {
@@ -3698,6 +3700,103 @@ mod tests {
     use std::time::{Duration, Instant};
     use url::Url;
     use uuid::Uuid;
+
+    fn built_in_resources(root: &Path) -> PathBuf {
+        let resources = root.join("resources");
+        let tools = resources.join("media-tools");
+        fs::create_dir_all(&tools).unwrap();
+        for name in ["ffmpeg", "ffprobe"] {
+            let path = tools.join(name);
+            fs::write(
+                &path,
+                format!("#!/bin/sh\nprintf '%s\\n' '{name} version test'\n"),
+            )
+            .unwrap();
+            fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        resources
+    }
+
+    #[test]
+    fn built_in_tools_enable_audio_formats_and_require_ffprobe() {
+        let root =
+            std::env::temp_dir().join(format!("opul-built-in-audio-test-{}", Uuid::new_v4()));
+        let resources = built_in_resources(&root);
+        let yt_dlp = root.join("yt-dlp");
+        fs::write(&yt_dlp, "#!/bin/sh\necho test-version\n").unwrap();
+        fs::set_permissions(&yt_dlp, fs::Permissions::from_mode(0o755)).unwrap();
+        let config = MediaEngineConfig {
+            session_folder: root.join("session").to_string_lossy().into_owned(),
+            resources_folder: Some(resources.to_string_lossy().into_owned()),
+            yt_dlp_path: Some(yt_dlp.to_string_lossy().into_owned()),
+            max_concurrent_downloads: 1,
+            max_download_bps: 0,
+        };
+        let engine = MediaEngine::new(config.clone()).unwrap();
+        let status = engine.tool_status();
+        assert!(status.ready);
+        assert_eq!(status.ffmpeg_version.as_deref(), Some("test"));
+        assert_eq!(status.ffprobe_version.as_deref(), Some("test"));
+        for format in [MediaFormat::AudioMp3, MediaFormat::AudioM4a] {
+            let item = super::MediaProbeItem {
+                webpage_url: "https://example.com/cc0-tone".into(),
+                title: "CC0 tone".into(),
+                thumbnail_url: None,
+                extractor: None,
+                duration_seconds: None,
+                playlist_index: None,
+            };
+            assert!(
+                engine
+                    .add_download(
+                        item,
+                        root.join("downloads").to_string_lossy().into_owned(),
+                        MediaDownloadOptions {
+                            format,
+                            ..MediaDownloadOptions::default()
+                        }
+                    )
+                    .is_ok()
+            );
+        }
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while engine.snapshots().iter().any(|item| {
+            !matches!(
+                item.state,
+                MediaTransferState::Finished | MediaTransferState::Failed
+            )
+        }) {
+            assert!(Instant::now() < deadline, "audio fixture handoff timed out");
+            thread::sleep(Duration::from_millis(25));
+        }
+        drop(engine);
+        fs::remove_file(resources.join("media-tools/ffprobe")).unwrap();
+        let incomplete = MediaEngine::new(config).unwrap();
+        assert!(!incomplete.tool_status().ready);
+        assert!(incomplete.tool_status().ffmpeg_path.is_none());
+        drop(incomplete);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn built_in_tools_never_fall_back_to_homebrew_or_path() {
+        let root = std::env::temp_dir().join(format!("opul-built-in-test-{}", Uuid::new_v4()));
+        let engine = MediaEngine::new(MediaEngineConfig {
+            session_folder: root.join("session").to_string_lossy().into_owned(),
+            resources_folder: Some(
+                root.join("missing-resources")
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
+            yt_dlp_path: Some("/does/not/exist".to_string()),
+            max_concurrent_downloads: 1,
+            max_download_bps: 0,
+        })
+        .unwrap();
+        assert!(engine.tool_status().ffmpeg_path.is_none());
+        assert!(!engine.tool_status().ready);
+        fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn classifies_guided_media_by_path_and_initiator() {
@@ -4056,7 +4155,6 @@ mod tests {
             session_folder: root.join("session").to_string_lossy().into_owned(),
             resources_folder: None,
             yt_dlp_path: Some("/does/not/exist".to_string()),
-            ffmpeg_path: Some("/does/not/exist".to_string()),
             max_concurrent_downloads: 1,
             max_download_bps: 0,
         })
@@ -4457,9 +4555,8 @@ mod tests {
         fs::set_permissions(&tool_path, fs::Permissions::from_mode(0o755)).unwrap();
         let engine = MediaEngine::new(MediaEngineConfig {
             session_folder: root.join("session").to_string_lossy().into_owned(),
-            resources_folder: None,
+            resources_folder: Some(built_in_resources(&root).to_string_lossy().into_owned()),
             yt_dlp_path: Some(tool_path.to_string_lossy().into_owned()),
-            ffmpeg_path: None,
             max_concurrent_downloads: 1,
             max_download_bps: 0,
         })
@@ -4528,6 +4625,10 @@ mod tests {
         assert!(arguments.contains("https://cdn.example/live/master.m3u8?token=fresh"));
         assert!(arguments.contains("https://cdn.example/dash/manifest.mpd?token=fresh"));
         assert!(arguments.contains("--cookies"));
+        assert!(arguments.contains(&format!(
+            "--ffmpeg-location\n{}",
+            root.join("resources/media-tools").display()
+        )));
         assert!(arguments.contains("--user-agent\nOpul stream test"));
         assert!(arguments.contains("--referer\nhttps://cdn.example/"));
         assert!(!arguments.contains("https://cdn.example/watch"));
@@ -4557,7 +4658,6 @@ mod tests {
             session_folder: session.to_string_lossy().into_owned(),
             resources_folder: None,
             yt_dlp_path: Some("/does/not/exist".to_string()),
-            ffmpeg_path: Some("/does/not/exist".to_string()),
             max_concurrent_downloads: 1,
             max_download_bps: 0,
         })
@@ -4637,7 +4737,6 @@ mod tests {
             session_folder: root.join("session").to_string_lossy().into_owned(),
             resources_folder: None,
             yt_dlp_path: Some("/does/not/exist".to_string()),
-            ffmpeg_path: Some("/does/not/exist".to_string()),
             max_concurrent_downloads: 1,
             max_download_bps: 0,
         })
@@ -4755,7 +4854,6 @@ mod tests {
             session_folder: root.join("session").to_string_lossy().into_owned(),
             resources_folder: None,
             yt_dlp_path: Some("/does/not/exist".to_string()),
-            ffmpeg_path: Some("/does/not/exist".to_string()),
             max_concurrent_downloads: 1,
             max_download_bps: 0,
         })

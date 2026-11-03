@@ -50,7 +50,6 @@ fn open_machine(
                 .ok()
                 .map(|path| path.to_string_lossy().into_owned()),
             yt_dlp_path: preferences.yt_dlp_path.clone(),
-            ffmpeg_path: preferences.ffmpeg_path.clone(),
             max_concurrent_downloads: preferences.concurrent_downloads,
             max_download_bps: u64::from(preferences.max_download_kbps) * 1024,
         },

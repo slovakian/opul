@@ -369,7 +369,7 @@ const SettingsContent = ({
             <>
               <p className="text-muted-foreground text-sm">
                 Direct files and torrents work on their own. Video pages use
-                yt-dlp; audio conversion uses FFmpeg.
+                yt-dlp.
               </p>
               <output className="bg-muted block rounded-lg p-3 text-sm">
                 {toolError || tools?.message || "Checking installed tools…"}
@@ -394,26 +394,13 @@ const SettingsContent = ({
                   </FieldDescription>
                 </Field>
                 <Field>
-                  <FieldLabel htmlFor="ffmpeg">FFmpeg path</FieldLabel>
-                  <Input
-                    id="ffmpeg"
-                    placeholder="Auto-detect"
-                    value={draft.ffmpeg_path ?? ""}
-                    onChange={(event) =>
-                      setDraft({
-                        ...draft,
-                        ffmpeg_path: event.target.value.trim() || null,
-                      })
-                    }
-                  />
+                  <FieldLabel>FFmpeg</FieldLabel>
                   <FieldDescription>
-                    {tools?.ffmpeg_path ?? "Install with: brew install ffmpeg"}
+                    Built in · {tools?.ffmpeg_version ?? "Checking version…"} ·
+                    with ffprobe
                   </FieldDescription>
                 </Field>
               </FieldGroup>
-              <p className="text-muted-foreground text-xs">
-                Restart Opul after changing tool paths.
-              </p>
             </>
           )}
           {section === "About" && (

@@ -2,8 +2,9 @@ import type { Download, Preferences, Snapshot } from "../../frontend/lib/model";
 import folderTreatments from "../../src/application/folder-treatments.json" with { type: "json" };
 
 export const toolStatus = {
-  ffmpeg_path: "/opt/homebrew/bin/ffmpeg",
-  ffmpeg_version: "8.0",
+  ffmpeg_path: "/Applications/Opul.app/Contents/Resources/media-tools/ffmpeg",
+  ffmpeg_version: "9.0.2",
+  ffprobe_version: "9.0.2",
   message: "yt-dlp and FFmpeg are available.",
   ready: true,
   yt_dlp_path: "/opt/homebrew/bin/yt-dlp",
@@ -65,7 +66,6 @@ export const preferences: Preferences = {
   },
   concurrent_downloads: 3,
   enable_dht: true,
-  ffmpeg_path: null,
   listen_port: 6881,
   max_connections: 200,
   max_download_kbps: 0,

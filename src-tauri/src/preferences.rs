@@ -22,7 +22,6 @@ pub struct Preferences {
     pub enable_dht: bool,
     pub max_connections: u32,
     pub yt_dlp_path: Option<String>,
-    pub ffmpeg_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -102,7 +101,6 @@ impl Default for Preferences {
             enable_dht: true,
             max_connections: 200,
             yt_dlp_path: None,
-            ffmpeg_path: None,
         }
     }
 }
