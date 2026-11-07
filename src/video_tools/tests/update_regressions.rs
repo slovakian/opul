@@ -151,7 +151,7 @@ fn app_upgrade_rechecks_a_hold_when_the_signed_runtime_pointer_is_unchanged() {
         }
     ));
     assert_eq!(fixture.count("GET /runtime-2"), 0);
-    drop(tools);
+    fixture.close(tools);
     fixture.config.opul_version = "0.3.0".into();
     let tools = fixture.open();
     command(&tools, "update");

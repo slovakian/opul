@@ -178,12 +178,7 @@ fn stable_refuses_a_nightly_pair_even_with_a_pending_switch_back_to_stable() {
     tools.execute(switch(false)).unwrap();
     tools.cancel().unwrap();
     drop(active);
-    let deadline = Instant::now() + Duration::from_secs(10);
-    while Arc::strong_count(&tools) != 1 {
-        assert!(Instant::now() < deadline);
-        thread::sleep(Duration::from_millis(2));
-    }
-    drop(tools);
+    fixture.close(tools);
     let mut config = fixture.config.clone();
     config.nightly_available = false;
     let error = VideoTools::open_with_sources(config, fixture.sources.clone()).unwrap_err();

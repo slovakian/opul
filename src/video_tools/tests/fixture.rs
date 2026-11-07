@@ -421,6 +421,15 @@ impl Fixture {
     pub(super) fn open(&self) -> Arc<VideoTools> {
         VideoTools::open_with_sources(self.config.clone(), self.sources.clone()).unwrap()
     }
+    pub(super) fn close(&self, tools: Arc<VideoTools>) {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        // Simulated process restart must wait for the prior task to release its directory lock.
+        while Arc::strong_count(&tools) != 1 {
+            assert!(Instant::now() < deadline, "tools owner did not finish");
+            thread::sleep(Duration::from_millis(2));
+        }
+        drop(tools);
+    }
     pub(super) fn wait(&self, tools: &VideoTools) -> VideoToolsSnapshot {
         let deadline = Instant::now() + Duration::from_secs(10);
         loop {

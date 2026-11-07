@@ -35,3 +35,7 @@ An initial local GnuPG import attempted to create an agent socket below the long
 GitHub cron schedules activate only after the workflow reaches the default branch. This ticket delivers and locally validates the workflow on the required integration branch; it does not change main or claim a scheduled GitHub run already happened. Result publication and issue creation were validated through offline boundary tests without creating test releases or failure issues. Four local integration runs used `--local`, which suppresses both mutations.
 
 Intel execution used Rosetta, not physical Intel hardware. No macOS 13 hardware or notarization claim is made. #69 retains final integration and distribution verification. `OPUL_DATA_DIR` remains an exact data-directory override; use different directories for simultaneous stable and Nightly runs. The directory lock prevents shared ownership.
+
+## GitHub CI follow-up
+
+The first pushed CI run passed the check job but exposed a restart-fixture race in `app_upgrade_rechecks_a_hold_when_the_signed_runtime_pointer_is_unchanged`: it reopened the tools directory after the operation had published completion but before the final async owner released the directory lock. `Fixture::close` now waits for that owner before dropping the final handle and simulating restart. The pending-channel-switch regression shares this helper. Product installation logic and assertions are unchanged. The affected tools suite was rerun after the correction.
