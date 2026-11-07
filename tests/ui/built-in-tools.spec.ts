@@ -15,7 +15,7 @@ test("Settings identifies FFmpeg and ffprobe as built in", async ({ page }) => {
   ).toBeVisible();
   await expect(dialog.getByLabel("FFmpeg path")).toHaveCount(0);
   await expect(dialog.getByText(/Restart Opul/u)).toHaveCount(0);
-  await expect(dialog.getByLabel("yt-dlp path")).toBeVisible();
+  await expect(dialog.getByLabel("yt-dlp path")).toHaveCount(0);
 
   const audit = await new AxeBuilder({ page })
     .include('[role="dialog"]')

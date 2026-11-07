@@ -4,6 +4,7 @@ mod channel;
 mod commands;
 mod desktop;
 mod preferences;
+mod video_tools_smoke;
 
 use desktop::Desktop;
 use opul_core::{EngineConfig, MediaEngineConfig, OpulMachineConfig, OpulStateMachine};
@@ -27,7 +28,7 @@ fn open_machine(
             Ok,
         )?;
     std::fs::create_dir_all(&downloads).map_err(|error| error.to_string())?;
-    OpulStateMachine::open(OpulMachineConfig {
+    let machine = OpulStateMachine::open(OpulMachineConfig {
         application_support_folder: support.to_string_lossy().into_owned(),
         downloads_folder: downloads.to_string_lossy().into_owned(),
         torrent: EngineConfig {
@@ -49,12 +50,33 @@ fn open_machine(
                 .resource_dir()
                 .ok()
                 .map(|path| path.to_string_lossy().into_owned()),
-            yt_dlp_path: preferences.yt_dlp_path.clone(),
+            video_tools: Some(opul_core::video_tools::VideoTools::open(
+                opul_core::video_tools::VideoToolsConfig {
+                    root: support.join("Tools"),
+                    opul_version: app.package_info().version.to_string(),
+                    built_in_tools: app
+                        .path()
+                        .resource_dir()
+                        .map_err(|error| error.to_string())?
+                        .join("media-tools"),
+                },
+            )?),
             max_concurrent_downloads: preferences.concurrent_downloads,
             max_download_bps: u64::from(preferences.max_download_kbps) * 1024,
         },
     })
-    .map_err(|error| error.to_string())
+    .map_err(|error| error.to_string())?;
+    if let Some(tools) = machine.video_tools() {
+        let app = app.clone();
+        let mut snapshots = tools.subscribe();
+        tauri::async_runtime::spawn(async move {
+            while snapshots.changed().await.is_ok() {
+                let snapshot = snapshots.borrow_and_update().clone();
+                let _ = app.emit("video-tools", &snapshot);
+            }
+        });
+    }
+    Ok(machine)
 }
 
 fn current_channel(app: &tauri::AppHandle) -> channel::ReleaseChannel {
@@ -97,6 +119,7 @@ fn main() {
             app.manage(Desktop::open(data_directory(app.handle()), |preferences| {
                 open_machine(app.handle(), preferences)
             }));
+            video_tools_smoke::start(app.handle());
             #[cfg(target_os = "macos")]
             {
                 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
@@ -161,7 +184,9 @@ fn main() {
             commands::preferences::save_preferences,
             commands::preferences::save_aggregate_view,
             commands::preferences::save_workspace_expansion,
-            commands::tool_status,
+            commands::tools::tools_snapshot,
+            commands::tools::video_tools_details,
+            commands::tools::video_tools_execute,
             commands::reveal_download,
         ])
         .build(tauri::generate_context!())

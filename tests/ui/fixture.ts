@@ -2,20 +2,17 @@ import type { Page } from "@playwright/test";
 
 import type { Receipt } from "../../frontend/lib/model";
 import folderTreatments from "../../src/application/folder-treatments.json" with { type: "json" };
-import {
-  baseDownload,
-  preferences,
-  snapshot,
-  toolStatus,
-} from "./fixture-data";
+import { baseDownload, preferences, snapshot } from "./fixture-data";
 import type { DesktopInvokeArgs, DesktopOptions } from "./fixture-options";
 import { mockFolderAddition } from "./folder-addition-fixture";
 import { mockPreferenceResponses } from "./preference-response-fixture";
+import { mockVideoTools } from "./video-tools-fixture";
 import { mockWorkspaceExpansion } from "./workspace-expansion-fixture";
 
 export { preferences, snapshot } from "./fixture-data";
 
 export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
+  await mockVideoTools(page, options);
   await mockFolderAddition(page, options);
   await mockWorkspaceExpansion(page, options);
   await mockPreferenceResponses(page, options);
@@ -26,7 +23,6 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
       initSnapshot,
       mockOpts,
       treatments,
-      tools,
     }) => {
       const [, defaultTreatment, alternateTreatment] = treatments;
 
@@ -72,7 +68,6 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
       let viewAttempts = 0;
       let addAttempts = 0;
       let preferenceAttempts = 0;
-      let callbackId = 0;
       let draftCalls = 0;
       let createAttempts = 0;
       let appearanceAttempts = 0;
@@ -222,8 +217,12 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
               );
             }
 
-            if (name === "tool_status") {
-              return tools;
+            if (
+              name.startsWith("video_tools_") ||
+              name === "tools_snapshot" ||
+              name.startsWith("plugin:event|")
+            ) {
+              return window.testVideoTools.invoke(name, args);
             }
 
             if (name === "plugin:dialog|open") {
@@ -557,11 +556,7 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
             currentWebview: { label: "main" },
             currentWindow: { label: "main" },
           },
-          transformCallback: () => {
-            callbackId += 1;
-
-            return callbackId;
-          },
+          transformCallback: window.testVideoTools.register,
           unregisterCallback: () => null,
         },
       });
@@ -571,7 +566,6 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
       initPreferences: options.preferences ?? preferences,
       initSnapshot: options.snapshot ?? snapshot,
       mockOpts: options,
-      tools: toolStatus,
       treatments: folderTreatments,
     }
   );

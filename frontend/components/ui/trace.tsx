@@ -73,7 +73,7 @@ export const TraceDescription = ({
   <span
     data-slot="trace-description"
     className={cn(
-      "text-muted-foreground/70 shrink-0 text-xs tabular-nums",
+      "text-muted-foreground shrink-0 text-xs tabular-nums",
       className
     )}
     {...props}

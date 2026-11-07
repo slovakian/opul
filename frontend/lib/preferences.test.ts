@@ -12,7 +12,6 @@ test("older preference responses default to no remembered workspace choices", ()
     max_upload_kbps: 0,
     randomize_port: true,
     theme: "system",
-    yt_dlp_path: null,
   });
 
   expect(restored.workspace_expansion).toEqual({});

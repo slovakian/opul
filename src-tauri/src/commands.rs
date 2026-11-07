@@ -2,6 +2,7 @@
 #![allow(clippy::needless_pass_by_value)]
 
 pub mod preferences;
+pub mod tools;
 
 use crate::Desktop;
 use opul_core::{
@@ -284,7 +285,7 @@ fn filename_from_url(value: &str) -> String {
         .unwrap_or_else(|| "Download".into())
 }
 
-fn media_request(
+pub(super) fn media_request(
     workspace_id: String,
     folder_id: String,
     format: MachineFormat,
@@ -342,9 +343,9 @@ pub fn frontend_ready(
 ) -> Result<(), String> {
     window.show().map_err(|error| error.to_string())?;
     if let Some(path) = std::env::var_os("OPUL_SMOKE_READY_FILE") {
-        let tools = state.machine()?.media_tool_status();
-        if tools.ffmpeg_path.is_none() {
-            return Err(format!("Smoke built-in media tools: {}", tools.message));
+        let tools = state.machine()?.built_in_tool_versions();
+        if tools.ffmpeg.is_none() || tools.ffprobe.is_none() {
+            return Err("Smoke built-in media tools are unavailable".into());
         }
         let snapshot = state.machine()?.snapshot();
         if snapshot.session != MachineSessionState::Running {
@@ -365,17 +366,6 @@ pub async fn execute(
     tauri::async_runtime::spawn_blocking(move || command.execute(&machine))
         .await
         .map_err(|error| error.to_string())?
-}
-
-#[tauri::command]
-pub fn tool_status(state: State<'_, Desktop>) -> Result<serde_json::Value, String> {
-    let status = state.machine()?.media_tool_status();
-    Ok(
-        serde_json::json!({ "ready": status.ready, "message": status.message,
-        "yt_dlp_path": status.yt_dlp_path, "yt_dlp_version": status.yt_dlp_version,
-        "ffmpeg_path": status.ffmpeg_path, "ffmpeg_version": status.ffmpeg_version,
-        "ffprobe_version": status.ffprobe_version }),
-    )
 }
 
 #[tauri::command]
@@ -432,7 +422,7 @@ mod tests {
                     .to_string_lossy()
                     .into_owned(),
                 resources_folder: None,
-                yt_dlp_path: Some("/not-installed".into()),
+                video_tools: None,
                 max_concurrent_downloads: 1,
                 max_download_bps: 0,
             },

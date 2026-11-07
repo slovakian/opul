@@ -13,13 +13,9 @@ vp install --frozen-lockfile
 pnpm exec tauri dev
 ```
 
-FFmpeg and ffprobe are built in for merging, MP3 and M4A audio, subtitles, and JPG thumbnails on macOS 13 and later. Video pages currently need a separately installed [yt-dlp](https://github.com/yt-dlp/yt-dlp). Direct files and torrents work on their own.
+FFmpeg and ffprobe are built in for merging, MP3 and M4A audio, subtitles, and JPG thumbnails on macOS 13 and later. Set up optional video tools in Settings > Tools to download video pages. Opul downloads and verifies its Python runtime and the official [yt-dlp](https://github.com/yt-dlp/yt-dlp) script after you agree. Direct files and torrents work on their own.
 
-```bash
-brew install yt-dlp
-```
-
-Opul currently detects yt-dlp in Homebrew locations or on PATH, or uses its path from Settings. FFmpeg always comes from app Resources. See [built-in tools](docs/built-in-tools.md) for pinned builds and [third-party notices](THIRD_PARTY_NOTICES.md) for licenses and exact sources.
+Tools settings take effect immediately. Opul uses its own tools; there are no program paths to configure. See [video tools](docs/video-tools.md) for installation, verification and the developer override, [built-in tools](docs/built-in-tools.md) for pinned FFmpeg builds, and [third-party notices](THIRD_PARTY_NOTICES.md) for licenses and exact sources.
 
 ## Verify and package
 

@@ -21,7 +21,6 @@ pub struct Preferences {
     pub randomize_port: bool,
     pub enable_dht: bool,
     pub max_connections: u32,
-    pub yt_dlp_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -100,7 +99,6 @@ impl Default for Preferences {
             randomize_port: true,
             enable_dht: true,
             max_connections: 200,
-            yt_dlp_path: None,
         }
     }
 }

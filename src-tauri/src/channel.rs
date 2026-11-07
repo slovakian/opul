@@ -167,7 +167,7 @@ mod tests {
             media: MediaEngineConfig {
                 session_folder: dir.join("media-session").to_string_lossy().into_owned(),
                 resources_folder: None,
-                yt_dlp_path: None,
+                video_tools: None,
                 max_concurrent_downloads: 2,
                 max_download_bps: 0,
             },

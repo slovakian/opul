@@ -1,4 +1,5 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 
 import {
@@ -6,7 +7,6 @@ import {
   preferencesSchema,
   receiptSchema,
   snapshotSchema,
-  toolStatusSchema,
   workspaceDraftSchema,
   workspaceExpansionSchema,
 } from "@/lib/model";
@@ -17,6 +17,11 @@ import type {
   Preferences,
   WorkspaceExpansionChanges,
 } from "@/lib/model";
+import { toolsSnapshotSchema, videoToolsSchema } from "@/lib/video-tools";
+import type {
+  VideoToolsOperation,
+  VideoToolsSnapshot,
+} from "@/lib/video-tools";
 
 const requireDesktop = () => {
   if (!isTauri()) {
@@ -41,6 +46,15 @@ export const bridge = {
   },
   async execute(command: Command) {
     return receiptSchema.parse(await invoke("execute", { command }));
+  },
+  async onVideoTools(onSnapshot: (snapshot: VideoToolsSnapshot) => void) {
+    return await listen("video-tools", (event) => {
+      const result = videoToolsSchema.safeParse(event.payload);
+
+      if (result.success) {
+        onSnapshot(result.data);
+      }
+    });
   },
   async preferences() {
     requireDesktop();
@@ -73,8 +87,16 @@ export const bridge = {
 
     return snapshotSchema.parse(await invoke("snapshot"));
   },
-  async toolStatus() {
-    return toolStatusSchema.parse(await invoke("tool_status"));
+  async toolsSnapshot() {
+    return toolsSnapshotSchema.parse(await invoke("tools_snapshot"));
+  },
+  async videoToolsDetails() {
+    return await invoke<string>("video_tools_details");
+  },
+  async videoToolsExecute(operation: VideoToolsOperation) {
+    return videoToolsSchema.parse(
+      await invoke("video_tools_execute", { operation })
+    );
   },
   async workspaceAppearanceDraft(workspaceId: string) {
     return appearanceSchema.parse(

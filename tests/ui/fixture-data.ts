@@ -1,15 +1,16 @@
 import type { Download, Preferences, Snapshot } from "../../frontend/lib/model";
+import type { ToolsSnapshot } from "../../frontend/lib/video-tools";
 import folderTreatments from "../../src/application/folder-treatments.json" with { type: "json" };
 
-export const toolStatus = {
-  ffmpeg_path: "/Applications/Opul.app/Contents/Resources/media-tools/ffmpeg",
-  ffmpeg_version: "9.0.2",
-  ffprobe_version: "9.0.2",
-  message: "yt-dlp and FFmpeg are available.",
-  ready: true,
-  yt_dlp_path: "/opt/homebrew/bin/yt-dlp",
-  yt_dlp_version: "2026.10",
-};
+export const toolsSnapshot = {
+  built_in: { ffmpeg: "9.0.2", ffprobe: "9.0.2" },
+  video: {
+    keep_up_to_date: true,
+    published_size: null,
+    sequence: 0,
+    state: { kind: "not_set_up" },
+  },
+} satisfies ToolsSnapshot;
 
 export const baseDownload: Download = {
   bytes_downloaded: 23_592_960,
@@ -74,7 +75,6 @@ export const preferences: Preferences = {
   theme: "light",
   workspace_expansion: {},
   workspace_expansion_startup: "remember",
-  yt_dlp_path: null,
 };
 
 export const snapshot: Snapshot = {

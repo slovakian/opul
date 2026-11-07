@@ -6,9 +6,17 @@ import type {
   Snapshot,
   WorkspaceExpansionChanges,
 } from "../../frontend/lib/model";
+import type {
+  VideoToolsOperation,
+  VideoToolsSnapshot,
+} from "../../frontend/lib/video-tools";
 
 export interface DesktopInvokeArgs {
   command?: Command;
+  operation?: VideoToolsOperation;
+  event?: string;
+  handler?: number;
+  eventId?: number;
   preferences?: Preferences | DisplayPreferences;
   view?: AggregateView;
   workspaceId?: string;
@@ -16,6 +24,8 @@ export interface DesktopInvokeArgs {
 }
 
 export interface DesktopOptions {
+  videoTools?: VideoToolsSnapshot;
+  failVideoToolsPreference?: boolean;
   holdPreferenceResponses?: PreferenceResponse[];
   changeSnapshotDuringDraft?: boolean;
   empty?: boolean;

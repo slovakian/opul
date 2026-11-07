@@ -6,10 +6,11 @@ import {
   Settings2,
   Wrench,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import opulLogo from "@/assets/opul-logo.png";
 import { Choice } from "@/components/sidebar-popover";
+import { ToolsSettings } from "@/components/tools-settings";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -37,9 +38,8 @@ import {
 } from "@/components/ui/sidebar";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { bridge, errorMessage } from "@/lib/bridge";
 import { useLibrary } from "@/lib/library";
-import type { Preferences, ToolStatus } from "@/lib/model";
+import type { Preferences } from "@/lib/model";
 
 const sections = [
   { icon: Monitor, label: "Appearance" },
@@ -99,22 +99,6 @@ const SettingsContent = ({
   const [section, setSection] = useState("Appearance");
   const [draft, setDraft] = useState(initial);
   const [saving, setSaving] = useState(false);
-  const [tools, setTools] = useState<ToolStatus | null>(null);
-  const [toolError, setToolError] = useState("");
-
-  useEffect(() => {
-    const loadTools = async () => {
-      try {
-        const status = await bridge.toolStatus();
-
-        setTools(status);
-      } catch (error) {
-        setToolError(errorMessage(error));
-      }
-    };
-
-    loadTools().catch(() => null);
-  }, []);
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -365,44 +349,7 @@ const SettingsContent = ({
           {section === "Workspaces" && (
             <WorkspaceSettings draft={draft} setDraft={setDraft} />
           )}
-          {section === "Tools" && (
-            <>
-              <p className="text-muted-foreground text-sm">
-                Direct files and torrents work on their own. Video pages use
-                yt-dlp.
-              </p>
-              <output className="bg-muted block rounded-lg p-3 text-sm">
-                {toolError || tools?.message || "Checking installed tools…"}
-              </output>
-              <FieldGroup>
-                <Field>
-                  <FieldLabel htmlFor="yt-dlp">yt-dlp path</FieldLabel>
-                  <Input
-                    id="yt-dlp"
-                    placeholder="Auto-detect"
-                    value={draft.yt_dlp_path ?? ""}
-                    onChange={(event) =>
-                      setDraft({
-                        ...draft,
-                        yt_dlp_path: event.target.value.trim() || null,
-                      })
-                    }
-                  />
-                  <FieldDescription>
-                    {tools?.yt_dlp_version ??
-                      "Install with: brew install yt-dlp"}
-                  </FieldDescription>
-                </Field>
-                <Field>
-                  <FieldLabel>FFmpeg</FieldLabel>
-                  <FieldDescription>
-                    Built in · {tools?.ffmpeg_version ?? "Checking version…"} ·
-                    with ffprobe
-                  </FieldDescription>
-                </Field>
-              </FieldGroup>
-            </>
-          )}
+          {section === "Tools" && <ToolsSettings />}
           {section === "About" && (
             <div className="flex flex-col items-start gap-4 py-4">
               <img src={opulLogo} alt="" className="size-12" />
@@ -424,12 +371,20 @@ const SettingsContent = ({
           )}
         </div>
         <footer className="flex justify-end gap-2 px-6 py-4">
-          <Button type="button" variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={saving}>
-            {saving ? "Saving…" : "Save changes"}
-          </Button>
+          {section === "Tools" ? (
+            <Button type="button" variant="ghost" onClick={onClose}>
+              Done
+            </Button>
+          ) : (
+            <>
+              <Button type="button" variant="ghost" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={saving}>
+                {saving ? "Saving…" : "Save changes"}
+              </Button>
+            </>
+          )}
         </footer>
       </main>
     </form>

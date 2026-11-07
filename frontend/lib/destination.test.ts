@@ -110,7 +110,6 @@ describe("destination helpers", () => {
         theme: "light",
         workspace_expansion: {},
         workspace_expansion_startup: "remember",
-        yt_dlp_path: null,
       };
 
       const dest = naturalDestination(workspaces, { kind: "all" }, prefs);
@@ -135,7 +134,6 @@ describe("destination helpers", () => {
         theme: "light",
         workspace_expansion: {},
         workspace_expansion_startup: "remember",
-        yt_dlp_path: null,
       };
 
       const dest = naturalDestination(workspaces, { kind: "all" }, prefs);
@@ -162,7 +160,6 @@ describe("destination helpers", () => {
         theme: "light",
         workspace_expansion: {},
         workspace_expansion_startup: "remember",
-        yt_dlp_path: null,
       };
 
       expect(recommendedWorkspace(workspaces, prefs, "ws-1").id).toBe("ws-2");

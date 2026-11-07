@@ -214,17 +214,6 @@ export const preferencesSchema = z.object({
   workspace_expansion_startup: z
     .enum(["remember", "collapsed"])
     .default("remember"),
-  yt_dlp_path: z.string().nullable(),
-});
-
-export const toolStatusSchema = z.object({
-  ffmpeg_path: z.string().nullable(),
-  ffmpeg_version: z.string().nullable(),
-  ffprobe_version: z.string().nullable(),
-  message: z.string(),
-  ready: z.boolean(),
-  yt_dlp_path: z.string().nullable(),
-  yt_dlp_version: z.string().nullable(),
 });
 
 export const receiptSchema = z.object({
@@ -243,8 +232,6 @@ export type Snapshot = z.infer<typeof snapshotSchema>;
 export type Preferences = z.infer<typeof preferencesSchema>;
 
 export type Format = z.infer<typeof formatSchema>;
-
-export type ToolStatus = z.infer<typeof toolStatusSchema>;
 
 export type Receipt = z.infer<typeof receiptSchema>;
 
