@@ -7,10 +7,12 @@ import { mockDesktop, preferences } from "./fixture";
 
 const initial: VideoToolsSnapshot = {
   keep_up_to_date: true,
+  nightly_available: false,
   published_size: null,
   sequence: 1,
   state: { kind: "not_set_up" },
   update_available: false,
+  use_nightly: false,
 };
 
 const setup = (page: Page) =>

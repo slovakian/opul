@@ -269,6 +269,11 @@ impl VideoTools {
                 old.runtime
             },
             yt_dlp: version.clone(),
+            yt_dlp_channel: if *script_update {
+                resolved.yt_dlp_channel
+            } else {
+                old.yt_dlp_channel
+            },
             python_version,
         };
         self.activate_update(
@@ -297,7 +302,8 @@ impl VideoTools {
         let runtime_update = resolved.runtime_compatible
             && resolved.runtime > old.runtime
             && live.stored.skipped_runtime != Some(resolved.runtime);
-        let script_update = resolved.yt_dlp > old.yt_dlp
+        let script_update = (resolved.yt_dlp_channel != old.yt_dlp_channel
+            || resolved.yt_dlp > old.yt_dlp)
             && live.stored.skipped_yt_dlp.as_ref() != Some(&resolved.yt_dlp);
         let version = if script_update {
             resolved.yt_dlp.clone()
@@ -315,7 +321,8 @@ impl VideoTools {
         stored.available_update = if !held && (runtime_update || script_update) {
             Some(UpdateNotice {
                 identity: format!(
-                    "runtime-{}:yt-dlp-{}",
+                    "{:?}:runtime-{}:yt-dlp-{}",
+                    resolved.yt_dlp_channel,
                     if runtime_update {
                         resolved.runtime
                     } else {
@@ -399,7 +406,8 @@ impl VideoTools {
                         stored.previous_runtime = Some(plan.old.runtime);
                     }
                     if plan.script_update {
-                        stored.previous_yt_dlp = Some(plan.old.yt_dlp.clone());
+                        stored.previous_yt_dlp =
+                            Some(plan.old.yt_dlp_channel.directory(&plan.old.yt_dlp));
                     }
                     stored.installed = Some(installed.clone());
                     stored.compatibility_hold = None;

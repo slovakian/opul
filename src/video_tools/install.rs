@@ -14,6 +14,7 @@ use uuid::Uuid;
 pub(super) struct Sources {
     pub pointer: String,
     pub repository: String,
+    pub nightly_repository: String,
     pub opul_key: [u8; 32],
     pub yt_dlp_key: String,
     pub allow_fixture_http: bool,
@@ -25,6 +26,7 @@ impl Sources {
         Self {
             pointer: "https://github.com/slovakian/opul/releases/download/python-runtime/python-runtime.json".into(),
             repository: "https://github.com/yt-dlp/yt-dlp".into(),
+            nightly_repository: "https://github.com/yt-dlp/yt-dlp-nightly-builds".into(),
             opul_key: [0x06,0x54,0x04,0xda,0xa6,0xf7,0x16,0xa3,0xd2,0x21,0xb6,0xc5,0xe1,0x3a,0x44,0xd5,0xe3,0x1a,0xc9,0xd0,0xf9,0xcd,0xb9,0x59,0x0e,0xb4,0x68,0x2f,0x3d,0x4a,0x1b,0x55],
             yt_dlp_key: include_str!("keys/yt-dlp.asc").into(),
             allow_fixture_http: false,
@@ -65,6 +67,7 @@ pub(super) struct Resolved {
     pub(super) runtime_compatible: bool,
     pub(super) asset: RuntimeAsset,
     pub(super) yt_dlp: String,
+    pub(super) yt_dlp_channel: YtDlpChannel,
     pub(super) script_url: String,
 }
 
@@ -156,22 +159,28 @@ impl VideoTools {
         if asset.size == 0 || asset.size > 100 * 1024 * 1024 {
             return Err(verification_error("Invalid Python runtime size."));
         }
-        let latest_url = format!("{}/releases/latest", self.sources.repository);
+        let yt_dlp_channel = self.lock().stored.yt_dlp_channel;
+        let repository = match yt_dlp_channel {
+            YtDlpChannel::Stable => &self.sources.repository,
+            YtDlpChannel::Nightly => &self.sources.nightly_repository,
+        };
+        let latest_url = format!("{repository}/releases/latest");
         let response = transfer.response(reqwest::Method::GET, &latest_url).await?;
         let resolved_url = response.url().as_str();
-        let tag_prefix = format!("{}/releases/tag/", self.sources.repository);
+        let tag_prefix = format!("{repository}/releases/tag/");
         let tag = resolved_url
             .strip_prefix(&tag_prefix)
             .filter(|tag| safe_version(tag))
             .ok_or_else(|| verification_error("Could not resolve a single yt-dlp release tag."))?
             .to_string();
-        let base = format!("{}/releases/download/{tag}", self.sources.repository);
+        let base = format!("{repository}/releases/download/{tag}");
         Ok(Resolved {
             runtime: pointer.runtime,
             minimum_opul_version: pointer.minimum_opul_version,
             runtime_compatible: current >= minimum,
             asset,
             yt_dlp: tag,
+            yt_dlp_channel,
             script_url: format!("{base}/yt-dlp"),
         })
     }
@@ -266,6 +275,7 @@ impl VideoTools {
         let installed = InstalledPair {
             runtime: resolved.runtime,
             yt_dlp: resolved.yt_dlp,
+            yt_dlp_channel: resolved.yt_dlp_channel,
             python_version,
         };
         place_pair(

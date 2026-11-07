@@ -40,6 +40,7 @@ export const setupStepSchema = z.object({
 
 export const videoToolsSchema = z.object({
   keep_up_to_date: z.boolean(),
+  nightly_available: z.boolean(),
   published_size: z.number().nullable(),
   sequence: z.number(),
   state: z.discriminatedUnion("kind", [
@@ -67,6 +68,7 @@ export const videoToolsSchema = z.object({
     }),
   ]),
   update_available: z.boolean(),
+  use_nightly: z.boolean(),
 });
 
 export const toolsSnapshotSchema = z.object({
@@ -94,7 +96,8 @@ export type VideoToolsOperation =
   | { kind: "retry" }
   | { kind: "turn_off" }
   | { kind: "refresh_published_size" }
-  | { kind: "set_keep_up_to_date"; enabled: boolean };
+  | { kind: "set_keep_up_to_date"; enabled: boolean }
+  | { kind: "set_use_nightly"; enabled: boolean };
 
 export const downloadSize = (bytes: number | null) =>
   bytes === null ? "about 23 MB" : `${(bytes / 1_000_000).toFixed(1)} MB`;

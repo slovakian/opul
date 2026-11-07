@@ -52,6 +52,7 @@ fn open_machine(
                 .map(|path| path.to_string_lossy().into_owned()),
             video_tools: Some(opul_core::video_tools::VideoTools::open(
                 opul_core::video_tools::VideoToolsConfig {
+                    nightly_available: current_channel(app) == channel::ReleaseChannel::Nightly,
                     root: support.join("Tools"),
                     opul_version: app.package_info().version.to_string(),
                     built_in_tools: app

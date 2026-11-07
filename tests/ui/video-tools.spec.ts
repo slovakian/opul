@@ -7,10 +7,12 @@ import { mockDesktop, snapshot as librarySnapshot } from "./fixture";
 
 const initial: VideoToolsSnapshot = {
   keep_up_to_date: true,
+  nightly_available: false,
   published_size: null,
   sequence: 1,
   state: { kind: "not_set_up" },
   update_available: false,
+  use_nightly: false,
 };
 
 const openTools = async (page: Page) => {
@@ -599,5 +601,49 @@ for (const turnOff of [false, true]) {
         })
         .first()
     ).toBeVisible();
+  });
+}
+
+for (const nightly of [false, true]) {
+  test(`yt-dlp nightly switch visibility for nightly ${nightly}`, async ({
+    page,
+  }) => {
+    await mockDesktop(page, {
+      persist: true,
+      videoTools: {
+        ...initial,
+        nightly_available: nightly,
+        use_nightly: false,
+      },
+    });
+    await page.goto("/");
+    const dialog = await openTools(page);
+
+    const control = dialog.getByRole("switch", {
+      name: "Use yt-dlp nightly builds",
+    });
+
+    if (!nightly) {
+      await expect(control).toHaveCount(0);
+
+      return;
+    }
+
+    await expect(control).not.toBeChecked();
+    await control.click();
+    await expect(control).toBeChecked();
+    await dialog.getByRole("button", { exact: true, name: "Done" }).click();
+    await page.reload();
+    const reopened = await openTools(page);
+    await expect(
+      reopened.getByRole("switch", { name: "Use yt-dlp nightly builds" })
+    ).toBeChecked();
+
+    const audit = await new AxeBuilder({ page })
+      .include('[role="dialog"]')
+      .analyze();
+
+    expect(audit.violations).toEqual([]);
+    await page.screenshot({ path: "test-results/video-tools-nightly.png" });
   });
 }

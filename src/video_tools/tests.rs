@@ -10,6 +10,7 @@ use std::{
 fn consent_and_immediate_preferences_survive_restart() {
     let temp = tempfile::tempdir().unwrap();
     let config = VideoToolsConfig {
+        nightly_available: false,
         root: temp.path().join("Tools"),
         opul_version: "0.2.2".into(),
         built_in_tools: temp.path().join("media-tools"),
@@ -35,6 +36,7 @@ fn consent_and_immediate_preferences_survive_restart() {
 
 mod fixture;
 mod network;
+mod nightly;
 use fixture::*;
 
 const GOOD: &str = "[debug] yt-dlp version stable@2026.10.26 from fixture\n[debug] Python 3.13.18 (CPython)\n[debug] Request Handlers: urllib, curl_cffi\n[debug] JS runtimes: quickjs-2026-06-04";
@@ -340,6 +342,7 @@ fn signatures_from_other_keys_are_rejected_and_channels_keep_separate_preference
 
     let temp = tempfile::tempdir().unwrap();
     let config = |name| VideoToolsConfig {
+        nightly_available: false,
         root: temp.path().join(name).join("Tools"),
         opul_version: "0.2.2".into(),
         built_in_tools: temp.path().join("media-tools"),

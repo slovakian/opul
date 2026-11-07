@@ -134,6 +134,18 @@ export const mockVideoTools = async (page: Page, options: DesktopOptions) => {
             progress: 0,
             version: "2026.11.01",
           };
+        } else if (operation.kind === "set_use_nightly") {
+          if (!currentTools.video.nightly_available) {
+            throw new Error(
+              "yt-dlp nightly builds are available only in Opul Nightly."
+            );
+          }
+
+          if (mockOpts.failVideoToolsPreference) {
+            throw new Error("Couldn't save the video tools preference.");
+          }
+
+          currentTools.video.use_nightly = operation.enabled;
         } else if (operation.kind === "set_keep_up_to_date") {
           if (mockOpts.failVideoToolsPreference) {
             throw new Error("Couldn't save the video tools preference.");

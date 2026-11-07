@@ -205,6 +205,26 @@ export const ToolsSettings = ({
           <VideoToolsRemoval busy={busy} execute={execute} />
         )}
         <FieldGroup>
+          {video.nightly_available && (
+            <Field orientation="horizontal">
+              <FieldContent>
+                <FieldLabel htmlFor="use-yt-dlp-nightly">
+                  Use yt-dlp nightly builds
+                </FieldLabel>
+                <FieldDescription>
+                  Try early yt-dlp changes. Changes take effect immediately.
+                </FieldDescription>
+              </FieldContent>
+              <Switch
+                id="use-yt-dlp-nightly"
+                checked={video.use_nightly}
+                disabled={busy}
+                onCheckedChange={(enabled) =>
+                  execute({ enabled, kind: "set_use_nightly" })
+                }
+              />
+            </Field>
+          )}
           <Field orientation="horizontal">
             <FieldContent>
               <FieldLabel htmlFor="keep-video-tools-up-to-date">

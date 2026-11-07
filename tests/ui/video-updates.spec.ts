@@ -8,6 +8,7 @@ import { baseDownload } from "./fixture-data";
 
 const available: VideoToolsSnapshot = {
   keep_up_to_date: false,
+  nightly_available: false,
   published_size: null,
   sequence: 1,
   state: {
@@ -17,6 +18,7 @@ const available: VideoToolsSnapshot = {
     update_flag: { kind: "available", version: "2026.11.01" },
   },
   update_available: true,
+  use_nightly: false,
 };
 
 const push = async (page: Page, video: VideoToolsSnapshot) => {

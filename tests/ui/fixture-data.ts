@@ -6,10 +6,12 @@ export const toolsSnapshot = {
   built_in: { ffmpeg: "9.0.2", ffprobe: "9.0.2" },
   video: {
     keep_up_to_date: true,
+    nightly_available: false,
     published_size: null,
     sequence: 0,
     state: { kind: "not_set_up" },
     update_available: false,
+    use_nightly: false,
   },
 } satisfies ToolsSnapshot;
 

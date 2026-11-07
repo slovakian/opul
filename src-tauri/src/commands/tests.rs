@@ -49,6 +49,7 @@ fn desktop_video_submission_waits_without_probing_and_survives_restart() {
     let root = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(root.path().join("downloads")).unwrap();
     let tools = VideoTools::open(VideoToolsConfig {
+        nightly_available: false,
         root: root.path().join("Tools"),
         opul_version: "0.2.2".into(),
         built_in_tools: root.path().join("resources"),

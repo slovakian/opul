@@ -14,6 +14,7 @@
 
 mod install;
 mod manager;
+mod nightly;
 mod recovery;
 mod removal;
 mod schedule;
@@ -35,6 +36,7 @@ pub struct VideoToolsConfig {
     pub root: PathBuf,
     pub opul_version: String,
     pub built_in_tools: PathBuf,
+    pub nightly_available: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -49,6 +51,7 @@ pub enum VideoToolsOperation {
     Retry,
     TurnOff,
     SetKeepUpToDate { enabled: bool },
+    SetUseNightly { enabled: bool },
     RefreshPublishedSize,
 }
 
@@ -57,6 +60,8 @@ pub struct VideoToolsSnapshot {
     pub sequence: u64,
     pub state: VideoToolsState,
     pub keep_up_to_date: bool,
+    pub nightly_available: bool,
+    pub use_nightly: bool,
     pub update_available: bool,
     pub published_size: Option<u64>,
 }
@@ -137,6 +142,25 @@ pub struct InstalledPair {
     pub runtime: u64,
     pub python_version: String,
     pub yt_dlp: String,
+    #[serde(default)]
+    pub yt_dlp_channel: YtDlpChannel,
+}
+
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum YtDlpChannel {
+    #[default]
+    Stable,
+    Nightly,
+}
+
+impl YtDlpChannel {
+    fn directory(self, version: &str) -> String {
+        match self {
+            Self::Stable => version.to_string(),
+            Self::Nightly => format!("nightly-{version}"),
+        }
+    }
 }
 
 /// A selected, health-checked pair. Paths come from the module, never user preferences or PATH.

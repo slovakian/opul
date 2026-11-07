@@ -21,14 +21,25 @@ pub(super) fn prune(root: &Path, stored: &StoredState) -> Result<(), String> {
         .as_ref()
         .map(|pair| pair.runtime.to_string());
     let previous_runtime = stored.previous_runtime.map(|number| number.to_string());
-    let script = stored.installed.as_ref().map(|pair| pair.yt_dlp.as_str());
+    let script = stored
+        .installed
+        .as_ref()
+        .map(|pair| pair.yt_dlp_channel.directory(&pair.yt_dlp));
+    let rollback_script = stored
+        .rollback_pair
+        .as_ref()
+        .map(|pair| pair.yt_dlp_channel.directory(&pair.yt_dlp));
     for (directory, current, previous) in [
         (
             "python-runtime",
             runtime.as_deref(),
             previous_runtime.as_deref(),
         ),
-        ("yt-dlp", script, stored.previous_yt_dlp.as_deref()),
+        (
+            "yt-dlp",
+            script.as_deref(),
+            stored.previous_yt_dlp.as_deref(),
+        ),
     ] {
         let directory = root.join(directory);
         // A failed placement can leave a file here. It is not a version directory.
@@ -39,13 +50,10 @@ pub(super) fn prune(root: &Path, stored: &StoredState) -> Result<(), String> {
             let entry = entry.map_err(|e| e.to_string())?;
             let name = entry.file_name();
             let name = name.to_string_lossy();
-            let rollback_script = stored
-                .rollback_pair
-                .as_ref()
-                .map(|pair| pair.yt_dlp.as_str());
             if Some(name.as_ref()) != current
                 && Some(name.as_ref()) != previous
-                && !(directory.ends_with("yt-dlp") && Some(name.as_ref()) == rollback_script)
+                && !(directory.ends_with("yt-dlp")
+                    && Some(name.as_ref()) == rollback_script.as_deref())
             {
                 remove(&entry.path())?;
             }

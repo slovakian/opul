@@ -83,10 +83,12 @@ test("download type override reaches the backend and resets on success", async (
     failFirstAdd: true,
     videoTools: {
       keep_up_to_date: true,
+      nightly_available: false,
       published_size: null,
       sequence: 1,
       state: { kind: "setting_up", steps: [] },
       update_available: false,
+      use_nightly: false,
     },
   });
   await page.goto("/");
@@ -344,10 +346,12 @@ test("aggregate destination confirmation retains the explicit video format", asy
     snapshot: library,
     videoTools: {
       keep_up_to_date: true,
+      nightly_available: false,
       published_size: null,
       sequence: 1,
       state: { kind: "setting_up", steps: [] },
       update_available: false,
+      use_nightly: false,
     },
   });
   await page.goto("/");

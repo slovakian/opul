@@ -10,6 +10,8 @@ use uuid::Uuid;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(super) struct StoredState {
+    #[serde(default)]
+    pub yt_dlp_channel: YtDlpChannel,
     pub installed: Option<InstalledPair>,
     #[serde(default)]
     pub previous_runtime: Option<u64>,
@@ -36,6 +38,7 @@ pub(super) struct StoredState {
 impl Default for StoredState {
     fn default() -> Self {
         Self {
+            yt_dlp_channel: YtDlpChannel::Stable,
             installed: None,
             previous_runtime: None,
             previous_yt_dlp: None,
@@ -134,6 +137,12 @@ impl VideoTools {
             }
             Err(error) => return Err(error.to_string()),
         };
+        if !config.nightly_available && stored.yt_dlp_channel == YtDlpChannel::Nightly {
+            return Err(
+                "Nightly video tools state requires Opul Nightly and its own data directory."
+                    .into(),
+            );
+        }
         // If state.json is damaged, preserve version directories for diagnosis and repair.
         if load_error.is_none() {
             super::recovery::prune(&config.root, &stored)?;
@@ -212,6 +221,8 @@ impl VideoTools {
                 && matches!(state, VideoToolsState::Ready { .. }),
             state,
             keep_up_to_date: stored.keep_up_to_date,
+            nightly_available: config.nightly_available,
+            use_nightly: stored.yt_dlp_channel == YtDlpChannel::Nightly,
             published_size: None,
         };
         let (publisher, _) = watch::channel(snapshot.clone());
@@ -233,6 +244,17 @@ impl VideoTools {
             _lock: lock,
         });
         tools.start_schedule();
+        {
+            let mut live = tools.lock();
+            if live
+                .stored
+                .installed
+                .as_ref()
+                .is_some_and(|pair| pair.yt_dlp_channel != live.stored.yt_dlp_channel)
+            {
+                tools.start_update(&mut live, super::updates::UpdateMode::Manual);
+            }
+        }
         Ok(tools)
     }
 
@@ -282,6 +304,15 @@ impl VideoTools {
             return Err("Video tools are being removed.".into());
         }
         match operation {
+            VideoToolsOperation::SetUseNightly { enabled } => {
+                let restart_setup = self.set_use_nightly(&mut live, enabled)?;
+                self.publish(&mut live);
+                if restart_setup {
+                    drop(live);
+                    return self.execute(VideoToolsOperation::SetUp);
+                }
+                return Ok(live.snapshot.clone());
+            }
             VideoToolsOperation::Remove { .. } => unreachable!(),
             VideoToolsOperation::SetKeepUpToDate { enabled } => {
                 self.set_keep_up_to_date(&mut live, enabled)?;
@@ -463,7 +494,7 @@ pub(super) fn invocation(
         script: config
             .root
             .join("yt-dlp")
-            .join(&installed.yt_dlp)
+            .join(installed.yt_dlp_channel.directory(&installed.yt_dlp))
             .join("yt-dlp"),
         built_in_tools: config.built_in_tools.clone(),
     }
