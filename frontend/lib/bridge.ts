@@ -48,6 +48,9 @@ export const bridge = {
   async execute(command: Command) {
     return receiptSchema.parse(await invoke("execute", { command }));
   },
+  async markVideoToolsSetupShown() {
+    return z.boolean().parse(await invoke("mark_video_tools_setup_shown"));
+  },
   async onVideoTools(onSnapshot: (snapshot: VideoToolsSnapshot) => void) {
     return await listen("video-tools", (event) => {
       const result = videoToolsSchema.safeParse(event.payload);

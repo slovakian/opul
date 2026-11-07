@@ -66,9 +66,17 @@ For a real packaged check, build an app with version at least 0.2.2, then run `S
 
 - #62 supplies range resume, injected reachability/timing, retry scheduling, startup cleanup/pruning and recovery tests. See [the recovery evidence](evidence/video-tools-62.md). #65 must maintain `previous_runtime` and `previous_yt_dlp` when changing the selected pair, and clear them according to its retention policy.
 - #63 supplies durable waiting Downloads, submission consent and projected recovery actions. See [waiting Downloads](#waiting-downloads).
-- #64 adds first-launch Setup, dismissal memory, the Help menu and sidebar progress. Reuse the public operations, snapshot and `VideoToolsProgress`; do not create a second setup owner.
+- #64 supplies first-launch Setup, dismissal memory, the Help menu and sidebar progress. See [First-launch Setup](#first-launch-setup). It uses the public operations, snapshot and `VideoToolsProgress`.
 - #65 adds manual update operations, idle-transfer coordination, health-check pairing against newer runtimes, retained versions, rollback and timestamps. #67 adds scheduled checks and update notifications. The exclusive Ready flag and immediate preference are established here; no updater runs in this slice.
 - #68 adds Nightly's yt-dlp source switch and compatibility workflow. Stable/Nightly data and preferences are already isolated.
 - #66 adds Remove and in-flight transfer handling. No Remove button is shown until that command exists.
 
 These are the boundaries of #61; they do not mark the full parent #58 complete.
+
+## First-launch Setup
+
+Setup fills the app window as a modal view. It leaves macOS's window mode alone. The desktop preference `video_tools_setup_shown` records the first offer with an atomic, immediate write, outside the Settings draft. Settings saves preserve the live flag. Not now, Esc and the close button dismiss the view without installing. Don't show this again uses the module's Turn off command before dismissing. Already Ready or Turned off installations receive no automatic offer.
+
+Help ▸ Set Up Video Tools… and Settings ▸ Tools ▸ Set Up Video Tools… reopen the same view. Opening it grants no install consent. Download and Try again use the existing module operations, and the update checkbox writes the existing immediate preference. Setup and Settings share `VideoToolsProgress` and pushed snapshots. Continue to Opul closes only the view; the module continues installing. While Setting up, the sidebar shows the mean of the two steps' download progress, counting finished steps as complete and unknown-size steps as pending. Clicking it reopens Setup. A transition from Setting up to Ready removes the sidebar line and emits one ready toast. Opening an already Ready app emits no ready toast.
+
+`tests/ui/video-setup.spec.ts` covers first launch, consent and each dismissal, repeat launch, Help and Settings re-entry, live steps, sidebar re-entry, completion, and direct-file and torrent submission during setup. Axe audits cover the offer and progress views. The desktop preference test reopens the real store and checks that stale Settings cannot restore the offer. Installation, retries and verified payload ownership remain in the video-tools module.

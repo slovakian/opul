@@ -24,7 +24,11 @@ const failureMessages = {
   verification: "The download couldn't be verified.",
 };
 
-export const ToolsSettings = () => {
+export const ToolsSettings = ({
+  onVideoSetup,
+}: {
+  onVideoSetup: () => void;
+}) => {
   const { busy, error, execute, tools } = useVideoTools();
   const [copyError, setCopyError] = useState("");
   const [copied, setCopied] = useState(false);
@@ -68,6 +72,9 @@ export const ToolsSettings = () => {
       <Separator />
       <section aria-label="Video tools" className="flex flex-col gap-4">
         <h3 className="font-medium">Video tools</h3>
+        <Button type="button" variant="outline" onClick={onVideoSetup}>
+          Set Up Video Tools…
+        </Button>
         {initial && (
           <>
             <p className="text-muted-foreground text-sm">

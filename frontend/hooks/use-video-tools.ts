@@ -75,11 +75,17 @@ export const useVideoTools = () => {
 
     try {
       accept(await bridge.videoToolsExecute(operation));
+
+      setBusy(false);
+
+      return true;
     } catch (error_) {
       setError(errorMessage(error_));
-    }
 
-    setBusy(false);
+      setBusy(false);
+
+      return false;
+    }
   };
 
   return { busy, error, execute, tools };

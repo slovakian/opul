@@ -214,6 +214,7 @@ export const preferencesSchema = z.object({
   max_upload_kbps: z.number(),
   randomize_port: z.boolean(),
   theme: z.enum(["system", "light", "dark"]),
+  video_tools_setup_shown: z.boolean().default(false),
   workspace_expansion: workspaceExpansionSchema.default({}),
   workspace_expansion_startup: z
     .enum(["remember", "collapsed"])

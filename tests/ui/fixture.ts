@@ -106,6 +106,10 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
               return structuredClone(currentSnapshot);
             }
 
+            if (name === "mark_video_tools_setup_shown") {
+              return window.testMarkVideoSetupShown(currentPreferences);
+            }
+
             if (name === "get_preferences") {
               return await window.testPreferenceResponse(
                 "read",
@@ -173,11 +177,10 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
                 throw new Error("Couldn't write preferences. Try again.");
               }
 
-              currentPreferences = {
-                ...args.preferences,
-                aggregate_views: currentPreferences.aggregate_views,
-                workspace_expansion: currentPreferences.workspace_expansion,
-              };
+              currentPreferences = window.testSettingsPreferences(
+                args.preferences,
+                currentPreferences
+              );
 
               if (mockOpts.persist) {
                 sessionStorage.setItem(

@@ -47,3 +47,8 @@ pub fn save_aggregate_view(
 ) -> Result<Preferences, String> {
     state.preferences()?.save_aggregate_view(view, preferences)
 }
+
+#[tauri::command]
+pub fn mark_video_tools_setup_shown(state: State<'_, Desktop>) -> Result<bool, String> {
+    state.preferences()?.mark_video_tools_setup_shown()
+}

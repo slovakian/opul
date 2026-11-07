@@ -49,7 +49,7 @@ export const mockVideoTools = async (page: Page, options: DesktopOptions) => {
         }) => void
       >();
 
-      const toolListeners = new Set<number>();
+      const toolListeners = new Map<number, string>();
 
       const pushTools = () => {
         sessionStorage.setItem(
@@ -57,7 +57,11 @@ export const mockVideoTools = async (page: Page, options: DesktopOptions) => {
           JSON.stringify(currentTools.video)
         );
 
-        for (const id of toolListeners) {
+        for (const [id, event] of toolListeners) {
+          if (event !== "video-tools") {
+            continue;
+          }
+
           toolCallbacks.get(id)?.({
             event: "video-tools",
             id,
@@ -75,6 +79,18 @@ export const mockVideoTools = async (page: Page, options: DesktopOptions) => {
         }
       });
 
+      window.addEventListener("test:open-video-setup", () => {
+        for (const [id, event] of toolListeners) {
+          if (event === "set-up-video-tools") {
+            toolCallbacks.get(id)?.({
+              event,
+              id,
+              payload: structuredClone(currentTools.video),
+            });
+          }
+        }
+      });
+
       let callbackId = 0;
       window.testVideoTools = {
         invoke: (name, args) => {
@@ -88,12 +104,8 @@ export const mockVideoTools = async (page: Page, options: DesktopOptions) => {
             return `Video tools: ${failure.kind}${failure.kind === "not_working" ? `\n${failure.reason}: ${failure.details}` : ""}\nPython runtime 1, yt-dlp 2026.10.26, chip arm64, Opul 0.2.2.`;
           }
 
-          if (
-            name === "plugin:event|listen" &&
-            args.event === "video-tools" &&
-            args.handler
-          ) {
-            toolListeners.add(args.handler);
+          if (name === "plugin:event|listen" && args.event && args.handler) {
+            toolListeners.set(args.handler, args.event);
 
             return args.handler;
           }

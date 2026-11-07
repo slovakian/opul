@@ -119,3 +119,21 @@ export const updateMessage = (flag: UpdateFlag): string | null => {
     }
   }
 };
+
+export const setupProgress = (steps: SetupStep[]): string => {
+  if (steps.length === 0) {
+    return "";
+  }
+
+  let progress = 0;
+
+  for (const step of steps) {
+    if (step.status === "done") {
+      progress += 1;
+    } else if (step.total_bytes) {
+      progress += Math.min(1, step.downloaded_bytes / step.total_bytes);
+    }
+  }
+
+  return `${Math.floor((progress / steps.length) * 100)}%`;
+};

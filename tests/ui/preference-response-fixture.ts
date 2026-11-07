@@ -1,9 +1,15 @@
 import type { Page } from "@playwright/test";
 
+import type { Preferences } from "../../frontend/lib/model";
 import type { DesktopOptions, PreferenceResponse } from "./fixture-options";
 
 declare global {
   interface Window {
+    testSettingsPreferences: (
+      draft: Preferences,
+      current: Preferences
+    ) => Preferences;
+    testMarkVideoSetupShown: (preferences: Preferences) => boolean;
     testPreferenceResponse: <T>(
       kind: PreferenceResponse,
       value: T
@@ -22,6 +28,21 @@ export const mockPreferenceResponses = async (
     window.addEventListener("test:resume-preferences", () => {
       readFailure = false;
     });
+
+    window.testSettingsPreferences = (draft, current) => ({
+      ...draft,
+      aggregate_views: current.aggregate_views,
+      video_tools_setup_shown: current.video_tools_setup_shown,
+      workspace_expansion: current.workspace_expansion,
+    });
+
+    window.testMarkVideoSetupShown = (preferences) => {
+      const first = !preferences.video_tools_setup_shown;
+      preferences.video_tools_setup_shown = true;
+      sessionStorage.setItem("test-preferences", JSON.stringify(preferences));
+
+      return first;
+    };
 
     window.testPreferenceResponse = async (kind, value) => {
       if (kind === "read" && readFailure) {

@@ -76,6 +76,7 @@ export const preferences: Preferences = {
   max_upload_kbps: 0,
   randomize_port: true,
   theme: "light",
+  video_tools_setup_shown: true,
   workspace_expansion: {},
   workspace_expansion_startup: "remember",
 };

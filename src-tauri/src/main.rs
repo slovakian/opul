@@ -167,7 +167,15 @@ fn main() {
                         &PredefinedMenuItem::select_all(app, None)?,
                     ],
                 )?;
-                app.set_menu(Menu::with_items(app, &[&app_menu, &file, &edit])?)?;
+                let setup_tools = MenuItem::with_id(
+                    app,
+                    "set-up-video-tools",
+                    "Set Up Video Tools…",
+                    true,
+                    None::<&str>,
+                )?;
+                let help = Submenu::with_items(app, "Help", true, &[&setup_tools])?;
+                app.set_menu(Menu::with_items(app, &[&app_menu, &file, &edit, &help])?)?;
             }
             Ok(())
         })
@@ -181,6 +189,7 @@ fn main() {
             commands::frontend_ready,
             commands::execute,
             commands::preferences::get_preferences,
+            commands::preferences::mark_video_tools_setup_shown,
             commands::preferences::save_preferences,
             commands::preferences::save_aggregate_view,
             commands::preferences::save_workspace_expansion,

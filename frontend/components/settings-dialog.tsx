@@ -90,9 +90,11 @@ const WorkspaceSettings = ({
 const SettingsContent = ({
   initial,
   onClose,
+  onVideoSetup,
 }: {
   initial: Preferences;
   onClose: () => void;
+  onVideoSetup: () => void;
 }) => {
   const { savePreferences, state } = useLibrary();
   const workspaces = state.kind === "ready" ? state.snapshot.workspaces : [];
@@ -349,7 +351,7 @@ const SettingsContent = ({
           {section === "Workspaces" && (
             <WorkspaceSettings draft={draft} setDraft={setDraft} />
           )}
-          {section === "Tools" && <ToolsSettings />}
+          {section === "Tools" && <ToolsSettings onVideoSetup={onVideoSetup} />}
           {section === "About" && (
             <div className="flex flex-col items-start gap-4 py-4">
               <img src={opulLogo} alt="" className="size-12" />
@@ -391,7 +393,13 @@ const SettingsContent = ({
   );
 };
 
-export const SettingsDialog = ({ onClose }: { onClose: () => void }) => {
+export const SettingsDialog = ({
+  onClose,
+  onVideoSetup,
+}: {
+  onClose: () => void;
+  onVideoSetup: () => void;
+}) => {
   const { preferences } = useLibrary();
 
   return (
@@ -409,7 +417,11 @@ export const SettingsDialog = ({ onClose }: { onClose: () => void }) => {
           Customize Opul&apos;s appearance, downloads, and connections.
         </DialogDescription>
         {preferences ? (
-          <SettingsContent initial={preferences} onClose={onClose} />
+          <SettingsContent
+            initial={preferences}
+            onClose={onClose}
+            onVideoSetup={onVideoSetup}
+          />
         ) : (
           <p className="p-8">
             Settings are unavailable until the download engine connects.
