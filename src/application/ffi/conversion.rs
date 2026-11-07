@@ -84,9 +84,9 @@ pub(super) fn media_options(
     layout: DownloadContentLayout,
 ) -> MediaDownloadOptions {
     let referer = match &download.origin {
-        MediaOrigin::Page { page_url, .. } | MediaOrigin::Guided { page_url, .. } => {
-            Some(page_url.clone())
-        }
+        MediaOrigin::PendingPage { url: page_url }
+        | MediaOrigin::Page { page_url, .. }
+        | MediaOrigin::Guided { page_url, .. } => Some(page_url.clone()),
         MediaOrigin::Direct { referer, .. } => referer.clone(),
     };
     MediaDownloadOptions {

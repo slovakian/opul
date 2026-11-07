@@ -15,3 +15,6 @@ pub use ffi::*;
 pub(crate) use migration::*;
 pub(crate) use projection::*;
 pub(crate) use reducer::*;
+
+#[cfg(test)]
+mod waiting_tests;

@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
 import { toast } from "@/components/ui/toast";
+import { useVideoTools } from "@/hooks/use-video-tools";
 import { bridge, errorMessage } from "@/lib/bridge";
 import type { Destination } from "@/lib/destination";
 import { downloadMode } from "@/lib/download-options";
@@ -40,6 +41,15 @@ export const useDownloadSubmission = ({
   selectDestination: (next: Destination) => void;
 }) => {
   const { run, preferences, savePreferences } = useLibrary();
+  const videoTools = useVideoTools();
+
+  const [videoConsent, setVideoConsent] = useState<{
+    destination: Destination;
+    submission: Submission;
+    automatic: boolean;
+  }>();
+
+  const [consentError, setConsentError] = useState("");
   const [type, setType] = useState<DownloadType>("Automatic");
 
   const [formatOverride, setFormatOverride] = useState<{
@@ -66,10 +76,94 @@ export const useDownloadSubmission = ({
 
   const locked = disabled || adding;
 
+  const performDownload = async (
+    next: Destination,
+    submission: Submission,
+    automatic = false,
+    consented = false
+  ) => {
+    if (submission.kind === "url" && submission.mode === "Page" && !consented) {
+      const snapshot = await bridge.toolsSnapshot();
+
+      if (snapshot.video.state.kind === "turned_off") {
+        setQuery((current) => (current === submission.query ? "" : current));
+        setConfirmation(undefined);
+
+        return;
+      }
+
+      if (snapshot.video.state.kind === "not_set_up") {
+        setVideoConsent({
+          automatic,
+          destination: next,
+          submission: {
+            ...submission,
+            format: submission.format ?? next.workspace.default_format,
+          },
+        });
+        setConfirmation(undefined);
+
+        return;
+      }
+    }
+
+    if (
+      automatic &&
+      (!preferences ||
+        !(await savePreferences({
+          ...preferences,
+          aggregate_destination: {
+            kind: "workspace",
+            workspace_id: next.workspace.id,
+          },
+        })))
+    ) {
+      return;
+    }
+
+    const receipt = await run(
+      submission.kind === "torrent"
+        ? {
+            folder_id: next.folder.id,
+            kind: "add_torrent_file",
+            path: submission.path,
+            workspace_id: next.workspace.id,
+          }
+        : {
+            folder_id: next.folder.id,
+            format: submission.format ?? next.workspace.default_format,
+            kind: "add_url",
+            mode: submission.mode,
+            url: submission.query.trim(),
+            workspace_id: next.workspace.id,
+          }
+    );
+
+    if (receipt) {
+      selectDestination(next);
+      onUsed(next.workspace.id);
+      setConfirmation(undefined);
+
+      if (submission.kind === "url") {
+        setQuery((current) => (current === submission.query ? "" : current));
+      }
+
+      setType("Automatic");
+      setFormatOverride(undefined);
+      onAdded(receipt.created_download_ids);
+
+      if (consented) {
+        setVideoConsent(undefined);
+        await bridge.videoToolsExecute({ kind: "set_up" });
+      }
+    }
+  };
+
   const download = async (
     next: Destination,
     submission: Submission,
-    automatic = false
+    automatic = false,
+    consented = false
   ) => {
     if (locked || inFlight.current) {
       return;
@@ -79,54 +173,7 @@ export const useDownloadSubmission = ({
     setAdding(true);
 
     try {
-      if (
-        automatic &&
-        (!preferences ||
-          !(await savePreferences({
-            ...preferences,
-            aggregate_destination: {
-              kind: "workspace",
-              workspace_id: next.workspace.id,
-            },
-          })))
-      ) {
-        inFlight.current = false;
-        setAdding(false);
-
-        return;
-      }
-
-      const receipt = await run(
-        submission.kind === "torrent"
-          ? {
-              folder_id: next.folder.id,
-              kind: "add_torrent_file",
-              path: submission.path,
-              workspace_id: next.workspace.id,
-            }
-          : {
-              folder_id: next.folder.id,
-              format: submission.format ?? next.workspace.default_format,
-              kind: "add_url",
-              mode: submission.mode,
-              url: submission.query.trim(),
-              workspace_id: next.workspace.id,
-            }
-      );
-
-      if (receipt) {
-        selectDestination(next);
-        onUsed(next.workspace.id);
-        setConfirmation(undefined);
-
-        if (submission.kind === "url") {
-          setQuery((current) => (current === submission.query ? "" : current));
-        }
-
-        setType("Automatic");
-        setFormatOverride(undefined);
-        onAdded(receipt.created_download_ids);
-      }
+      await performDownload(next, submission, automatic, consented);
     } catch (error) {
       toast.add({
         description: errorMessage(error),
@@ -221,6 +268,39 @@ export const useDownloadSubmission = ({
       }
     },
     confirming: confirmation?.navigation === navigation,
+    consent: async () => {
+      if (videoConsent) {
+        await download(
+          videoConsent.destination,
+          videoConsent.submission,
+          videoConsent.automatic,
+          true
+        );
+      }
+    },
+    consentError,
+    declineVideoTools: async (turnOff: boolean) => {
+      if (turnOff) {
+        try {
+          await bridge.videoToolsExecute({ kind: "turn_off" });
+        } catch (error) {
+          setConsentError(errorMessage(error));
+
+          return;
+        }
+      }
+
+      const dropped = videoConsent?.submission;
+
+      if (dropped?.kind === "url") {
+        setQuery((current) => (current === dropped.query ? "" : current));
+      }
+
+      setVideoConsent(undefined);
+      setType("Automatic");
+      setFormatOverride(undefined);
+      setConsentError("");
+    },
     format,
     importTorrent,
     locked,
@@ -229,5 +309,8 @@ export const useDownloadSubmission = ({
     submit,
     type,
     uncertain,
+    videoConsent,
+    videoToolsSize: videoTools.tools?.video.published_size ?? null,
+    videoTurnedOff: videoTools.tools?.video.state.kind === "turned_off",
   };
 };

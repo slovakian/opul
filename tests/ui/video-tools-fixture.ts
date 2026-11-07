@@ -16,6 +16,7 @@ interface ToolsEvent {
 declare global {
   interface Window {
     testVideoTools: {
+      snapshot: () => VideoToolsSnapshot;
       invoke: (
         name: string,
         args: DesktopInvokeArgs
@@ -157,6 +158,7 @@ export const mockVideoTools = async (page: Page, options: DesktopOptions) => {
 
           return callbackId;
         },
+        snapshot: () => structuredClone(currentTools.video),
       };
     },
     { mockOpts: options, tools: toolsSnapshot }

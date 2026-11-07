@@ -112,7 +112,7 @@ export const DownloadStatus = ({ download }: { download: Download }) => (
     )}
   >
     <StatusIcon state={download.state} />
-    {stateNames[download.state]}
+    {download.waiting_label ?? stateNames[download.state]}
   </span>
 );
 

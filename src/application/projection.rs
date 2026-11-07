@@ -58,10 +58,13 @@ pub(crate) struct DownloadProjection {
     pub(crate) output: Option<OutputArtifact>,
     pub(crate) telemetry: Option<TransferTelemetry>,
     pub(crate) capabilities: DownloadCapabilities,
+    pub(crate) waiting_label: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) struct DownloadCapabilities {
+    pub(crate) can_set_up_video_tools: bool,
+    pub(crate) can_retry_video_tools: bool,
     pub(crate) can_pause: bool,
     pub(crate) can_resume: bool,
     pub(crate) can_retry: bool,
@@ -108,6 +111,18 @@ pub(crate) fn project(state: &AppState, overlay: &RuntimeOverlay) -> AppProjecti
                         output: download.output.clone(),
                         telemetry: overlay.telemetry.get(&download.id).cloned(),
                         capabilities: capabilities(state, download),
+                        waiting_label: matches!(
+                            download.lifecycle,
+                            DownloadLifecycle::WaitingForVideoTools
+                        )
+                        .then(|| {
+                            match state.video_tools {
+                                VideoToolsAvailability::NotWorking => "Video tools aren't working",
+                                VideoToolsAvailability::TurnedOff => "Needs video tools",
+                                _ => "Waiting for video tools…",
+                            }
+                            .to_string()
+                        }),
                     })
                     .collect(),
             })
@@ -118,7 +133,17 @@ pub(crate) fn project(state: &AppState, overlay: &RuntimeOverlay) -> AppProjecti
 
 pub(crate) fn capabilities(state: &AppState, download: &Download) -> DownloadCapabilities {
     let mutable = matches!(state.session, SessionPhase::Running);
+    let waiting = matches!(download.lifecycle, DownloadLifecycle::WaitingForVideoTools);
     DownloadCapabilities {
+        can_set_up_video_tools: mutable
+            && waiting
+            && matches!(
+                state.video_tools,
+                VideoToolsAvailability::TurnedOff | VideoToolsAvailability::NotSetUp
+            ),
+        can_retry_video_tools: mutable
+            && waiting
+            && state.video_tools == VideoToolsAvailability::NotWorking,
         can_pause: mutable
             && matches!(
                 download.lifecycle,
@@ -138,7 +163,8 @@ pub(crate) fn capabilities(state: &AppState, download: &Download) -> DownloadCap
         can_cancel: mutable
             && matches!(
                 download.lifecycle,
-                DownloadLifecycle::Queued
+                DownloadLifecycle::WaitingForVideoTools
+                    | DownloadLifecycle::Queued
                     | DownloadLifecycle::Starting
                     | DownloadLifecycle::Active(_)
                     | DownloadLifecycle::Pausing { .. }

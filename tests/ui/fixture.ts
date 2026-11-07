@@ -7,12 +7,14 @@ import type { DesktopInvokeArgs, DesktopOptions } from "./fixture-options";
 import { mockFolderAddition } from "./folder-addition-fixture";
 import { mockPreferenceResponses } from "./preference-response-fixture";
 import { mockVideoTools } from "./video-tools-fixture";
+import { mockWaitingVideos } from "./waiting-video-fixture";
 import { mockWorkspaceExpansion } from "./workspace-expansion-fixture";
 
 export { preferences, snapshot } from "./fixture-data";
 
 export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
   await mockVideoTools(page, options);
+  await mockWaitingVideos(page);
   await mockFolderAddition(page, options);
   await mockWorkspaceExpansion(page, options);
   await mockPreferenceResponses(page, options);
@@ -82,6 +84,8 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
           // oxlint-disable-next-line eslint/complexity
           invoke: async (name: string, args: DesktopInvokeArgs = {}) => {
             if (name === "snapshot") {
+              window.testWaitingVideos.project(currentSnapshot);
+
               const held =
                 await window.testFolderAddition.snapshot(currentSnapshot);
 
@@ -310,6 +314,10 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
                     command.action === "Pause" ? "Paused" : "Fetching";
                   download.capabilities.can_pause = command.action !== "Pause";
                   download.capabilities.can_resume = command.action === "Pause";
+
+                  if (command.action === "Retry") {
+                    window.testWaitingVideos.retry(download);
+                  }
                 }
               }
 
@@ -490,13 +498,11 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
                   .find((item) => item.id === command.workspace_id)
                   ?.downloads.push({
                     ...defaultDownload,
-                    folder_id: command.folder_id,
-                    format: command.kind === "add_url" ? command.format : null,
+                    ...window.testWaitingVideos.addition(
+                      command,
+                      defaultDownload
+                    ),
                     id: downloadId,
-
-                    name: "new-file.zip",
-                    source_url:
-                      command.kind === "add_url" ? command.url : command.path,
                   });
               }
 
@@ -535,6 +541,8 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
                   );
                 }
               }
+
+              window.testWaitingVideos.project(currentSnapshot);
 
               if (mockOpts.persist) {
                 sessionStorage.setItem(

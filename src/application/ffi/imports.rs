@@ -69,6 +69,45 @@ impl OpulStateMachine {
         )
     }
 
+    pub fn add_video_page(
+        &self,
+        request: MachineMediaRequest,
+    ) -> Result<MachineCommandReceipt, StateMachineError> {
+        self.sync_video_tools()?;
+        let item = request
+            .items
+            .first()
+            .ok_or_else(|| StateMachineError::Rejected {
+                reason: "a video page requires a link".into(),
+            })?;
+        self.dispatch_request(
+            request.request_id,
+            request.expected_revision,
+            Command::AddMediaItems {
+                workspace: workspace_id(&request.workspace_id)?,
+                downloads: vec![Download {
+                    id: DownloadId::new(),
+                    folder: folder_id(&request.folder_id)?,
+                    name: item.url.clone(),
+                    attempt: 0,
+                    control_generation: 0,
+                    source: DownloadSource::Media(MediaDownload {
+                        origin: MediaOrigin::PendingPage {
+                            url: item.url.clone(),
+                        },
+                        format: format_from_view(request.format),
+                        policy: policy_from_view(&request.policy),
+                        legacy_binding: None,
+                        thumbnail_url: None,
+                        extractor: None,
+                    }),
+                    lifecycle: DownloadLifecycle::Queued,
+                    output: None,
+                }],
+            },
+        )
+    }
+
     pub fn add_media(
         &self,
         request: MachineMediaRequest,

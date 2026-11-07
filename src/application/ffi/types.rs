@@ -96,6 +96,7 @@ pub enum MachineSource {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum MachineDownloadState {
+    WaitingForVideoTools,
     Queued,
     Starting,
     Fetching,
@@ -118,6 +119,8 @@ pub enum MachineHoldCause {
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct MachineCapabilities {
+    pub can_set_up_video_tools: bool,
+    pub can_retry_video_tools: bool,
     pub can_pause: bool,
     pub can_resume: bool,
     pub can_retry: bool,
@@ -178,6 +181,7 @@ pub struct MachineDownload {
     pub extractor: Option<String>,
     pub playlist_index: Option<u32>,
     pub error_message: Option<String>,
+    pub waiting_label: Option<String>,
     pub files: Vec<MachineTorrentFile>,
     pub capabilities: MachineCapabilities,
 }

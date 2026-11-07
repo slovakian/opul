@@ -17,6 +17,20 @@ Ready carries the runtime number, Python version, yt-dlp version, nullable `last
 
 Tauri exposes `tools_snapshot` with `{ video, built_in: { ffmpeg, ffprobe } }`, `video_tools_execute`, `video_tools_details`, and pushed `video-tools` events. Settings subscribes before its initial read. Tools controls commit immediately and do not participate in the other Settings sections' draft or Save flow. Settings requests published metadata when Not set up; this fetches the signed pointer, the release tag and signed checksum metadata, then HEADs the script for its size. It never fetches executable payloads or grants consent. Failed metadata lookup leaves the `about 23 MB` fallback. Opening the module itself performs no network request.
 
+## Waiting Downloads
+
+Video submission stores an unprobed `PendingPage` in the application checkpoint before extraction. The accepted Download retains its identity, Workspace, Saved Folder, format, source URL and media policy. When tools are unavailable the reducer uses `WaitingForVideoTools`, with no transfer effect. Direct files and torrents continue through their existing paths.
+
+The application observes the managed tools snapshot before reconciliation, before accepting a video page or retry, and in the effect runner. It checkpoints availability changes as facts. Ready queues waiting rows and creates ordinary `EnsureTransfer` effects. Repeated Ready facts create no extra effects. Reconciliation fences these starts across restart, including when Ready arrives before the session becomes Running. The default Ready availability is omitted from checkpoints to preserve older checkpoint checksums and supports core callers without a managed-tools module; the desktop always supplies its manager before starting the runner.
+
+An `EnsureTransfer` for a pending page probes only after it is queued. Its resolved fact replaces the pending row at the same position, gives the first unique playlist entry the original identity, and inserts later entries in playlist order. It skips URLs already present in that Workspace. Other Workspaces have independent deduplication. The saved folder, format and policy apply to every accepted entry. A stale or repeated result cannot expand a cancelled, retried or already resolved page.
+
+The projection provides the waiting label and `can_set_up_video_tools` / `can_retry_video_tools` capabilities. Not working shows "Video tools aren't working" with Try again; Turned off shows "Needs video tools" with Set up. Frontend rows use these capabilities directly. Cancelling and removing waiting rows remain available.
+
+Submission in Not set up asks for consent with the published size or fallback. Download first saves the waiting row, then starts setup. A rejected add never starts setup. Not now, Esc and closing the dialog drop the pending submission; Don't show this again with dismissal persists Turned off. While Setting up, submissions need no second prompt. Turned off disables Video in type controls with the Settings explanation and suppresses submission offers. Explicit Set up from an existing waiting row is consent to re-enable tools.
+
+Removal and returning already running transfers to waiting remain #66's responsibility. Use the waiting lifecycle and existing projected recovery capabilities when implementing that operation.
+
 ## Verification and pairing
 
 1. Fetch the fixed Opul pointer and its raw Ed25519 signature. Verify exact JSON bytes before parsing. Retry a mismatched pointer/signature pair once, since publication replaces two assets.
@@ -51,7 +65,7 @@ For a real packaged check, build an app with version at least 0.2.2, then run `S
 ## Handoff
 
 - #62 supplies range resume, injected reachability/timing, retry scheduling, startup cleanup/pruning and recovery tests. See [the recovery evidence](evidence/video-tools-62.md). #65 must maintain `previous_runtime` and `previous_yt_dlp` when changing the selected pair, and clear them according to its retention policy.
-- #63 consumes module snapshots to represent waiting Downloads in the application reducer and projection, and supplies consent at video submission. This slice reports unavailable tools as a normal dependency error.
+- #63 supplies durable waiting Downloads, submission consent and projected recovery actions. See [waiting Downloads](#waiting-downloads).
 - #64 adds first-launch Setup, dismissal memory, the Help menu and sidebar progress. Reuse the public operations, snapshot and `VideoToolsProgress`; do not create a second setup owner.
 - #65 adds manual update operations, idle-transfer coordination, health-check pairing against newer runtimes, retained versions, rollback and timestamps. #67 adds scheduled checks and update notifications. The exclusive Ready flag and immediate preference are established here; no updater runs in this slice.
 - #68 adds Nightly's yt-dlp source switch and compatibility workflow. Stable/Nightly data and preferences are already isolated.

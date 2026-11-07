@@ -19,6 +19,7 @@ impl OpulStateMachine {
         &self,
         request: MachineDownloadCommand,
     ) -> Result<MachineCommandReceipt, StateMachineError> {
+        self.sync_video_tools()?;
         self.download_command(request, |download| Command::Retry { download })
     }
 

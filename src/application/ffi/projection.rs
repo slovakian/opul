@@ -156,8 +156,11 @@ pub(super) fn download_view(download: DownloadProjection) -> MachineDownload {
         extractor,
         playlist_index: playlist,
         error_message,
+        waiting_label: download.waiting_label,
         files,
         capabilities: MachineCapabilities {
+            can_set_up_video_tools: download.capabilities.can_set_up_video_tools,
+            can_retry_video_tools: download.capabilities.can_retry_video_tools,
             can_pause: download.capabilities.can_pause,
             can_resume: download.capabilities.can_resume,
             can_retry: download.capabilities.can_retry,
@@ -227,6 +230,12 @@ pub(super) fn actor_source_fields(download: &DownloadProjection) -> SourceFields
         }
         DownloadSource::Media(media) => {
             let (source, source_url, page_url, playlist_index) = match &media.origin {
+                MediaOrigin::PendingPage { url } => (
+                    MachineSource::VideoPage,
+                    url.clone(),
+                    Some(url.clone()),
+                    None,
+                ),
                 MediaOrigin::Page {
                     page_url,
                     item_url,
@@ -271,6 +280,9 @@ pub(super) fn lifecycle_view(
     Option<String>,
 ) {
     match lifecycle {
+        DownloadLifecycle::WaitingForVideoTools => {
+            (MachineDownloadState::WaitingForVideoTools, None, None)
+        }
         DownloadLifecycle::Queued => (MachineDownloadState::Queued, None, None),
         DownloadLifecycle::Starting => (MachineDownloadState::Starting, None, None),
         DownloadLifecycle::Active(phase) => (phase_view(*phase), None, None),

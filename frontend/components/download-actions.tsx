@@ -114,7 +114,34 @@ export const DownloadActions = ({
     });
   }
 
+  const recoverVideoTools = async () => {
+    try {
+      await bridge.videoToolsExecute({
+        kind: caps.can_retry_video_tools ? "retry" : "set_up",
+      });
+    } catch (error) {
+      toast.add({
+        description: errorMessage(error),
+        title: "Couldn't set up video tools",
+        type: "error",
+      });
+    }
+  };
+
   const renderPrimaryAction = () => {
+    if (caps.can_set_up_video_tools || caps.can_retry_video_tools) {
+      return (
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={busy}
+          onClick={recoverVideoTools}
+        >
+          {caps.can_retry_video_tools ? "Try again" : "Set up"}
+        </Button>
+      );
+    }
+
     if (caps.can_pause) {
       return (
         <Button

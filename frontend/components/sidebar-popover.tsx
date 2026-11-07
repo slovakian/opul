@@ -165,7 +165,12 @@ export const Choice = <T extends string>({
 }: {
   label: string;
   value: T;
-  options: readonly { value: T; label: string; content?: ReactNode }[];
+  options: readonly {
+    value: T;
+    label: string;
+    content?: ReactNode;
+    disabled?: boolean;
+  }[];
   onChange: (value: T) => void;
   disabled?: boolean;
 }) => {
@@ -195,6 +200,7 @@ export const Choice = <T extends string>({
         {
           actions: options.map((option) => ({
             content: option.content,
+            disabled: option.disabled,
             label: option.label,
             onClick: () => onChange(option.value),
             selected: value === option.value,

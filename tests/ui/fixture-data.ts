@@ -23,7 +23,9 @@ export const baseDownload: Download = {
     can_remove: true,
     can_resume: false,
     can_retry: false,
+    can_retry_video_tools: false,
     can_reveal_output: false,
+    can_set_up_video_tools: false,
     can_stop_seeding: false,
   },
   comment: null,
@@ -56,6 +58,7 @@ export const baseDownload: Download = {
   total_size: 52_428_800,
   trackers: [],
   upload_rate: 0,
+  waiting_label: null,
 };
 
 export const preferences: Preferences = {

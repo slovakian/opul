@@ -8,10 +8,14 @@ impl OpulStateMachine {
         let guided = Arc::clone(&self.guided);
         let platform = Arc::clone(&self.platform_effects);
         let stop = Arc::clone(&self.stop);
+        let video_tools = self.video_tools.clone();
         let runner = thread::Builder::new()
             .name("opul-effect-runner".to_string())
             .spawn(move || {
                 while !stop.load(Ordering::Acquire) {
+                    if let Some(tools) = &video_tools {
+                        let _ = observe_video_tools(&actor, tools);
+                    }
                     match actor.claim_effect() {
                         Ok(Some(effect)) => {
                             execute_effect(&actor, &torrent, &media, &guided, &platform, effect)
@@ -128,5 +132,32 @@ impl Drop for OpulStateMachine {
         {
             let _ = runner.join();
         }
+    }
+}
+
+pub(super) fn observe_video_tools(
+    actor: &ApplicationActor,
+    tools: &crate::video_tools::VideoTools,
+) -> Result<(), StateMachineError> {
+    use crate::video_tools::VideoToolsState;
+    let availability = match tools.snapshot().state {
+        VideoToolsState::NotSetUp => VideoToolsAvailability::NotSetUp,
+        VideoToolsState::TurnedOff => VideoToolsAvailability::TurnedOff,
+        VideoToolsState::SettingUp { .. } => VideoToolsAvailability::SettingUp,
+        VideoToolsState::Ready { .. } => VideoToolsAvailability::Ready,
+        VideoToolsState::NotWorking { .. } => VideoToolsAvailability::NotWorking,
+    };
+    actor
+        .observe(Fact::VideoToolsChanged(availability))
+        .map_err(actor_error)?;
+    Ok(())
+}
+
+impl OpulStateMachine {
+    pub(super) fn sync_video_tools(&self) -> Result<(), StateMachineError> {
+        if let Some(tools) = &self.video_tools {
+            observe_video_tools(&self.actor, tools)?;
+        }
+        Ok(())
     }
 }

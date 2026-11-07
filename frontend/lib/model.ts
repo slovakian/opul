@@ -72,7 +72,9 @@ export const downloadSchema = z.object({
     can_remove: z.boolean(),
     can_resume: z.boolean(),
     can_retry: z.boolean(),
+    can_retry_video_tools: z.boolean().default(false),
     can_reveal_output: z.boolean(),
+    can_set_up_video_tools: z.boolean().default(false),
     can_stop_seeding: z.boolean(),
   }),
   comment: z.string().nullable(),
@@ -101,6 +103,7 @@ export const downloadSchema = z.object({
   source: z.enum(["Torrent", "VideoPage", "Direct", "Guided"]),
   source_url: z.string(),
   state: z.enum([
+    "WaitingForVideoTools",
     "Queued",
     "Starting",
     "Fetching",
@@ -117,6 +120,7 @@ export const downloadSchema = z.object({
   total_size: z.number(),
   trackers: z.array(z.string()),
   upload_rate: z.number(),
+  waiting_label: z.string().nullable().default(null),
 });
 
 export const treatmentParametersSchema = z.object({
@@ -330,6 +334,7 @@ export const stateNames: Record<Download["state"], string> = {
   Seeding: "Seeding",
   Starting: "Starting",
   Verifying: "Verifying",
+  WaitingForVideoTools: "Waiting for video tools…",
 };
 
 export const sourceNames: Record<Download["source"], string> = {
