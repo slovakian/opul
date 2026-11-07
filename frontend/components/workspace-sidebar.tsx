@@ -133,7 +133,9 @@ export const WorkspaceSidebar = ({
 
   const active = allDownloads.filter(
     (download) =>
-      download.capabilities.can_pause || download.state === "Pausing"
+      download.capabilities.can_pause ||
+      download.state === "Pausing" ||
+      download.state === "WaitingForVideoTools"
   );
 
   const downloadRate = allDownloads.reduce(

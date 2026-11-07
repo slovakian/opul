@@ -37,7 +37,11 @@ export const filterAndSortDownloads = ({
     }
 
     if (effectiveFilter === "active") {
-      return download.capabilities.can_pause || download.state === "Pausing";
+      return (
+        download.capabilities.can_pause ||
+        download.state === "Pausing" ||
+        download.state === "WaitingForVideoTools"
+      );
     }
 
     if (effectiveFilter === "finished") {

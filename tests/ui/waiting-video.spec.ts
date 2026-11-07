@@ -159,6 +159,16 @@ test("Setting up accepts without another consent dialog and Not working offers p
   await expect(
     page.getByText("Waiting for video tools…", { exact: true })
   ).toBeVisible();
+
+  const inProgress = page
+    .getByRole("navigation", { name: "Workspace navigation" })
+    .getByRole("button", { name: /^In progress/u });
+
+  await expect(inProgress.locator("..")).toContainText("2");
+  await inProgress.click();
+  await expect(
+    page.getByText("Waiting for video tools…", { exact: true })
+  ).toBeVisible();
   await push(page, {
     ...initial,
     sequence: 8,
@@ -284,7 +294,7 @@ test("a rejected waiting Download keeps consent open and does not start setup", 
     .click();
   await expect(consent(page)).toHaveCount(0);
   await expect(
-    page.getByRole("button", { name: "Waiting video", exact: true })
+    page.getByRole("button", { exact: true, name: "Waiting video" })
   ).toHaveCount(1);
   expect(
     await page.evaluate(() => window.testVideoTools.snapshot().state.kind)
