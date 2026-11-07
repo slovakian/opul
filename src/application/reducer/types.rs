@@ -116,6 +116,12 @@ impl Eq for Command {}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) enum Fact {
     VideoToolsChanged(VideoToolsAvailability),
+    MediaPageFailed {
+        download: DownloadId,
+        attempt: u32,
+        control_generation: u64,
+        message: String,
+    },
     MediaPageResolved {
         download: DownloadId,
         attempt: u32,

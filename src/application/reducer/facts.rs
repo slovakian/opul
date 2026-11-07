@@ -3,6 +3,18 @@ use super::*;
 pub(crate) fn decide_fact(state: &AppState, fact: &Fact) -> Result<Decision, Rejection> {
     match fact {
         Fact::VideoToolsChanged(availability) => Ok(decide_video_tools(state, *availability)),
+        Fact::MediaPageFailed {
+            download,
+            attempt,
+            control_generation,
+            message,
+        } => Ok(decide_page_failed(
+            state,
+            *download,
+            *attempt,
+            *control_generation,
+            message,
+        )),
         Fact::MediaPageResolved {
             download,
             attempt,

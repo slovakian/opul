@@ -104,6 +104,7 @@ pub(super) fn probe_with_ytdlp(
     yt_dlp: &YtDlpCommand,
     cookie_path: Option<&Path>,
     url: &str,
+    mut keep_running: impl FnMut() -> bool,
 ) -> Result<MediaProbe, CoreError> {
     let mut command = yt_dlp.command();
     command.args(["--dump-single-json", "--flat-playlist", "--no-warnings"]);
@@ -111,9 +112,82 @@ pub(super) fn probe_with_ytdlp(
         command.arg("--cookies").arg(cookie_path);
     }
     command.arg("--").arg(url);
-    let output = command.output().map_err(|error| CoreError::Extraction {
+    use std::io::Read;
+    let cancelled = || CoreError::Extraction {
+        reason: "Video page inspection stopped.".into(),
+    };
+    if !keep_running() {
+        return Err(cancelled());
+    }
+    command
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .process_group(0);
+    let mut child = command.spawn().map_err(|error| CoreError::Extraction {
         reason: format!("could not run yt-dlp: {error}"),
     })?;
+    let mut stdout = child.stdout.take().expect("piped stdout");
+    let mut stderr = child.stderr.take().expect("piped stderr");
+    let stdout_reader = thread::spawn(move || {
+        let mut bytes = Vec::new();
+        stdout.read_to_end(&mut bytes).map(|_| bytes)
+    });
+    let stderr_reader = thread::spawn(move || {
+        let mut bytes = Vec::new();
+        stderr.read_to_end(&mut bytes).map(|_| bytes)
+    });
+    let started = Instant::now();
+    let status = loop {
+        if !keep_running() || started.elapsed() >= Duration::from_secs(120) {
+            signal_process(child.id(), "KILL");
+            let _ = child.wait();
+            let _ = stdout_reader.join();
+            let _ = stderr_reader.join();
+            return Err(if started.elapsed() >= Duration::from_secs(120) {
+                CoreError::Extraction {
+                    reason: "Video page inspection timed out. Try again.".into(),
+                }
+            } else {
+                cancelled()
+            });
+        }
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) => thread::sleep(Duration::from_millis(100)),
+            Err(error) => {
+                signal_process(child.id(), "KILL");
+                let _ = child.wait();
+                let _ = stdout_reader.join();
+                let _ = stderr_reader.join();
+                return Err(CoreError::Extraction {
+                    reason: format!("could not inspect yt-dlp process: {error}"),
+                });
+            }
+        }
+    };
+    // A wrapper may exit while descendants still own the pipes. End this probe's process
+    // group before joining readers so cancellation and shutdown cannot wait on those children.
+    let _ = Command::new("/bin/kill")
+        .arg("-KILL")
+        .arg("--")
+        .arg(format!("-{}", child.id()))
+        .stderr(Stdio::null())
+        .status();
+    let read_output = |reader: thread::JoinHandle<std::io::Result<Vec<u8>>>| {
+        reader
+            .join()
+            .map_err(|_| CoreError::Extraction {
+                reason: "could not read video page metadata".into(),
+            })?
+            .map_err(|error| CoreError::Extraction {
+                reason: format!("could not read video page metadata: {error}"),
+            })
+    };
+    let output = std::process::Output {
+        status,
+        stdout: read_output(stdout_reader)?,
+        stderr: read_output(stderr_reader)?,
+    };
     if !output.status.success() {
         return Err(CoreError::Extraction {
             reason: concise_process_error(&output.stderr, "yt-dlp could not inspect that address"),

@@ -62,19 +62,9 @@ pub(super) fn decide_page_resolved(
     generation: u64,
     items: &[Download],
 ) -> Result<Decision, Rejection> {
-    let Some((workspace_id, pending)) = state.locate_download(id) else {
+    let Some((workspace_id, pending)) = pending_page(state, id, attempt, generation) else {
         return Ok(Decision::none());
     };
-    if pending.attempt != attempt
-        || pending.control_generation != generation
-        || !matches!(
-            pending.lifecycle,
-            DownloadLifecycle::Queued | DownloadLifecycle::Starting
-        )
-        || !matches!(&pending.source, DownloadSource::Media(media) if matches!(media.origin, MediaOrigin::PendingPage { .. }))
-    {
-        return Ok(Decision::none());
-    }
     let workspace = state.workspace(workspace_id).unwrap();
     let mut keys = workspace
         .downloads
@@ -96,6 +86,7 @@ pub(super) fn decide_page_resolved(
         item.folder = pending.folder;
         item.attempt = pending.attempt;
         item.control_generation = pending.control_generation;
+        item.lifecycle = DownloadLifecycle::Queued;
         if let (DownloadSource::Media(media), DownloadSource::Media(original)) =
             (&mut item.source, &pending.source)
         {
@@ -121,4 +112,45 @@ pub(super) fn decide_page_resolved(
         });
     }
     Ok(decision)
+}
+
+fn pending_page(
+    state: &AppState,
+    id: DownloadId,
+    attempt: u32,
+    generation: u64,
+) -> Option<(WorkspaceId, &Download)> {
+    let (workspace_id, pending) = state.locate_download(id)?;
+    if !matches!(state.session, SessionPhase::Running)
+        || pending.attempt != attempt
+        || pending.control_generation != generation
+        || !matches!(
+            pending.lifecycle,
+            DownloadLifecycle::Queued | DownloadLifecycle::Starting
+        )
+        || !matches!(&pending.source, DownloadSource::Media(media) if matches!(media.origin, MediaOrigin::PendingPage { .. }))
+    {
+        return None;
+    }
+    Some((workspace_id, pending))
+}
+
+pub(super) fn decide_page_failed(
+    state: &AppState,
+    id: DownloadId,
+    attempt: u32,
+    generation: u64,
+    message: &str,
+) -> Decision {
+    if pending_page(state, id, attempt, generation).is_none() {
+        return Decision::none();
+    }
+    simple(Event::DownloadLifecycleChanged {
+        download: id,
+        lifecycle: DownloadLifecycle::Failed {
+            message: message.to_string(),
+            retryable: true,
+        },
+        control_generation: generation,
+    })
 }

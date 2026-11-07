@@ -27,6 +27,7 @@ mod imports;
 
 mod commands;
 
+mod page_probes;
 mod runner;
 
 mod effects;

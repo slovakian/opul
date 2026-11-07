@@ -399,3 +399,5 @@ fn activation_failure_preserves_the_committed_state_and_retry_selects_a_complete
 mod recovery;
 
 mod crash;
+
+mod waiting_downloads;

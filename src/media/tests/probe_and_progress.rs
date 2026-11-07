@@ -298,3 +298,47 @@ fn cookie_paths_are_derived_from_engine_owned_ids() {
         Some(directory.join(format!("{id}.txt")))
     );
 }
+
+#[test]
+fn metadata_probe_cancellation_kills_the_process_and_preserves_error_text() {
+    let root = tempfile::tempdir().unwrap();
+    let tool = root.path().join("probe");
+    fs::write(&tool, "#!/bin/sh\nexec /bin/sleep 30\n").unwrap();
+    fs::set_permissions(&tool, fs::Permissions::from_mode(0o755)).unwrap();
+    let command = crate::media::types::YtDlpCommand::DeveloperOverride(tool.clone());
+    let started = Instant::now();
+    let result =
+        crate::media::probe::probe_with_ytdlp(&command, None, "https://example.com/page", || {
+            started.elapsed() < Duration::from_millis(200)
+        });
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("inspection stopped")
+    );
+    assert!(started.elapsed() < Duration::from_secs(3));
+    fs::write(
+        &tool,
+        "#!/bin/sh\nprintf '%s' 'The site says: access refused' >&2\nexit 1\n",
+    )
+    .unwrap();
+    let error =
+        crate::media::probe::probe_with_ytdlp(&command, None, "https://example.com/page", || true)
+            .unwrap_err();
+    assert!(error.to_string().contains("The site says: access refused"));
+}
+
+#[test]
+fn metadata_probe_does_not_wait_on_pipes_inherited_by_descendants() {
+    let root = tempfile::tempdir().unwrap();
+    let tool = root.path().join("probe");
+    fs::write(&tool, "#!/bin/sh\n/bin/sleep 30 &\nexit 0\n").unwrap();
+    fs::set_permissions(&tool, fs::Permissions::from_mode(0o755)).unwrap();
+    let command = crate::media::types::YtDlpCommand::DeveloperOverride(tool);
+    let started = Instant::now();
+    let result =
+        crate::media::probe::probe_with_ytdlp(&command, None, "https://example.com/page", || true);
+    assert!(result.unwrap_err().to_string().contains("invalid metadata"));
+    assert!(started.elapsed() < Duration::from_secs(3));
+}

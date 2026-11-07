@@ -314,3 +314,112 @@ fn ready_during_reconciliation_waits_for_the_session_fence() {
         }
     );
 }
+
+#[test]
+fn resumed_pending_page_queues_resolved_entries() {
+    let mut state = AppState::fresh("/tmp/Films".into());
+    state.session = SessionPhase::Running;
+    let mut pending = page(&state);
+    if let DownloadSource::Media(media) = &mut pending.source {
+        media.origin = MediaOrigin::PendingPage {
+            url: "https://example.com/playlist".into(),
+        };
+    }
+    pending.lifecycle = DownloadLifecycle::Starting;
+    state.workspaces[0].downloads.push(pending.clone());
+    let mut resolved = page(&state);
+    resolved.lifecycle = DownloadLifecycle::Starting;
+    let decision = decide_fact(
+        &state,
+        &Fact::MediaPageResolved {
+            download: pending.id,
+            attempt: 0,
+            control_generation: 0,
+            items: vec![resolved],
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        decision.effects.len(),
+        1,
+        "resolving a resumed page must start its transfer"
+    );
+    let next = evolve(&state, &decision).unwrap();
+    assert_eq!(
+        next.workspaces[0].downloads[0].lifecycle,
+        DownloadLifecycle::Queued
+    );
+}
+
+#[test]
+fn pausing_an_unresolved_page_needs_no_adapter_acknowledgement() {
+    let mut state = AppState::fresh("/tmp/Films".into());
+    state.session = SessionPhase::Running;
+    let mut download = page(&state);
+    if let DownloadSource::Media(media) = &mut download.source {
+        media.origin = MediaOrigin::PendingPage {
+            url: "https://example.com/playlist".into(),
+        };
+    }
+    state.workspaces[0].downloads.push(download.clone());
+    let decision = decide(
+        &state,
+        &command(Command::Pause {
+            download: download.id,
+        }),
+    )
+    .unwrap();
+    assert!(decision.effects.is_empty());
+    let paused = evolve(&state, &decision).unwrap();
+    let projected = project(&paused, &RuntimeOverlay::default());
+    assert!(projected.workspaces[0].downloads[0].capabilities.can_resume);
+    let resumed = evolve(
+        &paused,
+        &decide(
+            &paused,
+            &command(Command::Resume {
+                download: download.id,
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        resumed.workspaces[0].downloads[0].lifecycle,
+        DownloadLifecycle::Starting
+    );
+}
+
+#[test]
+fn stale_probe_failures_cannot_overwrite_pause_cancel_or_shutdown() {
+    let mut state = AppState::fresh("/tmp/Films".into());
+    state.session = SessionPhase::Running;
+    let mut download = page(&state);
+    if let DownloadSource::Media(media) = &mut download.source {
+        media.origin = MediaOrigin::PendingPage {
+            url: "https://example.com/playlist".into(),
+        };
+    }
+    state.workspaces[0].downloads.push(download.clone());
+    let failure = Fact::MediaPageFailed {
+        download: download.id,
+        attempt: 0,
+        control_generation: 0,
+        message: "late failure".into(),
+    };
+    assert_eq!(decide_fact(&state, &failure).unwrap().events.len(), 1);
+    for action in [
+        Command::Pause {
+            download: download.id,
+        },
+        Command::Cancel {
+            download: download.id,
+        },
+        Command::BeginShutdown {
+            boot: BootId::new(),
+        },
+    ] {
+        let next = evolve(&state, &decide(&state, &command(action)).unwrap()).unwrap();
+        assert!(decide_fact(&next, &failure).unwrap().events.is_empty());
+    }
+}

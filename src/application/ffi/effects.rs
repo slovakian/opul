@@ -15,47 +15,6 @@ pub(super) fn execute_effect(
                 context.ok_or_else(|| ActorError::Rejected("download disappeared".to_string()))
             })
             .and_then(|context| {
-                if let DownloadSource::Media(source) = &context.download.source
-                    && let MediaOrigin::PendingPage { url } = &source.origin
-                {
-                    if !matches!(
-                        context.download.lifecycle,
-                        DownloadLifecycle::Queued | DownloadLifecycle::Starting
-                    ) {
-                        return actor.complete_effect(effect.id, Vec::new());
-                    }
-                    let probe = media
-                        .probe_url(url.clone())
-                        .map_err(|error| ActorError::Rejected(error.to_string()))?;
-                    let items = probe
-                        .items
-                        .into_iter()
-                        .map(|item| {
-                            let mut download = context.download.clone();
-                            download.id = DownloadId::new();
-                            download.name = item.title;
-                            let mut source = source.clone();
-                            source.origin = MediaOrigin::Page {
-                                page_url: probe.webpage_url.clone(),
-                                item_url: item.webpage_url,
-                                playlist_index: item.playlist_index,
-                            };
-                            source.thumbnail_url = item.thumbnail_url;
-                            source.extractor = item.extractor;
-                            download.source = DownloadSource::Media(source);
-                            download
-                        })
-                        .collect();
-                    return actor.complete_effect(
-                        effect.id,
-                        vec![Fact::MediaPageResolved {
-                            download: context.download.id,
-                            attempt: context.download.attempt,
-                            control_generation: context.download.control_generation,
-                            items,
-                        }],
-                    );
-                }
                 ensure_transfer(torrent, media, guided, &context)
                     .map_err(|error| ActorError::Rejected(error.to_string()))?;
                 actor.complete_effect(

@@ -120,6 +120,17 @@ pub(super) fn decide_pause(
         _ => return Err(invalid("pause", &item.lifecycle)),
     };
     let generation = item.control_generation + 1;
+    if matches!(&item.source, DownloadSource::Media(media) if matches!(media.origin, MediaOrigin::PendingPage { .. }))
+    {
+        return Ok(simple(Event::DownloadLifecycleChanged {
+            download: id,
+            lifecycle: DownloadLifecycle::Paused {
+                resume: phase,
+                cause,
+            },
+            control_generation: generation,
+        }));
+    }
     Ok(Decision {
         events: vec![Event::DownloadLifecycleChanged {
             download: id,

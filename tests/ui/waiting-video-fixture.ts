@@ -9,19 +9,7 @@ declare global {
     testWaitingVideos: {
       project: (snapshot: Snapshot) => void;
       retry: (download: Download) => void;
-      addition: (
-        command: ImportCommand,
-        base: Download
-      ) => Pick<
-        Download,
-        | "folder_id"
-        | "format"
-        | "source_url"
-        | "name"
-        | "source"
-        | "state"
-        | "capabilities"
-      >;
+      addition: (command: ImportCommand, base: Download) => Download;
     };
   }
 }
@@ -33,16 +21,22 @@ export const mockWaitingVideos = async (page: Page) => {
         const video = command.kind === "add_url" && command.mode === "Page";
 
         return {
+          ...base,
+          bytes_downloaded: video ? 0 : base.bytes_downloaded,
           capabilities: { ...base.capabilities, can_pause: !video },
+          download_rate: video ? 0 : base.download_rate,
+          eta_seconds: video ? null : base.eta_seconds,
           folder_id: command.folder_id,
           format: command.kind === "add_url" ? command.format : null,
           name: video ? "Waiting video" : "new-file.zip",
+          progress_millionths: video ? 0 : base.progress_millionths,
           source: video ? "VideoPage" : base.source,
           source_url: command.kind === "add_url" ? command.url : command.path,
           state:
             video && window.testVideoTools.snapshot().state.kind !== "ready"
               ? "WaitingForVideoTools"
               : base.state,
+          total_size: video ? 0 : base.total_size,
         };
       },
       project: (snapshot) => {

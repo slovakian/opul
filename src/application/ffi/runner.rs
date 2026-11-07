@@ -9,6 +9,11 @@ impl OpulStateMachine {
         let platform = Arc::clone(&self.platform_effects);
         let stop = Arc::clone(&self.stop);
         let video_tools = self.video_tools.clone();
+        let (probe_sender, probe_worker) = super::page_probes::start_worker(
+            Arc::clone(&actor),
+            Arc::clone(&media),
+            Arc::clone(&stop),
+        )?;
         let runner = thread::Builder::new()
             .name("opul-effect-runner".to_string())
             .spawn(move || {
@@ -18,7 +23,13 @@ impl OpulStateMachine {
                     }
                     match actor.claim_effect() {
                         Ok(Some(effect)) => {
-                            execute_effect(&actor, &torrent, &media, &guided, &platform, effect)
+                            if super::page_probes::is_page_probe(&actor, &effect) {
+                                let _ = probe_sender.send(effect);
+                            } else {
+                                execute_effect(
+                                    &actor, &torrent, &media, &guided, &platform, effect,
+                                );
+                            }
                         }
                         Ok(None) => {
                             observe_adapters(&actor, &torrent, &media);
@@ -27,6 +38,8 @@ impl OpulStateMachine {
                         Err(_) => thread::sleep(Duration::from_millis(250)),
                     }
                 }
+                drop(probe_sender);
+                let _ = probe_worker.join();
                 torrent.stop_all();
                 media.stop_all();
             })

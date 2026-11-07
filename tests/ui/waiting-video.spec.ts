@@ -262,3 +262,31 @@ test("a retried video in Turned off waits and offers projected Set up", async ({
     page.getByText("Waiting for video tools…", { exact: true })
   ).toBeVisible();
 });
+
+test("a rejected waiting Download keeps consent open and does not start setup", async ({
+  page,
+}) => {
+  await mockDesktop(page, { failFirstAdd: true, videoTools: initial });
+  await page.goto("/");
+  await submitVideo(page);
+  await consent(page)
+    .getByRole("button", { exact: true, name: "Download" })
+    .click();
+  await expect(
+    page.getByText("Couldn't add download. Try again.", { exact: true })
+  ).toBeVisible();
+  await expect(consent(page)).toBeVisible();
+  expect(
+    await page.evaluate(() => window.testVideoTools.snapshot().state.kind)
+  ).toBe("not_set_up");
+  await consent(page)
+    .getByRole("button", { exact: true, name: "Download" })
+    .click();
+  await expect(consent(page)).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Waiting video", exact: true })
+  ).toHaveCount(1);
+  expect(
+    await page.evaluate(() => window.testVideoTools.snapshot().state.kind)
+  ).toBe("setting_up");
+});
