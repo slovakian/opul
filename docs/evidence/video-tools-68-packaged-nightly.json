@@ -1,0 +1,4 @@
+{
+  "evidence": "Video tools: Ready { installed: InstalledPair { runtime: 1, python_version: \"3.13.18\", yt_dlp: \"2026.10.26\", yt_dlp_channel: Stable }, last_checked: None, update_flag: None }\nInstalled: Some(InstalledPair { runtime: 1, python_version: \"3.13.18\", yt_dlp: \"2026.10.26\", yt_dlp_channel: Stable })\nCandidate runtime / yt-dlp: Some((1, \"2026.10.26\"))\nChip: aarch64\nOpul: 0.2.2-nightly.20261108.68\nOutput: /var/folders/8l/rlrwlz1x51ggh7rszhh5_gvh0000gn/T/opul-video-smoke.LGeJZc/downloads/trailer.mp4, 11053871 bytes\nBuilt in: BuiltInToolVersions { ffmpeg: Some(\"9.0.2\"), ffprobe: Some(\"9.0.2\") }",
+  "ok": true
+}
