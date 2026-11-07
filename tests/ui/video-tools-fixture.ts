@@ -82,7 +82,9 @@ export const mockVideoTools = async (page: Page, options: DesktopOptions) => {
           }
 
           if (name === "video_tools_details") {
-            return "Video tools failed. Python runtime 1, yt-dlp 2026.10.26, chip arm64.";
+            const failure = currentTools.video.state;
+
+            return `Video tools: ${failure.kind}${failure.kind === "not_working" ? `\n${failure.reason}: ${failure.details}` : ""}\nPython runtime 1, yt-dlp 2026.10.26, chip arm64, Opul 0.2.2.`;
           }
 
           if (

@@ -24,12 +24,20 @@ pub(super) struct Response {
     pub(super) bytes: Vec<u8>,
     pub(super) redirect: Option<String>,
     pub(super) delay: Duration,
+    pub(super) interruptions: usize,
+    pub(super) ignore_range: bool,
+    pub(super) failures: usize,
+    pub(super) failure_status: u16,
+    pub(super) corruptions: usize,
+    pub(super) range_header: Option<String>,
 }
 pub(super) struct Fixture {
     pub(super) config: VideoToolsConfig,
     pub(super) sources: super::install::Sources,
     pub(super) routes: Arc<Mutex<HashMap<String, Response>>>,
     pub(super) hits: Arc<Mutex<Vec<String>>>,
+    pub(super) network: Arc<FakeNetwork>,
+    pub(super) ranges: Arc<Mutex<Vec<(String, u64)>>>,
     pub(super) stop: Arc<AtomicBool>,
     pub(super) server: Option<thread::JoinHandle<()>>,
     pub(super) _temp: tempfile::TempDir,
@@ -116,6 +124,12 @@ impl Fixture {
                         bytes,
                         redirect: None,
                         delay: Duration::ZERO,
+                        interruptions: 0,
+                        ignore_range: false,
+                        failures: 0,
+                        failure_status: 503,
+                        corruptions: 0,
+                        range_header: None,
                     },
                 )
             })
@@ -126,6 +140,12 @@ impl Fixture {
                 bytes: vec![],
                 redirect: Some(format!("{base}/yt/releases/tag/2026.10.26")),
                 delay: Duration::ZERO,
+                interruptions: 0,
+                ignore_range: false,
+                failures: 0,
+                failure_status: 503,
+                corruptions: 0,
+                range_header: None,
             },
         );
         routes.insert(
@@ -134,13 +154,22 @@ impl Fixture {
                 bytes: vec![],
                 redirect: None,
                 delay: Duration::ZERO,
+                interruptions: 0,
+                ignore_range: false,
+                failures: 0,
+                failure_status: 503,
+                corruptions: 0,
+                range_header: None,
             },
         );
         let routes = Arc::new(Mutex::new(routes));
         let hits = Arc::new(Mutex::new(Vec::new()));
+        let network = Arc::new(FakeNetwork::new());
+        let ranges = Arc::new(Mutex::new(Vec::new()));
         let stop = Arc::new(AtomicBool::new(false));
         let server = {
             let (routes, hits, stop) = (Arc::clone(&routes), Arc::clone(&hits), Arc::clone(&stop));
+            let ranges = Arc::clone(&ranges);
             thread::spawn(move || {
                 while !stop.load(Ordering::Relaxed) {
                     let Ok((mut stream, _)) = listener.accept() else {
@@ -173,10 +202,46 @@ impl Fixture {
                     let method = parts.next().unwrap_or("");
                     let path = parts.next().unwrap_or("").to_string();
                     hits.lock().unwrap().push(format!("{method} {path}"));
-                    let response = routes.lock().unwrap().get(&path).cloned();
-                    if let Some(response) = response {
+                    let offset = request
+                        .lines()
+                        .find_map(|line| {
+                            line.to_ascii_lowercase()
+                                .strip_prefix("range: bytes=")
+                                .and_then(|s| s.strip_suffix('-'))
+                                .and_then(|s| s.parse::<u64>().ok())
+                        })
+                        .unwrap_or(0);
+                    if offset > 0 {
+                        ranges.lock().unwrap().push((path.clone(), offset));
+                    }
+                    let response = {
+                        let mut routes = routes.lock().unwrap();
+                        let response = routes.get_mut(&path);
+                        response.map(|r| {
+                            let copy = r.clone();
+                            r.interruptions = r.interruptions.saturating_sub(1);
+                            r.failures = r.failures.saturating_sub(1);
+                            r.corruptions = r.corruptions.saturating_sub(1);
+                            copy
+                        })
+                    };
+                    if let Some(mut response) = response {
+                        if response.corruptions > 0 && !response.bytes.is_empty() {
+                            response.bytes[0] ^= 1;
+                        }
+                        if response.failures > 0 {
+                            let _ = stream.write_all(format!("HTTP/1.1 {} Fixture failure\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", response.failure_status).as_bytes());
+                            continue;
+                        }
                         thread::sleep(response.delay);
-                        let status = if response.redirect.is_some() {
+                        let offset = if response.ignore_range {
+                            0
+                        } else {
+                            offset as usize
+                        };
+                        let status = if offset > 0 {
+                            "206 Partial Content"
+                        } else if response.redirect.is_some() {
                             "302 Found"
                         } else {
                             "200 OK"
@@ -185,13 +250,29 @@ impl Fixture {
                             .redirect
                             .map(|url| format!("Location: {url}\r\n"))
                             .unwrap_or_default();
+                        let range = if let Some(value) = response.range_header {
+                            format!("Content-Range: {value}\r\n")
+                        } else if offset > 0 {
+                            format!(
+                                "Content-Range: bytes {offset}-{}/{}\r\n",
+                                response.bytes.len() - 1,
+                                response.bytes.len()
+                            )
+                        } else {
+                            String::new()
+                        };
                         let header = format!(
-                            "HTTP/1.1 {status}\r\n{location}Content-Length: {}\r\nConnection: close\r\n\r\n",
-                            response.bytes.len()
+                            "HTTP/1.1 {status}\r\n{location}{range}Content-Length: {}\r\nConnection: close\r\n\r\n",
+                            response.bytes.len() - offset
                         );
                         let _ = stream.write_all(header.as_bytes());
                         if method != "HEAD" {
-                            let _ = stream.write_all(&response.bytes);
+                            let end = if response.interruptions > 0 {
+                                offset + (response.bytes.len() - offset) / 2
+                            } else {
+                                response.bytes.len()
+                            };
+                            let _ = stream.write_all(&response.bytes[offset..end]);
                         }
                     } else {
                         let _ = stream
@@ -208,9 +289,12 @@ impl Fixture {
                 opul_key: signing.verifying_key().to_bytes(),
                 yt_dlp_key: public,
                 allow_fixture_http: true,
+                environment: network.clone(),
             },
             routes,
             hits,
+            ranges,
+            network,
             stop,
             server: Some(server),
             _temp: temp,
@@ -255,5 +339,44 @@ impl Drop for Fixture {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Relaxed);
         self.server.take().unwrap().join().unwrap();
+    }
+}
+
+pub(super) struct FakeNetwork {
+    online: tokio::sync::watch::Sender<bool>,
+    pub(super) sleeps: Mutex<Vec<Duration>>,
+    pub(super) disconnect_on_retry: AtomicBool,
+}
+impl FakeNetwork {
+    fn new() -> Self {
+        Self {
+            online: tokio::sync::watch::channel(true).0,
+            sleeps: Mutex::new(Vec::new()),
+            disconnect_on_retry: AtomicBool::new(false),
+        }
+    }
+    pub(super) fn set_online(&self, online: bool) {
+        self.online.send_replace(online);
+    }
+}
+impl NetworkEnvironment for FakeNetwork {
+    fn online(&self) -> NetworkFuture<'_, bool> {
+        Box::pin(async { *self.online.borrow() })
+    }
+    fn sleep(&self, duration: Duration) -> NetworkFuture<'_, ()> {
+        Box::pin(async move {
+            if duration == Duration::from_secs(1) {
+                let mut online = self.online.subscribe();
+                while !*online.borrow_and_update() {
+                    online.changed().await.unwrap();
+                }
+            } else {
+                self.sleeps.lock().unwrap().push(duration);
+                if self.disconnect_on_retry.swap(false, Ordering::SeqCst) {
+                    self.set_online(false);
+                }
+                tokio::task::yield_now().await;
+            }
+        })
     }
 }

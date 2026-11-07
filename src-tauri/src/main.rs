@@ -203,6 +203,10 @@ fn main() {
                 let machine = app.state::<Desktop>().machine();
                 std::thread::spawn(move || {
                     if let Ok(machine) = machine {
+                        if let Some(tools) = machine.video_tools() {
+                            let _ = tools
+                                .execute(opul_core::video_tools::VideoToolsOperation::CancelSetup);
+                        }
                         let _ = machine.begin_shutdown();
                     }
                     app.exit(0);

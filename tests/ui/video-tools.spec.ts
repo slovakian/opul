@@ -252,3 +252,158 @@ for (const update of [
     expect(audit.violations).toEqual([]);
   });
 }
+
+test("offline setup keeps its progress, resumes on a pushed snapshot and can be cancelled", async ({
+  page,
+}) => {
+  const waiting: VideoToolsSnapshot = {
+    ...initial,
+    state: {
+      kind: "setting_up",
+      steps: [
+        {
+          component: "python",
+          downloaded_bytes: 10_000_000,
+          status: "waiting_for_internet",
+          total_bytes: 20_000_000,
+        },
+        {
+          component: "yt_dlp",
+          downloaded_bytes: 0,
+          status: "pending",
+          total_bytes: null,
+        },
+      ],
+    },
+  };
+
+  await mockDesktop(page, { videoTools: waiting });
+  await page.goto("/");
+  const dialog = await openTools(page);
+  await expect(
+    dialog.getByText("Waiting for an internet connection…", { exact: true })
+  ).toBeVisible();
+
+  const progress = dialog.getByRole("progressbar", {
+    name: "Setting up Python progress",
+  });
+
+  await expect(progress).toHaveAttribute("aria-valuenow", "50");
+  await expect(dialog.getByRole("button", { name: "Try again" })).toHaveCount(
+    0
+  );
+  await push(page, {
+    ...initial,
+    sequence: 10,
+    state: {
+      kind: "setting_up",
+      steps: [
+        {
+          component: "python",
+          downloaded_bytes: 15_000_000,
+          status: "downloading",
+          total_bytes: 20_000_000,
+        },
+        {
+          component: "yt_dlp",
+          downloaded_bytes: 0,
+          status: "pending",
+          total_bytes: null,
+        },
+      ],
+    },
+  });
+  await expect(
+    dialog.getByText("Waiting for an internet connection…")
+  ).toHaveCount(0);
+  await expect(progress).toHaveAttribute("aria-valuenow", "75");
+  await push(page, { ...waiting, sequence: 11 });
+
+  const audit = await new AxeBuilder({ page })
+    .include('[role="dialog"]')
+    .analyze();
+
+  expect(audit.violations).toEqual([]);
+  await page.screenshot({ path: "test-results/video-tools-offline.png" });
+  await dialog
+    .getByRole("button", { exact: true, name: "Cancel setup" })
+    .click();
+  await expect(
+    dialog.getByRole("button", { name: /Download video tools/u })
+  ).toBeVisible();
+});
+
+for (const failure of [
+  {
+    details: "HTTP 503 after three retries.",
+    message: "The download couldn't finish.",
+    reason: "download",
+  },
+  {
+    details: "The SHA-256 checksum did not match.",
+    message: "The download couldn't be verified.",
+    reason: "verification",
+  },
+  {
+    details: "bin/python3: Permission denied.",
+    message:
+      "The video tools stopped working. Files may be missing or blocked by macOS.",
+    reason: "stopped_working",
+  },
+] as const) {
+  test(`${failure.reason} offers recovery and copies the error, versions and chip`, async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "clipboard", {
+        value: {
+          writeText: (value: string) => {
+            sessionStorage.setItem("test-copied-tool-details", value);
+
+            return Promise.resolve();
+          },
+        },
+      });
+    });
+    await mockDesktop(page, {
+      videoTools: {
+        ...initial,
+        state: {
+          details: failure.details,
+          kind: "not_working",
+          reason: failure.reason,
+        },
+      },
+    });
+    await page.goto("/");
+    const dialog = await openTools(page);
+    await expect(
+      dialog.getByText(failure.message, { exact: true })
+    ).toBeVisible();
+    await dialog.getByText("Details", { exact: true }).click();
+    await expect(
+      dialog.getByText(failure.details, { exact: true })
+    ).toBeVisible();
+    await dialog
+      .getByRole("button", { exact: true, name: "Copy details" })
+      .click();
+    await expect(
+      dialog.getByRole("button", { exact: true, name: "Copied" })
+    ).toBeVisible();
+
+    const copied = await page.evaluate(() =>
+      sessionStorage.getItem("test-copied-tool-details")
+    );
+
+    expect(copied).toContain(failure.details);
+    expect(copied).toContain("Python runtime 1");
+    expect(copied).toContain("yt-dlp 2026.10.26");
+    expect(copied).toContain("chip arm64");
+    await dialog
+      .getByRole("button", { exact: true, name: "Try again" })
+      .click();
+    await expect(
+      dialog.getByText("Setting up Python", { exact: true })
+    ).toBeVisible();
+  });
+}

@@ -17,6 +17,7 @@ const statusLabels = {
   installing: "Installing",
   pending: "Waiting",
   verifying: "Verifying",
+  waiting_for_internet: "Waiting for an internet connection…",
 };
 
 export const VideoToolsProgress = ({ steps }: { steps: SetupStep[] }) => (

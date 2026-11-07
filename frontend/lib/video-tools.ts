@@ -23,6 +23,7 @@ export const setupStepSchema = z.object({
   downloaded_bytes: z.number(),
   status: z.enum([
     "pending",
+    "waiting_for_internet",
     "downloading",
     "verifying",
     "installing",

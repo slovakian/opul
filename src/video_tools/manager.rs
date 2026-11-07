@@ -11,6 +11,10 @@ use uuid::Uuid;
 #[derive(Clone, Serialize, Deserialize)]
 pub(super) struct StoredState {
     pub installed: Option<InstalledPair>,
+    #[serde(default)]
+    pub previous_runtime: Option<u64>,
+    #[serde(default)]
+    pub previous_yt_dlp: Option<String>,
     pub keep_up_to_date: bool,
     pub turned_off: bool,
 }
@@ -19,6 +23,8 @@ impl Default for StoredState {
     fn default() -> Self {
         Self {
             installed: None,
+            previous_runtime: None,
+            previous_yt_dlp: None,
             keep_up_to_date: true,
             turned_off: false,
         }
@@ -29,6 +35,7 @@ pub(super) struct LiveState {
     pub stored: StoredState,
     pub snapshot: VideoToolsSnapshot,
     pub job: Option<(Uuid, AbortHandle)>,
+    pub candidate: Option<(u64, String)>,
 }
 
 pub struct VideoTools {
@@ -63,6 +70,15 @@ impl VideoTools {
         Self::open_with_sources(config, super::install::Sources::production())
     }
 
+    pub fn open_with_environment(
+        config: VideoToolsConfig,
+        environment: Arc<dyn NetworkEnvironment>,
+    ) -> Result<Arc<Self>, String> {
+        let mut sources = super::install::Sources::production();
+        sources.environment = environment;
+        Self::open_with_sources(config, sources)
+    }
+
     pub(super) fn open_with_sources(
         config: VideoToolsConfig,
         sources: super::install::Sources,
@@ -77,12 +93,7 @@ impl VideoTools {
             .map_err(|e| e.to_string())?;
         lock.try_lock_exclusive()
             .map_err(|_| "The video tools directory is already in use.".to_string())?;
-        for entry in fs::read_dir(&config.root).map_err(|e| e.to_string())? {
-            let entry = entry.map_err(|e| e.to_string())?;
-            if entry.file_name().to_string_lossy().starts_with(".install-") {
-                fs::remove_dir_all(entry.path()).map_err(|e| e.to_string())?;
-            }
-        }
+        super::recovery::clean_temporary(&config.root)?;
         let state_path = config.root.join("state.json");
         let (stored, load_error) = match fs::read(state_path) {
             Ok(bytes) => match serde_json::from_slice::<StoredState>(&bytes) {
@@ -97,6 +108,10 @@ impl VideoTools {
             }
             Err(error) => return Err(error.to_string()),
         };
+        // If state.json is damaged, preserve version directories for diagnosis and repair.
+        if load_error.is_none() {
+            super::recovery::prune(&config.root, &stored)?;
+        }
         let state = if let Some(details) = load_error {
             VideoToolsState::NotWorking {
                 reason: FailureReason::StoppedWorking,
@@ -129,6 +144,7 @@ impl VideoTools {
                 stored,
                 snapshot,
                 job: None,
+                candidate: None,
             }),
             publisher,
             _lock: lock,
@@ -144,9 +160,10 @@ impl VideoTools {
     pub fn diagnostics(&self) -> String {
         let live = self.lock();
         format!(
-            "Video tools: {:?}\nInstalled: {:?}\nChip: {}\nOpul: {}",
+            "Video tools: {:?}\nInstalled: {:?}\nCandidate runtime / yt-dlp: {:?}\nChip: {}\nOpul: {}",
             live.snapshot.state,
             live.stored.installed,
+            live.candidate,
             std::env::consts::ARCH,
             self.config.opul_version
         )
@@ -227,6 +244,7 @@ impl VideoTools {
                         })
                         .collect(),
                 };
+                live.candidate = None;
                 let id = Uuid::new_v4();
                 let tools = Arc::clone(self);
                 let task = runtime().spawn(async move {

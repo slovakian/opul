@@ -395,3 +395,7 @@ fn activation_failure_preserves_the_committed_state_and_retry_selects_a_complete
     );
     assert!(!tools.snapshot().keep_up_to_date);
 }
+
+mod recovery;
+
+mod crash;

@@ -10,6 +10,8 @@
 
 mod install;
 mod manager;
+mod recovery;
+mod transport;
 mod verification;
 
 use serde::{Deserialize, Serialize};
@@ -17,6 +19,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 pub use manager::VideoTools;
+pub use transport::{NetworkEnvironment, NetworkFuture};
 
 #[derive(Debug, Clone)]
 pub struct VideoToolsConfig {
@@ -102,6 +105,7 @@ pub enum Component {
 #[serde(rename_all = "snake_case")]
 pub enum StepStatus {
     Pending,
+    WaitingForInternet,
     Downloading,
     Verifying,
     Installing,

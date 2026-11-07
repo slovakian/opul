@@ -5,7 +5,6 @@ use flate2::read::GzDecoder;
 use reqwest::Client;
 use semver::Version;
 use std::fs::{self, File};
-use std::io::Write;
 use std::path::{Component as PathComponent, Path};
 use std::sync::Arc;
 use std::time::Duration;
@@ -18,6 +17,7 @@ pub(super) struct Sources {
     pub opul_key: [u8; 32],
     pub yt_dlp_key: String,
     pub allow_fixture_http: bool,
+    pub environment: Arc<dyn NetworkEnvironment>,
 }
 
 impl Sources {
@@ -28,6 +28,7 @@ impl Sources {
             opul_key: [0x06,0x54,0x04,0xda,0xa6,0xf7,0x16,0xa3,0xd2,0x21,0xb6,0xc5,0xe1,0x3a,0x44,0xd5,0xe3,0x1a,0xc9,0xd0,0xf9,0xcd,0xb9,0x59,0x0e,0xb4,0x68,0x2f,0x3d,0x4a,0x1b,0x55],
             yt_dlp_key: include_str!("keys/yt-dlp.asc").into(),
             allow_fixture_http: false,
+            environment: super::transport::system_network(),
         }
     }
 
@@ -70,13 +71,13 @@ pub(super) struct Failure {
     pub reason: FailureReason,
     pub details: String,
 }
-fn download_error(e: impl std::fmt::Display) -> Failure {
+pub(super) fn download_error(e: impl std::fmt::Display) -> Failure {
     Failure {
         reason: FailureReason::Download,
         details: e.to_string(),
     }
 }
-fn verification_error(e: impl std::fmt::Display) -> Failure {
+pub(super) fn verification_error(e: impl std::fmt::Display) -> Failure {
     Failure {
         reason: FailureReason::Verification,
         details: e.to_string(),
@@ -91,12 +92,17 @@ impl Drop for Staging {
 }
 
 impl VideoTools {
-    async fn resolve(&self, client: &Client) -> Result<Resolved, Failure> {
+    async fn resolve(
+        &self,
+        transfer: &super::transport::Transfer<'_>,
+    ) -> Result<Resolved, Failure> {
         let mut pointer_bytes = Vec::new();
         let mut verified = false;
         for _ in 0..2 {
-            pointer_bytes = bytes(client, &self.sources.pointer, 128 * 1024).await?;
-            let signature = bytes(client, &format!("{}.sig", self.sources.pointer), 1024).await?;
+            pointer_bytes = transfer.bytes(&self.sources.pointer, 128 * 1024).await?;
+            let signature = transfer
+                .bytes(&format!("{}.sig", self.sources.pointer), 1024)
+                .await?;
             if ed25519(&pointer_bytes, &signature, &self.sources.opul_key).is_ok() {
                 verified = true;
                 break;
@@ -145,13 +151,7 @@ impl VideoTools {
             return Err(verification_error("Invalid Python runtime size."));
         }
         let latest_url = format!("{}/releases/latest", self.sources.repository);
-        let response = client
-            .get(latest_url)
-            .send()
-            .await
-            .map_err(download_error)?
-            .error_for_status()
-            .map_err(download_error)?;
+        let response = transfer.response(reqwest::Method::GET, &latest_url).await?;
         let resolved_url = response.url().as_str();
         let tag_prefix = format!("{}/releases/tag/", self.sources.repository);
         let tag = resolved_url
@@ -163,8 +163,12 @@ impl VideoTools {
         let mut sums = Vec::new();
         let mut sums_verified = false;
         for _ in 0..2 {
-            sums = bytes(client, &format!("{base}/SHA2-256SUMS"), 256 * 1024).await?;
-            let signature = bytes(client, &format!("{base}/SHA2-256SUMS.sig"), 64 * 1024).await?;
+            sums = transfer
+                .bytes(&format!("{base}/SHA2-256SUMS"), 256 * 1024)
+                .await?;
+            let signature = transfer
+                .bytes(&format!("{base}/SHA2-256SUMS.sig"), 64 * 1024)
+                .await?;
             if openpgp(&sums, &signature, &self.sources.yt_dlp_key).is_ok() {
                 sums_verified = true;
                 break;
@@ -204,14 +208,15 @@ impl VideoTools {
 
     pub(super) async fn published_size(&self) -> Result<u64, Failure> {
         let client = self.sources.client()?;
-        let resolved = self.resolve(&client).await?;
-        let response = client
-            .head(&resolved.script_url)
-            .send()
-            .await
-            .map_err(download_error)?
-            .error_for_status()
-            .map_err(download_error)?;
+        let transfer = super::transport::Transfer {
+            tools: self,
+            client: &client,
+            step: None,
+        };
+        let resolved = self.resolve(&transfer).await?;
+        let response = transfer
+            .response(reqwest::Method::HEAD, &resolved.script_url)
+            .await?;
         let size = response
             .headers()
             .get(reqwest::header::CONTENT_LENGTH)
@@ -243,18 +248,29 @@ impl VideoTools {
         fs::create_dir(&staging.0).map_err(download_error)?;
         exclude_from_backup(&self.config.root, self.sources.allow_fixture_http)?;
         let client = self.sources.client()?;
-        let resolved = self.resolve(&client).await?;
+        let transfer = super::transport::Transfer {
+            tools: self,
+            client: &client,
+            step: Some((id, Component::Python)),
+        };
+        let resolved = self.resolve(&transfer).await?;
+        {
+            let mut live = self.lock();
+            if !is_current(&live, id) {
+                return Ok(());
+            }
+            live.candidate = Some((resolved.runtime, resolved.yt_dlp.clone()));
+        }
         let archive = staging.0.join("runtime.tar.gz");
         for attempt in 0..2 {
-            self.download(
-                &client,
-                &resolved.asset.url,
-                &archive,
-                id,
-                Component::Python,
-                Some(resolved.asset.size),
-            )
-            .await?;
+            transfer
+                .download(
+                    &resolved.asset.url,
+                    &archive,
+                    Some(resolved.asset.size),
+                    100 * 1024 * 1024,
+                )
+                .await?;
             self.progress(
                 id,
                 Component::Python,
@@ -262,7 +278,7 @@ impl VideoTools {
                 resolved.asset.size,
                 Some(resolved.asset.size),
             );
-            let signature = bytes(&client, &resolved.asset.signature_url, 1024).await?;
+            let signature = transfer.bytes(&resolved.asset.signature_url, 1024).await?;
             let data = fs::read(&archive).map_err(download_error)?;
             let verification = ed25519(&data, &signature, &self.sources.opul_key)
                 .and_then(|()| checksum(&data, &resolved.asset.sha256))
@@ -300,16 +316,15 @@ impl VideoTools {
         let script_dir = staging.0.join("script");
         fs::create_dir(&script_dir).map_err(download_error)?;
         let script = script_dir.join("yt-dlp");
+        let transfer = super::transport::Transfer {
+            tools: self,
+            client: &client,
+            step: Some((id, Component::YtDlp)),
+        };
         for attempt in 0..2 {
-            self.download(
-                &client,
-                &resolved.script_url,
-                &script,
-                id,
-                Component::YtDlp,
-                None,
-            )
-            .await?;
+            transfer
+                .download(&resolved.script_url, &script, None, 16 * 1024 * 1024)
+                .await?;
             let data = fs::read(&script).map_err(download_error)?;
             self.progress(
                 id,
@@ -373,64 +388,6 @@ impl VideoTools {
         self.publish(&mut live);
         Ok(())
     }
-
-    async fn download(
-        &self,
-        client: &Client,
-        url: &str,
-        path: &Path,
-        id: Uuid,
-        component: Component,
-        expected: Option<u64>,
-    ) -> Result<(), Failure> {
-        let mut response = client
-            .get(url)
-            .send()
-            .await
-            .map_err(download_error)?
-            .error_for_status()
-            .map_err(download_error)?;
-        let total = expected.or_else(|| response.content_length());
-        let limit = match component {
-            Component::Python => 100 * 1024 * 1024,
-            Component::YtDlp => 16 * 1024 * 1024,
-        };
-        let mut file = File::create(path).map_err(download_error)?;
-        let mut downloaded = 0;
-        self.progress(id, component, StepStatus::Downloading, 0, total);
-        while let Some(chunk) = response.chunk().await.map_err(download_error)? {
-            downloaded += chunk.len() as u64;
-            if downloaded > limit {
-                return Err(verification_error(
-                    "Video-tools payload exceeds its size limit.",
-                ));
-            }
-            file.write_all(&chunk).map_err(download_error)?;
-            self.progress(id, component, StepStatus::Downloading, downloaded, total);
-        }
-        file.sync_all().map_err(download_error)?;
-        Ok(())
-    }
-}
-
-async fn bytes(client: &Client, url: &str, limit: usize) -> Result<Vec<u8>, Failure> {
-    let mut response = client
-        .get(url)
-        .send()
-        .await
-        .map_err(download_error)?
-        .error_for_status()
-        .map_err(download_error)?;
-    let mut data = Vec::new();
-    while let Some(chunk) = response.chunk().await.map_err(download_error)? {
-        if data.len() + chunk.len() > limit {
-            return Err(verification_error(
-                "Video-tools metadata exceeds its size limit.",
-            ));
-        }
-        data.extend_from_slice(&chunk);
-    }
-    Ok(data)
 }
 
 fn place(staged: &Path, destination: &Path) -> std::io::Result<()> {
