@@ -271,10 +271,22 @@ fn cancellation_and_activation_failure_leave_committed_pair_usable() {
             .unwrap();
     assert_eq!(before["installed"], after["installed"]);
     // Runtime placement succeeds, script placement fails, selection must remain the full old pair.
-    let blocked = fixture.config.root.join("yt-dlp/2026.11.01");
-    std::fs::write(&blocked, "blocks installation").unwrap();
+    use std::os::unix::fs::PermissionsExt;
+    let script_root = fixture.config.root.join("yt-dlp");
+    std::fs::set_permissions(&script_root, std::fs::Permissions::from_mode(0o555)).unwrap();
     command(&tools, "update");
-    fixture.wait(&tools);
+    let snapshot = fixture.wait(&tools);
+    std::fs::set_permissions(&script_root, std::fs::Permissions::from_mode(0o755)).unwrap();
+    assert!(
+        matches!(
+            snapshot.state,
+            VideoToolsState::Ready {
+                update_flag: UpdateFlag::Failed { .. },
+                ..
+            }
+        ),
+        "{snapshot:?}"
+    );
     assert_eq!(tools.invocation().unwrap(), old);
     drop(tools);
     let tools = fixture.open();
