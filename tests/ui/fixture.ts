@@ -229,7 +229,11 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
               name === "tools_snapshot" ||
               name.startsWith("plugin:event|")
             ) {
-              return window.testVideoTools.invoke(name, args);
+              return window.testWaitingVideos.invokeTools(
+                name,
+                args,
+                currentSnapshot
+              );
             }
 
             if (name === "plugin:dialog|open") {

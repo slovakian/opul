@@ -36,6 +36,14 @@ pub(super) fn decide_video_tools(
     availability: VideoToolsAvailability,
 ) -> Decision {
     let mut decision = Decision::none();
+    if availability != state.video_tools
+        && matches!(
+            availability,
+            VideoToolsAvailability::NotSetUp | VideoToolsAvailability::TurnedOff
+        )
+    {
+        decision = decide_remove_video_tools(state);
+    }
     if availability != state.video_tools {
         decision.events.push(Event::VideoToolsChanged(availability));
     }
@@ -153,4 +161,34 @@ pub(super) fn decide_page_failed(
         },
         control_generation: generation,
     })
+}
+
+/// Invalidate in-flight probes and effects while retaining identity, destination and partials.
+pub(super) fn decide_remove_video_tools(state: &AppState) -> Decision {
+    let mut decision = Decision::none();
+    for download in state
+        .workspaces
+        .iter()
+        .flat_map(|workspace| &workspace.downloads)
+    {
+        if download.needs_video_tools()
+            && !download.lifecycle.is_retired()
+            && !matches!(
+                download.lifecycle,
+                DownloadLifecycle::Finished | DownloadLifecycle::WaitingForVideoTools
+            )
+        {
+            decision.events.push(Event::DownloadRetried {
+                download: download.id,
+                attempt: download.attempt + 1,
+                control_generation: download.control_generation + 1,
+            });
+            decision.events.push(Event::DownloadLifecycleChanged {
+                download: download.id,
+                lifecycle: DownloadLifecycle::WaitingForVideoTools,
+                control_generation: download.control_generation + 1,
+            });
+        }
+    }
+    decision
 }

@@ -219,6 +219,7 @@ fn parse_download(
                 page_url: page_url.clone().unwrap_or_else(|| address.clone()),
                 url: address.clone(),
                 discovery_id: format!("legacy-{id}"),
+                requires_video_tools: false,
             }
         } else if let Some(page_url) = page_url {
             MediaOrigin::Page {

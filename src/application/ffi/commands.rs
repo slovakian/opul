@@ -116,6 +116,18 @@ impl OpulStateMachine {
     }
 
     pub fn clear_guided_login_data(&self) -> Result<(), StateMachineError> {
+        let _execution = self
+            .execution_gate
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut guided = self
+            .guided
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        for input in guided.values() {
+            input.session.clear();
+        }
+        guided.clear();
         self.media.clear_guided_session_data().map_err(engine_error)
     }
 
@@ -187,6 +199,26 @@ impl OpulStateMachine {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .retain(|effect| effect.effect_id != effect_id_value);
         Ok(())
+    }
+
+    pub fn remove_video_tools(
+        &self,
+        turn_off: bool,
+    ) -> Result<crate::video_tools::VideoToolsSnapshot, String> {
+        let tools = self
+            .video_tools
+            .as_ref()
+            .ok_or("Video tools module is unavailable.")?;
+        let _execution = self
+            .execution_gate
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        tools.remove_with(turn_off, || {
+            self.sync_video_tools().map_err(|error| error.to_string())?;
+            self.dispatch(None, Command::RemoveVideoTools)
+                .map_err(|error| error.to_string())?;
+            self.media.stop_video_downloads()
+        })
     }
 
     pub fn begin_shutdown(&self) -> Result<MachineCommandReceipt, StateMachineError> {

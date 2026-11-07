@@ -405,3 +405,5 @@ mod waiting_downloads;
 mod updates;
 
 mod update_regressions;
+
+mod removal;

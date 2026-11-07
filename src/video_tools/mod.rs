@@ -37,6 +37,7 @@ pub struct VideoToolsConfig {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum VideoToolsOperation {
     SetUp,
+    Remove { turn_off: bool },
     CancelSetup,
     Cancel,
     CheckForUpdates,

@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { VideoToolsProgress } from "@/components/video-tools-progress";
+import { VideoToolsRemoval } from "@/components/video-tools-removal";
 import { useVideoTools } from "@/hooks/use-video-tools";
 import { bridge, errorMessage } from "@/lib/bridge";
 import type { VideoToolsSnapshot } from "@/lib/video-tools";
@@ -184,6 +185,9 @@ export const ToolsSettings = ({
               </Button>
             </div>
           </>
+        )}
+        {(state.kind === "ready" || state.kind === "not_working") && (
+          <VideoToolsRemoval busy={busy} execute={execute} />
         )}
         <FieldGroup>
           <Field orientation="horizontal">

@@ -423,3 +423,118 @@ fn stale_probe_failures_cannot_overwrite_pause_cancel_or_shutdown() {
         assert!(decide_fact(&next, &failure).unwrap().events.is_empty());
     }
 }
+
+#[test]
+fn removal_holds_unfinished_video_items_and_invalidates_old_transfer_facts() {
+    let mut state = AppState::fresh("/tmp/Films".into());
+    state.session = SessionPhase::Running;
+    state.video_tools = VideoToolsAvailability::Ready;
+    let mut video = page(&state);
+    video.lifecycle = DownloadLifecycle::Active(ActivePhase::Fetching);
+    let mut finished = page(&state);
+    finished.lifecycle = DownloadLifecycle::Finished;
+    let mut direct = page(&state);
+    if let DownloadSource::Media(media) = &mut direct.source {
+        media.origin = MediaOrigin::Direct {
+            url: "https://example.test/file".into(),
+            referer: None,
+        };
+    }
+    state.workspaces[0].downloads = vec![video.clone(), finished.clone(), direct.clone()];
+    let decision = decide(&state, &command(Command::RemoveVideoTools)).unwrap();
+    let next = evolve(&state, &decision).unwrap();
+    let held = &next.workspaces[0].downloads[0];
+    assert_eq!(held.id, video.id);
+    assert_eq!(held.folder, video.folder);
+    assert_eq!(held.source, video.source);
+    assert_eq!(held.lifecycle, DownloadLifecycle::WaitingForVideoTools);
+    assert_eq!(next.workspaces[0].downloads[1], finished);
+    assert_eq!(next.workspaces[0].downloads[2], direct);
+    let late = decide_fact(
+        &next,
+        &Fact::TransferFailed {
+            download: video.id,
+            attempt: video.attempt,
+            message: "stopped".into(),
+            retryable: true,
+        },
+    )
+    .unwrap();
+    assert!(late.events.is_empty());
+    let next = apply_fact(
+        &next,
+        Fact::VideoToolsChanged(VideoToolsAvailability::Ready),
+    );
+    assert_eq!(
+        next.workspaces[0].downloads[0].lifecycle,
+        DownloadLifecycle::Queued
+    );
+}
+
+#[test]
+fn unavailable_tools_recover_interrupted_removal_and_hold_guided_conversions() {
+    let mut state = AppState::fresh("/tmp/Films".into());
+    state.session = SessionPhase::Running;
+    state.video_tools = VideoToolsAvailability::Ready;
+    let mut video = page(&state);
+    video.lifecycle = DownloadLifecycle::Active(ActivePhase::Fetching);
+    let mut guided = video.clone();
+    guided.id = DownloadId::new();
+    if let DownloadSource::Media(media) = &mut guided.source {
+        media.origin = MediaOrigin::Guided {
+            page_url: "https://example.test/page".into(),
+            url: "https://example.test/stream".into(),
+            discovery_id: "guided".into(),
+            requires_video_tools: true,
+        };
+    }
+    let mut direct_guided = guided.clone();
+    direct_guided.id = DownloadId::new();
+    if let DownloadSource::Media(media) = &mut direct_guided.source
+        && let MediaOrigin::Guided {
+            requires_video_tools,
+            ..
+        } = &mut media.origin
+    {
+        *requires_video_tools = false;
+    }
+    state.workspaces[0].downloads = vec![video, guided, direct_guided.clone()];
+    let recovered = apply_fact(
+        &state,
+        Fact::VideoToolsChanged(VideoToolsAvailability::NotSetUp),
+    );
+    assert_eq!(
+        recovered.workspaces[0].downloads[0].lifecycle,
+        DownloadLifecycle::WaitingForVideoTools
+    );
+    assert_eq!(
+        recovered.workspaces[0].downloads[1].lifecycle,
+        DownloadLifecycle::WaitingForVideoTools
+    );
+    assert_eq!(recovered.workspaces[0].downloads[2], direct_guided);
+    let repeated = decide_fact(
+        &recovered,
+        &Fact::VideoToolsChanged(VideoToolsAvailability::NotSetUp),
+    )
+    .unwrap();
+    assert!(repeated.events.is_empty());
+}
+
+#[test]
+fn repeated_unavailable_snapshot_does_not_undo_person_cancellation() {
+    let mut state = AppState::fresh("/tmp/Films".into());
+    state.session = SessionPhase::Running;
+    state.video_tools = VideoToolsAvailability::NotSetUp;
+    let mut video = page(&state);
+    video.lifecycle = DownloadLifecycle::Cancelled;
+    state.workspaces[0].downloads.push(video);
+    assert!(
+        decide_fact(
+            &state,
+            &Fact::VideoToolsChanged(VideoToolsAvailability::NotSetUp)
+        )
+        .unwrap()
+        .events
+        .is_empty()
+    );
+}

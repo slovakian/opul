@@ -1,6 +1,55 @@
 use super::*;
 
 impl MediaEngine {
+    /// Stop only video writers, wait for process exit, then discard adapter records.
+    /// Download files, including .part files, are intentionally retained.
+    pub(crate) fn stop_video_downloads(&self) -> Result<(), String> {
+        let ids = self
+            .items
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .values()
+            .filter(|item| !item.direct_download && item.state != MediaTransferState::Finished)
+            .map(|item| item.id.clone())
+            .collect::<Vec<_>>();
+        for id in &ids {
+            self.cancel(id.clone());
+            if let Some(pid) = self.process_id(id) {
+                // Paused process groups must wake up to handle TERM.
+                signal_process(pid, "CONT");
+                signal_process(pid, "TERM");
+            }
+        }
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            let active = self
+                .workers
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .active
+                .iter()
+                .any(|id| ids.contains(id));
+            if !active {
+                break;
+            }
+            if Instant::now() >= deadline {
+                for id in &ids {
+                    if let Some(pid) = self.process_id(id) {
+                        signal_process(pid, "KILL");
+                    }
+                }
+                return Err(
+                    "Video downloads are still stopping. Try removing the tools again.".into(),
+                );
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        for id in ids {
+            self.remove(id);
+        }
+        Ok(())
+    }
+
     pub fn snapshots(&self) -> Vec<MediaTransferSnapshot> {
         let items = self
             .items

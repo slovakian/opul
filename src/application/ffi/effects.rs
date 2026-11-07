@@ -199,7 +199,8 @@ pub(super) fn ensure_transfer(
                 let input = guided
                     .lock()
                     .unwrap_or_else(|poisoned| poisoned.into_inner())
-                    .remove(&context.download.id)
+                    .get(&context.download.id)
+                    .cloned()
                     .ok_or_else(|| crate::CoreError::Engine {
                         reason:
                             "guided credentials expired before the transfer started; add it again"

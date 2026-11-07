@@ -18,6 +18,7 @@ impl OpulStateMachine {
             guided: Arc::new(Mutex::new(HashMap::new())),
             platform_effects: Arc::new(Mutex::new(Vec::new())),
             stop: Arc::new(AtomicBool::new(false)),
+            execution_gate: Arc::new(Mutex::new(())),
             runner: Mutex::new(None),
             support_directory,
         });

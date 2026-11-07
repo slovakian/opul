@@ -52,6 +52,7 @@ pub(super) struct LiveState {
     pub job: Option<(Uuid, AbortHandle)>,
     pub candidate: Option<(u64, String)>,
     pub active_users: usize,
+    pub removing: bool,
 }
 
 pub struct VideoTools {
@@ -208,6 +209,7 @@ impl VideoTools {
                 job: None,
                 candidate: None,
                 active_users: 0,
+                removing: false,
             }),
             publisher,
             idle: tokio::sync::Notify::new(),
@@ -253,8 +255,15 @@ impl VideoTools {
         self: &Arc<Self>,
         operation: VideoToolsOperation,
     ) -> Result<VideoToolsSnapshot, String> {
+        if let VideoToolsOperation::Remove { turn_off } = operation {
+            return self.remove_with(turn_off, || Ok(()));
+        }
         let mut live = self.lock();
+        if live.removing {
+            return Err("Video tools are being removed.".into());
+        }
         match operation {
+            VideoToolsOperation::Remove { .. } => unreachable!(),
             VideoToolsOperation::SetKeepUpToDate { enabled } => {
                 let mut stored = live.stored.clone();
                 stored.keep_up_to_date = enabled;
@@ -360,6 +369,64 @@ impl VideoTools {
         Ok(live.snapshot.clone())
     }
 
+    /// Revoke selection under the activation lock before stopping writers. The caller must
+    /// stop its media processes before returning; active leases protect probes still exiting.
+    pub fn remove_with(
+        self: &Arc<Self>,
+        turn_off: bool,
+        stop_writers: impl FnOnce() -> Result<(), String>,
+    ) -> Result<VideoToolsSnapshot, String> {
+        {
+            let mut live = self.lock();
+            if live.removing {
+                return Err("Video tools are being removed.".into());
+            }
+            let stored = StoredState {
+                turned_off: turn_off || live.stored.turned_off,
+                keep_up_to_date: live.stored.keep_up_to_date,
+                ..StoredState::default()
+            };
+            persist(&self.config, &stored)?;
+            cancel(&mut live);
+            live.candidate = None;
+            live.stored = stored;
+            live.removing = true;
+            live.snapshot.state = if live.stored.turned_off {
+                VideoToolsState::TurnedOff
+            } else {
+                VideoToolsState::NotSetUp
+            };
+            self.publish(&mut live);
+        }
+        let result: Result<(), String> = (|| {
+            stop_writers()?;
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+            loop {
+                let live = self.lock();
+                if live.active_users == 0 {
+                    super::recovery::prune(&self.config.root, &live.stored)?;
+                    return Ok(());
+                }
+                if std::time::Instant::now() >= deadline {
+                    return Err("Video tools are still in use. Try removing them again.".into());
+                }
+                drop(live);
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+        })();
+        let mut live = self.lock();
+        live.removing = false;
+        if let Err(error) = result {
+            live.snapshot.state = VideoToolsState::NotWorking {
+                reason: FailureReason::StoppedWorking,
+                details: error.clone(),
+            };
+            self.publish(&mut live);
+            return Err(error);
+        }
+        Ok(live.snapshot.clone())
+    }
+
     pub(super) fn publish(&self, live: &mut LiveState) {
         live.snapshot.sequence += 1;
         self.publisher.send_replace(live.snapshot.clone());
@@ -445,7 +512,7 @@ pub(super) fn invocation(
 
 pub(super) fn persist(config: &VideoToolsConfig, stored: &StoredState) -> Result<(), String> {
     let path = config.root.join(format!(".state-{}.json", Uuid::new_v4()));
-    let result = (|| {
+    let result: Result<(), String> = (|| {
         let mut file = OpenOptions::new()
             .write(true)
             .create_new(true)

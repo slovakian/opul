@@ -74,7 +74,7 @@ impl MediaEngine {
     pub(crate) fn probe_url_while(
         &self,
         url: String,
-        keep_running: impl FnMut() -> bool,
+        mut keep_running: impl FnMut() -> bool,
     ) -> Result<MediaProbe, CoreError> {
         validate_http_url(&url)?;
         let usage = if self
@@ -101,7 +101,14 @@ impl MediaEngine {
             None => self.require_yt_dlp()?,
         };
         let cookie_path = self.cookie_path_if_present();
-        probe_with_ytdlp(&yt_dlp, cookie_path.as_deref(), &url, keep_running)
+        probe_with_ytdlp(&yt_dlp, cookie_path.as_deref(), &url, || {
+            keep_running()
+                && (usage.is_none()
+                    || self
+                        .video_tools
+                        .as_ref()
+                        .is_some_and(|tools| tools.invocation().is_some()))
+        })
     }
 
     pub fn add_download(

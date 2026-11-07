@@ -26,11 +26,16 @@ pub async fn video_tools_execute(
     state: State<'_, Desktop>,
     operation: opul_core::video_tools::VideoToolsOperation,
 ) -> Result<opul_core::video_tools::VideoToolsSnapshot, String> {
-    let tools = state
-        .machine()?
+    let machine = state.machine()?;
+    let tools = machine
         .video_tools()
         .ok_or("Video tools module is unavailable.")?;
-    tauri::async_runtime::spawn_blocking(move || tools.execute(operation))
-        .await
-        .map_err(|error| error.to_string())?
+    tauri::async_runtime::spawn_blocking(move || match operation {
+        opul_core::video_tools::VideoToolsOperation::Remove { turn_off } => {
+            machine.remove_video_tools(turn_off)
+        }
+        operation => tools.execute(operation),
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }

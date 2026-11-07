@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
 import type { VideoToolsSnapshot } from "../../frontend/lib/video-tools";
-import { mockDesktop } from "./fixture";
+import { mockDesktop, snapshot as librarySnapshot } from "./fixture";
 
 const initial: VideoToolsSnapshot = {
   keep_up_to_date: true,
@@ -473,3 +473,130 @@ test("manual check and Update work in Ready with one live status line", async ({
 
   expect(audit.violations).toEqual([]);
 });
+
+for (const turnOff of [false, true]) {
+  test(`Remove confirms the count and persists turn off ${turnOff}`, async ({
+    page,
+  }) => {
+    const library = structuredClone(librarySnapshot);
+    const [base] = library.workspaces[0].downloads;
+    library.workspaces[0].downloads = [
+      {
+        ...base,
+        id: "video-active",
+        name: "Active video",
+        needs_video_tools: true,
+        source: turnOff ? "Guided" : "VideoPage",
+        state: "Fetching",
+      },
+      {
+        ...base,
+        id: "video-waiting",
+        name: "Waiting video",
+        source: "VideoPage",
+        state: "WaitingForVideoTools",
+      },
+      {
+        ...base,
+        id: "video-finished",
+        name: "Finished video",
+        source: "VideoPage",
+        state: "Finished",
+      },
+      {
+        ...base,
+        id: "direct-active",
+        name: "Direct file",
+        source: "Direct",
+        state: "Fetching",
+      },
+    ];
+    await mockDesktop(page, {
+      persist: true,
+      snapshot: library,
+      videoTools: {
+        ...initial,
+        state: turnOff
+          ? {
+              details: "Missing tools",
+              kind: "not_working",
+              reason: "stopped_working",
+            }
+          : {
+              installed: {
+                python_version: "3.13.18",
+                runtime: 1,
+                yt_dlp: "2026.10.26",
+              },
+              kind: "ready",
+              last_checked: null,
+              update_flag: { kind: "none" },
+            },
+      },
+    });
+    await page.goto("/");
+    const settings = await openTools(page);
+    await settings
+      .getByRole("button", { exact: true, name: "Remove…" })
+      .click();
+
+    const confirmation = page.getByRole("dialog", {
+      exact: true,
+      name: "Remove video tools?",
+    });
+
+    await expect(confirmation).toContainText(
+      "2 video downloads are in progress"
+    );
+
+    const audit = await new AxeBuilder({ page })
+      .include('[role="dialog"]')
+      .analyze();
+
+    expect(audit.violations).toEqual([]);
+    await confirmation
+      .getByRole("button", { exact: true, name: "Cancel" })
+      .click();
+    await expect(
+      settings.getByRole("button", { exact: true, name: "Remove…" })
+    ).toBeVisible();
+    await settings
+      .getByRole("button", { exact: true, name: "Remove…" })
+      .click();
+
+    if (turnOff) {
+      await confirmation
+        .getByRole("checkbox", { name: "Don't offer video tools again" })
+        .check();
+    }
+
+    await confirmation
+      .getByRole("button", { exact: true, name: "Remove" })
+      .click();
+    await expect(confirmation).toHaveCount(0);
+    await expect(
+      settings.getByRole("button", { name: /Download video tools/u })
+    ).toBeVisible();
+
+    if (turnOff) {
+      await expect(
+        settings.getByText("Video tools are turned off. Opul won't offer them.")
+      ).toBeVisible();
+    }
+
+    await settings.getByRole("button", { exact: true, name: "Done" }).click();
+    await page.reload();
+    const reopened = await openTools(page);
+    await expect(
+      reopened.getByRole("button", { name: /Download video tools/u })
+    ).toBeVisible();
+    await reopened.getByRole("button", { exact: true, name: "Done" }).click();
+    await expect(
+      page
+        .getByText(turnOff ? "Needs video tools" : "Waiting for video tools…", {
+          exact: true,
+        })
+        .first()
+    ).toBeVisible();
+  });
+}

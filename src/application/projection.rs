@@ -48,6 +48,7 @@ pub(crate) struct WorkspaceProjection {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct DownloadProjection {
+    pub(crate) needs_video_tools: bool,
     pub(crate) id: DownloadId,
     pub(crate) folder: FolderId,
     pub(crate) name: String,
@@ -101,6 +102,7 @@ pub(crate) fn project(state: &AppState, overlay: &RuntimeOverlay) -> AppProjecti
                     .iter()
                     .filter(|download| !download.lifecycle.is_retired())
                     .map(|download| DownloadProjection {
+                        needs_video_tools: download.needs_video_tools(),
                         id: download.id,
                         folder: download.folder,
                         name: download.name.clone(),

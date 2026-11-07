@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 
 import type { Command, Download, Snapshot } from "../../frontend/lib/model";
+import type { DesktopInvokeArgs } from "./fixture-options";
 
 type ImportCommand = Extract<Command, { kind: "add_url" | "add_torrent_file" }>;
 
@@ -8,6 +9,11 @@ declare global {
   interface Window {
     testWaitingVideos: {
       project: (snapshot: Snapshot) => void;
+      invokeTools: (
+        name: string,
+        args: DesktopInvokeArgs,
+        snapshot: Snapshot
+      ) => ReturnType<Window["testVideoTools"]["invoke"]>;
       retry: (download: Download) => void;
       addition: (command: ImportCommand, base: Download) => Download;
     };
@@ -38,6 +44,27 @@ export const mockWaitingVideos = async (page: Page) => {
               : base.state,
           total_size: video ? 0 : base.total_size,
         };
+      },
+      invokeTools: (name, args, snapshot) => {
+        const result = window.testVideoTools.invoke(name, args);
+
+        if (args.operation?.kind === "remove") {
+          for (const download of snapshot.workspaces.flatMap(
+            (workspace) => workspace.downloads
+          )) {
+            if (
+              (download.needs_video_tools || download.source === "VideoPage") &&
+              download.state !== "Finished"
+            ) {
+              download.state = "WaitingForVideoTools";
+              download.capabilities.can_pause = false;
+            }
+          }
+
+          window.testWaitingVideos.project(snapshot);
+        }
+
+        return result;
       },
       project: (snapshot) => {
         const { kind } = window.testVideoTools.snapshot().state;

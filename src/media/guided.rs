@@ -38,6 +38,17 @@ impl GuidedExtractionSession {
         guided_candidate_snapshot(&state, observed_at_ms)
     }
 
+    pub(crate) fn requires_video_tools(
+        &self,
+        candidate_id: &str,
+        options: &MediaDownloadOptions,
+    ) -> Result<bool, CoreError> {
+        Ok(!super::open::direct_download_compatible(
+            self.resolve_candidate(candidate_id)?.candidate.kind,
+            options,
+        ))
+    }
+
     pub fn candidates(&self) -> Vec<GuidedCandidate> {
         let state = self
             .state

@@ -69,7 +69,7 @@ For a real packaged check, build an app with version at least 0.2.2, then run `S
 - #64 supplies first-launch Setup, dismissal memory, the Help menu and sidebar progress. See [First-launch Setup](#first-launch-setup). It uses the public operations, snapshot and `VideoToolsProgress`.
 - #65 supplies manual updates, pairing, retention, rollback, persisted holds/skips and last-check timestamps. #67 adds scheduled checks and update notifications through the same operations. Check for updates resolves metadata without installing; Update retries transient failures and installs any eligible newer components. Scheduling should run Check for updates and, when automatic updates are enabled, Update. Both commands are inert outside Ready and coalesce while a job is running. Failed checks leave the current flag and timestamp unchanged.
 - #68 adds Nightly's yt-dlp source switch and compatibility workflow. Stable/Nightly data and preferences are already isolated.
-- #66 adds Remove and in-flight transfer handling. No Remove button is shown until that command exists.
+- #66 supplies Remove and in-flight transfer handling. Settings confirms the current count of running or waiting video Downloads and offers an immediate Turned off choice.
 
 These are the boundaries of #61; they do not mark the full parent #58 complete.
 
@@ -84,3 +84,13 @@ Help ▸ Set Up Video Tools… and Settings ▸ Tools ▸ Set Up Video Tools… 
 ## Manual updates
 
 See [manual updates and runtime probation](video-tool-updates.md) for pairing, persisted holds and skips, download activity, retention, rollback and the shared cancellation operation.
+
+## Removing video tools
+
+The desktop Remove operation goes through `OpulStateMachine::remove_video_tools`. The tools manager revokes selection and cancels the current job under the activation lock. The application checkpoints every unfinished video Download as waiting with a new attempt and control generation, invalidating late process and probe results. The effect runner cannot enqueue transfers during removal. Video process groups stop and exit before managed files are pruned. Direct transfers, torrents, finished output and partial files are retained.
+
+Removal persists an empty installed selection and preserves the update preference and any existing Turned off choice. Explicit setup restores waiting Downloads through the normal Ready transition. Setup and update activation share the cancellation lock, so an obsolete job cannot select tools after removal. Other Stable/Nightly tool roots are untouched. If a writer does not exit, removal reports an error and retains its files until it exits; Remove can be retried.
+
+Tool-dependent Guided conversions are marked in the persisted origin and projection; original direct Guided transfers remain independent. In-memory Guided credentials are kept for removal/re-setup within the session, released for terminal Downloads, and cleared under the execution gate by Clear browser login data. As with other Guided restarts, credentials are not checkpointed.
+
+A transition to unavailable tools also checkpoints unfinished dependent Downloads as waiting. This repairs an interrupted removal where tool state was saved before the Download checkpoint. Repeated unavailable snapshots leave subsequent person controls alone. Removal errors publish Not working with details, keeping Remove available for another cleanup attempt.

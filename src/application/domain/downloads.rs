@@ -16,7 +16,7 @@ impl Eq for Download {}
 
 impl Download {
     pub(crate) fn needs_video_tools(&self) -> bool {
-        matches!(&self.source, DownloadSource::Media(media) if matches!(media.origin, MediaOrigin::Page { .. } | MediaOrigin::PendingPage { .. }))
+        matches!(&self.source, DownloadSource::Media(media) if matches!(media.origin, MediaOrigin::Page { .. } | MediaOrigin::PendingPage { .. } | MediaOrigin::Guided { requires_video_tools: true, .. }))
     }
 
     pub(crate) fn active_info_hash(&self) -> Option<&str> {
@@ -185,6 +185,8 @@ pub(crate) enum MediaOrigin {
         page_url: String,
         url: String,
         discovery_id: String,
+        #[serde(default)]
+        requires_video_tools: bool,
     },
 }
 

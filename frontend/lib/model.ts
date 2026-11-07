@@ -90,6 +90,7 @@ export const downloadSchema = z.object({
   id: z.string(),
   info_hash: z.string().nullable(),
   name: z.string(),
+  needs_video_tools: z.boolean().default(false),
   output_path: z.string().nullable(),
   page_url: z.string().nullable(),
   peers: z.number(),

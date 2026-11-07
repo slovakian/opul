@@ -118,6 +118,7 @@ pub(super) fn download_view(download: DownloadProjection) -> MachineDownload {
             DownloadSource::Media(_) => (None, 0, 0, None, Vec::new()),
         };
     MachineDownload {
+        needs_video_tools: download.needs_video_tools,
         id: download.id.to_string(),
         folder_id: download.folder.to_string(),
         name: download.name,

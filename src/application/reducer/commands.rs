@@ -28,6 +28,7 @@ pub(crate) fn decide(state: &AppState, envelope: &CommandEnvelope) -> Result<Dec
     }
 
     match &envelope.command {
+        Command::RemoveVideoTools => Ok(decide_remove_video_tools(state)),
         Command::SetWorkspaceAppearance {
             workspace,
             emoji,

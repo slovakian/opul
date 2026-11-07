@@ -186,6 +186,19 @@ impl OpulStateMachine {
             .ok_or_else(|| StateMachineError::Rejected {
                 reason: "guided media requires one selected item".to_string(),
             })?;
+        let requires_video_tools = session
+            .requires_video_tools(
+                &selection.candidate_id,
+                &MediaDownloadOptions {
+                    format: engine_format(format_from_view(request.format)),
+                    download_subtitles: request.policy.download_subtitles,
+                    embed_subtitles: request.policy.embed_subtitles,
+                    write_thumbnail: request.policy.write_thumbnail,
+                    write_metadata: request.policy.write_metadata,
+                    ..MediaDownloadOptions::default()
+                },
+            )
+            .map_err(engine_error)?;
         let id = DownloadId::new();
         self.guided
             .lock()
@@ -207,6 +220,7 @@ impl OpulStateMachine {
                             page_url: item.page_url.clone(),
                             url: item.url.clone(),
                             discovery_id: id.to_string(),
+                            requires_video_tools,
                         },
                         format: format_from_view(request.format),
                         policy: policy_from_view(&request.policy),

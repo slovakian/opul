@@ -81,6 +81,7 @@ export type UpdateFlag = z.infer<typeof updateFlagSchema>;
 
 export type VideoToolsOperation =
   | { kind: "set_up" }
+  | { kind: "remove"; turn_off: boolean }
   | { kind: "cancel_setup" }
   | { kind: "check_for_updates" }
   | { kind: "update" }

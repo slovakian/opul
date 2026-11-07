@@ -150,6 +150,7 @@ pub struct MachineTorrentFile {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct MachineDownload {
+    pub needs_video_tools: bool,
     pub id: String,
     pub folder_id: String,
     pub name: String,
@@ -326,6 +327,7 @@ pub struct MachinePlatformEffect {
     pub targets: Vec<MachineTrashTarget>,
 }
 
+#[derive(Clone)]
 pub(super) struct GuidedInput {
     pub(super) session: Arc<GuidedExtractionSession>,
     pub(super) selection: GuidedDownloadSelection,
@@ -339,6 +341,7 @@ pub struct OpulStateMachine {
     pub(super) guided: Arc<Mutex<HashMap<DownloadId, GuidedInput>>>,
     pub(super) platform_effects: Arc<Mutex<Vec<MachinePlatformEffect>>>,
     pub(super) stop: Arc<AtomicBool>,
+    pub(super) execution_gate: Arc<Mutex<()>>,
     pub(super) runner: Mutex<Option<JoinHandle<()>>>,
     pub(super) support_directory: PathBuf,
 }

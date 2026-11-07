@@ -8,6 +8,7 @@ impl OpulStateMachine {
         let guided = Arc::clone(&self.guided);
         let platform = Arc::clone(&self.platform_effects);
         let stop = Arc::clone(&self.stop);
+        let execution_gate = Arc::clone(&self.execution_gate);
         let video_tools = self.video_tools.clone();
         let (probe_sender, probe_worker) = super::page_probes::start_worker(
             Arc::clone(&actor),
@@ -18,6 +19,9 @@ impl OpulStateMachine {
             .name("opul-effect-runner".to_string())
             .spawn(move || {
                 while !stop.load(Ordering::Acquire) {
+                    let _execution = execution_gate
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
                     if let Some(tools) = &video_tools {
                         let _ = observe_video_tools(&actor, tools);
                     }
@@ -33,9 +37,29 @@ impl OpulStateMachine {
                         }
                         Ok(None) => {
                             observe_adapters(&actor, &torrent, &media);
+                            // Keep credentials only while a Guided Download can still use them.
+                            guided
+                                .lock()
+                                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                                .retain(|id, _| {
+                                    actor.execution_context(*id).ok().flatten().is_some_and(
+                                        |context| {
+                                            !matches!(
+                                                context.download.lifecycle,
+                                                DownloadLifecycle::Finished
+                                                    | DownloadLifecycle::Cancelled
+                                                    | DownloadLifecycle::Retiring { .. }
+                                            )
+                                        },
+                                    )
+                                });
+                            drop(_execution);
                             thread::sleep(Duration::from_millis(250));
                         }
-                        Err(_) => thread::sleep(Duration::from_millis(250)),
+                        Err(_) => {
+                            drop(_execution);
+                            thread::sleep(Duration::from_millis(250));
+                        }
                     }
                 }
                 drop(probe_sender);

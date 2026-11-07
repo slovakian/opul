@@ -41,6 +41,7 @@ export const baseDownload: Download = {
   id: "download-1",
   info_hash: null,
   name: "Design resources.zip",
+  needs_video_tools: false,
   output_path: null,
   page_url: null,
   peers: 0,
