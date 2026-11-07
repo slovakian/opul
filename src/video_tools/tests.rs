@@ -101,6 +101,7 @@ fn setup_verifies_activates_and_supplies_media_engine_without_restart() {
         selected.quickjs.display(),
         fixture.config.built_in_tools.display()
     )));
+    assert!(arguments.contains("--impersonate\nchrome\n"));
     assert!(arguments.contains("--dump-single-json"));
     assert!(fixture.config.root.join("state.json").is_file());
     drop(media);
@@ -353,4 +354,44 @@ fn signatures_from_other_keys_are_rejected_and_channels_keep_separate_preference
         VideoToolsState::NotSetUp
     ));
     assert!(nightly.snapshot().keep_up_to_date);
+}
+
+#[test]
+fn activation_failure_preserves_the_committed_state_and_retry_selects_a_complete_pair() {
+    let fixture = Fixture::new(GOOD);
+    let tools = fixture.open();
+    tools
+        .execute(VideoToolsOperation::SetKeepUpToDate { enabled: false })
+        .unwrap();
+    let state_path = fixture.config.root.join("state.json");
+    let committed = std::fs::read(&state_path).unwrap();
+    // Force a real filesystem error after runtime placement, before script placement/state commit.
+    let blocked = fixture.config.root.join("yt-dlp");
+    std::fs::write(&blocked, b"fixture blocks the script destination").unwrap();
+    tools.execute(VideoToolsOperation::SetUp).unwrap();
+    let snapshot = fixture.wait(&tools);
+    assert!(
+        matches!(snapshot.state, VideoToolsState::NotWorking { .. }),
+        "{snapshot:?}"
+    );
+    assert!(
+        fixture
+            .config
+            .root
+            .join("python-runtime/1/bin/python3")
+            .is_file()
+    );
+    assert_eq!(std::fs::read(&state_path).unwrap(), committed);
+    assert!(tools.invocation().is_none());
+    std::fs::remove_file(blocked).unwrap();
+    tools.execute(VideoToolsOperation::Retry).unwrap();
+    assert!(matches!(
+        fixture.wait(&tools).state,
+        VideoToolsState::Ready { .. }
+    ));
+    let selected = tools.invocation().unwrap();
+    assert!(
+        selected.interpreter.is_file() && selected.script.is_file() && selected.quickjs.is_file()
+    );
+    assert!(!tools.snapshot().keep_up_to_date);
 }

@@ -31,7 +31,9 @@ report = json.load(open(sys.argv[1]))
 print(json.dumps(report, indent=2))
 raise SystemExit(0 if report['ok'] else 1)
 PY
-    /usr/bin/tmutil isexcluded "$SMOKE_DIR/state/Tools"
+    BACKUP_STATUS="$(/usr/bin/tmutil isexcluded "$SMOKE_DIR/state/Tools")"
+    printf '%s\n' "$BACKUP_STATUS"
+    [[ "$BACKUP_STATUS" == "[Excluded]"* ]] || { echo "Tools was not excluded from Time Machine." >&2; exit 1; }
     exit 0
   fi
   sleep 0.5

@@ -1,6 +1,7 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
+import { z } from "zod";
 
 import {
   appearanceSchema,
@@ -91,7 +92,7 @@ export const bridge = {
     return toolsSnapshotSchema.parse(await invoke("tools_snapshot"));
   },
   async videoToolsDetails() {
-    return await invoke<string>("video_tools_details");
+    return z.string().parse(await invoke("video_tools_details"));
   },
   async videoToolsExecute(operation: VideoToolsOperation) {
     return videoToolsSchema.parse(

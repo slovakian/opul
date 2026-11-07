@@ -136,6 +136,8 @@ impl VideoToolsInvocation {
                 "--no-plugin-dirs",
                 "--no-cache-dir",
                 "--no-update",
+                "--impersonate",
+                "chrome",
                 "--no-js-runtimes",
                 "--js-runtimes",
             ])
