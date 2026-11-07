@@ -1,6 +1,6 @@
 use super::install::{Failure, Resolved, Staging, download_error};
 use super::manager::{invocation, is_current, persist};
-use super::verification::health;
+use super::verification::{HealthFailure, health};
 use super::*;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
@@ -140,7 +140,7 @@ impl VideoTools {
         }
     }
 
-    async fn prepare_update(&self, id: Uuid, install: bool) -> Result<(), Failure> {
+    async fn prepare_update(self: &Arc<Self>, id: Uuid, install: bool) -> Result<(), Failure> {
         let staging = Staging(self.config.root.join(format!(".install-{id}")));
         fs::create_dir(&staging.0).map_err(download_error)?;
         let client = self.sources.client()?;
@@ -181,6 +181,14 @@ impl VideoTools {
         } else {
             None
         };
+        let usage = self
+            .acquire()
+            .ok_or_else(|| download_error("The selected pair is unavailable."))?;
+        if usage.pair != *old {
+            return Err(download_error(
+                "The selected pair changed while preparing an update.",
+            ));
+        }
         let mut candidate = invocation(&self.config, old);
         if let Some(path) = &script_dir {
             candidate.script = path.join("yt-dlp");
@@ -201,12 +209,25 @@ impl VideoTools {
         } else {
             existing_health
         };
+        drop(usage);
         let python_version = match python_version {
             Ok(version) => version,
-            Err(details) => {
+            Err(HealthFailure::Execution(details)) => {
+                return Err(Failure {
+                    reason: FailureReason::HealthCheck,
+                    details,
+                    exhausted_integrity: false,
+                });
+            }
+            Err(HealthFailure::Incompatible(details)) => {
                 let mut live = self.lock();
                 if !is_current(&live, id) {
                     return Ok(());
+                }
+                if live.stored.installed.as_ref() != Some(old) {
+                    return Err(download_error(
+                        "The selected pair changed during its health check.",
+                    ));
                 }
                 let mut stored = live.stored.clone();
                 stored.compatibility_hold = Some(CompatibilityHold {

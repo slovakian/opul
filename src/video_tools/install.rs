@@ -255,7 +255,7 @@ impl VideoTools {
             .await
             .map_err(|details| Failure {
                 reason: FailureReason::HealthCheck,
-                details,
+                details: details.to_string(),
                 exhausted_integrity: false,
             })?;
         self.progress(id, Component::YtDlp, StepStatus::Done, size, Some(size));

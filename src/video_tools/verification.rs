@@ -93,26 +93,39 @@ fn health_output(output: &std::process::Output, expected: &str) -> Result<String
     ))
 }
 
+#[derive(Debug, thiserror::Error)]
+pub(super) enum HealthFailure {
+    #[error("{0}")]
+    Incompatible(String),
+    #[error("{0}")]
+    Execution(String),
+}
+
 pub(super) async fn health(
     invocation: &VideoToolsInvocation,
     expected: &str,
-) -> Result<String, String> {
+) -> Result<String, HealthFailure> {
     let mut version = tokio::process::Command::from(invocation.command());
     version.arg("--version").kill_on_drop(true);
     let output = tokio::time::timeout(Duration::from_secs(30), version.output())
         .await
-        .map_err(|_| "Video tools version check timed out.".to_string())?
-        .map_err(|e| e.to_string())?;
-    if !output.status.success()
-        || String::from_utf8_lossy(&output.stdout).trim() != expected
+        .map_err(|_| HealthFailure::Execution("Video tools version check timed out.".into()))?
+        .map_err(|e| HealthFailure::Execution(e.to_string()))?;
+    if !output.status.success() {
+        return Err(HealthFailure::Execution(format!(
+            "yt-dlp version check failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+    if String::from_utf8_lossy(&output.stdout).trim() != expected
         || String::from_utf8_lossy(&output.stderr)
             .to_ascii_lowercase()
             .contains("deprecat")
     {
-        return Err(format!(
+        return Err(HealthFailure::Incompatible(format!(
             "yt-dlp did not report the expected version {expected}: {}",
             String::from_utf8_lossy(&output.stderr)
-        ));
+        )));
     }
     // --version exits before yt-dlp initializes its request handlers and JS runtimes.
     let mut command = tokio::process::Command::from(invocation.command());
@@ -121,9 +134,15 @@ pub(super) async fn health(
         .kill_on_drop(true);
     let output = tokio::time::timeout(Duration::from_secs(30), command.output())
         .await
-        .map_err(|_| "Video tools health check timed out.".to_string())?
-        .map_err(|e| e.to_string())?;
-    health_output(&output, expected)
+        .map_err(|_| HealthFailure::Execution("Video tools health check timed out.".into()))?
+        .map_err(|e| HealthFailure::Execution(e.to_string()))?;
+    if !output.status.success() {
+        return Err(HealthFailure::Execution(format!(
+            "yt-dlp health check failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+    health_output(&output, expected).map_err(HealthFailure::Incompatible)
 }
 
 pub(super) fn validate_installed(
@@ -152,4 +171,5 @@ pub(super) fn validate_installed(
         .join()
         .map_err(|_| "Video tools startup check failed.".to_string())?
         .map(|_| ())
+        .map_err(|error| error.to_string())
 }

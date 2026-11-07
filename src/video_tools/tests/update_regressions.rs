@@ -135,7 +135,7 @@ fn app_upgrade_rechecks_a_hold_when_the_signed_runtime_pointer_is_unchanged() {
         &interpreter,
         original.replacen(
             "case",
-            "case \"$(cat \"$2\")\" in 2026.11.01) exit 1 ;; esac\ncase",
+            "case \"$(cat \"$2\")\" in 2026.11.01) printf '%s\\n' 2026.11.01; echo 'Python deprecation warning' >&2; exit 0 ;; esac\ncase",
             1,
         ),
     )
@@ -187,4 +187,87 @@ fn twice_rejected_runtime_is_skipped_across_restart_until_a_newer_runtime() {
     command(&tools, "update");
     fixture.wait(&tools);
     assert_eq!(selected(&tools).runtime, 3);
+}
+
+#[test]
+fn temporary_health_execution_failure_retries_the_same_published_versions() {
+    use std::os::unix::fs::PermissionsExt;
+    let fixture = Fixture::new(GOOD);
+    let tools = fixture.open();
+    command(&tools, "set_up");
+    fixture.wait(&tools);
+    fixture.publish(1, "2026.11.01", &GOOD.replace("2026.10.26", "2026.11.01"));
+    let interpreter = tools.invocation().unwrap().interpreter;
+    std::fs::set_permissions(&interpreter, std::fs::Permissions::from_mode(0o644)).unwrap();
+    command(&tools, "update");
+    let snapshot = fixture.wait(&tools);
+    std::fs::set_permissions(&interpreter, std::fs::Permissions::from_mode(0o755)).unwrap();
+    assert!(
+        matches!(
+            snapshot.state,
+            VideoToolsState::Ready {
+                update_flag: UpdateFlag::Failed { .. },
+                ..
+            }
+        ),
+        "{snapshot:?}"
+    );
+    command(&tools, "update");
+    fixture.wait(&tools);
+    assert_eq!(selected(&tools).yt_dlp, "2026.11.01");
+}
+
+#[test]
+fn rollback_during_candidate_health_retains_files_and_does_not_persist_a_stale_hold() {
+    let fixture = Fixture::new(GOOD);
+    let tools = fixture.open();
+    command(&tools, "set_up");
+    fixture.wait(&tools);
+    fixture.publish(2, "2026.11.01", &GOOD.replace("2026.10.26", "2026.11.01"));
+    command(&tools, "update");
+    fixture.wait(&tools);
+    let download = tools.acquire().unwrap();
+    let interpreter = tools.invocation().unwrap().interpreter;
+    let original = std::fs::read_to_string(&interpreter).unwrap();
+    let started = fixture._temp.path().join("health-started");
+    let release = fixture._temp.path().join("release-health");
+    let behavior = format!(
+        "case \"$(cat \"$2\")\" in 2026.11.02) touch '{}'; while [ ! -f '{}' ]; do sleep 0.02; done; printf '%s\\n' 2026.11.02; echo 'Python deprecation warning' >&2; exit 0 ;; esac\n",
+        started.display(),
+        release.display()
+    );
+    std::fs::write(
+        &interpreter,
+        original.replacen("case", &format!("{behavior}case"), 1),
+    )
+    .unwrap();
+    fixture.publish(2, "2026.11.02", &GOOD.replace("2026.10.26", "2026.11.02"));
+    command(&tools, "update");
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !started.exists() {
+        assert!(Instant::now() < deadline);
+        thread::sleep(Duration::from_millis(5));
+    }
+    download.finish_download(false).unwrap();
+    assert_eq!(selected(&tools).runtime, 1);
+    assert!(
+        interpreter.exists(),
+        "health must retain its interpreter even after rollback"
+    );
+    std::fs::write(&release, "continue").unwrap();
+    let snapshot = fixture.wait(&tools);
+    assert!(
+        matches!(
+            snapshot.state,
+            VideoToolsState::Ready {
+                update_flag: UpdateFlag::Failed { .. },
+                ..
+            }
+        ),
+        "{snapshot:?}"
+    );
+    command(&tools, "update");
+    fixture.wait(&tools);
+    assert_eq!(selected(&tools).runtime, 2);
+    assert_eq!(selected(&tools).yt_dlp, "2026.11.02");
 }
