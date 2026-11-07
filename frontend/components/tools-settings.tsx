@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { VideoToolsProgress } from "@/components/video-tools-progress";
 import { useVideoTools } from "@/hooks/use-video-tools";
 import { bridge, errorMessage } from "@/lib/bridge";
+import type { VideoToolsSnapshot } from "@/lib/video-tools";
 import { downloadSize, updateMessage } from "@/lib/video-tools";
 
 const failureMessages = {
@@ -23,6 +24,56 @@ const failureMessages = {
     "The video tools stopped working. Files may be missing or blocked by macOS.",
   verification: "The download couldn't be verified.",
 };
+
+const ReadyVideoToolsSettings = ({
+  state,
+  busy,
+  execute,
+}: {
+  state: Extract<VideoToolsSnapshot["state"], { kind: "ready" }>;
+  busy: boolean;
+  execute: ReturnType<typeof useVideoTools>["execute"];
+}) => (
+  <>
+    <output className="text-sm">Ready</output>
+    <p className="text-muted-foreground text-sm">
+      Python runtime {state.installed.runtime} · Python{" "}
+      {state.installed.python_version}
+      <br />
+      yt-dlp {state.installed.yt_dlp}
+    </p>
+    {state.last_checked !== null && (
+      <p className="text-muted-foreground text-xs">
+        Last checked {new Date(state.last_checked * 1000).toLocaleString()}
+      </p>
+    )}
+    <Button
+      type="button"
+      variant="outline"
+      disabled={busy || state.update_flag.kind === "updating"}
+      onClick={() => execute({ kind: "check_for_updates" })}
+    >
+      Check for updates
+    </Button>
+    {updateMessage(state.update_flag) && (
+      <div className="flex flex-wrap items-center gap-2">
+        <output className="text-muted-foreground text-sm">
+          {updateMessage(state.update_flag)}
+        </output>
+        {state.update_flag.kind === "available" && (
+          <Button
+            type="button"
+            size="sm"
+            disabled={busy}
+            onClick={() => execute({ kind: "update" })}
+          >
+            Update
+          </Button>
+        )}
+      </div>
+    )}
+  </>
+);
 
 export const ToolsSettings = ({
   onVideoSetup,
@@ -105,26 +156,11 @@ export const ToolsSettings = ({
           </>
         )}
         {state.kind === "ready" && (
-          <>
-            <output className="text-sm">Ready</output>
-            <p className="text-muted-foreground text-sm">
-              Python runtime {state.installed.runtime} · Python{" "}
-              {state.installed.python_version}
-              <br />
-              yt-dlp {state.installed.yt_dlp}
-            </p>
-            {state.last_checked !== null && (
-              <p className="text-muted-foreground text-xs">
-                Last checked{" "}
-                {new Date(state.last_checked * 1000).toLocaleString()}
-              </p>
-            )}
-            {updateMessage(state.update_flag) && (
-              <output className="text-muted-foreground text-sm">
-                {updateMessage(state.update_flag)}
-              </output>
-            )}
-          </>
+          <ReadyVideoToolsSettings
+            state={state}
+            busy={busy}
+            execute={execute}
+          />
         )}
         {state.kind === "not_working" && (
           <>

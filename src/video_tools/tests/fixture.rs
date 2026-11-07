@@ -4,6 +4,7 @@ use ed25519_dalek::{Signer, SigningKey};
 use flate2::{Compression, write::GzEncoder};
 use pgp::composed::{
     ArmorOptions, DetachedSignature, KeyType, SecretKeyParamsBuilder, SignedPublicKey,
+    SignedSecretKey,
 };
 use pgp::crypto::hash::HashAlgorithm;
 use pgp::ser::Serialize as _;
@@ -32,6 +33,7 @@ pub(super) struct Response {
     pub(super) range_header: Option<String>,
 }
 pub(super) struct Fixture {
+    key: SignedSecretKey,
     pub(super) config: VideoToolsConfig,
     pub(super) sources: super::install::Sources,
     pub(super) routes: Arc<Mutex<HashMap<String, Response>>>,
@@ -69,7 +71,7 @@ impl Fixture {
         let public = SignedPublicKey::from(key.clone())
             .to_armored_string(ArmorOptions::default())
             .unwrap();
-        let script = b"official fixture script".to_vec();
+        let script = b"2026.10.26".to_vec();
         let sums = format!("{}  yt-dlp\n", hex::encode(Sha256::digest(&script))).into_bytes();
         let signature = DetachedSignature::sign_binary_data(
             rand::thread_rng(),
@@ -83,9 +85,9 @@ impl Fixture {
         .unwrap();
         let record = temp.path().join("executed");
         let interpreter = format!(
-            "#!/bin/sh\nprintf '%s\\n' \"$@\" >> '{}'\ncase \"$*\" in\n *--version*|*--list-impersonate-targets*) printf '%s\\n' '2026.10.26'; cat >&2 <<'HEALTH'\n{}\nHEALTH\n;;\n *) printf '%s\\n' '{{\"title\":\"Fixture video\",\"webpage_url\":\"https://example.test/video\"}}' ;;\nesac\n",
+            "#!/bin/sh\nprintf '%s\\n' \"$@\" >> '{}'\ncase \"$*\" in\n *--version*|*--list-impersonate-targets*) printf '%s\\n' \"$(cat \"$2\")\"; cat >&2 <<HEALTH\n{}\nHEALTH\n;;\n *) printf '%s\\n' '{{\"title\":\"Fixture video\",\"webpage_url\":\"https://example.test/video\"}}' ;;\nesac\n",
             record.display(),
-            health
+            health.replace("stable@2026.10.26", "stable@$(cat \"$2\")")
         );
         let mut archive = tar::Builder::new(GzEncoder::new(Vec::new(), Compression::fast()));
         for (path, bytes) in [
@@ -282,6 +284,7 @@ impl Fixture {
             })
         };
         Self {
+            key,
             config,
             sources: super::install::Sources {
                 pointer: format!("{base}/pointer"),
@@ -299,6 +302,80 @@ impl Fixture {
             server: Some(server),
             _temp: temp,
         }
+    }
+    pub(super) fn publish(&self, number: u64, version: &str, health: &str) {
+        let base = self.sources.pointer.strip_suffix("/pointer").unwrap();
+        let script = version.as_bytes().to_vec();
+        let sums = format!("{}  yt-dlp\n", hex::encode(Sha256::digest(&script))).into_bytes();
+        let signature = DetachedSignature::sign_binary_data(
+            rand::thread_rng(),
+            &self.key.primary_key,
+            &Password::empty(),
+            HashAlgorithm::Sha256,
+            sums.as_slice(),
+        )
+        .unwrap()
+        .to_bytes()
+        .unwrap();
+        // The fixture interpreter reads the candidate script to report its version.
+        let interpreter = format!(
+            "#!/bin/sh\nscript=\"$2\"\nversion=$(cat \"$script\")\ncase \"$*\" in\n *--version*|*--list-impersonate-targets*) printf '%s\\n' \"$version\"; cat >&2 <<HEALTH\n{}\nHEALTH\n;;\n *) exit 0 ;;\nesac\n",
+            health.replace(version, "$version")
+        );
+        let mut archive = tar::Builder::new(GzEncoder::new(Vec::new(), Compression::fast()));
+        for (path, bytes) in [
+            ("bin/python3", interpreter.as_bytes()),
+            ("bin/qjs", b"#!/bin/sh\nexit 0\n".as_slice()),
+        ] {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(bytes.len() as u64);
+            header.set_mode(0o755);
+            header.set_cksum();
+            archive.append_data(&mut header, path, bytes).unwrap();
+        }
+        let runtime = archive.into_inner().unwrap().finish().unwrap();
+        let pointer = serde_json::to_vec(&serde_json::json!({
+            "schema_version": 1, "runtime": number, "minimum_opul_version": "0.2.2",
+            "architectures": (["arm64", "x64"].into_iter().map(|arch| (arch, serde_json::json!({
+                "url": format!("{base}/runtime-{number}"), "signature_url": format!("{base}/runtime-{number}.sig"),
+                "sha256": hex::encode(Sha256::digest(&runtime)), "size": runtime.len()
+            }))).collect::<HashMap<_,_>>())
+        })).unwrap();
+        let signing = SigningKey::from_bytes(&[9; 32]);
+        let mut routes = self.routes.lock().unwrap();
+        let template = routes["/runtime"].clone();
+        for (path, bytes) in [
+            ("/pointer".into(), pointer.clone()),
+            (
+                "/pointer.sig".into(),
+                signing.sign(&pointer).to_bytes().to_vec(),
+            ),
+            (format!("/runtime-{number}"), runtime.clone()),
+            (
+                format!("/runtime-{number}.sig"),
+                signing.sign(&runtime).to_bytes().to_vec(),
+            ),
+            (format!("/yt/releases/download/{version}/yt-dlp"), script),
+            (
+                format!("/yt/releases/download/{version}/SHA2-256SUMS"),
+                sums,
+            ),
+            (
+                format!("/yt/releases/download/{version}/SHA2-256SUMS.sig"),
+                signature,
+            ),
+            (format!("/yt/releases/tag/{version}"), vec![]),
+        ] {
+            routes.insert(
+                path,
+                Response {
+                    bytes,
+                    ..template.clone()
+                },
+            );
+        }
+        routes.get_mut("/yt/releases/latest").unwrap().redirect =
+            Some(format!("{base}/yt/releases/tag/{version}"));
     }
     pub(super) fn open(&self) -> Arc<VideoTools> {
         VideoTools::open_with_sources(self.config.clone(), self.sources.clone()).unwrap()

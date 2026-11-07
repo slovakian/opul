@@ -5,13 +5,16 @@
 //! Setup requires an explicit command, including after TurnedOff. Preferences commit immediately.
 //! Installers stage both parts, verify each project's signature before its checksum, unpack,
 //! health-check the pair, then atomically replace state.json. A failed candidate is never selected.
-//! Ready's exclusive update flag is reserved for the update lifecycle; updating keeps the selected
-//! pair usable. See docs/video-tools.md for pairing, storage and the sibling-ticket handoff.
+//! Manual checks and updates keep Ready and its selected pair usable. MediaEngine acquires a
+//! VideoDownload at execution and reports completion; installation waits for idle, and the first
+//! successful Download releases the retained runtime. Failure before that success restores the
+//! full previous pair. Compatibility holds and integrity skips survive restart. See docs/video-tools.md for pairing, storage and the sibling-ticket handoff.
 
 mod install;
 mod manager;
 mod recovery;
 mod transport;
+mod updates;
 mod verification;
 
 use serde::{Deserialize, Serialize};
@@ -20,6 +23,7 @@ use std::process::Command;
 
 pub use manager::VideoTools;
 pub use transport::{NetworkEnvironment, NetworkFuture};
+pub use updates::VideoDownload;
 
 #[derive(Debug, Clone)]
 pub struct VideoToolsConfig {
@@ -34,6 +38,9 @@ pub struct VideoToolsConfig {
 pub enum VideoToolsOperation {
     SetUp,
     CancelSetup,
+    Cancel,
+    CheckForUpdates,
+    Update,
     Retry,
     TurnOff,
     SetKeepUpToDate { enabled: bool },

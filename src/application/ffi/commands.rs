@@ -192,7 +192,7 @@ impl OpulStateMachine {
     pub fn begin_shutdown(&self) -> Result<MachineCommandReceipt, StateMachineError> {
         if let Some(tools) = &self.video_tools {
             tools
-                .execute(crate::video_tools::VideoToolsOperation::CancelSetup)
+                .cancel()
                 .map_err(|reason| StateMachineError::Open { reason })?;
         }
         let boot = self.actor.snapshot().boot.unwrap_or_else(BootId::new);

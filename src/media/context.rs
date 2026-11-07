@@ -29,6 +29,7 @@ impl MediaEngine {
 
     pub(super) fn worker_context(&self) -> WorkerContext {
         WorkerContext {
+            video_tools: self.video_tools.clone(),
             yt_dlp: self.current_yt_dlp(),
             ffmpeg: self.ffmpeg.clone(),
             cookie_directory: self.cookie_directory(),

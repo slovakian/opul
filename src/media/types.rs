@@ -334,6 +334,7 @@ pub(super) struct WorkerRegistry {
 
 #[derive(Clone)]
 pub(super) struct WorkerContext {
+    pub(super) video_tools: Option<Arc<VideoTools>>,
     pub(super) yt_dlp: Option<YtDlpCommand>,
     pub(super) ffmpeg: Option<PathBuf>,
     pub(super) cookie_directory: PathBuf,

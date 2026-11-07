@@ -401,3 +401,5 @@ mod recovery;
 mod crash;
 
 mod waiting_downloads;
+
+mod updates;

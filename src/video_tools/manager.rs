@@ -15,6 +15,16 @@ pub(super) struct StoredState {
     pub previous_runtime: Option<u64>,
     #[serde(default)]
     pub previous_yt_dlp: Option<String>,
+    #[serde(default)]
+    pub rollback_pair: Option<InstalledPair>,
+    #[serde(default)]
+    pub last_checked: Option<u64>,
+    #[serde(default)]
+    pub compatibility_hold: Option<(String, u64)>,
+    #[serde(default)]
+    pub skipped_runtime: Option<u64>,
+    #[serde(default)]
+    pub skipped_yt_dlp: Option<String>,
     pub keep_up_to_date: bool,
     pub turned_off: bool,
 }
@@ -25,6 +35,11 @@ impl Default for StoredState {
             installed: None,
             previous_runtime: None,
             previous_yt_dlp: None,
+            rollback_pair: None,
+            last_checked: None,
+            compatibility_hold: None,
+            skipped_runtime: None,
+            skipped_yt_dlp: None,
             keep_up_to_date: true,
             turned_off: false,
         }
@@ -36,6 +51,7 @@ pub(super) struct LiveState {
     pub snapshot: VideoToolsSnapshot,
     pub job: Option<(Uuid, AbortHandle)>,
     pub candidate: Option<(u64, String)>,
+    pub active_downloads: usize,
 }
 
 pub struct VideoTools {
@@ -43,6 +59,7 @@ pub struct VideoTools {
     pub(super) sources: super::install::Sources,
     pub(super) live: Mutex<LiveState>,
     pub(super) publisher: watch::Sender<VideoToolsSnapshot>,
+    pub(super) idle: tokio::sync::Notify,
     _lock: File,
 }
 
@@ -95,7 +112,7 @@ impl VideoTools {
             .map_err(|_| "The video tools directory is already in use.".to_string())?;
         super::recovery::clean_temporary(&config.root)?;
         let state_path = config.root.join("state.json");
-        let (stored, load_error) = match fs::read(state_path) {
+        let (mut stored, load_error) = match fs::read(state_path) {
             Ok(bytes) => match serde_json::from_slice::<StoredState>(&bytes) {
                 Ok(stored) => (stored, None),
                 Err(error) => (
@@ -119,13 +136,58 @@ impl VideoTools {
             }
         } else if stored.turned_off {
             VideoToolsState::TurnedOff
-        } else if let Some(pair) = &stored.installed {
-            match super::verification::validate_installed(&config, pair) {
-                Ok(()) => ready(pair.clone()),
-                Err(details) => VideoToolsState::NotWorking {
-                    reason: FailureReason::StoppedWorking,
-                    details,
+        } else if let Some(pair) = stored.installed.clone() {
+            match super::verification::validate_installed(&config, &pair) {
+                Ok(()) => VideoToolsState::Ready {
+                    installed: pair.clone(),
+                    last_checked: stored.last_checked,
+                    update_flag: stored.compatibility_hold.as_ref().map_or(
+                        UpdateFlag::None,
+                        |(version, _)| UpdateFlag::WaitingForRuntime {
+                            version: version.clone(),
+                        },
+                    ),
                 },
+                Err(details) => {
+                    if let Some(previous) = stored.rollback_pair.clone()
+                        && super::verification::validate_installed(&config, &previous).is_ok()
+                    {
+                        stored.installed = Some(previous.clone());
+                        stored.previous_runtime = None;
+                        stored.rollback_pair = None;
+                        persist(&config, &stored)?;
+                        super::recovery::prune(&config.root, &stored)?;
+                        if let Ok(mut file) = OpenOptions::new()
+                            .create(true)
+                            .append(true)
+                            .open(config.root.join("updates.log"))
+                        {
+                            let _ = writeln!(
+                                file,
+                                "Rolled back Python runtime {} at startup: {details}",
+                                pair.runtime
+                            );
+                        }
+                        let mut state = ready(previous);
+                        if let VideoToolsState::Ready {
+                            last_checked,
+                            update_flag,
+                            ..
+                        } = &mut state
+                        {
+                            *last_checked = stored.last_checked;
+                            *update_flag = UpdateFlag::Failed {
+                                version: format!("Python runtime {}", pair.runtime),
+                            };
+                        }
+                        state
+                    } else {
+                        VideoToolsState::NotWorking {
+                            reason: FailureReason::StoppedWorking,
+                            details,
+                        }
+                    }
+                }
             }
         } else {
             VideoToolsState::NotSetUp
@@ -145,8 +207,10 @@ impl VideoTools {
                 snapshot,
                 job: None,
                 candidate: None,
+                active_downloads: 0,
             }),
             publisher,
+            idle: tokio::sync::Notify::new(),
             _lock: lock,
         }))
     }
@@ -210,6 +274,33 @@ impl VideoTools {
                 cancel(&mut live);
                 live.stored = stored;
                 live.snapshot.state = VideoToolsState::TurnedOff;
+            }
+            VideoToolsOperation::CheckForUpdates | VideoToolsOperation::Update => {
+                if live.job.is_some()
+                    || !matches!(live.snapshot.state, VideoToolsState::Ready { .. })
+                {
+                    return Ok(live.snapshot.clone());
+                }
+                let install = operation == VideoToolsOperation::Update;
+                live.candidate = None;
+                let id = Uuid::new_v4();
+                let tools = Arc::clone(self);
+                let task = runtime().spawn(async move {
+                    tools.run_update(id, install).await;
+                });
+                live.job = Some((id, task.abort_handle()));
+            }
+            VideoToolsOperation::Cancel => {
+                cancel(&mut live);
+                if let VideoToolsState::Ready { update_flag, .. } = &mut live.snapshot.state {
+                    *update_flag = UpdateFlag::None;
+                } else if matches!(live.snapshot.state, VideoToolsState::SettingUp { .. }) {
+                    live.snapshot.state = if live.stored.turned_off {
+                        VideoToolsState::TurnedOff
+                    } else {
+                        VideoToolsState::NotSetUp
+                    };
+                }
             }
             VideoToolsOperation::CancelSetup => {
                 if matches!(live.snapshot.state, VideoToolsState::SettingUp { .. })
@@ -285,6 +376,21 @@ impl VideoTools {
         let mut live = self.lock();
         if !is_current(&live, id) {
             return;
+        }
+        if let VideoToolsState::Ready {
+            update_flag: UpdateFlag::Updating { progress, .. },
+            ..
+        } = &mut live.snapshot.state
+        {
+            *progress = match status {
+                StepStatus::Done => 90,
+                StepStatus::Installing => 80,
+                StepStatus::Verifying => 70,
+                _ => total.filter(|size| *size > 0).map_or(0, |size| {
+                    (downloaded.saturating_mul(60) / size).min(60) as u8
+                }),
+            };
+            self.publish(&mut live);
         }
         if let VideoToolsState::SettingUp { steps } = &mut live.snapshot.state {
             let step = steps

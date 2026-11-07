@@ -35,11 +35,18 @@ pub(super) fn prune(root: &Path, stored: &StoredState) -> Result<(), String> {
         if !directory.is_dir() {
             continue;
         }
-        for entry in fs::read_dir(directory).map_err(|e| e.to_string())? {
+        for entry in fs::read_dir(&directory).map_err(|e| e.to_string())? {
             let entry = entry.map_err(|e| e.to_string())?;
             let name = entry.file_name();
             let name = name.to_string_lossy();
-            if Some(name.as_ref()) != current && Some(name.as_ref()) != previous {
+            let rollback_script = stored
+                .rollback_pair
+                .as_ref()
+                .map(|pair| pair.yt_dlp.as_str());
+            if Some(name.as_ref()) != current
+                && Some(name.as_ref()) != previous
+                && !(directory.ends_with("yt-dlp") && Some(name.as_ref()) == rollback_script)
+            {
                 remove(&entry.path())?;
             }
         }

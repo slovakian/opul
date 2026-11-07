@@ -407,3 +407,69 @@ for (const failure of [
     ).toBeVisible();
   });
 }
+
+test("manual check and Update work in Ready with one live status line", async ({
+  page,
+}) => {
+  await mockDesktop(page, {
+    videoTools: {
+      ...initial,
+      state: {
+        installed: {
+          python_version: "3.13.18",
+          runtime: 1,
+          yt_dlp: "2026.10.26",
+        },
+        kind: "ready",
+        last_checked: null,
+        update_flag: { kind: "none" },
+      },
+    },
+  });
+  await page.goto("/");
+  const dialog = await openTools(page);
+  await dialog
+    .getByRole("button", { exact: true, name: "Check for updates" })
+    .click();
+  await expect(dialog.getByText("2026.11.01 is available.")).toBeVisible();
+  await expect(dialog.getByText(/Last checked/u)).toBeVisible();
+  await dialog.getByRole("button", { exact: true, name: "Update" }).click();
+  await expect(dialog.getByText("Updating to 2026.11.01… 0%")).toBeVisible();
+  await expect(dialog.getByText("Ready", { exact: true })).toBeVisible();
+  await expect(
+    dialog.getByRole("status").filter({ hasText: "2026.11.01" })
+  ).toHaveCount(1);
+  await expect(
+    dialog.getByRole("button", { exact: true, name: "Update" })
+  ).toHaveCount(0);
+  await expect(
+    dialog.getByRole("button", { name: "Check for updates" })
+  ).toBeDisabled();
+  const current = await page.evaluate(() => window.testVideoTools.snapshot());
+
+  if (current.state.kind !== "ready") {
+    throw new Error("Update must remain Ready.");
+  }
+
+  await push(page, {
+    ...current,
+    sequence: current.sequence + 1,
+    state: {
+      ...current.state,
+      installed: { ...current.state.installed, yt_dlp: "2026.11.01" },
+      update_flag: { kind: "none" },
+    },
+  });
+  await expect(
+    dialog.getByText("yt-dlp 2026.11.01", { exact: false })
+  ).toBeVisible();
+  await expect(
+    dialog.getByRole("status").filter({ hasText: "Updating to" })
+  ).toHaveCount(0);
+
+  const audit = await new AxeBuilder({ page })
+    .include('[role="dialog"]')
+    .analyze();
+
+  expect(audit.violations).toEqual([]);
+});

@@ -91,6 +91,66 @@ export const mockVideoTools = async (page: Page, options: DesktopOptions) => {
         }
       });
 
+      const execute = (
+        operation: NonNullable<DesktopInvokeArgs["operation"]>
+      ) => {
+        sessionStorage.setItem(
+          "test-video-tools-operation",
+          JSON.stringify(operation)
+        );
+
+        if (
+          operation.kind === "check_for_updates" &&
+          currentTools.video.state.kind === "ready"
+        ) {
+          currentTools.video.state.last_checked = 1_793_000_000;
+          currentTools.video.state.update_flag = {
+            kind: "available",
+            version: "2026.11.01",
+          };
+        } else if (
+          operation.kind === "update" &&
+          currentTools.video.state.kind === "ready"
+        ) {
+          currentTools.video.state.update_flag = {
+            kind: "updating",
+            progress: 0,
+            version: "2026.11.01",
+          };
+        } else if (operation.kind === "set_keep_up_to_date") {
+          if (mockOpts.failVideoToolsPreference) {
+            throw new Error("Couldn't save the video tools preference.");
+          }
+
+          currentTools.video.keep_up_to_date = operation.enabled;
+        } else if (operation.kind === "set_up" || operation.kind === "retry") {
+          currentTools.video.state = {
+            kind: "setting_up",
+            steps: [
+              {
+                component: "python",
+                downloaded_bytes: 0,
+                status: "downloading",
+                total_bytes: 17_143_107,
+              },
+              {
+                component: "yt_dlp",
+                downloaded_bytes: 0,
+                status: "pending",
+                total_bytes: null,
+              },
+            ],
+          };
+        } else if (operation.kind === "cancel_setup") {
+          currentTools.video.state = { kind: "not_set_up" };
+        } else if (operation.kind === "turn_off") {
+          currentTools.video.state = { kind: "turned_off" };
+        }
+
+        currentTools.video.sequence += 1;
+        pushTools();
+      };
+
       let callbackId = 0;
       window.testVideoTools = {
         invoke: (name, args) => {
@@ -117,47 +177,7 @@ export const mockVideoTools = async (page: Page, options: DesktopOptions) => {
           }
 
           if (name === "video_tools_execute" && args.operation) {
-            const { operation } = args;
-            sessionStorage.setItem(
-              "test-video-tools-operation",
-              JSON.stringify(operation)
-            );
-
-            if (operation.kind === "set_keep_up_to_date") {
-              if (mockOpts.failVideoToolsPreference) {
-                throw new Error("Couldn't save the video tools preference.");
-              }
-
-              currentTools.video.keep_up_to_date = operation.enabled;
-            } else if (
-              operation.kind === "set_up" ||
-              operation.kind === "retry"
-            ) {
-              currentTools.video.state = {
-                kind: "setting_up",
-                steps: [
-                  {
-                    component: "python",
-                    downloaded_bytes: 0,
-                    status: "downloading",
-                    total_bytes: 17_143_107,
-                  },
-                  {
-                    component: "yt_dlp",
-                    downloaded_bytes: 0,
-                    status: "pending",
-                    total_bytes: null,
-                  },
-                ],
-              };
-            } else if (operation.kind === "cancel_setup") {
-              currentTools.video.state = { kind: "not_set_up" };
-            } else if (operation.kind === "turn_off") {
-              currentTools.video.state = { kind: "turned_off" };
-            }
-
-            currentTools.video.sequence += 1;
-            pushTools();
+            execute(args.operation);
 
             return structuredClone(currentTools.video);
           }

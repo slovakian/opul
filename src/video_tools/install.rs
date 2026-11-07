@@ -32,7 +32,7 @@ impl Sources {
         }
     }
 
-    fn client(&self) -> Result<Client, Failure> {
+    pub(super) fn client(&self) -> Result<Client, Failure> {
         Client::builder()
             .https_only(!self.allow_fixture_http)
             .connect_timeout(Duration::from_secs(15))
@@ -52,19 +52,18 @@ struct Pointer {
 }
 
 #[derive(Deserialize)]
-struct RuntimeAsset {
+pub(super) struct RuntimeAsset {
     url: String,
     sha256: String,
     size: u64,
     signature_url: String,
 }
 
-struct Resolved {
-    runtime: u64,
-    asset: RuntimeAsset,
-    yt_dlp: String,
-    script_url: String,
-    checksum: String,
+pub(super) struct Resolved {
+    pub(super) runtime: u64,
+    pub(super) asset: RuntimeAsset,
+    pub(super) yt_dlp: String,
+    pub(super) script_url: String,
 }
 
 pub(super) struct Failure {
@@ -84,7 +83,7 @@ pub(super) fn verification_error(e: impl std::fmt::Display) -> Failure {
     }
 }
 
-struct Staging(PathBuf);
+pub(super) struct Staging(pub PathBuf);
 impl Drop for Staging {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
@@ -92,7 +91,7 @@ impl Drop for Staging {
 }
 
 impl VideoTools {
-    async fn resolve(
+    pub(super) async fn resolve(
         &self,
         transfer: &super::transport::Transfer<'_>,
     ) -> Result<Resolved, Failure> {
@@ -160,49 +159,11 @@ impl VideoTools {
             .ok_or_else(|| verification_error("Could not resolve a single yt-dlp release tag."))?
             .to_string();
         let base = format!("{}/releases/download/{tag}", self.sources.repository);
-        let mut sums = Vec::new();
-        let mut sums_verified = false;
-        for _ in 0..2 {
-            sums = transfer
-                .bytes(&format!("{base}/SHA2-256SUMS"), 256 * 1024)
-                .await?;
-            let signature = transfer
-                .bytes(&format!("{base}/SHA2-256SUMS.sig"), 64 * 1024)
-                .await?;
-            if openpgp(&sums, &signature, &self.sources.yt_dlp_key).is_ok() {
-                sums_verified = true;
-                break;
-            }
-        }
-        if !sums_verified {
-            return Err(verification_error(
-                "The yt-dlp checksum signature could not be verified.",
-            ));
-        }
-        let manifest = std::str::from_utf8(&sums).map_err(verification_error)?;
-        let mut matches = manifest.lines().filter_map(|line| {
-            let mut fields = line.split_whitespace();
-            let hash = fields.next()?;
-            let name = fields.next()?.trim_start_matches('*');
-            (name == "yt-dlp"
-                && fields.next().is_none()
-                && hash.len() == 64
-                && hash.bytes().all(|b| b.is_ascii_hexdigit()))
-            .then_some(hash)
-        });
-        let checksum = matches
-            .next()
-            .ok_or_else(|| verification_error("No checksum for the bare yt-dlp script."))?
-            .to_string();
-        if matches.next().is_some() {
-            return Err(verification_error("Ambiguous yt-dlp checksum."));
-        }
         Ok(Resolved {
             runtime: pointer.runtime,
             asset,
             yt_dlp: tag,
             script_url: format!("{base}/yt-dlp"),
-            checksum,
         })
     }
 
@@ -261,7 +222,66 @@ impl VideoTools {
             }
             live.candidate = Some((resolved.runtime, resolved.yt_dlp.clone()));
         }
-        let archive = staging.0.join("runtime.tar.gz");
+        let runtime_dir = self
+            .fetch_runtime(id, &staging.0, &client, &resolved)
+            .await?;
+        let script_dir = self
+            .fetch_script(id, &staging.0, &client, &resolved)
+            .await?;
+        let script = script_dir.join("yt-dlp");
+        let size = fs::metadata(&script).map_err(download_error)?.len();
+        let candidate = VideoToolsInvocation {
+            interpreter: runtime_dir.join("bin/python3"),
+            quickjs: runtime_dir.join("bin/qjs"),
+            script,
+            built_in_tools: self.config.built_in_tools.clone(),
+        };
+        let python_version = health(&candidate, &resolved.yt_dlp)
+            .await
+            .map_err(|details| Failure {
+                reason: FailureReason::HealthCheck,
+                details,
+            })?;
+        self.progress(id, Component::YtDlp, StepStatus::Done, size, Some(size));
+        let mut live = self.lock();
+        if !is_current(&live, id) {
+            return Ok(());
+        }
+        let installed = InstalledPair {
+            runtime: resolved.runtime,
+            yt_dlp: resolved.yt_dlp,
+            python_version,
+        };
+        let selected = super::manager::invocation(&self.config, &installed);
+        place(
+            &runtime_dir,
+            selected.interpreter.parent().unwrap().parent().unwrap(),
+        )
+        .map_err(download_error)?;
+        place(&script_dir, selected.script.parent().unwrap()).map_err(download_error)?;
+        let mut stored = live.stored.clone();
+        stored.installed = Some(installed.clone());
+        stored.turned_off = false;
+        persist(&self.config, &stored).map_err(download_error)?;
+        live.stored = stored;
+        live.snapshot.published_size = Some(resolved.asset.size + size);
+        live.snapshot.state = ready(installed);
+        self.publish(&mut live);
+        Ok(())
+    }
+    pub(super) async fn fetch_runtime(
+        &self,
+        id: Uuid,
+        staging: &Path,
+        client: &Client,
+        resolved: &Resolved,
+    ) -> Result<PathBuf, Failure> {
+        let transfer = super::transport::Transfer {
+            tools: self,
+            client,
+            step: Some((id, Component::Python)),
+        };
+        let archive = staging.join("runtime.tar.gz");
         for attempt in 0..2 {
             transfer
                 .download(
@@ -304,8 +324,21 @@ impl VideoTools {
             resolved.asset.size,
             Some(resolved.asset.size),
         );
-        let runtime_dir = staging.0.join("runtime");
-        unpack(&archive, &runtime_dir).map_err(verification_error)?;
+        let runtime_dir = staging.join("runtime");
+        loop {
+            let notified = self.idle.notified();
+            {
+                let live = self.lock();
+                if !is_current(&live, id) {
+                    return Err(download_error("Installation cancelled."));
+                }
+                if live.active_downloads == 0 {
+                    unpack(&archive, &runtime_dir).map_err(verification_error)?;
+                    break;
+                }
+            }
+            notified.await;
+        }
         self.progress(
             id,
             Component::Python,
@@ -313,14 +346,62 @@ impl VideoTools {
             resolved.asset.size,
             Some(resolved.asset.size),
         );
-        let script_dir = staging.0.join("script");
-        fs::create_dir(&script_dir).map_err(download_error)?;
-        let script = script_dir.join("yt-dlp");
+        Ok(runtime_dir)
+    }
+
+    pub(super) async fn fetch_script(
+        &self,
+        id: Uuid,
+        staging: &Path,
+        client: &Client,
+        resolved: &Resolved,
+    ) -> Result<PathBuf, Failure> {
+        let base = resolved.script_url.strip_suffix("/yt-dlp").unwrap();
         let transfer = super::transport::Transfer {
             tools: self,
-            client: &client,
+            client,
             step: Some((id, Component::YtDlp)),
         };
+        let mut sums = Vec::new();
+        let mut sums_verified = false;
+        for _ in 0..2 {
+            sums = transfer
+                .bytes(&format!("{base}/SHA2-256SUMS"), 256 * 1024)
+                .await?;
+            let signature = transfer
+                .bytes(&format!("{base}/SHA2-256SUMS.sig"), 64 * 1024)
+                .await?;
+            if openpgp(&sums, &signature, &self.sources.yt_dlp_key).is_ok() {
+                sums_verified = true;
+                break;
+            }
+        }
+        if !sums_verified {
+            return Err(verification_error(
+                "The yt-dlp checksum signature could not be verified.",
+            ));
+        }
+        let manifest = std::str::from_utf8(&sums).map_err(verification_error)?;
+        let mut matches = manifest.lines().filter_map(|line| {
+            let mut fields = line.split_whitespace();
+            let hash = fields.next()?;
+            let name = fields.next()?.trim_start_matches('*');
+            (name == "yt-dlp"
+                && fields.next().is_none()
+                && hash.len() == 64
+                && hash.bytes().all(|b| b.is_ascii_hexdigit()))
+            .then_some(hash)
+        });
+        let expected_checksum = matches
+            .next()
+            .ok_or_else(|| verification_error("No checksum for the bare yt-dlp script."))?
+            .to_string();
+        if matches.next().is_some() {
+            return Err(verification_error("Ambiguous yt-dlp checksum."));
+        }
+        let script_dir = staging.join("script");
+        fs::create_dir(&script_dir).map_err(download_error)?;
+        let script = script_dir.join("yt-dlp");
         for attempt in 0..2 {
             transfer
                 .download(&resolved.script_url, &script, None, 16 * 1024 * 1024)
@@ -333,7 +414,7 @@ impl VideoTools {
                 data.len() as u64,
                 Some(data.len() as u64),
             );
-            if checksum(&data, &resolved.checksum).is_ok() {
+            if checksum(&data, &expected_checksum).is_ok() {
                 break;
             }
             fs::remove_file(&script).map_err(download_error)?;
@@ -349,48 +430,11 @@ impl VideoTools {
             size,
             Some(size),
         );
-        let candidate = VideoToolsInvocation {
-            interpreter: runtime_dir.join("bin/python3"),
-            quickjs: runtime_dir.join("bin/qjs"),
-            script,
-            built_in_tools: self.config.built_in_tools.clone(),
-        };
-        let python_version = health(&candidate, &resolved.yt_dlp)
-            .await
-            .map_err(|details| Failure {
-                reason: FailureReason::HealthCheck,
-                details,
-            })?;
-        self.progress(id, Component::YtDlp, StepStatus::Done, size, Some(size));
-        let mut live = self.lock();
-        if !is_current(&live, id) {
-            return Ok(());
-        }
-        let installed = InstalledPair {
-            runtime: resolved.runtime,
-            yt_dlp: resolved.yt_dlp,
-            python_version,
-        };
-        let selected = super::manager::invocation(&self.config, &installed);
-        place(
-            &runtime_dir,
-            selected.interpreter.parent().unwrap().parent().unwrap(),
-        )
-        .map_err(download_error)?;
-        place(&script_dir, selected.script.parent().unwrap()).map_err(download_error)?;
-        let mut stored = live.stored.clone();
-        stored.installed = Some(installed.clone());
-        stored.turned_off = false;
-        persist(&self.config, &stored).map_err(download_error)?;
-        live.stored = stored;
-        live.snapshot.published_size = Some(resolved.asset.size + size);
-        live.snapshot.state = ready(installed);
-        self.publish(&mut live);
-        Ok(())
+        Ok(script_dir)
     }
 }
 
-fn place(staged: &Path, destination: &Path) -> std::io::Result<()> {
+pub(super) fn place(staged: &Path, destination: &Path) -> std::io::Result<()> {
     fs::create_dir_all(destination.parent().unwrap())?;
     if destination.exists() {
         fs::remove_dir_all(destination)?;

@@ -66,7 +66,12 @@ pub(super) fn restart_download(context: WorkerContext, id: String) {
         let Some(item) = items.get_mut(&id) else {
             return;
         };
-        let can_start = item.direct_download || context.yt_dlp.is_some();
+        let can_start = item.direct_download
+            || context.yt_dlp.is_some()
+            || context
+                .video_tools
+                .as_ref()
+                .is_some_and(|tools| tools.invocation().is_some());
         item.state = if can_start {
             MediaTransferState::Queued
         } else {
@@ -85,16 +90,43 @@ pub(super) fn restart_download(context: WorkerContext, id: String) {
     }
 }
 
-pub(super) fn run_worker(context: WorkerContext, id: String) {
+pub(super) fn run_worker(mut context: WorkerContext, id: String) {
     if !wait_for_slot(&context, &id) {
         return;
     }
+    let managed = !matches!(context.yt_dlp, Some(YtDlpCommand::DeveloperOverride(_)))
+        && context.video_tools.is_some();
+    let is_video = context
+        .items
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get(&id)
+        .is_some_and(|item| !item.direct_download);
+    let download = if managed && is_video {
+        context
+            .video_tools
+            .as_ref()
+            .and_then(|tools| tools.begin_video_download())
+    } else {
+        None
+    };
+    if managed && is_video {
+        context.yt_dlp = download
+            .as_ref()
+            .map(|download| YtDlpCommand::Managed(download.invocation.clone()));
+    }
     let result = run_download(&context, &id);
-    {
+    let report_outcome = {
         let mut items = context
             .items
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let report_outcome = items.get(&id).is_some_and(|item| {
+            !matches!(
+                item.state,
+                MediaTransferState::Cancelled | MediaTransferState::Paused
+            )
+        });
         if let Some(item) = items.get_mut(&id) {
             if item.state != MediaTransferState::Cancelled {
                 match &result {
@@ -115,6 +147,13 @@ pub(super) fn run_worker(context: WorkerContext, id: String) {
             item.eta_seconds = None;
         }
         save_downloads(&context.store_path, &items);
+        report_outcome
+    };
+    if let Some(download) = download
+        && report_outcome
+    {
+        // The module logs persistence failures and keeps runtime probation in that case.
+        let _ = download.finish(result.is_ok());
     }
     context
         .processes
