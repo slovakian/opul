@@ -136,6 +136,12 @@ mod tests {
         let override_path = OsStr::new("/tmp/custom-state");
         let custom_path = resolve_data_directory(ReleaseChannel::Stable, base, Some(override_path));
         assert_eq!(custom_path, PathBuf::from("/tmp/custom-state"));
+        let custom_nightly =
+            resolve_data_directory(ReleaseChannel::Nightly, base, Some(override_path));
+        assert_eq!(
+            custom_nightly.join("Tools"),
+            PathBuf::from("/tmp/custom-state/Tools")
+        );
     }
 
     #[test]

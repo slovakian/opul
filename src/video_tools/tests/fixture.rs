@@ -36,7 +36,7 @@ pub(super) struct Response {
 pub(super) struct Fixture {
     key: SignedSecretKey,
     pub(super) config: VideoToolsConfig,
-    pub(super) sources: super::install::Sources,
+    pub(super) sources: super::sources::Sources,
     pub(super) routes: Arc<Mutex<HashMap<String, Response>>>,
     pub(super) hits: Arc<Mutex<Vec<String>>>,
     pub(super) network: Arc<FakeNetwork>,
@@ -288,7 +288,7 @@ impl Fixture {
         Self {
             key,
             config,
-            sources: super::install::Sources {
+            sources: super::sources::Sources {
                 pointer: format!("{base}/pointer"),
                 repository: format!("{base}/yt"),
                 nightly_repository: format!("{base}/nightly"),

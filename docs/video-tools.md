@@ -68,7 +68,7 @@ For a real packaged check, build an app with version at least 0.2.2, then run `S
 - #63 supplies durable waiting Downloads, submission consent and projected recovery actions. See [waiting Downloads](#waiting-downloads).
 - #64 supplies first-launch Setup, dismissal memory, the Help menu and sidebar progress. See [First-launch Setup](#first-launch-setup). It uses the public operations, snapshot and `VideoToolsProgress`.
 - #65 supplies manual updates, pairing, retention, rollback, persisted holds/skips and last-check timestamps. #67 supplies scheduled checks and persisted consent notifications through the same verified update path. Check for updates resolves metadata without installing; Update retries transient failures and installs any eligible newer components. The scheduler resolves once and installs only when the immediate preference permits it. Both commands are inert outside Ready and coalesce while a job is running. Failed checks leave the current flag and timestamp unchanged.
-- #68 adds Nightly's yt-dlp source switch and compatibility workflow. Stable/Nightly data and preferences are already isolated.
+- #68 supplies Nightly's yt-dlp source switch and the dedicated scheduled compatibility workflow. See [Nightly tools and compatibility checks](video-tools-compatibility.md) for source verification, channel storage, schedules, tested-pair results and failure reporting.
 - #66 supplies Remove and in-flight transfer handling. Settings confirms the current count of running or waiting video Downloads and offers an immediate Turned off choice.
 
 These are the boundaries of #61; they do not mark the full parent #58 complete.

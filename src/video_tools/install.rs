@@ -7,43 +7,7 @@ use semver::Version;
 use std::fs::{self, File};
 use std::path::{Component as PathComponent, Path};
 use std::sync::Arc;
-use std::time::Duration;
 use uuid::Uuid;
-
-#[derive(Clone)]
-pub(super) struct Sources {
-    pub pointer: String,
-    pub repository: String,
-    pub nightly_repository: String,
-    pub opul_key: [u8; 32],
-    pub yt_dlp_key: String,
-    pub allow_fixture_http: bool,
-    pub environment: Arc<dyn NetworkEnvironment>,
-}
-
-impl Sources {
-    pub fn production() -> Self {
-        Self {
-            pointer: "https://github.com/slovakian/opul/releases/download/python-runtime/python-runtime.json".into(),
-            repository: "https://github.com/yt-dlp/yt-dlp".into(),
-            nightly_repository: "https://github.com/yt-dlp/yt-dlp-nightly-builds".into(),
-            opul_key: [0x06,0x54,0x04,0xda,0xa6,0xf7,0x16,0xa3,0xd2,0x21,0xb6,0xc5,0xe1,0x3a,0x44,0xd5,0xe3,0x1a,0xc9,0xd0,0xf9,0xcd,0xb9,0x59,0x0e,0xb4,0x68,0x2f,0x3d,0x4a,0x1b,0x55],
-            yt_dlp_key: include_str!("keys/yt-dlp.asc").into(),
-            allow_fixture_http: false,
-            environment: super::transport::system_network(),
-        }
-    }
-
-    pub(super) fn client(&self) -> Result<Client, Failure> {
-        Client::builder()
-            .https_only(!self.allow_fixture_http)
-            .connect_timeout(Duration::from_secs(15))
-            .timeout(Duration::from_secs(180))
-            .user_agent("Opul video tools")
-            .build()
-            .map_err(download_error)
-    }
-}
 
 #[derive(Deserialize)]
 struct Pointer {
@@ -133,7 +97,11 @@ impl VideoTools {
             return Err(verification_error("Unsupported Python runtime pointer."));
         }
         let minimum = Version::parse(&pointer.minimum_opul_version).map_err(verification_error)?;
-        let current = Version::parse(&self.config.opul_version).map_err(verification_error)?;
+        let mut current = Version::parse(&self.config.opul_version).map_err(verification_error)?;
+        // Opul Nightly has the capabilities of its base app version.
+        if self.config.nightly_available {
+            current.pre = semver::Prerelease::EMPTY;
+        }
         let architecture = if cfg!(target_arch = "aarch64") {
             "arm64"
         } else {

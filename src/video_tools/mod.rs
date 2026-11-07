@@ -10,7 +10,10 @@
 //! Manual checks and updates keep Ready and its selected pair usable. MediaEngine acquires a
 //! VideoToolsUse at execution and reports completion; installation waits for idle, and the first
 //! successful Download releases the retained runtime. Failure before that success restores the
-//! full previous pair. Compatibility holds and integrity skips survive restart. See docs/video-tools.md for pairing, storage and the sibling-ticket handoff.
+//! full previous pair. Compatibility holds and integrity skips survive restart. Opul Nightly can
+//! opt into upstream nightly scripts through the same verified update path; installed pairs and
+//! retained script directories carry their channel. See docs/video-tools.md and
+//! docs/video-tools-compatibility.md for pairing, storage and compatibility monitoring.
 
 mod install;
 mod manager;
@@ -18,6 +21,7 @@ mod nightly;
 mod recovery;
 mod removal;
 mod schedule;
+mod sources;
 mod transport;
 mod updates;
 mod verification;

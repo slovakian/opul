@@ -40,6 +40,8 @@ jobs:
           python3 tools/python-runtime/test_release.py
       - name: Reject corrupted built-in tools
         run: Scripts/test_ffmpeg_fetch.sh
+      - name: Test offline compatibility workflow contracts
+        run: python3 tools/compatibility/test_check.py
       - name: Check packaging configuration
         run: Scripts/test_packaging.sh
       - name: Check Rust formatting

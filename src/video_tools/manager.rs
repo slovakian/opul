@@ -68,7 +68,7 @@ pub(super) struct LiveState {
 
 pub struct VideoTools {
     pub(super) config: VideoToolsConfig,
-    pub(super) sources: super::install::Sources,
+    pub(super) sources: super::sources::Sources,
     pub(super) live: Mutex<LiveState>,
     pub(super) publisher: watch::Sender<VideoToolsSnapshot>,
     pub(super) idle: tokio::sync::Notify,
@@ -96,21 +96,21 @@ pub(super) fn runtime() -> &'static Runtime {
 
 impl VideoTools {
     pub fn open(config: VideoToolsConfig) -> Result<Arc<Self>, String> {
-        Self::open_with_sources(config, super::install::Sources::production())
+        Self::open_with_sources(config, super::sources::Sources::production())
     }
 
     pub fn open_with_environment(
         config: VideoToolsConfig,
         environment: Arc<dyn NetworkEnvironment>,
     ) -> Result<Arc<Self>, String> {
-        let mut sources = super::install::Sources::production();
+        let mut sources = super::sources::Sources::production();
         sources.environment = environment;
         Self::open_with_sources(config, sources)
     }
 
     pub(super) fn open_with_sources(
         config: VideoToolsConfig,
-        sources: super::install::Sources,
+        sources: super::sources::Sources,
     ) -> Result<Arc<Self>, String> {
         fs::create_dir_all(&config.root).map_err(|e| e.to_string())?;
         let lock = OpenOptions::new()
@@ -137,7 +137,14 @@ impl VideoTools {
             }
             Err(error) => return Err(error.to_string()),
         };
-        if !config.nightly_available && stored.yt_dlp_channel == YtDlpChannel::Nightly {
+        if !config.nightly_available
+            && (stored.yt_dlp_channel == YtDlpChannel::Nightly
+                || stored
+                    .installed
+                    .iter()
+                    .chain(stored.rollback_pair.iter())
+                    .any(|pair| pair.yt_dlp_channel == YtDlpChannel::Nightly))
+        {
             return Err(
                 "Nightly video tools state requires Opul Nightly and its own data directory."
                     .into(),
