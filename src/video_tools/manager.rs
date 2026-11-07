@@ -20,7 +20,7 @@ pub(super) struct StoredState {
     #[serde(default)]
     pub last_checked: Option<u64>,
     #[serde(default)]
-    pub compatibility_hold: Option<(String, u64)>,
+    pub compatibility_hold: Option<super::updates::CompatibilityHold>,
     #[serde(default)]
     pub skipped_runtime: Option<u64>,
     #[serde(default)]
@@ -51,7 +51,7 @@ pub(super) struct LiveState {
     pub snapshot: VideoToolsSnapshot,
     pub job: Option<(Uuid, AbortHandle)>,
     pub candidate: Option<(u64, String)>,
-    pub active_downloads: usize,
+    pub active_users: usize,
 }
 
 pub struct VideoTools {
@@ -143,8 +143,8 @@ impl VideoTools {
                     last_checked: stored.last_checked,
                     update_flag: stored.compatibility_hold.as_ref().map_or(
                         UpdateFlag::None,
-                        |(version, _)| UpdateFlag::WaitingForRuntime {
-                            version: version.clone(),
+                        |hold| UpdateFlag::WaitingForRuntime {
+                            version: hold.yt_dlp.clone(),
                         },
                     ),
                 },
@@ -207,7 +207,7 @@ impl VideoTools {
                 snapshot,
                 job: None,
                 candidate: None,
-                active_downloads: 0,
+                active_users: 0,
             }),
             publisher,
             idle: tokio::sync::Notify::new(),

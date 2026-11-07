@@ -6,7 +6,7 @@
 //! Installers stage both parts, verify each project's signature before its checksum, unpack,
 //! health-check the pair, then atomically replace state.json. A failed candidate is never selected.
 //! Manual checks and updates keep Ready and its selected pair usable. MediaEngine acquires a
-//! VideoDownload at execution and reports completion; installation waits for idle, and the first
+//! VideoToolsUse at execution and reports completion; installation waits for idle, and the first
 //! successful Download releases the retained runtime. Failure before that success restores the
 //! full previous pair. Compatibility holds and integrity skips survive restart. See docs/video-tools.md for pairing, storage and the sibling-ticket handoff.
 
@@ -23,7 +23,7 @@ use std::process::Command;
 
 pub use manager::VideoTools;
 pub use transport::{NetworkEnvironment, NetworkFuture};
-pub use updates::VideoDownload;
+pub use updates::VideoToolsUse;
 
 #[derive(Debug, Clone)]
 pub struct VideoToolsConfig {

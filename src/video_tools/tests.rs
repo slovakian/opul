@@ -403,3 +403,5 @@ mod crash;
 mod waiting_downloads;
 
 mod updates;
+
+mod update_regressions;

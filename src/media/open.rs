@@ -77,7 +77,29 @@ impl MediaEngine {
         keep_running: impl FnMut() -> bool,
     ) -> Result<MediaProbe, CoreError> {
         validate_http_url(&url)?;
-        let yt_dlp = self.require_yt_dlp()?;
+        let usage = if self
+            .developer_override
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .is_none()
+        {
+            Some(
+                self.video_tools
+                    .as_ref()
+                    .and_then(|tools| tools.acquire())
+                    .ok_or_else(|| CoreError::DependencyUnavailable {
+                        reason:
+                            "Video downloads need video tools. Set them up in Settings > Tools."
+                                .into(),
+                    })?,
+            )
+        } else {
+            None
+        };
+        let yt_dlp = match &usage {
+            Some(usage) => YtDlpCommand::Managed(usage.invocation.clone()),
+            None => self.require_yt_dlp()?,
+        };
         let cookie_path = self.cookie_path_if_present();
         probe_with_ytdlp(&yt_dlp, cookie_path.as_deref(), &url, keep_running)
     }

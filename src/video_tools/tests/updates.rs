@@ -1,12 +1,12 @@
 use super::*;
 
-fn command(tools: &Arc<VideoTools>, kind: &str) {
+pub(super) fn command(tools: &Arc<VideoTools>, kind: &str) {
     tools
         .execute(serde_json::from_value(serde_json::json!({"kind": kind})).unwrap())
         .unwrap();
 }
 
-fn selected(tools: &VideoTools) -> InstalledPair {
+pub(super) fn selected(tools: &VideoTools) -> InstalledPair {
     match tools.snapshot().state {
         VideoToolsState::Ready { installed, .. } => installed,
         state => panic!("expected Ready, got {state:?}"),
@@ -78,7 +78,7 @@ fn runtime_only_then_both_parts_update_runtime_first_and_retain_until_success() 
         fixture.count("GET /yt/releases/download/2026.10.26/yt-dlp"),
         1
     );
-    tools.begin_video_download().unwrap().finish(true).unwrap();
+    tools.acquire().unwrap().finish_download(true).unwrap();
     assert!(!fixture.config.root.join("python-runtime/1").exists());
     fixture.publish(3, "2026.11.01", &GOOD.replace("2026.10.26", "2026.11.01"));
     command(&tools, "update");
@@ -93,7 +93,7 @@ fn runtime_only_then_both_parts_update_runtime_first_and_retain_until_success() 
                 .unwrap()
     );
     assert!(fixture.config.root.join("python-runtime/2").exists());
-    tools.begin_video_download().unwrap().finish(false).unwrap();
+    tools.acquire().unwrap().finish_download(false).unwrap();
     assert_eq!(selected(&tools).runtime, 2);
     assert_eq!(selected(&tools).yt_dlp, "2026.10.26");
     drop(tools);
@@ -107,7 +107,7 @@ fn active_download_defers_runtime_installation_and_activation_but_old_pair_runs(
     let tools = fixture.open();
     command(&tools, "set_up");
     fixture.wait(&tools);
-    let download = tools.begin_video_download().unwrap();
+    let download = tools.acquire().unwrap();
     let old = download.invocation.clone();
     fixture.publish(2, "2026.11.01", &GOOD.replace("2026.10.26", "2026.11.01"));
     command(&tools, "update");
@@ -343,8 +343,8 @@ fn transient_update_failure_retries_and_old_scripts_rotate_only_on_script_update
     command(&tools, "update");
     fixture.wait(&tools);
     assert!(second.exists());
-    let download = tools.begin_video_download().unwrap();
-    download.finish(false).unwrap();
+    let download = tools.acquire().unwrap();
+    download.finish_download(false).unwrap();
     assert_eq!(selected(&tools).runtime, 1);
     assert_eq!(selected(&tools).yt_dlp, "2026.11.01");
     assert!(tools.invocation().unwrap().script.exists());

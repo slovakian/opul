@@ -106,7 +106,7 @@ pub(super) fn run_worker(mut context: WorkerContext, id: String) {
         context
             .video_tools
             .as_ref()
-            .and_then(|tools| tools.begin_video_download())
+            .and_then(|tools| tools.acquire())
     } else {
         None
     };
@@ -153,7 +153,7 @@ pub(super) fn run_worker(mut context: WorkerContext, id: String) {
         && report_outcome
     {
         // The module logs persistence failures and keeps runtime probation in that case.
-        let _ = download.finish(result.is_ok());
+        let _ = download.finish_download(result.is_ok());
     }
     context
         .processes

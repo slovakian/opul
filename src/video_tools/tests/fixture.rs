@@ -377,6 +377,18 @@ impl Fixture {
         routes.get_mut("/yt/releases/latest").unwrap().redirect =
             Some(format!("{base}/yt/releases/tag/{version}"));
     }
+    pub(super) fn minimum_opul_version(&self, version: &str) {
+        let mut routes = self.routes.lock().unwrap();
+        let mut pointer: serde_json::Value =
+            serde_json::from_slice(&routes["/pointer"].bytes).unwrap();
+        pointer["minimum_opul_version"] = version.into();
+        let bytes = serde_json::to_vec(&pointer).unwrap();
+        routes.get_mut("/pointer.sig").unwrap().bytes = SigningKey::from_bytes(&[9; 32])
+            .sign(&bytes)
+            .to_bytes()
+            .to_vec();
+        routes.get_mut("/pointer").unwrap().bytes = bytes;
+    }
     pub(super) fn open(&self) -> Arc<VideoTools> {
         VideoTools::open_with_sources(self.config.clone(), self.sources.clone()).unwrap()
     }

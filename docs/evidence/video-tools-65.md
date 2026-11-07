@@ -4,7 +4,7 @@ Baseline `4ce16b0` on `integration/58-opul-managed-tools`. Blocker #61 was close
 
 Settings now has working Check for updates and Update actions. Ready and the installed versions stay visible throughout preparation, with one exclusive status line for availability, progress, failure or a compatibility hold. The module persists successful check timestamps, holds, component integrity skips and the complete rollback pair. Setup and updates share verification, retry and health-check code.
 
-MediaEngine acquires the selected pair at execution rather than retaining an enqueue-time version. Acquisition, idle installation and activation share the module lock. Managed video Downloads report completion, while direct transfers, overrides and cancelled or paused work do not affect runtime probation. A new runtime retains the last working pair until its first successful Download. Failures before success, including failed startup validation, restore that pair. File cleanup waits for active users to drain. Shutdown calls the same cancellation method available to Remove.
+MediaEngine acquires the selected pair at execution rather than retaining an enqueue-time version. Probes retain their pair through the same usage guard, without reporting a Download success. Acquisition, idle installation and activation share the module lock. Managed video Downloads report completion, while direct transfers, overrides and cancelled or paused work do not affect runtime probation. A new runtime retains the last working pair until its first successful Download. Failures before success, including failed startup validation, restore that pair. File cleanup waits for active users to drain. Shutdown calls the same cancellation method available to Remove.
 
 ## Regression evidence
 
@@ -18,6 +18,20 @@ Signed fixture-server tests exercise script-only, runtime-only and combined upda
 - #66 should call `VideoTools::cancel()`, stop and drain media users, then remove files. Cancellation stops setup, update checks, preparation, idle waits and health processes without changing the selected pair. Removal must preserve finished Download files.
 - #68 still owns source switching and scheduled compatibility checks. This ticket uses the stable source and the existing per-channel roots.
 
+## Review
+
+The code-review skill ran independent Standards and Spec agents against the baseline. Standards found an unleased-probe lifetime hazard and suggested clearer transaction boundaries. All executing managed users now hold a usage guard, and preparation, candidate selection and activation are separate functions. Setup and updates share pair placement. Spec found runtime minimum-app gating could block an independently compatible script, and extraction I/O errors could incorrectly persist an integrity skip. Runtime eligibility is now independent, holds recheck after an app upgrade, and skips require an exhausted signature/checksum retry. Public-seam regression tests cover each correction, including an unchanged signed pointer after upgrading Opul.
+
+[Settings during an update](../screenshots/video-tools-update.png)
+
 ## Validation
 
-Final commands and review results are recorded after the complete validation run. These tests use local signed fixtures and a mock desktop bridge. They do not claim new real-release compatibility, Intel execution or macOS 13 hardware coverage.
+On Apple silicon macOS, 2026-11-08:
+
+- `vp install`, `vp check`, `vp exec tsc --noEmit`, `cargo fmt --all --check`, `git diff --check`, and `cargo clippy -p opul_core --all-targets -- -D warnings` passed.
+- The complete `RUST_TEST_THREADS=4 OPUL_TEST_PORT=1433 Scripts/test.sh` run passed 22 desktop tests, 151 core tests, 38 frontend unit tests and the production frontend build. WebKit passed 221 of 224 scenarios, including all video-tools scenarios. Three unrelated existing emoji-picker focus scenarios failed in the parallel run. `vp run test tests/ui/skin-tones-recents.spec.ts --workers=1` then passed all six scenarios in that file, including those three failures, without product or assertion changes.
+- After the review corrections, `cargo test -p opul_core video_tools -- --nocapture` passed all 42 selected tests. This includes five new regressions for probe lifetime, independent runtime eligibility, app-upgrade hold rechecks, retryable extraction failure and persisted runtime integrity skips. There are now 156 core tests in total. Strict core Clippy, formatting and type checks passed again on the corrected implementation.
+- The focused `vp run test tests/ui/video-tools.spec.ts` passed all 13 scenarios with Ready's exclusive status flags, the manual actions and axe audits. The screenshot above was captured through those same mock-bridge interactions and visually inspected.
+- `Scripts/test_packaging.sh` passed. `Scripts/package_app.sh debug` built and ad-hoc signed the arm64 stable app. `Scripts/smoke_test.sh` passed its icon checks and confirmed the packaged frontend rendered, connected to Rust, and resolved built-in FFmpeg and ffprobe.
+
+These tests use local signed fixtures and a mock desktop bridge. They do not claim new real-release compatibility, Intel execution or macOS 13 hardware coverage. The parallel emoji focus failures are documented rather than hidden by weakening their assertions.

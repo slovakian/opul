@@ -61,6 +61,8 @@ pub(super) struct RuntimeAsset {
 
 pub(super) struct Resolved {
     pub(super) runtime: u64,
+    pub(super) minimum_opul_version: String,
+    pub(super) runtime_compatible: bool,
     pub(super) asset: RuntimeAsset,
     pub(super) yt_dlp: String,
     pub(super) script_url: String,
@@ -69,17 +71,27 @@ pub(super) struct Resolved {
 pub(super) struct Failure {
     pub reason: FailureReason,
     pub details: String,
+    pub exhausted_integrity: bool,
 }
 pub(super) fn download_error(e: impl std::fmt::Display) -> Failure {
     Failure {
         reason: FailureReason::Download,
         details: e.to_string(),
+        exhausted_integrity: false,
     }
 }
 pub(super) fn verification_error(e: impl std::fmt::Display) -> Failure {
     Failure {
         reason: FailureReason::Verification,
         details: e.to_string(),
+        exhausted_integrity: false,
+    }
+}
+
+fn integrity_error(e: impl std::fmt::Display) -> Failure {
+    Failure {
+        exhausted_integrity: true,
+        ..verification_error(e)
     }
 }
 
@@ -119,11 +131,6 @@ impl VideoTools {
         }
         let minimum = Version::parse(&pointer.minimum_opul_version).map_err(verification_error)?;
         let current = Version::parse(&self.config.opul_version).map_err(verification_error)?;
-        if current < minimum {
-            return Err(download_error(format!(
-                "This Python runtime needs Opul {minimum} or later. Update Opul, then try again."
-            )));
-        }
         let architecture = if cfg!(target_arch = "aarch64") {
             "arm64"
         } else {
@@ -161,6 +168,8 @@ impl VideoTools {
         let base = format!("{}/releases/download/{tag}", self.sources.repository);
         Ok(Resolved {
             runtime: pointer.runtime,
+            minimum_opul_version: pointer.minimum_opul_version,
+            runtime_compatible: current >= minimum,
             asset,
             yt_dlp: tag,
             script_url: format!("{base}/yt-dlp"),
@@ -215,6 +224,12 @@ impl VideoTools {
             step: Some((id, Component::Python)),
         };
         let resolved = self.resolve(&transfer).await?;
+        if !resolved.runtime_compatible {
+            return Err(download_error(format!(
+                "This Python runtime needs Opul {} or later. Update Opul, then try again.",
+                resolved.minimum_opul_version
+            )));
+        }
         {
             let mut live = self.lock();
             if !is_current(&live, id) {
@@ -241,6 +256,7 @@ impl VideoTools {
             .map_err(|details| Failure {
                 reason: FailureReason::HealthCheck,
                 details,
+                exhausted_integrity: false,
             })?;
         self.progress(id, Component::YtDlp, StepStatus::Done, size, Some(size));
         let mut live = self.lock();
@@ -252,13 +268,13 @@ impl VideoTools {
             yt_dlp: resolved.yt_dlp,
             python_version,
         };
-        let selected = super::manager::invocation(&self.config, &installed);
-        place(
-            &runtime_dir,
-            selected.interpreter.parent().unwrap().parent().unwrap(),
+        place_pair(
+            &self.config,
+            &installed,
+            Some(&runtime_dir),
+            Some(&script_dir),
         )
         .map_err(download_error)?;
-        place(&script_dir, selected.script.parent().unwrap()).map_err(download_error)?;
         let mut stored = live.stored.clone();
         stored.installed = Some(installed.clone());
         stored.turned_off = false;
@@ -314,7 +330,7 @@ impl VideoTools {
             }
             fs::remove_file(&archive).map_err(download_error)?;
             if attempt == 1 {
-                return Err(verification_error(verification.unwrap_err()));
+                return Err(integrity_error(verification.unwrap_err()));
             }
         }
         self.progress(
@@ -332,7 +348,7 @@ impl VideoTools {
                 if !is_current(&live, id) {
                     return Err(download_error("Installation cancelled."));
                 }
-                if live.active_downloads == 0 {
+                if live.active_users == 0 {
                     unpack(&archive, &runtime_dir).map_err(verification_error)?;
                     break;
                 }
@@ -377,7 +393,7 @@ impl VideoTools {
             }
         }
         if !sums_verified {
-            return Err(verification_error(
+            return Err(integrity_error(
                 "The yt-dlp checksum signature could not be verified.",
             ));
         }
@@ -419,7 +435,7 @@ impl VideoTools {
             }
             fs::remove_file(&script).map_err(download_error)?;
             if attempt == 1 {
-                return Err(verification_error("The yt-dlp checksum did not match."));
+                return Err(integrity_error("The yt-dlp checksum did not match."));
             }
         }
         let size = fs::metadata(&script).map_err(download_error)?.len();
@@ -434,7 +450,26 @@ impl VideoTools {
     }
 }
 
-pub(super) fn place(staged: &Path, destination: &Path) -> std::io::Result<()> {
+pub(super) fn place_pair(
+    config: &VideoToolsConfig,
+    installed: &InstalledPair,
+    runtime: Option<&Path>,
+    script: Option<&Path>,
+) -> std::io::Result<()> {
+    let selected = super::manager::invocation(config, installed);
+    if let Some(runtime) = runtime {
+        place(
+            runtime,
+            selected.interpreter.parent().unwrap().parent().unwrap(),
+        )?;
+    }
+    if let Some(script) = script {
+        place(script, selected.script.parent().unwrap())?;
+    }
+    Ok(())
+}
+
+fn place(staged: &Path, destination: &Path) -> std::io::Result<()> {
     fs::create_dir_all(destination.parent().unwrap())?;
     if destination.exists() {
         fs::remove_dir_all(destination)?;
