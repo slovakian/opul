@@ -1,0 +1,126 @@
+use super::manager::{LiveState, persist, runtime};
+use super::updates::UpdateMode;
+use super::*;
+use std::sync::Arc;
+use std::time::Duration;
+use uuid::Uuid;
+
+impl VideoTools {
+    pub(super) fn set_keep_up_to_date(
+        self: &Arc<Self>,
+        live: &mut LiveState,
+        enabled: bool,
+    ) -> Result<(), String> {
+        let mut stored = live.stored.clone();
+        stored.keep_up_to_date = enabled;
+        persist(&self.config, &stored)?;
+        live.stored = stored;
+        live.snapshot.keep_up_to_date = enabled;
+        if !enabled
+            && live.automatic_update
+            && matches!(
+                live.snapshot.state,
+                VideoToolsState::Ready {
+                    update_flag: UpdateFlag::Updating { .. },
+                    ..
+                }
+            )
+        {
+            super::manager::cancel(live);
+            let available = live.stored.available_update.clone();
+            if let VideoToolsState::Ready { update_flag, .. } = &mut live.snapshot.state {
+                *update_flag = available.map_or(UpdateFlag::None, |notice| UpdateFlag::Available {
+                    version: notice.version,
+                });
+            }
+        }
+        if enabled && live.stored.available_update.is_some() {
+            self.start_update(live, super::updates::UpdateMode::Automatic);
+        }
+        Ok(())
+    }
+
+    pub(super) fn start_schedule(self: &Arc<Self>) {
+        let weak = Arc::downgrade(self);
+        let mut snapshots = self.subscribe();
+        let environment = Arc::clone(&self.sources.environment);
+        let mut due = environment.now() + Duration::from_secs(60);
+        let task = runtime().spawn(async move {
+            loop {
+                let ready = matches!(
+                    snapshots.borrow_and_update().state,
+                    VideoToolsState::Ready { .. }
+                );
+                if !ready {
+                    if snapshots.changed().await.is_err() {
+                        break;
+                    }
+                    continue;
+                }
+                tokio::select! {
+                    result = snapshots.changed() => { if result.is_err() { break; } }
+                    () = environment.sleep(due.saturating_sub(environment.now())) => {
+                        due = environment.now() + Duration::from_secs(86_400);
+                        let Some(tools) = weak.upgrade() else { break; };
+                        let mut live = tools.lock();
+                        tools.start_update(&mut live, UpdateMode::Automatic);
+                    }
+                }
+            }
+        });
+        self.lock().schedule = Some(task.abort_handle());
+    }
+
+    pub(super) fn start_update(self: &Arc<Self>, live: &mut LiveState, mode: UpdateMode) {
+        if live.removing
+            || live.job.is_some()
+            || !matches!(live.snapshot.state, VideoToolsState::Ready { .. })
+        {
+            return;
+        }
+        live.candidate = None;
+        live.automatic_update = matches!(mode, UpdateMode::Automatic);
+        let id = Uuid::new_v4();
+        let tools = Arc::clone(self);
+        let task = runtime().spawn(async move {
+            tools.run_update(id, mode).await;
+        });
+        live.job = Some((id, task.abort_handle()));
+    }
+
+    /// Atomically claim a consent notification before showing it. Concurrent consumers and
+    /// restarts cannot claim it twice. A failed write leaves it eligible for a later attempt.
+    pub fn take_update_notice(&self) -> Result<Option<UpdateNotice>, String> {
+        let mut live = self.lock();
+        if live.stored.keep_up_to_date
+            || !matches!(
+                live.snapshot.state,
+                VideoToolsState::Ready {
+                    update_flag: UpdateFlag::Available { .. },
+                    ..
+                }
+            )
+        {
+            return Ok(None);
+        }
+        let Some(notice) = live.stored.available_update.clone() else {
+            return Ok(None);
+        };
+        if live.stored.notified_updates.contains(&notice.identity) {
+            return Ok(None);
+        }
+        let mut stored = live.stored.clone();
+        stored.notified_updates.push(notice.identity.clone());
+        persist(&self.config, &stored)?;
+        live.stored = stored;
+        Ok(Some(notice))
+    }
+}
+
+impl Drop for VideoTools {
+    fn drop(&mut self) {
+        if let Some(schedule) = self.lock().schedule.take() {
+            schedule.abort();
+        }
+    }
+}

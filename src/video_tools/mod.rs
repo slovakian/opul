@@ -5,6 +5,8 @@
 //! Setup requires an explicit command, including after TurnedOff. Preferences commit immediately.
 //! Installers stage both parts, verify each project's signature before its checksum, unpack,
 //! health-check the pair, then atomically replace state.json. A failed candidate is never selected.
+//! Ready schedules a check after one minute and every 24 hours; failures are quiet. One persisted
+//! preference governs both components. take_update_notice durably claims each consent notification.
 //! Manual checks and updates keep Ready and its selected pair usable. MediaEngine acquires a
 //! VideoToolsUse at execution and reports completion; installation waits for idle, and the first
 //! successful Download releases the retained runtime. Failure before that success restores the
@@ -13,6 +15,8 @@
 mod install;
 mod manager;
 mod recovery;
+mod removal;
+mod schedule;
 mod transport;
 mod updates;
 mod verification;
@@ -53,6 +57,7 @@ pub struct VideoToolsSnapshot {
     pub sequence: u64,
     pub state: VideoToolsState,
     pub keep_up_to_date: bool,
+    pub update_available: bool,
     pub published_size: Option<u64>,
 }
 
@@ -119,6 +124,12 @@ pub enum StepStatus {
     Installing,
     Done,
     Failed,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct UpdateNotice {
+    pub identity: String,
+    pub version: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

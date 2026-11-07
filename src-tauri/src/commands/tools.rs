@@ -39,3 +39,14 @@ pub async fn video_tools_execute(
     .await
     .map_err(|error| error.to_string())?
 }
+
+#[tauri::command]
+pub fn video_tools_take_update_notice(
+    state: State<'_, Desktop>,
+) -> Result<Option<opul_core::video_tools::UpdateNotice>, String> {
+    state
+        .machine()?
+        .video_tools()
+        .ok_or("Video tools module is unavailable.")?
+        .take_update_notice()
+}

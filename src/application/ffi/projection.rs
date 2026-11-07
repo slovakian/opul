@@ -162,6 +162,7 @@ pub(super) fn download_view(download: DownloadProjection) -> MachineDownload {
         capabilities: MachineCapabilities {
             can_set_up_video_tools: download.capabilities.can_set_up_video_tools,
             can_retry_video_tools: download.capabilities.can_retry_video_tools,
+            can_update_video_tools: download.capabilities.can_update_video_tools,
             can_pause: download.capabilities.can_pause,
             can_resume: download.capabilities.can_resume,
             can_retry: download.capabilities.can_retry,

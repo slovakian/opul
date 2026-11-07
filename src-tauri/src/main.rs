@@ -196,6 +196,7 @@ fn main() {
             commands::tools::tools_snapshot,
             commands::tools::video_tools_details,
             commands::tools::video_tools_execute,
+            commands::tools::video_tools_take_update_notice,
             commands::reveal_download,
         ])
         .build(tauri::generate_context!())

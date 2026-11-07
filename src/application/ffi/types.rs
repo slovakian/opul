@@ -121,6 +121,7 @@ pub enum MachineHoldCause {
 pub struct MachineCapabilities {
     pub can_set_up_video_tools: bool,
     pub can_retry_video_tools: bool,
+    pub can_update_video_tools: bool,
     pub can_pause: bool,
     pub can_resume: bool,
     pub can_retry: bool,

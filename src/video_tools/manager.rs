@@ -25,6 +25,10 @@ pub(super) struct StoredState {
     pub skipped_runtime: Option<u64>,
     #[serde(default)]
     pub skipped_yt_dlp: Option<String>,
+    #[serde(default)]
+    pub available_update: Option<UpdateNotice>,
+    #[serde(default)]
+    pub notified_updates: Vec<String>,
     pub keep_up_to_date: bool,
     pub turned_off: bool,
 }
@@ -40,6 +44,8 @@ impl Default for StoredState {
             compatibility_hold: None,
             skipped_runtime: None,
             skipped_yt_dlp: None,
+            available_update: None,
+            notified_updates: Vec::new(),
             keep_up_to_date: true,
             turned_off: false,
         }
@@ -52,6 +58,8 @@ pub(super) struct LiveState {
     pub job: Option<(Uuid, AbortHandle)>,
     pub candidate: Option<(u64, String)>,
     pub active_users: usize,
+    pub schedule: Option<AbortHandle>,
+    pub automatic_update: bool,
     pub removing: bool,
 }
 
@@ -143,7 +151,12 @@ impl VideoTools {
                     installed: pair.clone(),
                     last_checked: stored.last_checked,
                     update_flag: stored.compatibility_hold.as_ref().map_or(
-                        UpdateFlag::None,
+                        stored
+                            .available_update
+                            .as_ref()
+                            .map_or(UpdateFlag::None, |notice| UpdateFlag::Available {
+                                version: notice.version.clone(),
+                            }),
                         |hold| UpdateFlag::WaitingForRuntime {
                             version: hold.yt_dlp.clone(),
                         },
@@ -195,12 +208,14 @@ impl VideoTools {
         };
         let snapshot = VideoToolsSnapshot {
             sequence: 0,
+            update_available: stored.available_update.is_some()
+                && matches!(state, VideoToolsState::Ready { .. }),
             state,
             keep_up_to_date: stored.keep_up_to_date,
             published_size: None,
         };
         let (publisher, _) = watch::channel(snapshot.clone());
-        Ok(Arc::new(Self {
+        let tools = Arc::new(Self {
             config,
             sources,
             live: Mutex::new(LiveState {
@@ -209,12 +224,16 @@ impl VideoTools {
                 job: None,
                 candidate: None,
                 active_users: 0,
+                schedule: None,
+                automatic_update: false,
                 removing: false,
             }),
             publisher,
             idle: tokio::sync::Notify::new(),
             _lock: lock,
-        }))
+        });
+        tools.start_schedule();
+        Ok(tools)
     }
 
     pub(super) fn lock(&self) -> MutexGuard<'_, LiveState> {
@@ -265,11 +284,7 @@ impl VideoTools {
         match operation {
             VideoToolsOperation::Remove { .. } => unreachable!(),
             VideoToolsOperation::SetKeepUpToDate { enabled } => {
-                let mut stored = live.stored.clone();
-                stored.keep_up_to_date = enabled;
-                persist(&self.config, &stored)?;
-                live.stored = stored;
-                live.snapshot.keep_up_to_date = enabled;
+                self.set_keep_up_to_date(&mut live, enabled)?;
             }
             VideoToolsOperation::TurnOff => {
                 if matches!(live.snapshot.state, VideoToolsState::Ready { .. }) {
@@ -285,19 +300,12 @@ impl VideoTools {
                 live.snapshot.state = VideoToolsState::TurnedOff;
             }
             VideoToolsOperation::CheckForUpdates | VideoToolsOperation::Update => {
-                if live.job.is_some()
-                    || !matches!(live.snapshot.state, VideoToolsState::Ready { .. })
-                {
-                    return Ok(live.snapshot.clone());
-                }
-                let install = operation == VideoToolsOperation::Update;
-                live.candidate = None;
-                let id = Uuid::new_v4();
-                let tools = Arc::clone(self);
-                let task = runtime().spawn(async move {
-                    tools.run_update(id, install).await;
-                });
-                live.job = Some((id, task.abort_handle()));
+                let mode = if operation == VideoToolsOperation::Update {
+                    super::updates::UpdateMode::Manual
+                } else {
+                    super::updates::UpdateMode::Check
+                };
+                self.start_update(&mut live, mode);
             }
             VideoToolsOperation::Cancel => {
                 cancel(&mut live);
@@ -369,65 +377,16 @@ impl VideoTools {
         Ok(live.snapshot.clone())
     }
 
-    /// Revoke selection under the activation lock before stopping writers. The caller must
-    /// stop its media processes before returning; active leases protect probes still exiting.
-    pub fn remove_with(
-        self: &Arc<Self>,
-        turn_off: bool,
-        stop_writers: impl FnOnce() -> Result<(), String>,
-    ) -> Result<VideoToolsSnapshot, String> {
-        {
-            let mut live = self.lock();
-            if live.removing {
-                return Err("Video tools are being removed.".into());
-            }
-            let stored = StoredState {
-                turned_off: turn_off || live.stored.turned_off,
-                keep_up_to_date: live.stored.keep_up_to_date,
-                ..StoredState::default()
-            };
-            persist(&self.config, &stored)?;
-            cancel(&mut live);
-            live.candidate = None;
-            live.stored = stored;
-            live.removing = true;
-            live.snapshot.state = if live.stored.turned_off {
-                VideoToolsState::TurnedOff
-            } else {
-                VideoToolsState::NotSetUp
-            };
-            self.publish(&mut live);
-        }
-        let result: Result<(), String> = (|| {
-            stop_writers()?;
-            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
-            loop {
-                let live = self.lock();
-                if live.active_users == 0 {
-                    super::recovery::prune(&self.config.root, &live.stored)?;
-                    return Ok(());
-                }
-                if std::time::Instant::now() >= deadline {
-                    return Err("Video tools are still in use. Try removing them again.".into());
-                }
-                drop(live);
-                std::thread::sleep(std::time::Duration::from_millis(10));
-            }
-        })();
-        let mut live = self.lock();
-        live.removing = false;
-        if let Err(error) = result {
-            live.snapshot.state = VideoToolsState::NotWorking {
-                reason: FailureReason::StoppedWorking,
-                details: error.clone(),
-            };
-            self.publish(&mut live);
-            return Err(error);
-        }
-        Ok(live.snapshot.clone())
-    }
-
     pub(super) fn publish(&self, live: &mut LiveState) {
+        live.snapshot.update_available = live.stored.available_update.is_some()
+            && matches!(live.snapshot.state, VideoToolsState::Ready { .. })
+            && !matches!(
+                live.snapshot.state,
+                VideoToolsState::Ready {
+                    update_flag: UpdateFlag::Updating { .. },
+                    ..
+                }
+            );
         live.snapshot.sequence += 1;
         self.publisher.send_replace(live.snapshot.clone());
     }
@@ -472,7 +431,7 @@ impl VideoTools {
     }
 }
 
-fn cancel(live: &mut LiveState) {
+pub(super) fn cancel(live: &mut LiveState) {
     if let Some((_, task)) = live.job.take() {
         task.abort();
     }

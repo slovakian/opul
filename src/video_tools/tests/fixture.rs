@@ -1,3 +1,4 @@
+use super::network::FakeNetwork;
 use super::*;
 
 use ed25519_dalek::{Signer, SigningKey};
@@ -428,44 +429,5 @@ impl Drop for Fixture {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Relaxed);
         self.server.take().unwrap().join().unwrap();
-    }
-}
-
-pub(super) struct FakeNetwork {
-    online: tokio::sync::watch::Sender<bool>,
-    pub(super) sleeps: Mutex<Vec<Duration>>,
-    pub(super) disconnect_on_retry: AtomicBool,
-}
-impl FakeNetwork {
-    fn new() -> Self {
-        Self {
-            online: tokio::sync::watch::channel(true).0,
-            sleeps: Mutex::new(Vec::new()),
-            disconnect_on_retry: AtomicBool::new(false),
-        }
-    }
-    pub(super) fn set_online(&self, online: bool) {
-        self.online.send_replace(online);
-    }
-}
-impl NetworkEnvironment for FakeNetwork {
-    fn online(&self) -> NetworkFuture<'_, bool> {
-        Box::pin(async { *self.online.borrow() })
-    }
-    fn sleep(&self, duration: Duration) -> NetworkFuture<'_, ()> {
-        Box::pin(async move {
-            if duration == Duration::from_secs(1) {
-                let mut online = self.online.subscribe();
-                while !*online.borrow_and_update() {
-                    online.changed().await.unwrap();
-                }
-            } else {
-                self.sleeps.lock().unwrap().push(duration);
-                if self.disconnect_on_retry.swap(false, Ordering::SeqCst) {
-                    self.set_online(false);
-                }
-                tokio::task::yield_now().await;
-            }
-        })
     }
 }

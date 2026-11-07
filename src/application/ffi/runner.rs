@@ -177,7 +177,11 @@ pub(super) fn observe_video_tools(
     tools: &crate::video_tools::VideoTools,
 ) -> Result<(), StateMachineError> {
     use crate::video_tools::VideoToolsState;
-    let availability = match tools.snapshot().state {
+    let snapshot = tools.snapshot();
+    actor
+        .observe_video_update(!snapshot.keep_up_to_date && snapshot.update_available)
+        .map_err(actor_error)?;
+    let availability = match snapshot.state {
         VideoToolsState::NotSetUp => VideoToolsAvailability::NotSetUp,
         VideoToolsState::TurnedOff => VideoToolsAvailability::TurnedOff,
         VideoToolsState::SettingUp { .. } => VideoToolsAvailability::SettingUp,

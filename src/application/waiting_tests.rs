@@ -33,6 +33,8 @@ fn page(state: &AppState) -> Download {
     }
 }
 
+mod update_advice;
+
 #[test]
 fn unavailable_video_tools_hold_pages_without_dispatching_an_effect() {
     let mut state = AppState::fresh("/tmp/Films".into());

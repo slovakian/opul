@@ -5,6 +5,7 @@ use std::collections::HashMap;
 pub(crate) struct RuntimeOverlay {
     pub(crate) boot: Option<BootId>,
     pub(crate) sequence: u64,
+    pub(crate) video_update_available: bool,
     pub(crate) telemetry: HashMap<DownloadId, TransferTelemetry>,
 }
 
@@ -66,6 +67,7 @@ pub(crate) struct DownloadProjection {
 pub(crate) struct DownloadCapabilities {
     pub(crate) can_set_up_video_tools: bool,
     pub(crate) can_retry_video_tools: bool,
+    pub(crate) can_update_video_tools: bool,
     pub(crate) can_pause: bool,
     pub(crate) can_resume: bool,
     pub(crate) can_retry: bool,
@@ -112,7 +114,19 @@ pub(crate) fn project(state: &AppState, overlay: &RuntimeOverlay) -> AppProjecti
                         lifecycle: download.lifecycle.clone(),
                         output: download.output.clone(),
                         telemetry: overlay.telemetry.get(&download.id).cloned(),
-                        capabilities: capabilities(state, download),
+                        capabilities: {
+                            let mut capabilities = capabilities(state, download);
+                            capabilities.can_update_video_tools =
+                                matches!(state.session, SessionPhase::Running)
+                                    && state.video_tools == VideoToolsAvailability::Ready
+                                    && overlay.video_update_available
+                                    && download.needs_video_tools()
+                                    && matches!(
+                                        download.lifecycle,
+                                        DownloadLifecycle::Failed { .. }
+                                    );
+                            capabilities
+                        },
                         waiting_label: matches!(
                             download.lifecycle,
                             DownloadLifecycle::WaitingForVideoTools
@@ -137,6 +151,7 @@ pub(crate) fn capabilities(state: &AppState, download: &Download) -> DownloadCap
     let mutable = matches!(state.session, SessionPhase::Running);
     let waiting = matches!(download.lifecycle, DownloadLifecycle::WaitingForVideoTools);
     DownloadCapabilities {
+        can_update_video_tools: false,
         can_set_up_video_tools: mutable
             && waiting
             && matches!(

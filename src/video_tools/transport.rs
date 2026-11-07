@@ -13,6 +13,11 @@ pub type NetworkFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 /// Reachability and time are injected independently of HTTP and the installation root.
 /// Dropping either future must cancel it, including when setup is cancelled or Opul quits.
 pub trait NetworkEnvironment: Send + Sync {
+    fn now(&self) -> Duration {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+    }
     fn online(&self) -> NetworkFuture<'_, bool>;
     fn sleep(&self, duration: Duration) -> NetworkFuture<'_, ()>;
 }
