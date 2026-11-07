@@ -6,9 +6,11 @@ import subprocess
 import sys
 from pathlib import Path
 import tempfile
+import tarfile
 import unittest
+from unittest.mock import patch
 
-from check import channels_due, result_name, already_tested, report_failure, record_result, check_health
+from check import channels_due, result_name, already_tested, report_failure, record_result, check_health, main
 
 
 class CompatibilityTests(unittest.TestCase):
@@ -71,6 +73,29 @@ class CompatibilityTests(unittest.TestCase):
         self.assertIn('--prerelease', create)
         self.assertIn('--latest=false', create)
         self.assertTrue(any(c[:2] == ('release', 'upload') for c in calls))
+
+    def test_broken_executables_and_archives_open_failure_issues_with_diagnostics(self):
+        plan = dict(channel='stable', runtime=1, yt_dlp='2026.10.26', arch='arm64', pointer_sha256='abc')
+        for failure in [FileNotFoundError('bin/python3 missing'), PermissionError('bin/python3 blocked'),
+                        OSError('Exec format error'), tarfile.ReadError('Invalid runtime archive')]:
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as folder:
+                output = Path(folder)
+                args = ['check.py', '--channel', 'stable', '--arch', 'arm64', '--output', folder]
+                with (patch.object(sys, 'argv', args), patch.dict(os.environ, COMPATIBILITY_SCHEDULE=''),
+                      patch('check.discover', return_value=(plan, {})),
+                      patch('check.ledger_release', return_value=None),
+                      patch('check.test_pair', side_effect=failure),
+                      patch('check.report_failure') as report, patch('check.record_result') as record,
+                      patch('builtins.print')):
+                    with self.assertRaises(SystemExit) as raised:
+                        main()
+                    self.assertEqual(raised.exception.code, 1)
+                    self.assertIn(str(failure), report.call_args.args[2])
+                    self.assertEqual(report.call_args.args[0], plan)
+                    record.assert_called_once()
+                    result = json.loads((output / result_name(plan)).read_text())
+                    self.assertFalse(result['ok'])
+                    self.assertIn(str(failure), result['error'])
 
     def test_health_requires_supported_handlers_engine_version_and_python(self):
         healthy = ('[debug] yt-dlp version nightly@2026.11.04.232659 from fixture\n'

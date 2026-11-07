@@ -245,7 +245,7 @@ def main():
         # Infrastructure trouble leaves this pair eligible for the next scheduled run.
         (output / 'infrastructure-error.log').write_text(str(error))
         raise
-    except (ValueError, RuntimeError, subprocess.SubprocessError) as error:
+    except (ValueError, RuntimeError, OSError, tarfile.TarError, subprocess.SubprocessError) as error:
         result.update(ok=False, error=str(error))
         if not args.local:
             report_failure(plan, output, str(error), run_url)
