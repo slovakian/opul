@@ -10,6 +10,7 @@ const initial: VideoToolsSnapshot = {
   published_size: null,
   sequence: 1,
   state: { kind: "not_set_up" },
+  update_available: false,
 };
 
 const openTools = async (page: Page) => {

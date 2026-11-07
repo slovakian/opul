@@ -4,11 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { toast } from "@/components/ui/toast";
 import { useVideoTools } from "@/hooks/use-video-tools";
+import { useVideoUpdateNotice } from "@/hooks/use-video-update-notice";
 import { bridge, errorMessage } from "@/lib/bridge";
 import { useLibrary } from "@/lib/library";
 
 export const useVideoSetup = () => {
   const videoTools = useVideoTools();
+  useVideoUpdateNotice(videoTools.tools?.video);
   const { preferences } = useLibrary();
   const [open, setOpen] = useState(false);
   const offer = useRef<Promise<boolean> | null>(null);

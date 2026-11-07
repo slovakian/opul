@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+export const updateNoticeSchema = z.object({
+  identity: z.string(),
+  version: z.string(),
+});
+
 const installedPairSchema = z.object({
   python_version: z.string(),
   runtime: z.number().int().positive(),
@@ -61,6 +66,7 @@ export const videoToolsSchema = z.object({
       ]),
     }),
   ]),
+  update_available: z.boolean(),
 });
 
 export const toolsSnapshotSchema = z.object({

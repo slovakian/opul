@@ -86,6 +86,7 @@ test("download type override reaches the backend and resets on success", async (
       published_size: null,
       sequence: 1,
       state: { kind: "setting_up", steps: [] },
+      update_available: false,
     },
   });
   await page.goto("/");
@@ -346,6 +347,7 @@ test("aggregate destination confirmation retains the explicit video format", asy
       published_size: null,
       sequence: 1,
       state: { kind: "setting_up", steps: [] },
+      update_available: false,
     },
   });
   await page.goto("/");

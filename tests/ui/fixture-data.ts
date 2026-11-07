@@ -9,6 +9,7 @@ export const toolsSnapshot = {
     published_size: null,
     sequence: 0,
     state: { kind: "not_set_up" },
+    update_available: false,
   },
 } satisfies ToolsSnapshot;
 
@@ -27,6 +28,7 @@ export const baseDownload: Download = {
     can_reveal_output: false,
     can_set_up_video_tools: false,
     can_stop_seeding: false,
+    can_update_video_tools: false,
   },
   comment: null,
   content_folder: null,

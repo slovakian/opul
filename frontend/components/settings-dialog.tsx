@@ -11,6 +11,7 @@ import { useState } from "react";
 import opulLogo from "@/assets/opul-logo.png";
 import { Choice } from "@/components/sidebar-popover";
 import { ToolsSettings } from "@/components/tools-settings";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -38,6 +39,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { useVideoTools } from "@/hooks/use-video-tools";
 import { useLibrary } from "@/lib/library";
 import type { Preferences } from "@/lib/model";
 
@@ -97,6 +99,10 @@ const SettingsContent = ({
   onVideoSetup: () => void;
 }) => {
   const { savePreferences, state } = useLibrary();
+  const { tools } = useVideoTools();
+
+  const updateAvailable = tools?.video.update_available;
+
   const workspaces = state.kind === "ready" ? state.snapshot.workspaces : [];
   const [section, setSection] = useState("Appearance");
   const [draft, setDraft] = useState(initial);
@@ -159,6 +165,11 @@ const SettingsContent = ({
                     <item.icon />
                     <span>{item.label}</span>
                   </SidebarMenuButton>
+                  {item.label === "Tools" && updateAvailable && (
+                    <Badge variant="outline" className="mb-1 ml-2">
+                      Update available
+                    </Badge>
+                  )}
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>

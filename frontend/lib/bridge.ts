@@ -18,7 +18,11 @@ import type {
   Preferences,
   WorkspaceExpansionChanges,
 } from "@/lib/model";
-import { toolsSnapshotSchema, videoToolsSchema } from "@/lib/video-tools";
+import {
+  toolsSnapshotSchema,
+  videoToolsSchema,
+  updateNoticeSchema,
+} from "@/lib/video-tools";
 import type {
   VideoToolsOperation,
   VideoToolsSnapshot,
@@ -90,6 +94,11 @@ export const bridge = {
     requireDesktop();
 
     return snapshotSchema.parse(await invoke("snapshot"));
+  },
+  async takeVideoToolsUpdateNotice() {
+    return updateNoticeSchema
+      .nullable()
+      .parse(await invoke("video_tools_take_update_notice"));
   },
   async toolsSnapshot() {
     return toolsSnapshotSchema.parse(await invoke("tools_snapshot"));

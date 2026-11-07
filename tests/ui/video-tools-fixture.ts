@@ -20,7 +20,13 @@ declare global {
       invoke: (
         name: string,
         args: DesktopInvokeArgs
-      ) => ToolsSnapshot | VideoToolsSnapshot | string | number | null;
+      ) =>
+        | ToolsSnapshot
+        | VideoToolsSnapshot
+        | { identity: string; version: string }
+        | string
+        | number
+        | null;
       register: (handler: (event: ToolsEvent) => void) => number;
     };
   }
@@ -51,7 +57,18 @@ export const mockVideoTools = async (page: Page, options: DesktopOptions) => {
 
       const toolListeners = new Map<number, string>();
 
+      const refreshAvailable = () => {
+        const { state } = currentTools.video;
+        currentTools.video.update_available =
+          state.kind === "ready" &&
+          (state.update_flag.kind === "available" ||
+            state.update_flag.kind === "failed");
+      };
+
+      refreshAvailable();
+
       const pushTools = () => {
+        refreshAvailable();
         sessionStorage.setItem(
           "test-video-tools",
           JSON.stringify(currentTools.video)
@@ -162,6 +179,33 @@ export const mockVideoTools = async (page: Page, options: DesktopOptions) => {
       let callbackId = 0;
       window.testVideoTools = {
         invoke: (name, args) => {
+          if (name === "video_tools_take_update_notice") {
+            const { video } = currentTools;
+
+            if (
+              video.keep_up_to_date ||
+              video.state.kind !== "ready" ||
+              video.state.update_flag.kind !== "available"
+            ) {
+              return null;
+            }
+
+            const notice = {
+              identity: video.state.update_flag.version,
+              version: video.state.update_flag.version,
+            };
+
+            const key = `test-notified-${notice.identity}`;
+
+            if (sessionStorage.getItem(key)) {
+              return null;
+            }
+
+            sessionStorage.setItem(key, "true");
+
+            return notice;
+          }
+
           if (name === "tools_snapshot") {
             return structuredClone(currentTools);
           }

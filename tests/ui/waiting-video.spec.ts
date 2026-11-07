@@ -10,6 +10,7 @@ const initial: VideoToolsSnapshot = {
   published_size: 23_400_000,
   sequence: 1,
   state: { kind: "not_set_up" },
+  update_available: false,
 };
 
 const settingUp: VideoToolsSnapshot = {

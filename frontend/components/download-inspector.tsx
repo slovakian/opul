@@ -14,6 +14,7 @@ import { createElement, useEffect, useRef, useState } from "react";
 import { DownloadActions, reveal } from "@/components/download-actions";
 import { DownloadStatus, fileIcon } from "@/components/downloads";
 import { InspectorPanel } from "@/components/inspector-panel";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -36,6 +37,7 @@ import {
   TraceLine,
   TraceTitle,
 } from "@/components/ui/trace";
+import { VideoToolsUpdateAdvice } from "@/components/video-tools-update-advice";
 import { errorMessage } from "@/lib/bridge";
 import { useLibrary } from "@/lib/library";
 import { bytes, formatNames, sourceNames, timeRemaining } from "@/lib/model";
@@ -177,13 +179,9 @@ export const DownloadInspector = ({
           </p>
         </div>
         {download.error_message && (
-          <p
-            className="bg-destructive/10 text-destructive rounded-lg p-3 text-sm"
-            role="alert"
-          >
-            {download.error_message}
-          </p>
+          <Alert variant="destructive">{download.error_message}</Alert>
         )}
+        <VideoToolsUpdateAdvice download={download} />
         <Separator />
         <dl className="details-grid text-xs">
           <dt>Workspace</dt>

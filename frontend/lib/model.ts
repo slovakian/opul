@@ -76,6 +76,7 @@ export const downloadSchema = z.object({
     can_reveal_output: z.boolean(),
     can_set_up_video_tools: z.boolean().default(false),
     can_stop_seeding: z.boolean(),
+    can_update_video_tools: z.boolean().default(false),
   }),
   comment: z.string().nullable(),
   content_folder: z.string().nullable(),

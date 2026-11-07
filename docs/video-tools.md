@@ -67,7 +67,7 @@ For a real packaged check, build an app with version at least 0.2.2, then run `S
 - #62 supplies range resume, injected reachability/timing, retry scheduling, startup cleanup/pruning and recovery tests. See [the recovery evidence](evidence/video-tools-62.md). #65 must maintain `previous_runtime` and `previous_yt_dlp` when changing the selected pair, and clear them according to its retention policy.
 - #63 supplies durable waiting Downloads, submission consent and projected recovery actions. See [waiting Downloads](#waiting-downloads).
 - #64 supplies first-launch Setup, dismissal memory, the Help menu and sidebar progress. See [First-launch Setup](#first-launch-setup). It uses the public operations, snapshot and `VideoToolsProgress`.
-- #65 supplies manual updates, pairing, retention, rollback, persisted holds/skips and last-check timestamps. #67 adds scheduled checks and update notifications through the same operations. Check for updates resolves metadata without installing; Update retries transient failures and installs any eligible newer components. Scheduling should run Check for updates and, when automatic updates are enabled, Update. Both commands are inert outside Ready and coalesce while a job is running. Failed checks leave the current flag and timestamp unchanged.
+- #65 supplies manual updates, pairing, retention, rollback, persisted holds/skips and last-check timestamps. #67 supplies scheduled checks and persisted consent notifications through the same verified update path. Check for updates resolves metadata without installing; Update retries transient failures and installs any eligible newer components. The scheduler resolves once and installs only when the immediate preference permits it. Both commands are inert outside Ready and coalesce while a job is running. Failed checks leave the current flag and timestamp unchanged.
 - #68 adds Nightly's yt-dlp source switch and compatibility workflow. Stable/Nightly data and preferences are already isolated.
 - #66 supplies Remove and in-flight transfer handling. Settings confirms the current count of running or waiting video Downloads and offers an immediate Turned off choice.
 
@@ -83,7 +83,7 @@ Help ▸ Set Up Video Tools… and Settings ▸ Tools ▸ Set Up Video Tools… 
 
 ## Manual updates
 
-See [manual updates and runtime probation](video-tool-updates.md) for pairing, persisted holds and skips, download activity, retention, rollback and the shared cancellation operation.
+See [video tools updates and runtime probation](video-tool-updates.md) for pairing, persisted holds and skips, download activity, retention, rollback and the shared cancellation operation.
 
 ## Removing video tools
 

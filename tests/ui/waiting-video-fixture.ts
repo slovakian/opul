@@ -67,11 +67,20 @@ export const mockWaitingVideos = async (page: Page) => {
         return result;
       },
       project: (snapshot) => {
-        const { kind } = window.testVideoTools.snapshot().state;
+        const video = window.testVideoTools.snapshot();
+        const { kind } = video.state;
 
         for (const download of snapshot.workspaces.flatMap(
           (workspace) => workspace.downloads
         )) {
+          download.capabilities.can_update_video_tools =
+            !video.keep_up_to_date &&
+            kind === "ready" &&
+            video.state.kind === "ready" &&
+            video.update_available &&
+            download.state === "Failed" &&
+            (download.needs_video_tools || download.source === "VideoPage");
+
           if (download.state !== "WaitingForVideoTools") {
             continue;
           }

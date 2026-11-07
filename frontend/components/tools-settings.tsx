@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -30,9 +31,11 @@ const ReadyVideoToolsSettings = ({
   state,
   busy,
   execute,
+  updateAvailable,
 }: {
   state: Extract<VideoToolsSnapshot["state"], { kind: "ready" }>;
   busy: boolean;
+  updateAvailable: boolean;
   execute: ReturnType<typeof useVideoTools>["execute"];
 }) => (
   <>
@@ -61,7 +64,7 @@ const ReadyVideoToolsSettings = ({
         <output className="text-muted-foreground text-sm">
           {updateMessage(state.update_flag)}
         </output>
-        {state.update_flag.kind === "available" && (
+        {updateAvailable && (
           <Button
             type="button"
             size="sm"
@@ -74,6 +77,17 @@ const ReadyVideoToolsSettings = ({
       </div>
     )}
   </>
+);
+
+const VideoToolsHeading = ({
+  updateAvailable,
+}: {
+  updateAvailable: boolean;
+}) => (
+  <h3 className="flex flex-wrap items-center gap-2 font-medium">
+    Video tools
+    {updateAvailable && <Badge variant="outline">Update available</Badge>}
+  </h3>
 );
 
 export const ToolsSettings = ({
@@ -123,7 +137,7 @@ export const ToolsSettings = ({
       </FieldGroup>
       <Separator />
       <section aria-label="Video tools" className="flex flex-col gap-4">
-        <h3 className="font-medium">Video tools</h3>
+        <VideoToolsHeading updateAvailable={video.update_available} />
         <Button type="button" variant="outline" onClick={onVideoSetup}>
           Set Up Video Tools…
         </Button>
@@ -159,6 +173,7 @@ export const ToolsSettings = ({
         {state.kind === "ready" && (
           <ReadyVideoToolsSettings
             state={state}
+            updateAvailable={video.update_available}
             busy={busy}
             execute={execute}
           />
