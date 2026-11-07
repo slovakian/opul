@@ -226,6 +226,8 @@ else
   fi
 fi
 
+python3 "$ROOT_DIR/tools/verify_package.py" "$APP_IN_DMG" "$ARCH_SUFFIX" --dmg "$OUT_DMG"
+
 hdiutil detach "$MOUNT_DIR" -force >/dev/null
 rm -rf "$MOUNT_DIR"
 trap - EXIT

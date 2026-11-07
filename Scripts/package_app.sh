@@ -206,3 +206,4 @@ else
 fi
 
 echo "Built $ROOT_DIR/$BUNDLE_NAME (arch: $ACTUAL_ARCH, target: $TARGET_TRIPLE, profile: $BUILD_CONF, channel: $CHANNEL)"
+python3 "$ROOT_DIR/tools/verify_package.py" "$ROOT_DIR/$BUNDLE_NAME" "$ARCH_SUFFIX"
