@@ -103,13 +103,8 @@ fn main() {
     let application = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin({
-            let mut builder = tauri_plugin_updater::Builder::new();
-            if let Ok(key) = std::env::var("TAURI_SIGNING_PUBLIC_KEY") {
-                builder = builder.pubkey(key);
-            }
-            builder.build()
-        })
+        // The public key comes only from the bundled configuration, never from the environment.
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             app.manage(Desktop::open(data_directory(app.handle()), |preferences| {
                 open_machine(app.handle(), preferences)
