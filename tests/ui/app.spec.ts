@@ -51,9 +51,9 @@ test("search, transfer actions, table view, inspector, and removal", async ({
   await page
     .getByRole("button", { name: "Actions for Field notes.pdf" })
     .click();
-  const menu = page.locator('[data-slot="popover-content"]');
+  const menu = page.getByRole("menu", { name: "Actions for Field notes.pdf" });
   await expect(menu.locator('[data-slot="sidebar"]')).toBeVisible();
-  await menu.getByRole("button", { name: "Remove from library" }).click();
+  await menu.getByRole("menuitem", { name: "Remove from library" }).click();
   await page
     .getByRole("button", { exact: true, name: "Remove download" })
     .click();

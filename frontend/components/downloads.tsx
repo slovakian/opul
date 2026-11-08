@@ -12,10 +12,22 @@ import {
   HardDriveDownload,
   Pause,
 } from "lucide-react";
-import type { MouseEvent } from "react";
+import { createElement, useRef, useState } from "react";
+import type { KeyboardEvent, MouseEvent } from "react";
 
 import { DownloadActions } from "@/components/download-actions";
+import {
+  DownloadMenuBody,
+  downloadMenuPopup,
+  useActionAfterClose,
+  useDownloadMenuGroups,
+} from "@/components/download-menu";
 import { Button } from "@/components/ui/button";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import {
   Empty,
   EmptyContent,
@@ -123,20 +135,30 @@ const progress = (download: Download) =>
 
 // Cards mirror the outline button: a raised surface with its own border.
 // Minimal keeps rows flat until they are hovered or selected.
+// `menuTarget` outlines the row a right-click menu belongs to without selecting it.
 const listItemStyles = {
   cards: {
     group: "gap-2",
     item: "border-border bg-background shadow-xs hover:bg-muted/50 dark:border-input dark:bg-input/30 dark:hover:bg-input/50 data-[selected=true]:border-ring data-[selected=true]:bg-muted/50 data-[selected=true]:ring-1 data-[selected=true]:ring-ring/30 dark:data-[selected=true]:border-ring dark:data-[selected=true]:bg-input/50",
+    menuTarget:
+      "data-popup-open:border-ring data-popup-open:ring-1 data-popup-open:ring-ring/30 dark:data-popup-open:border-ring",
     variant: "outline",
   },
   minimal: {
     group: "gap-1",
     item: "hover:bg-muted/30 data-[selected=true]:bg-muted/50 data-[selected=true]:ring-1 data-[selected=true]:ring-border data-[selected=true]:ring-inset",
+    menuTarget:
+      "data-popup-open:ring-1 data-popup-open:ring-ring data-popup-open:ring-inset",
     variant: "default",
   },
 } as const satisfies Record<
   ListStyle,
-  { group: string; item: string; variant: "default" | "outline" }
+  {
+    group: string;
+    item: string;
+    menuTarget: string;
+    variant: "default" | "outline";
+  }
 >;
 
 const interactiveTarget =
@@ -151,6 +173,259 @@ const selectsRow = (event: MouseEvent<HTMLElement>) => {
     // Clicks inside portaled menus still bubble through React's tree.
     currentTarget.contains(target) &&
     !target.closest(interactiveTarget)
+  );
+};
+
+/** Shift+F10 and the Menu key are the keyboard equivalents of a right-click. */
+const isMenuKey = (event: KeyboardEvent<HTMLElement>) =>
+  event.key === "ContextMenu" || (event.shiftKey && event.key === "F10");
+
+interface RowProps {
+  download: Download;
+  selected: boolean;
+  onInspect: (download: Download) => void;
+  onRemove: (download: Download) => void;
+}
+
+/**
+ * State shared by list and table rows: one action list feeds both the "…"
+ * menu and the right-click menu, and the menu keys open the "…" menu.
+ */
+const useDownloadRow = ({ download, onInspect, onRemove }: RowProps) => {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const nameRef = useRef<HTMLButtonElement>(null);
+
+  // The details panel returns focus to whatever was focused when it opened,
+  // so a row click hands that role to the row's name.
+  const handleInspect = () => {
+    nameRef.current?.focus();
+    onInspect(download);
+  };
+
+  // Both menus focus their return target (the "…" button, or the row's name)
+  // before running this, via useActionAfterClose.
+  const handleDetails = () => onInspect(download);
+  const remove = () => onRemove(download);
+
+  const groups = useDownloadMenuGroups({
+    download,
+    onInspect: handleDetails,
+    onRemove: remove,
+  });
+
+  const contextMenuAction = useActionAfterClose(nameRef);
+
+  const handleMenuKey = (event: KeyboardEvent<HTMLElement>) => {
+    if (isMenuKey(event)) {
+      event.preventDefault();
+      setMenuOpen(true);
+    }
+  };
+
+  return {
+    actions: (
+      <DownloadActions
+        download={download}
+        onInspect={handleDetails}
+        onRemove={remove}
+        menuOpen={menuOpen}
+        onMenuOpenChange={setMenuOpen}
+      />
+    ),
+    contextMenu: (
+      <ContextMenuContent
+        aria-label={`Actions for ${download.name}`}
+        className={downloadMenuPopup}
+      >
+        <DownloadMenuBody
+          groups={groups}
+          onSelect={contextMenuAction.handleSelect}
+        />
+      </ContextMenuContent>
+    ),
+    handleContextMenuClosed: contextMenuAction.handleOpenChangeComplete,
+    handleInspect,
+    handleMenuKey,
+    nameRef,
+  };
+};
+
+const DownloadTableRow = (props: RowProps) => {
+  const { download, selected } = props;
+
+  const {
+    actions,
+    contextMenu,
+    handleContextMenuClosed,
+    handleInspect,
+    handleMenuKey,
+    nameRef,
+  } = useDownloadRow(props);
+
+  return (
+    <ContextMenu onOpenChangeComplete={handleContextMenuClosed}>
+      <ContextMenuTrigger
+        // The trigger is the row itself, so it keeps the row's slot name.
+        data-slot="table-row"
+        render={
+          <TableRow
+            data-state={selected ? "selected" : undefined}
+            className="data-popup-open:bg-muted/50"
+          />
+        }
+        onKeyDown={handleMenuKey}
+      >
+        <TableCell className="max-w-60">
+          <button
+            ref={nameRef}
+            type="button"
+            className="flex max-w-full items-center gap-3 py-2 text-left outline-none hover:underline focus-visible:underline"
+            onClick={handleInspect}
+          >
+            {createElement(fileIcon(download), {
+              className: "text-muted-foreground size-4 shrink-0",
+            })}
+            <span className="truncate">{download.name}</span>
+          </button>
+        </TableCell>
+        <TableCell>
+          <DownloadStatus download={download} />
+          {download.error_message && (
+            <p
+              className="text-destructive truncate text-xs"
+              title={download.error_message}
+            >
+              {download.error_message}
+            </p>
+          )}
+          <VideoToolsUpdateAdvice download={download} />
+        </TableCell>
+        <TableCell className="text-muted-foreground hidden lg:table-cell">
+          {sourceHost(download)}
+        </TableCell>
+        <TableCell className="text-muted-foreground text-right tabular-nums">
+          {download.total_size ? bytes(download.total_size) : "—"}
+        </TableCell>
+        <TableCell className="text-muted-foreground text-right tabular-nums">
+          {download.download_rate ? `${bytes(download.download_rate)}/s` : "—"}
+        </TableCell>
+        <TableCell>{actions}</TableCell>
+      </ContextMenuTrigger>
+      {contextMenu}
+    </ContextMenu>
+  );
+};
+
+const transferringStates = new Set<Download["state"]>([
+  "Fetching",
+  "Starting",
+  "Verifying",
+  "Seeding",
+]);
+
+const DownloadListItem = ({
+  listStyle,
+  ...props
+}: RowProps & { listStyle: ListStyle }) => {
+  const { download, selected } = props;
+
+  const {
+    actions,
+    contextMenu,
+    handleContextMenuClosed,
+    handleInspect,
+    handleMenuKey,
+    nameRef,
+  } = useDownloadRow(props);
+
+  const styles = listItemStyles[listStyle];
+  const transferring = transferringStates.has(download.state);
+
+  let rateOrProgress = "";
+
+  if (download.download_rate) {
+    rateOrProgress = `${bytes(download.download_rate)}/s · ${timeRemaining(download.eta_seconds)}`;
+  } else if (transferring) {
+    rateOrProgress = `${Math.round(progress(download))}%`;
+  }
+
+  return (
+    <ContextMenu onOpenChangeComplete={handleContextMenuClosed}>
+      <ContextMenuTrigger
+        // The trigger is the row itself, so it keeps the row's slot name.
+        data-slot="item"
+        render={
+          <Item
+            // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role
+            role="listitem"
+            variant={styles.variant}
+            data-selected={selected}
+            className={cn(styles.item, styles.menuTarget)}
+          />
+        }
+        // Keyboard users select through the focusable name button below.
+        onClick={(event) => {
+          if (selectsRow(event)) {
+            handleInspect();
+          }
+        }}
+        onKeyDown={handleMenuKey}
+      >
+        <ItemMedia
+          variant="icon"
+          className="text-muted-foreground size-9 rounded-lg"
+        >
+          {createElement(fileIcon(download))}
+        </ItemMedia>
+        <ItemContent className="min-w-0">
+          <ItemTitle className="max-w-full">
+            <button
+              ref={nameRef}
+              type="button"
+              className="truncate text-left outline-none hover:underline focus-visible:underline"
+              onClick={handleInspect}
+            >
+              {download.name}
+            </button>
+          </ItemTitle>
+          <ItemDescription className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+            <span>{sourceHost(download)}</span>
+            <span aria-hidden>·</span>
+            <span className="tabular-nums">
+              {download.total_size
+                ? bytes(download.total_size)
+                : "Size unknown"}
+            </span>
+            {download.error_message && (
+              <span
+                className="text-destructive truncate"
+                title={download.error_message}
+              >
+                {download.error_message}
+              </span>
+            )}
+          </ItemDescription>
+          <VideoToolsUpdateAdvice download={download} />
+          {transferring && (
+            <Progress
+              className="mt-1 max-w-96"
+              value={progress(download)}
+              aria-label={`${download.name} progress`}
+            />
+          )}
+        </ItemContent>
+        <ItemActions className="gap-4">
+          <div className="hidden min-w-28 flex-col items-end gap-1 sm:flex">
+            <DownloadStatus download={download} />
+            <span className="text-muted-foreground text-xs tabular-nums">
+              {rateOrProgress}
+            </span>
+          </div>
+          {actions}
+        </ItemActions>
+      </ContextMenuTrigger>
+      {contextMenu}
+    </ContextMenu>
   );
 };
 
@@ -215,165 +490,35 @@ export const Downloads = ({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {downloads.map((download) => {
-            const Icon = fileIcon(download);
-
-            return (
-              <TableRow
-                key={download.id}
-                data-state={selectedId === download.id ? "selected" : undefined}
-              >
-                <TableCell className="max-w-60">
-                  <button
-                    type="button"
-                    className="flex max-w-full items-center gap-3 py-2 text-left outline-none hover:underline focus-visible:underline"
-                    onClick={(event) => {
-                      event.currentTarget.focus();
-                      onInspect(download);
-                    }}
-                  >
-                    <Icon className="text-muted-foreground size-4 shrink-0" />
-                    <span className="truncate">{download.name}</span>
-                  </button>
-                </TableCell>
-                <TableCell>
-                  <DownloadStatus download={download} />
-                  {download.error_message && (
-                    <p
-                      className="text-destructive truncate text-xs"
-                      title={download.error_message}
-                    >
-                      {download.error_message}
-                    </p>
-                  )}
-                  <VideoToolsUpdateAdvice download={download} />
-                </TableCell>
-                <TableCell className="text-muted-foreground hidden lg:table-cell">
-                  {sourceHost(download)}
-                </TableCell>
-                <TableCell className="text-muted-foreground text-right tabular-nums">
-                  {download.total_size ? bytes(download.total_size) : "—"}
-                </TableCell>
-                <TableCell className="text-muted-foreground text-right tabular-nums">
-                  {download.download_rate
-                    ? `${bytes(download.download_rate)}/s`
-                    : "—"}
-                </TableCell>
-                <TableCell>
-                  <DownloadActions
-                    download={download}
-                    onInspect={() => onInspect(download)}
-                    onRemove={() => onRemove(download)}
-                  />
-                </TableCell>
-              </TableRow>
-            );
-          })}
+          {downloads.map((download) => (
+            <DownloadTableRow
+              key={download.id}
+              download={download}
+              selected={selectedId === download.id}
+              onInspect={onInspect}
+              onRemove={onRemove}
+            />
+          ))}
         </TableBody>
       </Table>
     );
   }
 
-  const styles = listItemStyles[listStyle];
-
   return (
-    <ItemGroup className={styles.group} data-list-style={listStyle}>
-      {downloads.map((download) => {
-        const Icon = fileIcon(download);
-
-        const transferring = [
-          "Fetching",
-          "Starting",
-          "Verifying",
-          "Downloading",
-          "Seeding",
-        ].includes(download.state);
-
-        let rateOrProgress = "";
-
-        if (download.download_rate) {
-          rateOrProgress = `${bytes(download.download_rate)}/s · ${timeRemaining(download.eta_seconds)}`;
-        } else if (transferring) {
-          rateOrProgress = `${Math.round(progress(download))}%`;
-        }
-
-        return (
-          <Item
-            key={download.id}
-            // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role
-            role="listitem"
-            variant={styles.variant}
-            data-selected={selectedId === download.id}
-            className={styles.item}
-            // Keyboard users select through the focusable name button below.
-            // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
-            onClick={(event) => {
-              if (selectsRow(event)) {
-                onInspect(download);
-              }
-            }}
-          >
-            <ItemMedia
-              variant="icon"
-              className="text-muted-foreground size-9 rounded-lg"
-            >
-              <Icon />
-            </ItemMedia>
-            <ItemContent className="min-w-0">
-              <ItemTitle className="max-w-full">
-                <button
-                  type="button"
-                  className="truncate text-left outline-none hover:underline focus-visible:underline"
-                  onClick={(event) => {
-                    event.currentTarget.focus();
-                    onInspect(download);
-                  }}
-                >
-                  {download.name}
-                </button>
-              </ItemTitle>
-              <ItemDescription className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-                <span>{sourceHost(download)}</span>
-                <span aria-hidden>·</span>
-                <span className="tabular-nums">
-                  {download.total_size
-                    ? bytes(download.total_size)
-                    : "Size unknown"}
-                </span>
-                {download.error_message && (
-                  <span
-                    className="text-destructive truncate"
-                    title={download.error_message}
-                  >
-                    {download.error_message}
-                  </span>
-                )}
-              </ItemDescription>
-              <VideoToolsUpdateAdvice download={download} />
-              {transferring && (
-                <Progress
-                  className="mt-1 max-w-96"
-                  value={progress(download)}
-                  aria-label={`${download.name} progress`}
-                />
-              )}
-            </ItemContent>
-            <ItemActions className="gap-4">
-              <div className="hidden min-w-28 flex-col items-end gap-1 sm:flex">
-                <DownloadStatus download={download} />
-                <span className="text-muted-foreground text-xs tabular-nums">
-                  {rateOrProgress}
-                </span>
-              </div>
-              <DownloadActions
-                download={download}
-                onInspect={() => onInspect(download)}
-                onRemove={() => onRemove(download)}
-              />
-            </ItemActions>
-          </Item>
-        );
-      })}
+    <ItemGroup
+      className={listItemStyles[listStyle].group}
+      data-list-style={listStyle}
+    >
+      {downloads.map((download) => (
+        <DownloadListItem
+          key={download.id}
+          download={download}
+          listStyle={listStyle}
+          selected={selectedId === download.id}
+          onInspect={onInspect}
+          onRemove={onRemove}
+        />
+      ))}
     </ItemGroup>
   );
 };

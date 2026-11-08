@@ -11,7 +11,8 @@ import {
 } from "lucide-react";
 import { createElement, useEffect, useRef, useState } from "react";
 
-import { DownloadActions, reveal } from "@/components/download-actions";
+import { DownloadActions } from "@/components/download-actions";
+import { reveal } from "@/components/download-menu";
 import { DownloadStatus, fileIcon } from "@/components/downloads";
 import { InspectorPanel } from "@/components/inspector-panel";
 import { Alert } from "@/components/ui/alert";

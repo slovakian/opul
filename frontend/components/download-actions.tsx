@@ -1,119 +1,58 @@
 import {
-  CircleStop,
   FolderOpen,
-  Info,
   MoreHorizontal,
   Pause,
   Play,
   RotateCcw,
-  Trash2,
-  X,
 } from "lucide-react";
+import { useRef } from "react";
 
-import { SidebarPopover } from "@/components/sidebar-popover";
-import type { MenuAction } from "@/components/sidebar-popover";
+import {
+  DownloadMenuBody,
+  downloadMenuPopup,
+  reveal,
+  useActionAfterClose,
+  useDownloadMenuGroups,
+} from "@/components/download-menu";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/ui/toast";
 import { sendVideoTools } from "@/hooks/use-video-tools";
-import { bridge, errorMessage } from "@/lib/bridge";
+import { errorMessage } from "@/lib/bridge";
 import { useLibrary } from "@/lib/library";
 import type { Download, DownloadAction } from "@/lib/model";
-
-export const reveal = async (id: string) => {
-  try {
-    await bridge.reveal(id);
-  } catch (error) {
-    toast.add({
-      description: errorMessage(error),
-      title: "Couldn't reveal this download",
-      type: "error",
-    });
-  }
-};
 
 export const DownloadActions = ({
   download,
   onInspect,
   onRemove,
+  menuOpen,
+  onMenuOpenChange,
 }: {
   download: Download;
   onInspect: () => void;
   onRemove: () => void;
+  /** Lets a row open the "…" menu from the keyboard (Shift+F10). */
+  menuOpen?: boolean;
+  onMenuOpenChange?: (open: boolean) => void;
 }) => {
   const { run, busy } = useLibrary();
   const caps = download.capabilities;
+  const groups = useDownloadMenuGroups({ download, onInspect, onRemove });
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  const { handleOpenChangeComplete, handleSelect } =
+    useActionAfterClose(triggerRef);
 
   const act = (action: DownloadAction) => {
     run({ action, download_id: download.id, kind: "download" }).catch(
       () => null
     );
   };
-
-  const actions: MenuAction[] = [
-    {
-      icon: Info,
-      label: "Show details",
-      onClick: (anchor) => {
-        anchor?.focus();
-        onInspect();
-      },
-    },
-  ];
-
-  if (caps.can_reveal_output) {
-    actions.push({
-      icon: FolderOpen,
-      label: "Show in Finder",
-      onClick: () => {
-        reveal(download.id).catch(() => null);
-      },
-    });
-  }
-
-  if (caps.can_pause) {
-    actions.push({
-      disabled: busy,
-      icon: Pause,
-      label: "Pause download",
-      onClick: () => act("Pause"),
-    });
-  }
-
-  if (caps.can_resume) {
-    actions.push({
-      disabled: busy,
-      icon: Play,
-      label: "Resume download",
-      onClick: () => act("Resume"),
-    });
-  }
-
-  if (caps.can_retry) {
-    actions.push({
-      disabled: busy,
-      icon: RotateCcw,
-      label: "Retry download",
-      onClick: () => act("Retry"),
-    });
-  }
-
-  if (caps.can_stop_seeding) {
-    actions.push({
-      disabled: busy,
-      icon: CircleStop,
-      label: "Stop seeding",
-      onClick: () => act("StopSeeding"),
-    });
-  }
-
-  if (caps.can_cancel) {
-    actions.push({
-      disabled: busy,
-      icon: X,
-      label: "Cancel download",
-      onClick: () => act("Cancel"),
-    });
-  }
 
   const recoverVideoTools = async () => {
     try {
@@ -210,31 +149,31 @@ export const DownloadActions = ({
   return (
     <div className="flex items-center gap-1">
       {renderPrimaryAction()}
-      <SidebarPopover
-        title="Download actions"
-        trigger={
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Actions for ${download.name}`}
-          >
-            <MoreHorizontal />
-          </Button>
-        }
-        groups={[
-          { actions },
-          {
-            actions: [
-              {
-                disabled: busy || !caps.can_remove,
-                icon: Trash2,
-                label: "Remove from library",
-                onClick: onRemove,
-              },
-            ],
-          },
-        ]}
-      />
+      <DropdownMenu
+        open={menuOpen}
+        onOpenChange={onMenuOpenChange}
+        onOpenChangeComplete={handleOpenChangeComplete}
+      >
+        <DropdownMenuTrigger
+          ref={triggerRef}
+          render={
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`Actions for ${download.name}`}
+            >
+              <MoreHorizontal />
+            </Button>
+          }
+        />
+        <DropdownMenuContent
+          align="end"
+          aria-label={`Actions for ${download.name}`}
+          className={downloadMenuPopup}
+        >
+          <DownloadMenuBody groups={groups} onSelect={handleSelect} />
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 };
