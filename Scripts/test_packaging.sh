@@ -198,6 +198,26 @@ if ! grep -q "/download/v0.2.0/Opul-arm64.app.tar.gz" "$TMP_STABLE_MANIFEST"; th
 fi
 echo "PASS: generate-updater-manifest.mjs generates and validates stable updater manifest"
 
+# Unsigned or placeholder-signed manifests must never be produced: installs would fail verification.
+if node Scripts/generate-updater-manifest.mjs \
+  --version "0.2.0" \
+  --channel stable \
+  --output "$TMP_STABLE_MANIFEST" >/dev/null 2>&1; then
+  echo "FAIL: Manifest generation must require signatures" >&2
+  exit 1
+fi
+
+if node Scripts/generate-updater-manifest.mjs \
+  --version "0.2.0" \
+  --channel stable \
+  --arm64-sig "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkK" \
+  --x64-sig "test-sig-x64" \
+  --output "$TMP_STABLE_MANIFEST" >/dev/null 2>&1; then
+  echo "FAIL: Manifest generation must reject the placeholder signature" >&2
+  exit 1
+fi
+echo "PASS: generate-updater-manifest.mjs rejects unsigned and placeholder-signed manifests"
+
 cleanup_manifest
 trap - EXIT
 

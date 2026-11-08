@@ -7,8 +7,10 @@ const SEMVER_REGEX =
 
 const DEFAULT_REPO = process.env.GITHUB_REPOSITORY || "slovakian/opul";
 
-const FALLBACK_SIGNATURE =
-  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkK";
+// The placeholder earlier builds wrote when no signing key was configured. It can never verify.
+const PLACEHOLDER_SIGNATURES = new Set([
+  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkK",
+]);
 
 const printUsage = () => {
   console.log(`Usage: Scripts/generate-updater-manifest.mjs [OPTIONS]
@@ -21,9 +23,9 @@ Options:
   --tag <tag>               Release tag (default: nightly for nightly, v<version> for stable)
   --channel <channel>       Channel name (nightly or stable, default: nightly)
   --arm64-url <url>         Download URL for darwin-aarch64 updater bundle
-  --arm64-sig <sig_or_file> Signature or path to .sig file for darwin-aarch64
+  --arm64-sig <sig_or_file> Signature or path to .sig file for darwin-aarch64 (required)
   --x64-url <url>           Download URL for darwin-x86_64 updater bundle
-  --x64-sig <sig_or_file>   Signature or path to .sig file for darwin-x86_64
+  --x64-sig <sig_or_file>   Signature or path to .sig file for darwin-x86_64 (required)
   --output, -o <file>       Output JSON path (default: nightly.json or latest.json)
   --validate <file>         Validate an existing updater manifest JSON
   --help, -h                Show this help message`);
@@ -67,6 +69,12 @@ const validateManifest = (manifest) => {
 
     if (!config.signature) {
       throw new Error(`Platform ${platform} is missing signature`);
+    }
+
+    if (PLACEHOLDER_SIGNATURES.has(config.signature)) {
+      throw new Error(
+        `Platform ${platform} has a placeholder signature. Sign the updater archive with TAURI_SIGNING_PRIVATE_KEY.`
+      );
     }
   }
 
@@ -123,11 +131,11 @@ const buildManifest = (values) => {
     notes,
     platforms: {
       "darwin-aarch64": {
-        signature: arm64Sig || FALLBACK_SIGNATURE,
+        signature: arm64Sig,
         url: arm64Url,
       },
       "darwin-x86_64": {
-        signature: x64Sig || FALLBACK_SIGNATURE,
+        signature: x64Sig,
         url: x64Url,
       },
     },
