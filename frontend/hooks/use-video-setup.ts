@@ -59,13 +59,14 @@ export const useVideoSetup = () => {
     };
   }, [shown, kind]);
 
+  // Setup shows its own finish, so the toast is only for people who left it.
   useEffect(() => {
-    if (previous.current === "setting_up" && kind === "ready") {
+    if (previous.current === "setting_up" && kind === "ready" && !open) {
       toast.add({ id: "video-tools-ready", title: "Video tools are ready" });
     }
 
     previous.current = kind;
-  }, [kind]);
+  }, [kind, open]);
 
   useEffect(() => {
     if (!isTauri()) {

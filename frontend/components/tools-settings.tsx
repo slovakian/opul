@@ -1,5 +1,4 @@
-import { cn } from "cn";
-import { Braces, Check, Film, Maximize2, MonitorPlay, X } from "lucide-react";
+import { Film, Maximize2 } from "lucide-react";
 import type * as React from "react";
 
 import {
@@ -7,11 +6,15 @@ import {
   InfoTip,
   ProgressDetails,
   SectionHeading,
+  SettledStepMark,
+  StepRing,
   ToolRow,
+  isSettledStep,
   megabytes,
+  stepPercent,
+  videoToolParts,
 } from "@/components/tools-primitives";
 import { Badge } from "@/components/ui/badge";
-import { CircularProgress } from "@/components/ui/circular-progress";
 import { Field, FieldLabel } from "@/components/ui/field";
 import {
   Item,
@@ -37,7 +40,6 @@ import type { SetupStep, VideoToolsSnapshot } from "@/lib/video-tools";
 import { checkedAgo } from "@/lib/video-tools";
 
 const STAGGER_MS = 40;
-const PERCENT = 100;
 
 const stepLabels: Record<SetupStep["status"], string> = {
   done: "Done",
@@ -55,86 +57,42 @@ const activeSteps = new Set<SetupStep["status"]>([
   "verifying",
 ]);
 
-const components = {
-  python: {
-    hint: "The language yt-dlp runs on, plus a JavaScript engine for some sites.",
-    icon: Braces,
-    name: "Python",
-  },
-  yt_dlp: {
-    hint: "Downloads videos and audio from video pages.",
-    icon: MonitorPlay,
-    name: "yt-dlp",
-  },
-} as const;
-
 const stagger = (index: number): React.CSSProperties => ({
   animationDelay: `${index * STAGGER_MS}ms`,
 });
 
-const stepPercent = (step: SetupStep) => {
-  if (step.status === "done") {
-    return PERCENT;
-  }
-
-  if (!step.total_bytes) {
-    return 0;
-  }
-
-  return Math.min(
-    PERCENT,
-    Math.round((step.downloaded_bytes / step.total_bytes) * PERCENT)
-  );
-};
-
 const StepIndicator = ({ label, step }: { label: string; step: SetupStep }) => {
+  if (isSettledStep(step)) {
+    return <SettledStepMark label={label} step={step} className="size-4" />;
+  }
+
   const indeterminate =
     step.status === "verifying" || step.status === "installing";
 
   const percent = stepPercent(step);
-  const failed = step.status === "failed";
 
   return (
     <Tooltip>
       <TooltipTrigger
         render={
-          <CircularProgress
+          <StepRing
             tabIndex={0}
-            aria-label={`${label} progress`}
-            value={indeterminate ? null : percent}
+            label={label}
+            step={step}
             size={20}
             thickness={2.5}
-            className={cn(
-              "focus-visible:ring-ring/50 rounded-full outline-none focus-visible:ring-3",
-              failed &&
-                "[&_[data-slot=circular-progress-range]]:stroke-destructive"
-            )}
+            className="focus-visible:ring-ring/50 rounded-full outline-none focus-visible:ring-3"
           />
         }
-      >
-        {step.status === "done" && (
-          <Check
-            aria-hidden="true"
-            strokeWidth={3}
-            className="animate-pop absolute size-2.5"
-          />
-        )}
-        {failed && (
-          <X
-            aria-hidden="true"
-            strokeWidth={3}
-            className="text-destructive animate-pop absolute size-2.5"
-          />
-        )}
-      </TooltipTrigger>
+      />
       <TooltipContent side="left">
         <ProgressDetails
           label={stepLabels[step.status]}
           percent={indeterminate ? null : percent}
           detail={
-            step.total_bytes !== null && step.status !== "done"
-              ? `${megabytes(step.downloaded_bytes)} of ${megabytes(step.total_bytes)} MB`
-              : undefined
+            step.total_bytes === null
+              ? undefined
+              : `${megabytes(step.downloaded_bytes)} of ${megabytes(step.total_bytes)} MB`
           }
         />
       </TooltipContent>
@@ -143,10 +101,10 @@ const StepIndicator = ({ label, step }: { label: string; step: SetupStep }) => {
 };
 
 const componentRow = (
-  component: keyof typeof components,
+  component: keyof typeof videoToolParts,
   video: VideoToolsSnapshot
 ): React.ComponentProps<typeof ToolRow> => {
-  const { hint, icon, name } = components[component];
+  const { hint, icon, name } = videoToolParts[component];
   const { state } = video;
   const base = { hint, icon, name };
 

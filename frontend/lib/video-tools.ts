@@ -130,9 +130,10 @@ export const checkedAgo = (seconds: number, now = Date.now()): string => {
   return "checked just now";
 };
 
-export const setupProgress = (steps: SetupStep[]): string => {
+/** Overall setup progress from 0 to 1, counting each step equally. */
+export const setupFraction = (steps: SetupStep[]): number => {
   if (steps.length === 0) {
-    return "";
+    return 0;
   }
 
   let progress = 0;
@@ -145,5 +146,8 @@ export const setupProgress = (steps: SetupStep[]): string => {
     }
   }
 
-  return `${Math.floor((progress / steps.length) * 100)}%`;
+  return progress / steps.length;
 };
+
+export const setupProgress = (steps: SetupStep[]): string =>
+  steps.length === 0 ? "" : `${Math.floor(setupFraction(steps) * 100)}%`;

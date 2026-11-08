@@ -1,9 +1,10 @@
 import { cn } from "cn";
-import { Info } from "lucide-react";
+import { Braces, Check, CircleHelp, MonitorPlay, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type * as React from "react";
 
 import { Button } from "@/components/ui/button";
+import { CircularProgress } from "@/components/ui/circular-progress";
 import {
   Item,
   ItemActions,
@@ -17,10 +18,93 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import type { SetupStep } from "@/lib/video-tools";
 
 const BYTES_PER_MB = 1_000_000;
 
+const PERCENT = 100;
+
 export const megabytes = (bytes: number) => (bytes / BYTES_PER_MB).toFixed(1);
+
+/** The two parts of the video tools, as Setup and Settings ▸ Tools name them. */
+export const videoToolParts = {
+  python: {
+    hint: "The language yt-dlp runs on, plus a JavaScript engine for some sites.",
+    icon: Braces,
+    name: "Python",
+  },
+  yt_dlp: {
+    hint: "Downloads videos and audio from video pages.",
+    icon: MonitorPlay,
+    name: "yt-dlp",
+  },
+} as const;
+
+export const stepPercent = (step: SetupStep) => {
+  if (step.status === "done") {
+    return PERCENT;
+  }
+
+  if (!step.total_bytes) {
+    return 0;
+  }
+
+  return Math.min(
+    PERCENT,
+    Math.round((step.downloaded_bytes / step.total_bytes) * PERCENT)
+  );
+};
+
+/** A step that has stopped (done or failed) shows one bare glyph, not a ring. */
+export const isSettledStep = (step: SetupStep) =>
+  step.status === "done" || step.status === "failed";
+
+export const SettledStepMark = ({
+  className,
+  label,
+  step,
+}: {
+  className?: string;
+  label: string;
+  step: SetupStep;
+}) => {
+  const done = step.status === "done";
+  const Glyph = done ? Check : X;
+
+  return (
+    <span
+      className={cn(
+        "animate-pop inline-flex shrink-0 items-center justify-center",
+        !done && "text-destructive",
+        className
+      )}
+    >
+      <Glyph aria-hidden="true" strokeWidth={2.5} className="size-full" />
+      <span className="sr-only">{`${label} ${done ? "done" : "failed"}`}</span>
+    </span>
+  );
+};
+
+/** Ring for a running step: determinate while downloading, spinning while verifying or installing. */
+export const StepRing = ({
+  label,
+  step,
+  ...props
+}: Omit<React.ComponentProps<typeof CircularProgress>, "value"> & {
+  label: string;
+  step: SetupStep;
+}) => {
+  const indeterminate =
+    step.status === "verifying" || step.status === "installing";
+
+  return (
+    <CircularProgress
+      aria-label={`${label} progress`}
+      value={indeterminate ? null : stepPercent(step)}
+      {...props}
+    />
+  );
+};
 
 export const InfoTip = ({
   children,
@@ -35,7 +119,7 @@ export const InfoTip = ({
       aria-label={label}
       className="text-muted-foreground/60 hover:text-foreground focus-visible:text-foreground focus-visible:ring-ring/50 inline-flex size-4 shrink-0 items-center justify-center rounded-full transition-colors duration-150 outline-none focus-visible:ring-3"
     >
-      <Info className="size-3.5" />
+      <CircleHelp className="size-3.5" />
     </TooltipTrigger>
     <TooltipContent className="max-w-60 leading-relaxed">
       {children}

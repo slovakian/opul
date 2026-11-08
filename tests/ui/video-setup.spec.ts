@@ -15,8 +15,11 @@ const initial: VideoToolsSnapshot = {
   use_nightly: false,
 };
 
+// Setup's title becomes "Video tools are ready" once it finishes.
 const setup = (page: Page) =>
-  page.getByRole("dialog", { exact: true, name: "Set Up Video Tools" });
+  page.getByRole("dialog", {
+    name: /^(?:Set Up Video Tools|Video tools are ready)$/u,
+  });
 
 const launch = async (page: Page, videoTools = initial) => {
   await mockDesktop(page, {
@@ -42,7 +45,7 @@ test("first launch offers optional tools across the app window without consent",
     })
   ).toBeVisible();
   await expect(
-    setup(page).getByText("Video pages and playlists", { exact: true })
+    setup(page).getByText("Videos and playlists", { exact: true })
   ).toHaveAttribute("data-unavailable", "true");
   const bounds = await setup(page).boundingBox();
   expect(bounds).toMatchObject({ height: 800, width: 1220, x: 0, y: 0 });
@@ -162,16 +165,23 @@ test("consent shows real size, step progress and completion while Continue keeps
   await expect(
     setup(page).getByText("Setting up Python", { exact: true })
   ).toBeVisible();
+  await setup(page)
+    .getByRole("button", { exact: true, name: "About Python" })
+    .hover();
   await expect(
-    setup(page).getByText(
+    page.getByText(
       "The language yt-dlp runs on, plus a JavaScript engine for some sites."
     )
   ).toBeVisible();
   await expect(setup(page).getByText("Waiting", { exact: true })).toBeVisible();
   await push(page, { ...installing, keep_up_to_date: false });
+  // A finished step is a single check, not a full ring.
+  await expect(
+    setup(page).getByText("Setting up Python done", { exact: true })
+  ).toBeAttached();
   await expect(
     setup(page).getByRole("progressbar", { name: "Setting up Python progress" })
-  ).toHaveAttribute("aria-valuenow", "100");
+  ).toHaveCount(0);
   await expect(
     setup(page).getByRole("progressbar", { name: "Setting up yt-dlp progress" })
   ).toHaveAttribute("aria-valuenow", "50");

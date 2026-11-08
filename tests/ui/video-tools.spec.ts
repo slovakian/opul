@@ -138,9 +138,13 @@ test("pushed progress, published size and Ready versions replace the initial sta
     },
   });
   await expect(dialog.getByText("Done", { exact: true }).first()).toBeVisible();
+  // A finished step is a single check, not a full ring.
+  await expect(
+    dialog.getByText("Setting up Python done", { exact: true })
+  ).toBeAttached();
   await expect(
     dialog.getByRole("progressbar", { name: "Setting up Python progress" })
-  ).toHaveAttribute("aria-valuenow", "100");
+  ).toHaveCount(0);
 
   const audit = await new AxeBuilder({ page })
     .include('[role="dialog"]')

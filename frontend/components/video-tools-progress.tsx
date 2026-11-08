@@ -1,16 +1,22 @@
-import { Check, Circle } from "lucide-react";
+import type * as React from "react";
 
-import { Progress } from "@/components/ui/progress";
+import {
+  InfoTip,
+  SettledStepMark,
+  StepRing,
+  isSettledStep,
+  megabytes,
+  videoToolParts,
+} from "@/components/tools-primitives";
 import {
   Trace,
   TraceDescription,
-  TraceIcon,
   TraceLine,
   TraceTitle,
 } from "@/components/ui/trace";
 import type { SetupStep } from "@/lib/video-tools";
 
-const statusLabels = {
+const statusLabels: Record<SetupStep["status"], string> = {
   done: "Done",
   downloading: "Downloading",
   failed: "Failed",
@@ -20,35 +26,76 @@ const statusLabels = {
   waiting_for_internet: "Waiting for an internet connection…",
 };
 
+const lineStatus = (
+  status: SetupStep["status"]
+): React.ComponentProps<typeof TraceLine>["status"] => {
+  switch (status) {
+    case "downloading":
+    case "installing":
+    case "verifying": {
+      return "running";
+    }
+
+    case "done": {
+      return "available";
+    }
+
+    case "failed": {
+      return "error";
+    }
+
+    case "pending": {
+      return "pending";
+    }
+
+    default: {
+      return undefined;
+    }
+  }
+};
+
+/** Byte counts say more than "Downloading" once the size is known. */
+const stepDetail = (step: SetupStep) =>
+  step.status === "downloading" && step.total_bytes
+    ? `${megabytes(step.downloaded_bytes)} of ${megabytes(step.total_bytes)} MB`
+    : statusLabels[step.status];
+
+const StepLine = ({ step }: { step: SetupStep }) => {
+  const { hint, name } = videoToolParts[step.component];
+  const title = `Setting up ${name}`;
+  const detail = stepDetail(step);
+
+  return (
+    <TraceLine
+      status={lineStatus(step.status)}
+      className="h-6 duration-300"
+      data-step={step.component}
+    >
+      {/* Not TraceIcon: that hides its content, and the ring is the step's progressbar. */}
+      <span className="flex size-4 shrink-0 items-center justify-center">
+        {isSettledStep(step) ? (
+          <SettledStepMark label={title} step={step} className="size-4" />
+        ) : (
+          <StepRing label={title} step={step} size={16} thickness={2} />
+        )}
+      </span>
+      <TraceTitle className="flex-none">{title}</TraceTitle>
+      <InfoTip label={`About ${name}`}>{hint}</InfoTip>
+      <TraceDescription
+        // Only the wording swaps in; ticking byte counts stay put.
+        key={step.status}
+        className="animate-settle ml-auto"
+      >
+        {detail}
+      </TraceDescription>
+    </TraceLine>
+  );
+};
+
 export const VideoToolsProgress = ({ steps }: { steps: SetupStep[] }) => (
-  <Trace aria-label="Video tools setup progress">
-    {steps.map((step) => {
-      const python = step.component === "python";
-      const title = python ? "Setting up Python" : "Setting up yt-dlp";
-      const done = step.status === "done";
-
-      const progress = step.total_bytes
-        ? Math.min(100, (step.downloaded_bytes / step.total_bytes) * 100)
-        : null;
-
-      return (
-        <div key={step.component} className="flex flex-col gap-2">
-          <TraceLine>
-            <TraceIcon>{done ? <Check /> : <Circle />}</TraceIcon>
-            <TraceTitle>{title}</TraceTitle>
-            <TraceDescription>{statusLabels[step.status]}</TraceDescription>
-          </TraceLine>
-          <p className="text-muted-foreground text-xs">
-            {python
-              ? "The language yt-dlp runs on, plus a JavaScript engine for some sites."
-              : "Downloads videos and audio from video pages."}
-          </p>
-          <Progress
-            aria-label={`${title} progress`}
-            value={done ? 100 : progress}
-          />
-        </div>
-      );
-    })}
+  <Trace aria-label="Video tools setup progress" className="gap-3">
+    {steps.map((step) => (
+      <StepLine key={step.component} step={step} />
+    ))}
   </Trace>
 );
