@@ -48,6 +48,8 @@ import { useLibrary } from "@/lib/library";
 import { aggregateNames, bytes } from "@/lib/model";
 import type { AggregateView, Folder, Workspace } from "@/lib/model";
 import { cn } from "@/lib/utils";
+import type { VideoToolsSnapshot } from "@/lib/video-tools";
+import { setupProgress } from "@/lib/video-tools";
 
 export type Location =
   | { kind: AggregateView }
@@ -76,6 +78,8 @@ export const WorkspaceSidebar = ({
   onChangeIcon,
   onSettings,
   onNew,
+  onVideoSetup,
+  videoTools,
 }: {
   workspaces: Workspace[];
   workspaceExpansion: ReadonlyMap<string, boolean>;
@@ -91,6 +95,8 @@ export const WorkspaceSidebar = ({
   ) => void;
   onSettings: () => void;
   onNew: () => void;
+  onVideoSetup: () => void;
+  videoTools: VideoToolsSnapshot | null;
 }) => {
   const { run, busy, state } = useLibrary();
   const { isMobile, open, openMobile, setOpenMobile } = useSidebar();
@@ -133,7 +139,9 @@ export const WorkspaceSidebar = ({
 
   const active = allDownloads.filter(
     (download) =>
-      download.capabilities.can_pause || download.state === "Pausing"
+      download.capabilities.can_pause ||
+      download.state === "Pausing" ||
+      download.state === "WaitingForVideoTools"
   );
 
   const downloadRate = allDownloads.reduce(
@@ -453,6 +461,24 @@ export const WorkspaceSidebar = ({
       </SidebarContent>
       <SidebarSeparator />
       <SidebarFooter className="gap-3 p-3">
+        {videoTools?.state.kind === "setting_up" && (
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => {
+                  setOpenMobile(false);
+                  onVideoSetup();
+                }}
+              >
+                <ArrowDown />
+                <span>
+                  Setting up video tools…{" "}
+                  {setupProgress(videoTools.state.steps)}
+                </span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        )}
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton onClick={onSettings}>

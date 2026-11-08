@@ -2,20 +2,19 @@ import type { Page } from "@playwright/test";
 
 import type { Receipt } from "../../frontend/lib/model";
 import folderTreatments from "../../src/application/folder-treatments.json" with { type: "json" };
-import {
-  baseDownload,
-  preferences,
-  snapshot,
-  toolStatus,
-} from "./fixture-data";
+import { baseDownload, preferences, snapshot } from "./fixture-data";
 import type { DesktopInvokeArgs, DesktopOptions } from "./fixture-options";
 import { mockFolderAddition } from "./folder-addition-fixture";
 import { mockPreferenceResponses } from "./preference-response-fixture";
+import { mockVideoTools } from "./video-tools-fixture";
+import { mockWaitingVideos } from "./waiting-video-fixture";
 import { mockWorkspaceExpansion } from "./workspace-expansion-fixture";
 
 export { preferences, snapshot } from "./fixture-data";
 
 export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
+  await mockVideoTools(page, options);
+  await mockWaitingVideos(page);
   await mockFolderAddition(page, options);
   await mockWorkspaceExpansion(page, options);
   await mockPreferenceResponses(page, options);
@@ -26,7 +25,6 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
       initSnapshot,
       mockOpts,
       treatments,
-      tools,
     }) => {
       const [, defaultTreatment, alternateTreatment] = treatments;
 
@@ -72,7 +70,6 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
       let viewAttempts = 0;
       let addAttempts = 0;
       let preferenceAttempts = 0;
-      let callbackId = 0;
       let draftCalls = 0;
       let createAttempts = 0;
       let appearanceAttempts = 0;
@@ -87,6 +84,8 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
           // oxlint-disable-next-line eslint/complexity
           invoke: async (name: string, args: DesktopInvokeArgs = {}) => {
             if (name === "snapshot") {
+              window.testWaitingVideos.project(currentSnapshot);
+
               const held =
                 await window.testFolderAddition.snapshot(currentSnapshot);
 
@@ -105,6 +104,10 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
               );
 
               return structuredClone(currentSnapshot);
+            }
+
+            if (name === "mark_video_tools_setup_shown") {
+              return window.testMarkVideoSetupShown(currentPreferences);
             }
 
             if (name === "get_preferences") {
@@ -174,11 +177,10 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
                 throw new Error("Couldn't write preferences. Try again.");
               }
 
-              currentPreferences = {
-                ...args.preferences,
-                aggregate_views: currentPreferences.aggregate_views,
-                workspace_expansion: currentPreferences.workspace_expansion,
-              };
+              currentPreferences = window.testSettingsPreferences(
+                args.preferences,
+                currentPreferences
+              );
 
               if (mockOpts.persist) {
                 sessionStorage.setItem(
@@ -222,8 +224,16 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
               );
             }
 
-            if (name === "tool_status") {
-              return tools;
+            if (
+              name.startsWith("video_tools_") ||
+              name === "tools_snapshot" ||
+              name.startsWith("plugin:event|")
+            ) {
+              return window.testWaitingVideos.invokeTools(
+                name,
+                args,
+                currentSnapshot
+              );
             }
 
             if (name === "plugin:dialog|open") {
@@ -311,6 +321,10 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
                     command.action === "Pause" ? "Paused" : "Fetching";
                   download.capabilities.can_pause = command.action !== "Pause";
                   download.capabilities.can_resume = command.action === "Pause";
+
+                  if (command.action === "Retry") {
+                    window.testWaitingVideos.retry(download);
+                  }
                 }
               }
 
@@ -491,13 +505,11 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
                   .find((item) => item.id === command.workspace_id)
                   ?.downloads.push({
                     ...defaultDownload,
-                    folder_id: command.folder_id,
-                    format: command.kind === "add_url" ? command.format : null,
+                    ...window.testWaitingVideos.addition(
+                      command,
+                      defaultDownload
+                    ),
                     id: downloadId,
-
-                    name: "new-file.zip",
-                    source_url:
-                      command.kind === "add_url" ? command.url : command.path,
                   });
               }
 
@@ -537,6 +549,8 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
                 }
               }
 
+              window.testWaitingVideos.project(currentSnapshot);
+
               if (mockOpts.persist) {
                 sessionStorage.setItem(
                   "test-snapshot",
@@ -557,11 +571,7 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
             currentWebview: { label: "main" },
             currentWindow: { label: "main" },
           },
-          transformCallback: () => {
-            callbackId += 1;
-
-            return callbackId;
-          },
+          transformCallback: window.testVideoTools.register,
           unregisterCallback: () => null,
         },
       });
@@ -571,7 +581,6 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
       initPreferences: options.preferences ?? preferences,
       initSnapshot: options.snapshot ?? snapshot,
       mockOpts: options,
-      tools: toolStatus,
       treatments: folderTreatments,
     }
   );

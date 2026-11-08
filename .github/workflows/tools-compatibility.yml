@@ -1,0 +1,75 @@
+name: Video tools compatibility
+
+on:
+  schedule:
+    # Gate daily UTC ticks to an exact three-day interval, including month boundaries.
+    - cron: "17 4 * * *"
+    - cron: "41 4 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tools-compatibility
+  cancel-in-progress: false
+
+jobs:
+  compatibility:
+    runs-on: macos-26
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      issues: write
+    strategy:
+      fail-fast: false
+      # Serialize publication of the results release and failure issues.
+      max-parallel: 1
+      matrix:
+        channel: [stable, nightly]
+        arch: [arm64, x64]
+    env:
+      GH_TOKEN: ${{ github.token }}
+      COMPATIBILITY_SCHEDULE: ${{ github.event.schedule }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Check channel cadence before fetching tools
+        id: due
+        run: |
+          python3 - <<'PY'
+          import datetime, os, sys
+          sys.path.insert(0, 'tools/compatibility')
+          from check import channels_due
+          due = '${{ matrix.channel }}' in channels_due(os.environ['COMPATIBILITY_SCHEDULE'], datetime.datetime.now(datetime.timezone.utc).date())
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'run={str(due).lower()}\n')
+          PY
+      - name: Install signature verifier
+        if: steps.due.outputs.run == 'true'
+        run: brew install gnupg
+      - name: Check offline scheduling, skip and failure-report contracts
+        run: python3 tools/compatibility/test_check.py
+      - name: Fetch pinned built-in tools
+        if: steps.due.outputs.run == 'true'
+        run: Scripts/fetch_ffmpeg.sh '${{ matrix.arch }}'
+      - name: Check newly published tools with real health and permitted-content smoke tests
+        if: steps.due.outputs.run == 'true'
+        run: |
+          set -o pipefail
+          openssl_bin="$(brew --prefix openssl@3)/bin"
+          export PATH="$openssl_bin:$PATH"
+          mkdir -p "$RUNNER_TEMP/compatibility"
+          python3 tools/compatibility/check.py --channel '${{ matrix.channel }}' --arch '${{ matrix.arch }}' --output "$RUNNER_TEMP/compatibility" 2>&1 | tee "$RUNNER_TEMP/compatibility/check.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: compatibility-${{ matrix.channel }}-${{ matrix.arch }}
+          path: |
+            ${{ runner.temp }}/compatibility/*.json
+            ${{ runner.temp }}/compatibility/*.sig
+            ${{ runner.temp }}/compatibility/*.log
+            ${{ runner.temp }}/compatibility/*.md
+          if-no-files-found: ignore

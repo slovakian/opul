@@ -10,6 +10,7 @@ use std::sync::Mutex;
 #[serde(default)]
 pub struct Preferences {
     pub theme: Theme,
+    pub video_tools_setup_shown: bool,
     pub aggregate_views: AggregateViews,
     pub aggregate_destination: AggregateDestination,
     pub workspace_expansion: BTreeMap<String, bool>,
@@ -21,8 +22,6 @@ pub struct Preferences {
     pub randomize_port: bool,
     pub enable_dht: bool,
     pub max_connections: u32,
-    pub yt_dlp_path: Option<String>,
-    pub ffmpeg_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -90,6 +89,7 @@ impl Default for Preferences {
     fn default() -> Self {
         Self {
             theme: Theme::System,
+            video_tools_setup_shown: false,
             aggregate_views: AggregateViews::default(),
             aggregate_destination: AggregateDestination::default(),
             workspace_expansion: BTreeMap::new(),
@@ -101,8 +101,6 @@ impl Default for Preferences {
             randomize_port: true,
             enable_dht: true,
             max_connections: 200,
-            yt_dlp_path: None,
-            ffmpeg_path: None,
         }
     }
 }
@@ -148,11 +146,28 @@ impl PreferenceStore {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         // Settings drafts do not own live display or expansion preferences.
+        preferences.video_tools_setup_shown = value.video_tools_setup_shown;
         preferences.aggregate_views = value.aggregate_views.clone();
         preferences.workspace_expansion = value.workspace_expansion.clone();
         self.persist(&preferences)?;
         *value = preferences.clone();
         Ok(preferences)
+    }
+
+    /// Claims the first-launch offer only after its dismissal memory is durable.
+    pub fn mark_video_tools_setup_shown(&self) -> Result<bool, String> {
+        let mut value = self
+            .value
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if value.video_tools_setup_shown {
+            return Ok(false);
+        }
+        let mut next = value.clone();
+        next.video_tools_setup_shown = true;
+        self.persist(&next)?;
+        *value = next;
+        Ok(true)
     }
 
     pub fn save_aggregate_view(
@@ -491,3 +506,6 @@ mod tests {
 #[cfg(test)]
 #[path = "preferences/expansion_tests.rs"]
 mod expansion_tests;
+
+#[cfg(test)]
+mod setup_tests;

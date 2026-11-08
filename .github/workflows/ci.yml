@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, integration/58-opul-managed-tools]
   pull_request:
 
 permissions:
@@ -25,10 +25,24 @@ jobs:
           cache: true
           run-install: false
       - run: vp install --frozen-lockfile
+      - name: Fetch pinned built-in tools
+        run: Scripts/fetch_ffmpeg.sh
       - name: Lint and type-check frontend
         run: vp check
       - name: Run frontend unit tests
         run: vp test
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Test Python runtime manifest and signature contract
+        run: |
+          export PATH="$(brew --prefix openssl@3)/bin:$PATH"
+          python3 tools/python-runtime/test_release.py
+          python3 tools/python-runtime/test_notices.py
+      - name: Reject corrupted built-in tools
+        run: Scripts/test_ffmpeg_fetch.sh
+      - name: Test offline compatibility workflow contracts
+        run: python3 tools/compatibility/test_check.py
       - name: Check packaging configuration
         run: Scripts/test_packaging.sh
       - name: Check Rust formatting
@@ -42,6 +56,8 @@ jobs:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: Fetch pinned built-in tools
+        run: Scripts/fetch_ffmpeg.sh
       - name: Run Rust unit and workspace tests
         run: cargo test --workspace
 
@@ -136,3 +152,10 @@ jobs:
           APPLE_TEAM_ID: ""
           MARKETING_VERSION: 0.1.0-nightly.${{ github.run_number }}
         run: Scripts/package_dmg.sh release nightly "${{ matrix.arch }}"
+      - name: Upload verified single-architecture DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: managed-tools-dmg-${{ matrix.arch }}
+          path: Opul-Nightly-${{ matrix.arch }}.dmg
+          if-no-files-found: error
+          retention-days: 7

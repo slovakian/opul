@@ -1,0 +1,44 @@
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 0.051s
+
+OK
+3.13.18 (main, Oct 26 2026, 13:59:02) [Clang 23.1.3 ]
+Python uses macOS CAs; curl_cffi uses /Users/runner/work/_temp/runtime/arm64/lib/python3.13/site-packages/certifi/cacert.pem
+[generic] Extracting URL: https://media.w3.org/2010/05/bunny/trailer.mp4
+[generic] trailer: Downloading webpage
+[info] trailer: Downloading 1 format(s): mp4
+[download] Destination: /var/folders/h5/t85nd63d71x27_8gl5gw3l_w0000gn/T/tmp00mrlimi/trailer.mp4
+
+[download]   0.0% of   10.54MiB at  Unknown B/s ETA Unknown
+[download]   0.0% of   10.54MiB at  Unknown B/s ETA Unknown
+[download]   0.1% of   10.54MiB at    5.60MiB/s ETA 00:01  
+[download]   0.1% of   10.54MiB at    9.92MiB/s ETA 00:01
+[download]   0.3% of   10.54MiB at   17.22MiB/s ETA 00:00
+[download]   0.6% of   10.54MiB at   30.93MiB/s ETA 00:00
+[download]   1.2% of   10.54MiB at   50.60MiB/s ETA 00:00
+[download]   2.4% of   10.54MiB at   78.75MiB/s ETA 00:00
+[download]   4.7% of   10.54MiB at   62.60MiB/s ETA 00:00
+[download]   9.5% of   10.54MiB at   78.38MiB/s ETA 00:00
+[download]  19.0% of   10.54MiB at   94.39MiB/s ETA 00:00
+[download]  37.9% of   10.54MiB at   92.49MiB/s ETA 00:00
+[download]  75.9% of   10.54MiB at    8.12MiB/s ETA 00:00
+[download] 100.0% of   10.54MiB at   10.45MiB/s ETA 00:00
+[download] 100% of   10.54MiB in 00:00:01 at 10.11MiB/s  
+[debug] Command-line config: ['--ignore-config', '--no-plugin-dirs', '--no-cache-dir', '--no-js-runtimes', '--js-runtimes', 'quickjs:/Users/runner/work/_temp/runtime/arm64/bin/qjs', '--impersonate', 'chrome', '-v', '--no-playlist', '-o', '/var/folders/h5/t85nd63d71x27_8gl5gw3l_w0000gn/T/tmp00mrlimi/trailer.mp4', 'https://media.w3.org/2010/05/bunny/trailer.mp4']
+[debug] Encodings: locale UTF-8, fs utf-8, pref UTF-8, out utf-8 (No ANSI), error utf-8 (No ANSI), screen utf-8 (No ANSI)
+[debug] yt-dlp version stable@2026.10.26 from yt-dlp/yt-dlp [c91f8de0b] (zip)
+[debug] Python 3.13.18 (CPython arm64 64bit) - macOS-26.7.2-arm64-arm-64bit-Mach-O (OpenSSL 3.5.9 29 Sep 2026)
+[debug] exe versions: none
+[debug] Optional libraries: Cryptodome-3.24.1, brotli-1.2.1, certifi-2026.10.23, curl_cffi-0.17.0, sqlite3-3.53.1, websockets-17.3, yt_dlp_ejs-0.8.0
+[debug] JS runtimes: quickjs-2026-06-04
+[debug] Proxy map: {}
+[debug] Request Handlers: urllib, websockets, curl_cffi
+[debug] Plugin directories: none (disabled)
+[debug] Loaded 1747 extractors
+[debug] Identified a direct video link
+[debug] Formats sorted by: hasvid, ie_pref, lang, quality, res, fps, hdr:12(7), vcodec, channels, acodec, size, br, asr, proto, vext, aext, hasaud, source, id
+[debug] Default format spec: best/bestvideo+bestaudio
+[debug] Invoking http downloader on "https://media.w3.org/2010/05/bunny/trailer.mp4"
+CC BY 3.0 Big Buck Bunny trailer download: 11053871 bytes
+Validated 47 signed Mach-O files for arm64, macOS <= 13.0

@@ -18,9 +18,11 @@ export const DownloadTypeDialog = ({
   onChoose,
   onClose,
   inputRef,
+  videoTurnedOff,
 }: {
   onChoose: (mode: DownloadMode) => void;
   onClose: () => void;
+  videoTurnedOff: boolean;
   inputRef: RefObject<HTMLInputElement | null>;
 }) => {
   const [mode, setMode] = useState<DownloadMode | "">("");
@@ -45,9 +47,19 @@ export const DownloadTypeDialog = ({
         <Choice
           label="Download type"
           value={mode}
-          options={downloadTypes.filter((item) => item.value !== "Automatic")}
+          options={downloadTypes
+            .filter((item) => item.value !== "Automatic")
+            .map((item) => ({
+              ...item,
+              disabled: videoTurnedOff && item.value === "Page",
+            }))}
           onChange={setMode}
         />
+        {videoTurnedOff && (
+          <p className="text-muted-foreground text-sm">
+            Needs video tools. Turn on in Settings › Tools.
+          </p>
+        )}
         <DialogFooter>
           <Button type="button" variant="ghost" onClick={onClose}>
             Cancel

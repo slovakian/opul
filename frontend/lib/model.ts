@@ -72,8 +72,11 @@ export const downloadSchema = z.object({
     can_remove: z.boolean(),
     can_resume: z.boolean(),
     can_retry: z.boolean(),
+    can_retry_video_tools: z.boolean().default(false),
     can_reveal_output: z.boolean(),
+    can_set_up_video_tools: z.boolean().default(false),
     can_stop_seeding: z.boolean(),
+    can_update_video_tools: z.boolean().default(false),
   }),
   comment: z.string().nullable(),
   content_folder: z.string().nullable(),
@@ -88,6 +91,7 @@ export const downloadSchema = z.object({
   id: z.string(),
   info_hash: z.string().nullable(),
   name: z.string(),
+  needs_video_tools: z.boolean().default(false),
   output_path: z.string().nullable(),
   page_url: z.string().nullable(),
   peers: z.number(),
@@ -95,12 +99,14 @@ export const downloadSchema = z.object({
   piece_length: z.number(),
   playlist_index: z.number().nullable(),
   progress_millionths: z.number(),
+  relies_on_video_tools: z.boolean().default(false),
   seed_ratio: z.number(),
   seed_ratio_limit: z.number().nullable(),
   seeds: z.number(),
   source: z.enum(["Torrent", "VideoPage", "Direct", "Guided"]),
   source_url: z.string(),
   state: z.enum([
+    "WaitingForVideoTools",
     "Queued",
     "Starting",
     "Fetching",
@@ -117,6 +123,7 @@ export const downloadSchema = z.object({
   total_size: z.number(),
   trackers: z.array(z.string()),
   upload_rate: z.number(),
+  waiting_label: z.string().nullable().default(null),
 });
 
 export const treatmentParametersSchema = z.object({
@@ -204,27 +211,17 @@ export const preferencesSchema = z.object({
   aggregate_views: aggregateViewsSchema.prefault({}),
   concurrent_downloads: z.number(),
   enable_dht: z.boolean(),
-  ffmpeg_path: z.string().nullable(),
   listen_port: z.number(),
   max_connections: z.number(),
   max_download_kbps: z.number(),
   max_upload_kbps: z.number(),
   randomize_port: z.boolean(),
   theme: z.enum(["system", "light", "dark"]),
+  video_tools_setup_shown: z.boolean().default(false),
   workspace_expansion: workspaceExpansionSchema.default({}),
   workspace_expansion_startup: z
     .enum(["remember", "collapsed"])
     .default("remember"),
-  yt_dlp_path: z.string().nullable(),
-});
-
-export const toolStatusSchema = z.object({
-  ffmpeg_path: z.string().nullable(),
-  ffmpeg_version: z.string().nullable(),
-  message: z.string(),
-  ready: z.boolean(),
-  yt_dlp_path: z.string().nullable(),
-  yt_dlp_version: z.string().nullable(),
 });
 
 export const receiptSchema = z.object({
@@ -243,8 +240,6 @@ export type Snapshot = z.infer<typeof snapshotSchema>;
 export type Preferences = z.infer<typeof preferencesSchema>;
 
 export type Format = z.infer<typeof formatSchema>;
-
-export type ToolStatus = z.infer<typeof toolStatusSchema>;
 
 export type Receipt = z.infer<typeof receiptSchema>;
 
@@ -343,6 +338,7 @@ export const stateNames: Record<Download["state"], string> = {
   Seeding: "Seeding",
   Starting: "Starting",
   Verifying: "Verifying",
+  WaitingForVideoTools: "Waiting for video tools…",
 };
 
 export const sourceNames: Record<Download["source"], string> = {

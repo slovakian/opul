@@ -7,6 +7,7 @@ pub mod engine;
 mod media;
 pub mod meta;
 mod persistence;
+pub mod video_tools;
 
 pub use application::{
     AppearancePreference, FolderTreatment, MachineCapabilities, MachineCommandReceipt,
@@ -23,9 +24,9 @@ pub use destination::DownloadContentLayout;
 pub use engine::EngineConfig;
 
 pub use media::{
-    GuidedCandidate, GuidedDownloadSelection, GuidedExtractionSession, GuidedHttpHeader,
-    GuidedMediaKind, GuidedObservation, GuidedObservationSource, MediaDownloadOptions, MediaEngine,
-    MediaEngineConfig, MediaFormat, MediaProbe, MediaProbeItem, MediaToolStatus,
+    BuiltInToolVersions, GuidedCandidate, GuidedDownloadSelection, GuidedExtractionSession,
+    GuidedHttpHeader, GuidedMediaKind, GuidedObservation, GuidedObservationSource,
+    MediaDownloadOptions, MediaEngine, MediaEngineConfig, MediaFormat, MediaProbe, MediaProbeItem,
     MediaTransferSnapshot, MediaTransferState, classify_guided_url,
 };
 

@@ -109,6 +109,7 @@ export interface AppModalsProps {
   modal: Modal | null;
   navigate: (next: Location) => void;
   onClose: () => void;
+  onVideoSetup: () => void;
   onRemoveSelected: () => void;
   run: ReturnType<typeof useLibrary>["run"];
   selected: Download | undefined;
@@ -121,6 +122,7 @@ export const AppModals = ({
   modal,
   navigate,
   onClose,
+  onVideoSetup,
   onRemoveSelected,
   run,
   selected,
@@ -137,7 +139,9 @@ export const AppModals = ({
         onRemove={onRemoveSelected}
       />
     )}
-    {modal?.kind === "settings" && <SettingsDialog onClose={onClose} />}
+    {modal?.kind === "settings" && (
+      <SettingsDialog onClose={onClose} onVideoSetup={onVideoSetup} />
+    )}
     {modal?.kind === "icon" && (
       <WorkspaceIconEditor
         workspace={modal.workspace}

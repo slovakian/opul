@@ -1,14 +1,19 @@
 import type { Download, Preferences, Snapshot } from "../../frontend/lib/model";
+import type { ToolsSnapshot } from "../../frontend/lib/video-tools";
 import folderTreatments from "../../src/application/folder-treatments.json" with { type: "json" };
 
-export const toolStatus = {
-  ffmpeg_path: "/opt/homebrew/bin/ffmpeg",
-  ffmpeg_version: "8.0",
-  message: "yt-dlp and FFmpeg are available.",
-  ready: true,
-  yt_dlp_path: "/opt/homebrew/bin/yt-dlp",
-  yt_dlp_version: "2026.10",
-};
+export const toolsSnapshot = {
+  built_in: { ffmpeg: "9.0.2", ffprobe: "9.0.2" },
+  video: {
+    keep_up_to_date: true,
+    nightly_available: false,
+    published_size: null,
+    sequence: 0,
+    state: { kind: "not_set_up" },
+    update_available: false,
+    use_nightly: false,
+  },
+} satisfies ToolsSnapshot;
 
 export const baseDownload: Download = {
   bytes_downloaded: 23_592_960,
@@ -21,8 +26,11 @@ export const baseDownload: Download = {
     can_remove: true,
     can_resume: false,
     can_retry: false,
+    can_retry_video_tools: false,
     can_reveal_output: false,
+    can_set_up_video_tools: false,
     can_stop_seeding: false,
+    can_update_video_tools: false,
   },
   comment: null,
   content_folder: null,
@@ -37,6 +45,7 @@ export const baseDownload: Download = {
   id: "download-1",
   info_hash: null,
   name: "Design resources.zip",
+  needs_video_tools: false,
   output_path: null,
   page_url: null,
   peers: 0,
@@ -44,6 +53,7 @@ export const baseDownload: Download = {
   piece_length: 0,
   playlist_index: null,
   progress_millionths: 450_000,
+  relies_on_video_tools: false,
   seed_ratio: 0,
   seed_ratio_limit: null,
   seeds: 0,
@@ -54,6 +64,7 @@ export const baseDownload: Download = {
   total_size: 52_428_800,
   trackers: [],
   upload_rate: 0,
+  waiting_label: null,
 };
 
 export const preferences: Preferences = {
@@ -65,16 +76,15 @@ export const preferences: Preferences = {
   },
   concurrent_downloads: 3,
   enable_dht: true,
-  ffmpeg_path: null,
   listen_port: 6881,
   max_connections: 200,
   max_download_kbps: 0,
   max_upload_kbps: 0,
   randomize_port: true,
   theme: "light",
+  video_tools_setup_shown: true,
   workspace_expansion: {},
   workspace_expansion_startup: "remember",
-  yt_dlp_path: null,
 };
 
 export const snapshot: Snapshot = {

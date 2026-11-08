@@ -12,6 +12,7 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from "@/components/ui/input-group";
+import { VideoToolsConsent } from "@/components/video-tools-consent";
 import type { Location } from "@/components/workspace-sidebar";
 import { useDownloadSubmission } from "@/hooks/use-download-submission";
 import type { AddSavedFolder } from "@/hooks/use-saved-folder-addition";
@@ -128,6 +129,7 @@ export const DownloadInput = ({
   });
 
   const { adding, locked } = submission;
+  const { videoTurnedOff } = submission;
 
   const addLocation = async () => {
     const workspace = destination?.workspace ?? recommended;
@@ -240,14 +242,26 @@ export const DownloadInput = ({
                 onType={(...args) => submission.setType(...args)}
                 onFormat={(...args) => submission.setFormat(...args)}
                 onTorrent={(...args) => submission.importTorrent(...args)}
+                videoTurnedOff={videoTurnedOff}
                 disabled={locked || !workspaces.length}
               />
             </div>
           </InputGroupAddon>
         </InputGroup>
       </form>
+      {submission.videoConsent && (
+        <VideoToolsConsent
+          size={submission.videoToolsSize}
+          busy={adding}
+          error={submission.consentError}
+          onDownload={() => submission.consent()}
+          onDecline={(turnOff) => submission.declineVideoTools(turnOff)}
+          inputRef={inputRef}
+        />
+      )}
       {submission.uncertain !== undefined && (
         <DownloadTypeDialog
+          videoTurnedOff={videoTurnedOff}
           onChoose={(...args) => submission.chooseType(...args)}
           onClose={(...args) => submission.closeUncertain(...args)}
           inputRef={inputRef}

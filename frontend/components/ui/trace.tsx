@@ -24,13 +24,13 @@ export const TraceLine = ({
   status,
   ...props
 }: React.ComponentProps<"span"> & {
-  status?: "running" | "error" | "pending";
+  status?: "running" | "error" | "pending" | "available";
 }) => (
   <span
     data-slot="trace-line"
     data-status={status}
     className={cn(
-      "text-muted-foreground in-[a:hover,button:hover]:text-foreground data-[status=error]:text-destructive data-[status=error]:in-[a:hover,button:hover]:text-destructive data-[status=running]:*:data-[slot=trace-title]:shimmer flex w-full min-w-0 items-center gap-2 text-sm transition-colors in-[a,button]:cursor-pointer data-[status=pending]:opacity-60",
+      "text-muted-foreground data-[status=available]:text-foreground in-[a:hover,button:hover]:text-foreground data-[status=error]:text-destructive data-[status=error]:in-[a:hover,button:hover]:text-destructive data-[status=running]:*:data-[slot=trace-title]:shimmer flex w-full min-w-0 items-center gap-2 text-sm transition-colors in-[a,button]:cursor-pointer data-[status=pending]:opacity-60",
       className
     )}
     {...props}
@@ -73,7 +73,7 @@ export const TraceDescription = ({
   <span
     data-slot="trace-description"
     className={cn(
-      "text-muted-foreground/70 shrink-0 text-xs tabular-nums",
+      "text-muted-foreground shrink-0 text-xs tabular-nums",
       className
     )}
     {...props}

@@ -1,0 +1,27 @@
+{
+  "app": "Opul Nightly.app",
+  "version": "0.2.2-nightly.20261108.69",
+  "architecture": "x86_64",
+  "app_file_bytes": 43712094,
+  "native_files": [
+    {
+      "path": "Contents/MacOS/Opul Nightly",
+      "minimum_macos": ["13.0"],
+      "sha256": "808d8d228f6beeff1f0e863a6597a5321f8ba1be5b8f761e726c6040ffa3753b"
+    },
+    {
+      "path": "Contents/Resources/media-tools/ffmpeg",
+      "minimum_macos": ["13.0"],
+      "sha256": "a13fcd1cfdf872db80a7d9d5ee59176248525a02857dfd59768cf22863964833"
+    },
+    {
+      "path": "Contents/Resources/media-tools/ffprobe",
+      "minimum_macos": ["13.0"],
+      "sha256": "eb5534fadbdf8f077c40eb81454acf972e83243bf44160a20b74882f52373e98"
+    }
+  ],
+  "audit_host_macos": "26.2",
+  "minimum_os_evidence": "Deployment metadata only; run separately on macOS 13.",
+  "dmg_bytes": 18707220,
+  "dmg_sha256": "3e1bb36fe3ec8297d5c57346a904ae4a0abbf5ac5104b940e0fb3ee05fd131e6"
+}

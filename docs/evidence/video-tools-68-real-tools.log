@@ -1,0 +1,75 @@
+stable / arm64
+{
+  "channel": "stable",
+  "arch": "arm64",
+  "runtime": 1,
+  "yt_dlp": "2026.10.26",
+  "pointer_sha256": "c51b744a8bb0c6638668bee0477dc0c9df1ad6d9cd4ef431cbfe251a5b2c2cc9",
+  "run_url": "https://github.com/slovakian/opul/actions/runs/local",
+  "tested_at": "2026-11-07T17:01:31.070198+00:00",
+  "ok": true
+}
+[debug] yt-dlp version stable@2026.10.26 from yt-dlp/yt-dlp [c91f8de0b] (zip)
+[debug] Python 3.13.18 (CPython arm64 64bit) - macOS-26.2-arm64-arm-64bit-Mach-O (OpenSSL 3.5.9 29 Sep 2026)
+[debug] JS runtimes: quickjs-2026-06-04
+[debug] Request Handlers: urllib, websockets, curl_cffi
+gpgv: Good signature from "Simon Sawicki (yt-dlp signing key) <contact@grub4k.xyz>"
+[download] 100% of   10.54MiB in 00:00:03 at 2.83MiB/s   
+
+nightly / arm64
+{
+  "channel": "nightly",
+  "arch": "arm64",
+  "runtime": 1,
+  "yt_dlp": "2026.11.04.232659",
+  "pointer_sha256": "c51b744a8bb0c6638668bee0477dc0c9df1ad6d9cd4ef431cbfe251a5b2c2cc9",
+  "run_url": "https://github.com/slovakian/opul/actions/runs/local",
+  "tested_at": "2026-11-07T17:03:47.269086+00:00",
+  "ok": true
+}
+arm64
+[debug] yt-dlp version nightly@2026.11.04.232659 from yt-dlp/yt-dlp-nightly-builds [412e7f0a4] (zip)
+[debug] Python 3.13.18 (CPython arm64 64bit) - macOS-26.2-arm64-arm-64bit-Mach-O (OpenSSL 3.5.9 29 Sep 2026)
+[debug] JS runtimes: quickjs-2026-06-04
+[debug] Request Handlers: urllib, websockets, curl_cffi
+gpgv: Good signature from "Simon Sawicki (yt-dlp signing key) <contact@grub4k.xyz>"
+[download] 100% of   10.54MiB in 00:00:03 at 2.83MiB/s   
+
+stable / x64
+{
+  "channel": "stable",
+  "arch": "x64",
+  "runtime": 1,
+  "yt_dlp": "2026.10.26",
+  "pointer_sha256": "c51b744a8bb0c6638668bee0477dc0c9df1ad6d9cd4ef431cbfe251a5b2c2cc9",
+  "run_url": "https://github.com/slovakian/opul/actions/runs/local",
+  "tested_at": "2026-11-07T17:03:53.758883+00:00",
+  "ok": true
+}
+x86_64
+[debug] yt-dlp version stable@2026.10.26 from yt-dlp/yt-dlp [c91f8de0b] (zip)
+[debug] Python 3.13.18 (CPython x86_64 64bit) - macOS-26.2-x86_64-i386-64bit-Mach-O (OpenSSL 3.5.9 29 Sep 2026)
+[debug] JS runtimes: quickjs-2026-06-04
+[debug] Request Handlers: urllib, websockets, curl_cffi
+gpgv: Good signature from "Simon Sawicki (yt-dlp signing key) <contact@grub4k.xyz>"
+[download] 100% of   10.54MiB in 00:00:03 at 2.77MiB/s   
+
+nightly / x64
+{
+  "channel": "nightly",
+  "arch": "x64",
+  "runtime": 1,
+  "yt_dlp": "2026.11.04.232659",
+  "pointer_sha256": "c51b744a8bb0c6638668bee0477dc0c9df1ad6d9cd4ef431cbfe251a5b2c2cc9",
+  "run_url": "https://github.com/slovakian/opul/actions/runs/local",
+  "tested_at": "2026-11-07T17:05:24.558334+00:00",
+  "ok": true
+}
+x86_64
+[debug] yt-dlp version nightly@2026.11.04.232659 from yt-dlp/yt-dlp-nightly-builds [412e7f0a4] (zip)
+[debug] Python 3.13.18 (CPython x86_64 64bit) - macOS-26.2-x86_64-i386-64bit-Mach-O (OpenSSL 3.5.9 29 Sep 2026)
+[debug] JS runtimes: quickjs-2026-06-04
+[debug] Request Handlers: urllib, websockets, curl_cffi
+gpgv: Good signature from "Simon Sawicki (yt-dlp signing key) <contact@grub4k.xyz>"
+[download] 100% of   10.54MiB in 00:00:03 at 2.92MiB/s   
+

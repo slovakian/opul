@@ -132,10 +132,12 @@ mod tests {
         assert_eq!(stable_path, base.join("Opul"));
         assert_eq!(nightly_path, base.join("Opul Nightly"));
 
-        // Env override takes precedence
         let override_path = OsStr::new("/tmp/custom-state");
         let custom_path = resolve_data_directory(ReleaseChannel::Stable, base, Some(override_path));
         assert_eq!(custom_path, PathBuf::from("/tmp/custom-state"));
+        let custom_nightly =
+            resolve_data_directory(ReleaseChannel::Nightly, base, Some(override_path));
+        assert_eq!(custom_nightly, PathBuf::from("/tmp/custom-state"));
     }
 
     #[test]
@@ -152,44 +154,45 @@ mod tests {
         let downloads = temp.path().join("downloads");
         std::fs::create_dir_all(&downloads).expect("create downloads dir");
 
-        let make_config = |dir: &Path| OpulMachineConfig {
-            application_support_folder: dir.to_string_lossy().into_owned(),
-            downloads_folder: downloads.to_string_lossy().into_owned(),
-            torrent: EngineConfig {
-                session_folder: dir.join("torrent-session").to_string_lossy().into_owned(),
-                listen_port: 0,
-                randomize_port: true,
-                enable_dht: false,
-                max_connections: 10,
-                max_download_bps: 0,
-                max_upload_bps: 0,
-            },
-            media: MediaEngineConfig {
-                session_folder: dir.join("media-session").to_string_lossy().into_owned(),
-                resources_folder: None,
-                yt_dlp_path: None,
-                ffmpeg_path: None,
-                max_concurrent_downloads: 2,
-                max_download_bps: 0,
-            },
+        let open = |dir: &Path, tools: &str| -> Result<std::sync::Arc<OpulStateMachine>, String> {
+            let video_tools = opul_core::video_tools::VideoTools::open(
+                opul_core::video_tools::VideoToolsConfig {
+                    nightly_available: false,
+                    root: dir.join(tools),
+                    opul_version: "0.2.2".into(),
+                },
+            )?;
+            OpulStateMachine::open(OpulMachineConfig {
+                application_support_folder: dir.to_string_lossy().into_owned(),
+                downloads_folder: downloads.to_string_lossy().into_owned(),
+                torrent: EngineConfig {
+                    session_folder: dir.join("torrent-session").to_string_lossy().into_owned(),
+                    listen_port: 0,
+                    randomize_port: true,
+                    enable_dht: false,
+                    max_connections: 10,
+                    max_download_bps: 0,
+                    max_upload_bps: 0,
+                },
+                media: MediaEngineConfig {
+                    session_folder: dir.join("media-session").to_string_lossy().into_owned(),
+                    resources_folder: None,
+                    video_tools,
+                    max_concurrent_downloads: 2,
+                    max_download_bps: 0,
+                },
+            })
+            .map_err(|error| error.to_string())
         };
 
-        // Open Stable machine
-        let stable_machine =
-            OpulStateMachine::open(make_config(&stable_dir)).expect("stable machine should open");
-
-        // Concurrently open Nightly machine
-        let nightly_machine = OpulStateMachine::open(make_config(&nightly_dir))
+        let stable_machine = open(&stable_dir, "Tools").expect("stable machine should open");
+        let nightly_machine = open(&nightly_dir, "Tools")
             .expect("nightly machine should open concurrently without lock contention");
-
-        // Attempting to open another Stable machine should fail with lock contention
-        let duplicate_stable = OpulStateMachine::open(make_config(&stable_dir));
+        // Separate tools, so only the machine's own lock can reject the duplicate.
         assert!(
-            duplicate_stable.is_err(),
+            open(&stable_dir, "Other Tools").is_err(),
             "second stable instance must be rejected by lock"
         );
-
-        // Both running instances can shut down cleanly
         stable_machine.begin_shutdown().expect("shutdown stable");
         nightly_machine.begin_shutdown().expect("shutdown nightly");
     }

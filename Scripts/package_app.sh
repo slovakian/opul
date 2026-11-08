@@ -147,6 +147,10 @@ case "${RAW_TARGET:-}" in
     ;;
 esac
 
+if [[ "$TARGET_TRIPLE" == "universal-apple-darwin" ]]; then
+  echo "Built-in tools require separate arm64 and x64 installers." >&2
+  exit 1
+fi
 ARGS=(build --bundles app --target "$TARGET_TRIPLE")
 if [[ "$BUILD_CONF" == "debug" ]]; then
   ARGS+=(--debug)
@@ -182,6 +186,8 @@ fi
 rm -rf "$ROOT_DIR/$BUNDLE_NAME"
 ditto "$BUNDLE_SRC" "$ROOT_DIR/$BUNDLE_NAME"
 
+"$ROOT_DIR/Scripts/verify_ffmpeg.sh" "$ROOT_DIR/$BUNDLE_NAME/Contents/Resources/media-tools" "$ARCH_SUFFIX"
+
 # Verify code signature
 codesign --verify --deep --strict "$ROOT_DIR/$BUNDLE_NAME"
 
@@ -200,3 +206,4 @@ else
 fi
 
 echo "Built $ROOT_DIR/$BUNDLE_NAME (arch: $ACTUAL_ARCH, target: $TARGET_TRIPLE, profile: $BUILD_CONF, channel: $CHANNEL)"
+python3 "$ROOT_DIR/tools/verify_package.py" "$ROOT_DIR/$BUNDLE_NAME" "$ARCH_SUFFIX"

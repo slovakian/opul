@@ -8,6 +8,6 @@ The Rust core probes supported pages with `yt-dlp`, expands playlists into indiv
 
 This boundary keeps transfer state and process lifecycle out of view code. It also lets the app restore interrupted work consistently with its existing Rust torrent engine.
 
-`yt-dlp` and FFmpeg may be placed in the app's Resources directory, selected explicitly in Media preferences, installed in standard Homebrew locations, or available on `PATH`. Opul reports the discovered versions. Torrent transfers and direct guided files remain available when `yt-dlp` is unavailable.
+FFmpeg and ffprobe now come exclusively from the app's Resources directory; [ADR 0025](0025-built-in-ffmpeg-and-ffprobe.md) supersedes the original FFmpeg discovery policy. [ADR 0026](0026-managed-video-tools.md) supersedes the remaining yt-dlp discovery policy with consent-based, verified video tools. Opul reports the tool versions. Torrent transfers and direct guided files remain available when `yt-dlp` is unavailable.
 
 The queue never executes a shell. Each process argument is passed directly to `Command`, user filename templates cannot escape the chosen destination, and the workspace library, queue, browser cookies, and private header sidecars use owner-only file permissions under Opul's Application Support directory. Per-transfer paths are re-derived from engine-issued UUIDs before reads or deletion rather than trusted from persisted state. Credential sidecars are deleted after a successful transfer.

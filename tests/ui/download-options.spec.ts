@@ -79,7 +79,18 @@ const command = (page: Page) =>
 test("download type override reaches the backend and resets on success", async ({
   page,
 }) => {
-  await mockDesktop(page, { failFirstAdd: true });
+  await mockDesktop(page, {
+    failFirstAdd: true,
+    videoTools: {
+      keep_up_to_date: true,
+      nightly_available: false,
+      published_size: null,
+      sequence: 1,
+      state: { kind: "setting_up", steps: [] },
+      update_available: false,
+      use_nightly: false,
+    },
+  });
   await page.goto("/");
   await input(page).fill("https://example.com/ambiguous");
   await options(page).click();
@@ -331,7 +342,18 @@ test("aggregate destination confirmation retains the explicit video format", asy
     id: "media",
     name: "Media",
   });
-  await mockDesktop(page, { snapshot: library });
+  await mockDesktop(page, {
+    snapshot: library,
+    videoTools: {
+      keep_up_to_date: true,
+      nightly_available: false,
+      published_size: null,
+      sequence: 1,
+      state: { kind: "setting_up", steps: [] },
+      update_available: false,
+      use_nightly: false,
+    },
+  });
   await page.goto("/");
   await input(page).fill("https://example.com/watch");
   await options(page).click();

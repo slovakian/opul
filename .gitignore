@@ -16,3 +16,8 @@
 !.env.example
 .vitest/
 .vite-hooks/_
+
+/src-tauri/resources/media-tools
+/src-tauri/resources/.ffmpeg.*
+
+/tools/**/__pycache__/

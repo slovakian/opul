@@ -1,0 +1,107 @@
+{
+  "evidence": [
+    {
+      "action": "click",
+      "ok": true,
+      "request_id": "f0072c3b-c112-4b37-bd2a-5d8e94f4db31",
+      "target": "Not now"
+    },
+    {
+      "action": "dismissed",
+      "ok": true,
+      "request_id": "368b644b-9596-4d0e-9a1c-4f40edfb1a76",
+      "target": "Set Up Video Tools"
+    },
+    {
+      "direct": "3fda1d66-6472-4377-9b6f-f1c8ba65453c",
+      "direct_bytes_verified": true,
+      "phase": "not-set-up",
+      "tools_at_completion": {
+        "keep_up_to_date": true,
+        "nightly_available": true,
+        "published_size": null,
+        "sequence": 0,
+        "state": {
+          "kind": "not_set_up"
+        },
+        "update_available": false,
+        "use_nightly": false
+      },
+      "tools_at_start": {
+        "keep_up_to_date": true,
+        "nightly_available": true,
+        "published_size": null,
+        "sequence": 0,
+        "state": {
+          "kind": "not_set_up"
+        },
+        "update_available": false,
+        "use_nightly": false
+      },
+      "torrent": "db48ed67-18fc-4175-9ba4-fb863aec933e",
+      "torrent_bytes_verified": true
+    },
+    {
+      "action": "click",
+      "ok": true,
+      "request_id": "b6bf55ee-993c-45e8-a1a3-d771f1c61b60",
+      "target": "Don't show this again"
+    },
+    {
+      "action": "dismissed",
+      "ok": true,
+      "request_id": "8105e797-e996-4499-9f30-0889aff995c8",
+      "target": "Set Up Video Tools"
+    },
+    {
+      "direct": "426684c5-2b64-4cc8-a08e-b60e6f61afc1",
+      "direct_bytes_verified": true,
+      "phase": "turned-off",
+      "tools_at_completion": {
+        "keep_up_to_date": true,
+        "nightly_available": true,
+        "published_size": null,
+        "sequence": 1,
+        "state": {
+          "kind": "turned_off"
+        },
+        "update_available": false,
+        "use_nightly": false
+      },
+      "tools_at_start": {
+        "keep_up_to_date": true,
+        "nightly_available": true,
+        "published_size": null,
+        "sequence": 1,
+        "state": {
+          "kind": "turned_off"
+        },
+        "update_available": false,
+        "use_nightly": false
+      },
+      "torrent": "7a5fd782-0777-4839-8e42-41c58ec90e78",
+      "torrent_bytes_verified": true
+    },
+    {
+      "turned_off": true,
+      "waiting_playlist": "394df0bd-e362-4de6-b207-25ac08a6e612",
+      "waiting_video": "f63b5df5-882f-4337-b378-fe8d7ceccfd7"
+    }
+  ],
+  "mode": "offer",
+  "ok": true,
+  "tools": {
+    "keep_up_to_date": true,
+    "nightly_available": true,
+    "published_size": null,
+    "sequence": 1,
+    "state": {
+      "kind": "turned_off"
+    },
+    "update_available": false,
+    "use_nightly": false
+  },
+  "prior_downloads_preserved": {},
+  "video_bytes_verified": [],
+  "time_machine": "[Included]  /Users/jason/orca/workspaces/opul/set-up-verified-video-tools-from-settings-and-ru/.build/issue-69-acceptance-x64/lifecycle/state/Tools"
+}

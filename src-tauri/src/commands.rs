@@ -2,6 +2,7 @@
 #![allow(clippy::needless_pass_by_value)]
 
 pub mod preferences;
+pub mod tools;
 
 use crate::Desktop;
 use opul_core::{
@@ -160,24 +161,19 @@ impl DesktopCommand {
                             playlist_index: None,
                         }],
                     )),
-                    ImportMode::Page => {
-                        let probe = machine
-                            .probe_media(url)
-                            .map_err(|error| error.to_string())?;
-                        let items = probe
-                            .items
-                            .into_iter()
-                            .map(|item| MachineMediaItem {
-                                url: item.webpage_url,
-                                title: item.title,
-                                page_url: probe.webpage_url.clone(),
-                                thumbnail_url: item.thumbnail_url,
-                                extractor: item.extractor,
-                                playlist_index: item.playlist_index,
-                            })
-                            .collect();
-                        machine.add_media(media_request(workspace_id, folder_id, format, items))
-                    }
+                    ImportMode::Page => machine.add_video_page(media_request(
+                        workspace_id,
+                        folder_id,
+                        format,
+                        vec![MachineMediaItem {
+                            title: url.clone(),
+                            page_url: url.clone(),
+                            url,
+                            thumbnail_url: None,
+                            extractor: None,
+                            playlist_index: None,
+                        }],
+                    )),
                 }
             }
             Self::AddTorrentFile {
@@ -284,7 +280,7 @@ fn filename_from_url(value: &str) -> String {
         .unwrap_or_else(|| "Download".into())
 }
 
-fn media_request(
+pub(super) fn media_request(
     workspace_id: String,
     folder_id: String,
     format: MachineFormat,
@@ -342,6 +338,10 @@ pub fn frontend_ready(
 ) -> Result<(), String> {
     window.show().map_err(|error| error.to_string())?;
     if let Some(path) = std::env::var_os("OPUL_SMOKE_READY_FILE") {
+        let tools = state.machine()?.built_in_tool_versions();
+        if tools.ffmpeg.is_none() || tools.ffprobe.is_none() {
+            return Err("Smoke built-in media tools are unavailable".into());
+        }
         let snapshot = state.machine()?.snapshot();
         if snapshot.session != MachineSessionState::Running {
             return Err(format!("Smoke engine is {:?}", snapshot.session));
@@ -361,16 +361,6 @@ pub async fn execute(
     tauri::async_runtime::spawn_blocking(move || command.execute(&machine))
         .await
         .map_err(|error| error.to_string())?
-}
-
-#[tauri::command]
-pub fn tool_status(state: State<'_, Desktop>) -> Result<serde_json::Value, String> {
-    let status = state.machine()?.media_tool_status();
-    Ok(
-        serde_json::json!({ "ready": status.ready, "message": status.message,
-        "yt_dlp_path": status.yt_dlp_path, "yt_dlp_version": status.yt_dlp_version,
-        "ffmpeg_path": status.ffmpeg_path, "ffmpeg_version": status.ffmpeg_version }),
-    )
 }
 
 #[tauri::command]
@@ -396,160 +386,4 @@ pub fn reveal_download(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use opul_core::{
-        EngineConfig, MachineDownloadState, MachineSource, MediaEngineConfig, OpulMachineConfig,
-    };
-    use std::io::{Read, Write};
-    use std::sync::Arc;
-    use std::time::{Duration, Instant};
-
-    fn test_machine(root: &std::path::Path) -> Arc<OpulStateMachine> {
-        OpulStateMachine::open(OpulMachineConfig {
-            application_support_folder: root.join("state").to_string_lossy().into_owned(),
-            downloads_folder: root.join("downloads").to_string_lossy().into_owned(),
-            torrent: EngineConfig {
-                session_folder: root
-                    .join("state/torrent-session")
-                    .to_string_lossy()
-                    .into_owned(),
-                listen_port: 0,
-                randomize_port: true,
-                enable_dht: false,
-                max_connections: 32,
-                max_download_bps: 0,
-                max_upload_bps: 0,
-            },
-            media: MediaEngineConfig {
-                session_folder: root
-                    .join("state/media-session")
-                    .to_string_lossy()
-                    .into_owned(),
-                resources_folder: None,
-                yt_dlp_path: Some("/not-installed".into()),
-                ffmpeg_path: Some("/not-installed".into()),
-                max_concurrent_downloads: 1,
-                max_download_bps: 0,
-            },
-        })
-        .unwrap()
-    }
-
-    #[test]
-    fn desktop_command_downloads_a_real_file_without_tools_and_reopens_its_library() {
-        let root = std::env::temp_dir().join(format!("opul-bridge-{}", Uuid::new_v4()));
-        std::fs::create_dir_all(root.join("downloads")).unwrap();
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let address = listener.local_addr().unwrap();
-        listener.set_nonblocking(true).unwrap();
-        let server = std::thread::spawn(move || {
-            let deadline = Instant::now() + Duration::from_secs(10);
-            loop {
-                match listener.accept() {
-                    Ok((mut stream, _)) => {
-                        stream.set_nonblocking(false).unwrap();
-                        stream
-                            .set_read_timeout(Some(Duration::from_secs(3)))
-                            .unwrap();
-                        let mut request = [0_u8; 4096];
-                        assert!(stream.read(&mut request).unwrap() > 0);
-                        stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: 15\r\nConnection: close\r\n\r\nopul-test-bytes").unwrap();
-                        break;
-                    }
-                    Err(error)
-                        if error.kind() == std::io::ErrorKind::WouldBlock
-                            && Instant::now() < deadline =>
-                    {
-                        std::thread::sleep(Duration::from_millis(10))
-                    }
-                    Err(error) => panic!("HTTP fixture failed: {error}"),
-                }
-            }
-        });
-        let machine = test_machine(&root);
-        let initial = machine.snapshot();
-        assert_eq!(initial.workspaces[0].icon.value, "📁");
-        let workspace_id = initial.workspaces[0].id.clone();
-        let folder_id = initial.workspaces[0].folders[0].id.clone();
-        let receipt = DesktopCommand::AddUrl {
-            workspace_id: workspace_id.clone(),
-            folder_id,
-            url: format!("http://{address}/fixture.bin"),
-            mode: ImportMode::Direct,
-            format: MachineFormat::Original,
-        }
-        .execute(&machine)
-        .unwrap();
-        let id = receipt.created_download_ids[0].clone();
-        let deadline = Instant::now() + Duration::from_secs(10);
-        let finished = loop {
-            let snapshot = machine.snapshot();
-            let download = snapshot.workspaces[0]
-                .downloads
-                .iter()
-                .find(|download| download.id == id)
-                .unwrap();
-            if download.state == MachineDownloadState::Finished {
-                break download.clone();
-            }
-            assert_ne!(
-                download.state,
-                MachineDownloadState::Failed,
-                "{:?}",
-                download.error_message
-            );
-            assert!(
-                Instant::now() < deadline,
-                "Download timed out in {:?}",
-                download.state
-            );
-            std::thread::sleep(Duration::from_millis(25));
-        };
-        let output = finished.output_path.unwrap();
-        assert_eq!(std::fs::read(&output).unwrap(), b"opul-test-bytes");
-        assert_eq!(finished.source, MachineSource::Direct);
-        let transfer_checkpoint =
-            std::fs::read(root.join("state/media-session/media-downloads.json"))
-                .expect("The transfer must have a durable adapter checkpoint");
-        let checkpoint: serde_json::Value = serde_json::from_slice(&transfer_checkpoint).unwrap();
-        assert!(checkpoint.to_string().contains(&id));
-        let wire = serde_json::to_value(machine.snapshot()).unwrap();
-        assert_eq!(wire["workspaces"][0]["downloads"][0]["state"], "Finished");
-        machine.begin_shutdown().unwrap();
-        drop(machine);
-        let machine = test_machine(&root);
-        assert_eq!(machine.snapshot().workspaces[0].downloads[0].id, id);
-        DesktopCommand::RemoveDownloads {
-            download_ids: vec![id],
-        }
-        .execute(&machine)
-        .unwrap();
-        let deadline = Instant::now() + Duration::from_secs(5);
-        while !machine.snapshot().workspaces[0].downloads.is_empty() {
-            assert!(Instant::now() < deadline);
-            std::thread::sleep(Duration::from_millis(25));
-        }
-        assert!(
-            std::path::Path::new(&output).is_file(),
-            "Removing history must preserve downloaded files"
-        );
-        machine.begin_shutdown().unwrap();
-        drop(machine);
-        server.join().unwrap();
-        std::fs::remove_dir_all(root).unwrap();
-    }
-    #[test]
-    fn import_urls_reject_non_download_schemes() {
-        assert!(validate_url("https://example.com/file.zip", false).is_ok());
-        assert!(validate_url("magnet:?xt=urn:btih:abcd", true).is_ok());
-        for url in [
-            "file:///etc/passwd",
-            "javascript:alert(1)",
-            "example.com",
-            "magnet:?xt=a",
-        ] {
-            assert!(validate_url(url, false).is_err());
-        }
-    }
-}
+mod tests;

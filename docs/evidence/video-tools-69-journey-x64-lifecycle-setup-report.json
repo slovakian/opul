@@ -1,0 +1,424 @@
+{
+  "evidence": [
+    {
+      "direct": "fb9b9e04-d442-4399-a235-118bf97381d9",
+      "direct_bytes_verified": true,
+      "phase": "off-after-restart",
+      "tools_at_completion": {
+        "keep_up_to_date": true,
+        "nightly_available": true,
+        "published_size": null,
+        "sequence": 0,
+        "state": {
+          "kind": "turned_off"
+        },
+        "update_available": false,
+        "use_nightly": false
+      },
+      "tools_at_start": {
+        "keep_up_to_date": true,
+        "nightly_available": true,
+        "published_size": null,
+        "sequence": 0,
+        "state": {
+          "kind": "turned_off"
+        },
+        "update_available": false,
+        "use_nightly": false
+      },
+      "torrent": "ef1675bf-99f9-4b5c-99d9-9b980a126318",
+      "torrent_bytes_verified": true
+    },
+    {
+      "action": "click",
+      "ok": true,
+      "request_id": "9b6a3f65-bb89-44ea-9db7-4cc2bd9ed18c",
+      "target": "Download video tools ("
+    },
+    {
+      "direct": "bf1c80cc-f027-437c-98a9-3298eee6e047",
+      "direct_bytes_verified": true,
+      "phase": "setting-up",
+      "tools_at_completion": {
+        "keep_up_to_date": true,
+        "nightly_available": true,
+        "published_size": null,
+        "sequence": 1,
+        "state": {
+          "kind": "setting_up",
+          "steps": [
+            {
+              "component": "python",
+              "downloaded_bytes": 0,
+              "status": "pending",
+              "total_bytes": null
+            },
+            {
+              "component": "yt_dlp",
+              "downloaded_bytes": 0,
+              "status": "pending",
+              "total_bytes": null
+            }
+          ]
+        },
+        "update_available": false,
+        "use_nightly": false
+      },
+      "tools_at_start": {
+        "keep_up_to_date": true,
+        "nightly_available": true,
+        "published_size": null,
+        "sequence": 1,
+        "state": {
+          "kind": "setting_up",
+          "steps": [
+            {
+              "component": "python",
+              "downloaded_bytes": 0,
+              "status": "pending",
+              "total_bytes": null
+            },
+            {
+              "component": "yt_dlp",
+              "downloaded_bytes": 0,
+              "status": "pending",
+              "total_bytes": null
+            }
+          ]
+        },
+        "update_available": false,
+        "use_nightly": false
+      },
+      "torrent": "214c49be-7f83-4901-8ee9-ef1f5ad028fa",
+      "torrent_bytes_verified": true
+    },
+    {
+      "action": "click",
+      "ok": true,
+      "request_id": "e06dc330-87cb-4779-8b76-11759fb7fffa",
+      "target": "Continue to Opul"
+    },
+    {
+      "action": "dismissed",
+      "ok": true,
+      "request_id": "a9a8571e-ac34-4d0f-8130-24d63fe34365",
+      "target": "Set Up Video Tools"
+    },
+    {
+      "destination_and_format_preserved": true,
+      "original_identities": [
+        "f63b5df5-882f-4337-b378-fe8d7ceccfd7",
+        "394df0bd-e362-4de6-b207-25ac08a6e612"
+      ],
+      "video_count": 3,
+      "waiting_video_and_playlist_expanded": true
+    },
+    {
+      "direct": "16834019-c3ba-4f79-9140-895cd7e88b76",
+      "direct_bytes_verified": true,
+      "phase": "ready",
+      "tools_at_completion": {
+        "keep_up_to_date": true,
+        "nightly_available": true,
+        "published_size": 20743713,
+        "sequence": 402,
+        "state": {
+          "installed": {
+            "python_version": "3.13.18",
+            "runtime": 2,
+            "yt_dlp": "2026.10.26",
+            "yt_dlp_channel": "stable"
+          },
+          "kind": "ready",
+          "last_checked": null,
+          "update_flag": {
+            "kind": "none"
+          }
+        },
+        "update_available": false,
+        "use_nightly": false
+      },
+      "tools_at_start": {
+        "keep_up_to_date": true,
+        "nightly_available": true,
+        "published_size": 20743713,
+        "sequence": 402,
+        "state": {
+          "installed": {
+            "python_version": "3.13.18",
+            "runtime": 2,
+            "yt_dlp": "2026.10.26",
+            "yt_dlp_channel": "stable"
+          },
+          "kind": "ready",
+          "last_checked": null,
+          "update_flag": {
+            "kind": "none"
+          }
+        },
+        "update_available": false,
+        "use_nightly": false
+      },
+      "torrent": "a0e2b26c-ba99-46be-a9a8-7dfc5ce4cd41",
+      "torrent_bytes_verified": true
+    },
+    {
+      "direct": "3c2913a1-7913-4140-9ae7-0264df54ff8d",
+      "direct_bytes_verified": true,
+      "phase": "video-running",
+      "tools_at_completion": {
+        "keep_up_to_date": true,
+        "nightly_available": true,
+        "published_size": 20743713,
+        "sequence": 403,
+        "state": {
+          "installed": {
+            "python_version": "3.13.18",
+            "runtime": 2,
+            "yt_dlp": "2026.10.26",
+            "yt_dlp_channel": "stable"
+          },
+          "kind": "ready",
+          "last_checked": 1794107506,
+          "update_flag": {
+            "kind": "none"
+          }
+        },
+        "update_available": false,
+        "use_nightly": false
+      },
+      "tools_at_start": {
+        "keep_up_to_date": true,
+        "nightly_available": true,
+        "published_size": 20743713,
+        "sequence": 403,
+        "state": {
+          "installed": {
+            "python_version": "3.13.18",
+            "runtime": 2,
+            "yt_dlp": "2026.10.26",
+            "yt_dlp_channel": "stable"
+          },
+          "kind": "ready",
+          "last_checked": 1794107506,
+          "update_flag": {
+            "kind": "none"
+          }
+        },
+        "update_available": false,
+        "use_nightly": false
+      },
+      "torrent": "7c484aa9-919c-459e-957d-0321deef289d",
+      "torrent_bytes_verified": true
+    },
+    {
+      "action": "click",
+      "ok": true,
+      "request_id": "73785d1e-a0c0-41fb-ac21-3fa21f967558",
+      "target": "Tools"
+    },
+    {
+      "action": "click",
+      "ok": true,
+      "request_id": "b9c3f9f1-49ea-4a7c-b8c0-7b0b23712ee6",
+      "target": "Remove\u2026"
+    },
+    {
+      "action": "text",
+      "ok": true,
+      "request_id": "68851ab5-d79a-4dac-a5a6-37ea1090f964",
+      "target": "1 video download is in progress."
+    },
+    {
+      "action": "click",
+      "ok": true,
+      "request_id": "f8264ac8-d891-432d-8411-e08fd1d9b991",
+      "target": "Cancel"
+    },
+    {
+      "action": "dismissed",
+      "ok": true,
+      "request_id": "b83eb0be-101a-4c18-a553-c23cb86b708d",
+      "target": "Remove video tools?"
+    },
+    {
+      "action": "click",
+      "ok": true,
+      "request_id": "d4f4d2c6-74d4-42f1-a65f-a8f78854378f",
+      "target": "Remove\u2026"
+    },
+    {
+      "action": "click",
+      "ok": true,
+      "request_id": "daa8f09a-177d-4017-a681-580a0a222f54",
+      "target": "Remove"
+    },
+    {
+      "direct": "4a640e04-5930-4c8e-8c10-16a362de8e92",
+      "direct_bytes_verified": true,
+      "phase": "removed",
+      "tools_at_completion": {
+        "keep_up_to_date": true,
+        "nightly_available": true,
+        "published_size": 20743713,
+        "sequence": 404,
+        "state": {
+          "kind": "not_set_up"
+        },
+        "update_available": false,
+        "use_nightly": false
+      },
+      "tools_at_start": {
+        "keep_up_to_date": true,
+        "nightly_available": true,
+        "published_size": 20743713,
+        "sequence": 404,
+        "state": {
+          "kind": "not_set_up"
+        },
+        "update_available": false,
+        "use_nightly": false
+      },
+      "torrent": "00ca870e-9387-4583-88bb-af67d945a5f5",
+      "torrent_bytes_verified": true
+    },
+    {
+      "action": "click",
+      "ok": true,
+      "request_id": "7ba5e0a4-53d8-43d7-9231-bf7678d7a4ac",
+      "target": "Download video tools ("
+    },
+    {
+      "direct": "0eed23da-9e91-4c03-b46e-a331d64088f8",
+      "direct_bytes_verified": true,
+      "phase": "re-setup",
+      "tools_at_completion": {
+        "keep_up_to_date": true,
+        "nightly_available": true,
+        "published_size": 20743713,
+        "sequence": 1176,
+        "state": {
+          "installed": {
+            "python_version": "3.13.18",
+            "runtime": 2,
+            "yt_dlp": "2026.10.26",
+            "yt_dlp_channel": "stable"
+          },
+          "kind": "ready",
+          "last_checked": null,
+          "update_flag": {
+            "kind": "none"
+          }
+        },
+        "update_available": false,
+        "use_nightly": false
+      },
+      "tools_at_start": {
+        "keep_up_to_date": true,
+        "nightly_available": true,
+        "published_size": 20743713,
+        "sequence": 1176,
+        "state": {
+          "installed": {
+            "python_version": "3.13.18",
+            "runtime": 2,
+            "yt_dlp": "2026.10.26",
+            "yt_dlp_channel": "stable"
+          },
+          "kind": "ready",
+          "last_checked": null,
+          "update_flag": {
+            "kind": "none"
+          }
+        },
+        "update_available": false,
+        "use_nightly": false
+      },
+      "torrent": "d6cd0db9-a47d-4c2a-994a-4b4654e5cd60",
+      "torrent_bytes_verified": true
+    },
+    {
+      "removed_download": "9dcaaf83-1c4e-49e2-94cb-b7d0d94349b0",
+      "resumed_output": "/Users/jason/orca/workspaces/opul/set-up-verified-video-tools-from-settings-and-ru/.build/issue-69-acceptance-x64/lifecycle/downloads/slow.mp4",
+      "retained_partials": [
+        "/Users/jason/orca/workspaces/opul/set-up-verified-video-tools-from-settings-and-ru/.build/issue-69-acceptance-x64/lifecycle/downloads/slow.mp4.part"
+      ]
+    }
+  ],
+  "mode": "setup",
+  "ok": true,
+  "tools": {
+    "keep_up_to_date": true,
+    "nightly_available": true,
+    "published_size": 20743713,
+    "sequence": 1176,
+    "state": {
+      "installed": {
+        "python_version": "3.13.18",
+        "runtime": 2,
+        "yt_dlp": "2026.10.26",
+        "yt_dlp_channel": "stable"
+      },
+      "kind": "ready",
+      "last_checked": null,
+      "update_flag": {
+        "kind": "none"
+      }
+    },
+    "update_available": false,
+    "use_nightly": false
+  },
+  "prior_downloads_preserved": {
+    "3fda1d66-6472-4377-9b6f-f1c8ba65453c": {
+      "folder": "9ae3715c-5ea4-41c6-b7be-dd30c336041d",
+      "format": "Original",
+      "output": "/Users/jason/orca/workspaces/opul/set-up-verified-video-tools-from-settings-and-ru/.build/issue-69-acceptance-x64/lifecycle/downloads/not-set-up.txt",
+      "sha256": "cb5cbfb21c0507d111b2163cf4d60ab9e44b7d7643f9945d41f893ca1ff204e0"
+    },
+    "db48ed67-18fc-4175-9ba4-fb863aec933e": {
+      "folder": "9ae3715c-5ea4-41c6-b7be-dd30c336041d",
+      "format": null,
+      "output": "/Users/jason/orca/workspaces/opul/set-up-verified-video-tools-from-settings-and-ru/.build/issue-69-acceptance-x64/lifecycle/downloads/not-set-up.bin",
+      "sha256": "4d1fabda271be742b9de97c93434f75dac3320d30ae371719c0982c0c7b4b4d4"
+    },
+    "f63b5df5-882f-4337-b378-fe8d7ceccfd7": {
+      "folder": "9ae3715c-5ea4-41c6-b7be-dd30c336041d",
+      "format": "Original"
+    },
+    "394df0bd-e362-4de6-b207-25ac08a6e612": {
+      "folder": "9ae3715c-5ea4-41c6-b7be-dd30c336041d",
+      "format": "Original"
+    },
+    "426684c5-2b64-4cc8-a08e-b60e6f61afc1": {
+      "folder": "9ae3715c-5ea4-41c6-b7be-dd30c336041d",
+      "format": "Original",
+      "output": "/Users/jason/orca/workspaces/opul/set-up-verified-video-tools-from-settings-and-ru/.build/issue-69-acceptance-x64/lifecycle/downloads/turned-off.txt",
+      "sha256": "95a14daea55ae2713546acc77f2bd63c4855f068865c1c69859edd6697659607"
+    },
+    "7a5fd782-0777-4839-8e42-41c58ec90e78": {
+      "folder": "9ae3715c-5ea4-41c6-b7be-dd30c336041d",
+      "format": null,
+      "output": "/Users/jason/orca/workspaces/opul/set-up-verified-video-tools-from-settings-and-ru/.build/issue-69-acceptance-x64/lifecycle/downloads/turned-off.bin",
+      "sha256": "4363cb1919be41f72af3fe62b5155c084635ab610873a9b46802f02397317a1b"
+    }
+  },
+  "video_bytes_verified": [
+    {
+      "id": "f63b5df5-882f-4337-b378-fe8d7ceccfd7",
+      "sha256": "dbd49391ceba05234524270c8f2451a846ee30abb668ca4026a9e597bf5487b5"
+    },
+    {
+      "id": "394df0bd-e362-4de6-b207-25ac08a6e612",
+      "sha256": "dbd49391ceba05234524270c8f2451a846ee30abb668ca4026a9e597bf5487b5"
+    },
+    {
+      "id": "e72ea602-e4d0-49c9-8f17-4f42dd4ebffc",
+      "sha256": "dbd49391ceba05234524270c8f2451a846ee30abb668ca4026a9e597bf5487b5"
+    },
+    {
+      "id": "9dcaaf83-1c4e-49e2-94cb-b7d0d94349b0",
+      "sha256": "b2ded9ae5a20fa36ca8cec49ef923bffb5e1a51d9e8c1f8336273d2fa9d35ff0"
+    }
+  ],
+  "time_machine": "[Excluded]  /Users/jason/orca/workspaces/opul/set-up-verified-video-tools-from-settings-and-ru/.build/issue-69-acceptance-x64/lifecycle/state/Tools"
+}

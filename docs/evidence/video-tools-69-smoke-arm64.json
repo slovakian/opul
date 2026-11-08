@@ -1,0 +1,12 @@
+{
+  "journey": {
+    "evidence": "Waiting before consent, verified setup, completion, removal to Turned off, and re-setup passed.\nVideo tools: Ready { installed: InstalledPair { runtime: 1, python_version: \"3.13.18\", yt_dlp: \"2026.10.26\", yt_dlp_channel: Stable }, last_checked: None, update_flag: None }\nInstalled: Some(InstalledPair { runtime: 1, python_version: \"3.13.18\", yt_dlp: \"2026.10.26\", yt_dlp_channel: Stable })\nCandidate runtime / yt-dlp: Some((1, \"2026.10.26\"))\nChip: aarch64\nOpul: 0.2.2\nOutput: /var/folders/8l/rlrwlz1x51ggh7rszhh5_gvh0000gn/T/opul-video-smoke.QX3nQs/downloads/trailer.mp4, 11053871 bytes\nBuilt in: BuiltInToolVersions { ffmpeg: Some(\"9.0.2\"), ffprobe: Some(\"9.0.2\") }",
+    "ok": true
+  },
+  "restart": {
+    "evidence": "Restart preserved Ready and completed output.\nVideo tools: Ready { installed: InstalledPair { runtime: 1, python_version: \"3.13.18\", yt_dlp: \"2026.10.26\", yt_dlp_channel: Stable }, last_checked: None, update_flag: None }\nInstalled: Some(InstalledPair { runtime: 1, python_version: \"3.13.18\", yt_dlp: \"2026.10.26\", yt_dlp_channel: Stable })\nCandidate runtime / yt-dlp: None\nChip: aarch64\nOpul: 0.2.2",
+    "ok": true
+  },
+  "final_session": "Stopped",
+  "time_machine_excluded": true
+}

@@ -9,11 +9,13 @@ import type { Modal } from "@/components/app-modals";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { SidebarInset, useSidebar } from "@/components/ui/sidebar";
+import { VideoSetup } from "@/components/video-setup";
 import { WorkspaceSidebar } from "@/components/workspace-sidebar";
 import type { Location, StatusFilter } from "@/components/workspace-sidebar";
 import { useAppKeyboard } from "@/hooks/use-app-keyboard";
 import { useDownloadNotifications } from "@/hooks/use-download-notifications";
 import { useSavedFolderAddition } from "@/hooks/use-saved-folder-addition";
+import { useVideoSetup } from "@/hooks/use-video-setup";
 import { useWorkspaceExpansion } from "@/hooks/use-workspace-expansion";
 import {
   filterAndSortDownloads,
@@ -85,6 +87,8 @@ const App = () => {
       invoke("frontend_ready").catch(() => null);
     }
   }, [state.kind]);
+
+  const videoSetup = useVideoSetup();
 
   const [location, setLocation] = useState<Location>({ kind: "all" });
 
@@ -224,6 +228,8 @@ const App = () => {
         }
         onSettings={() => setModal({ kind: "settings" })}
         onNew={newDownload}
+        videoTools={videoSetup.tools?.video ?? null}
+        onVideoSetup={videoSetup.handleShow}
       />
       <SidebarInset className="h-svh min-w-0 overflow-hidden">
         <AppHeader
@@ -318,7 +324,12 @@ const App = () => {
           </div>
         </div>
       </SidebarInset>
+      <VideoSetup setup={videoSetup} />
       <AppModals
+        onVideoSetup={() => {
+          setModal(null);
+          videoSetup.handleShow();
+        }}
         busy={busy}
         modal={modal}
         navigate={navigate}

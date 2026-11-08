@@ -31,6 +31,7 @@ export const DownloadOptions = ({
   onFormat,
   onTorrent,
   disabled,
+  videoTurnedOff,
 }: {
   workspace: Workspace | undefined;
   folder?: Folder;
@@ -40,6 +41,7 @@ export const DownloadOptions = ({
   onFormat: (format: Format | undefined) => void;
   onTorrent: () => Promise<void>;
   disabled: boolean;
+  videoTurnedOff: boolean;
 }) => {
   const { run } = useLibrary();
   const [open, setOpen] = useState(false);
@@ -87,11 +89,19 @@ export const DownloadOptions = ({
             <Choice
               label="Download type"
               value={type}
-              options={downloadTypes}
+              options={downloadTypes.map((item) => ({
+                ...item,
+                disabled: videoTurnedOff && item.value === "Page",
+              }))}
               onChange={onType}
               disabled={disabled}
             />
           </Field>
+          {videoTurnedOff && (
+            <p className="text-muted-foreground text-sm">
+              Needs video tools. Turn on in Settings › Tools.
+            </p>
+          )}
           <Field>
             <FieldLabel>Video format</FieldLabel>
             <Choice

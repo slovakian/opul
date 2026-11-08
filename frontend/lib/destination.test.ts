@@ -102,16 +102,15 @@ describe("destination helpers", () => {
         },
         concurrent_downloads: 3,
         enable_dht: true,
-        ffmpeg_path: null,
         listen_port: 6881,
         max_connections: 200,
         max_download_kbps: 0,
         max_upload_kbps: 0,
         randomize_port: true,
         theme: "light",
+        video_tools_setup_shown: true,
         workspace_expansion: {},
         workspace_expansion_startup: "remember",
-        yt_dlp_path: null,
       };
 
       const dest = naturalDestination(workspaces, { kind: "all" }, prefs);
@@ -128,16 +127,15 @@ describe("destination helpers", () => {
         },
         concurrent_downloads: 3,
         enable_dht: true,
-        ffmpeg_path: null,
         listen_port: 6881,
         max_connections: 200,
         max_download_kbps: 0,
         max_upload_kbps: 0,
         randomize_port: true,
         theme: "light",
+        video_tools_setup_shown: true,
         workspace_expansion: {},
         workspace_expansion_startup: "remember",
-        yt_dlp_path: null,
       };
 
       const dest = naturalDestination(workspaces, { kind: "all" }, prefs);
@@ -156,16 +154,15 @@ describe("destination helpers", () => {
         },
         concurrent_downloads: 3,
         enable_dht: true,
-        ffmpeg_path: null,
         listen_port: 6881,
         max_connections: 200,
         max_download_kbps: 0,
         max_upload_kbps: 0,
         randomize_port: true,
         theme: "light",
+        video_tools_setup_shown: true,
         workspace_expansion: {},
         workspace_expansion_startup: "remember",
-        yt_dlp_path: null,
       };
 
       expect(recommendedWorkspace(workspaces, prefs, "ws-1").id).toBe("ws-2");

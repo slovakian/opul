@@ -19,8 +19,14 @@ fn open_machine(root: &Path, preferences: &Preferences) -> Result<Arc<OpulStateM
         media: MediaEngineConfig {
             session_folder: root.join("media").to_string_lossy().into_owned(),
             resources_folder: None,
-            yt_dlp_path: preferences.yt_dlp_path.clone(),
-            ffmpeg_path: preferences.ffmpeg_path.clone(),
+            video_tools: opul_core::video_tools::VideoTools::open(
+                opul_core::video_tools::VideoToolsConfig {
+                    nightly_available: false,
+                    root: root.join("Tools"),
+                    opul_version: "0.2.2".into(),
+                },
+            )
+            .map_err(|error| error.to_string())?,
             max_concurrent_downloads: preferences.concurrent_downloads,
             max_download_bps: u64::from(preferences.max_download_kbps) * 1024,
         },
@@ -67,8 +73,7 @@ fn recover_preferences(unreadable: bool) {
         "workspace_expansion":{"untouched":true,"changed":false},
         "aggregate_views":{"all":{"layout":"Table"}},
         "max_download_kbps":2048, "concurrent_downloads":2,
-        "listen_port":0, "enable_dht":false,
-        "yt_dlp_path":"/not-installed", "ffmpeg_path":"/not-installed"
+        "listen_port":0, "enable_dht":false
     }"#;
     std::fs::write(&path, repaired).unwrap();
     let loaded = std::thread::scope(|scope| {

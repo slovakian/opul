@@ -41,6 +41,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { VideoToolsUpdateAdvice } from "@/components/video-tools-update-advice";
 import type { Download, Workspace } from "@/lib/model";
 import { bytes, sourceHost, stateNames, timeRemaining } from "@/lib/model";
 import { cn } from "@/lib/utils";
@@ -112,7 +113,7 @@ export const DownloadStatus = ({ download }: { download: Download }) => (
     )}
   >
     <StatusIcon state={download.state} />
-    {stateNames[download.state]}
+    {download.waiting_label ?? stateNames[download.state]}
   </span>
 );
 
@@ -201,6 +202,15 @@ export const Downloads = ({
                 </TableCell>
                 <TableCell>
                   <DownloadStatus download={download} />
+                  {download.error_message && (
+                    <p
+                      className="text-destructive truncate text-xs"
+                      title={download.error_message}
+                    >
+                      {download.error_message}
+                    </p>
+                  )}
+                  <VideoToolsUpdateAdvice download={download} />
                 </TableCell>
                 <TableCell className="text-muted-foreground hidden lg:table-cell">
                   {sourceHost(download)}
@@ -293,6 +303,7 @@ export const Downloads = ({
                   </span>
                 )}
               </ItemDescription>
+              <VideoToolsUpdateAdvice download={download} />
               {transferring && (
                 <Progress
                   className="mt-1 max-w-96"

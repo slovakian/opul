@@ -13,13 +13,9 @@ vp install --frozen-lockfile
 pnpm exec tauri dev
 ```
 
-Video pages need [yt-dlp](https://github.com/yt-dlp/yt-dlp). Audio conversion needs [FFmpeg](https://ffmpeg.org). Direct files and torrents work without either.
+FFmpeg and ffprobe are built in for merging, MP3 and M4A audio, subtitles, and JPG thumbnails on macOS 13 and later. Set up optional video tools in Settings > Tools to download video pages. Opul downloads and verifies its Python runtime and the official [yt-dlp](https://github.com/yt-dlp/yt-dlp) script after you agree. Direct files and torrents work on their own.
 
-```bash
-brew install yt-dlp ffmpeg
-```
-
-Opul detects Homebrew installations. Custom executable paths can be set in Settings.
+Tools settings take effect immediately. Opul uses its own tools; there are no program paths to configure. See [video tools](docs/video-tools.md) for installation, verification and the developer override, [built-in tools](docs/built-in-tools.md) for pinned FFmpeg builds, and [third-party notices](THIRD_PARTY_NOTICES.md) for licenses and exact sources.
 
 ## Verify and package
 
