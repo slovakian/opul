@@ -18,12 +18,12 @@ fn guided_hls_and_dash_reach_the_scoped_yt_dlp_handoff() {
     let engine = MediaEngine::new(MediaEngineConfig {
         session_folder: root.join("session").to_string_lossy().into_owned(),
         resources_folder: Some(built_in_resources(&root).to_string_lossy().into_owned()),
-        video_tools: None,
+        video_tools: crate::video_tools::not_set_up(),
         max_concurrent_downloads: 1,
         max_download_bps: 0,
     })
     .unwrap();
-    *engine.developer_override.lock().unwrap() = Some(tool_path);
+    *engine.yt_dlp.developer_override.lock().unwrap() = Some(tool_path);
     fs::write(&arguments_path, "").unwrap();
 
     let options = || MediaDownloadOptions {
@@ -120,7 +120,7 @@ fn downloads_direct_guided_video_without_yt_dlp() {
     let engine = MediaEngine::new(MediaEngineConfig {
         session_folder: session.to_string_lossy().into_owned(),
         resources_folder: None,
-        video_tools: None,
+        video_tools: crate::video_tools::not_set_up(),
         max_concurrent_downloads: 1,
         max_download_bps: 0,
     })
@@ -199,7 +199,7 @@ fn an_interrupted_direct_download_reports_its_partial_file() {
     let engine = MediaEngine::new(MediaEngineConfig {
         session_folder: root.join("session").to_string_lossy().into_owned(),
         resources_folder: None,
-        video_tools: None,
+        video_tools: crate::video_tools::not_set_up(),
         max_concurrent_downloads: 1,
         max_download_bps: 0,
     })
@@ -316,7 +316,7 @@ fn guided_direct_download_scopes_authentication_across_redirects() {
     let engine = MediaEngine::new(MediaEngineConfig {
         session_folder: root.join("session").to_string_lossy().into_owned(),
         resources_folder: None,
-        video_tools: None,
+        video_tools: crate::video_tools::not_set_up(),
         max_concurrent_downloads: 1,
         max_download_bps: 0,
     })

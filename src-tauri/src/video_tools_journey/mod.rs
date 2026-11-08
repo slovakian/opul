@@ -37,7 +37,7 @@ pub fn run(
     )?;
     let config: Config = serde_json::from_slice(&std::fs::read(path).map_err(|e| e.to_string())?)
         .map_err(|e| e.to_string())?;
-    let tools = machine.video_tools().ok_or("No managed tools")?;
+    let tools = machine.video_tools().clone();
     let mut evidence = Vec::new();
     match config.mode.as_str() {
         "offer" => lifecycle::offer(app, machine, &tools, &config, &mut evidence)?,

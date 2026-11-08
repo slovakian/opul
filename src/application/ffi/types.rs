@@ -338,7 +338,7 @@ pub struct OpulStateMachine {
     pub(super) actor: Arc<ApplicationActor>,
     pub(super) torrent: Arc<TorrentEngine>,
     pub(super) media: Arc<MediaEngine>,
-    pub(super) video_tools: Option<Arc<crate::video_tools::VideoTools>>,
+    pub(super) video_tools: Arc<crate::video_tools::VideoTools>,
     pub(super) guided: Arc<Mutex<HashMap<DownloadId, GuidedInput>>>,
     pub(super) platform_effects: Arc<Mutex<Vec<MachinePlatformEffect>>>,
     pub(super) stop: Arc<AtomicBool>,

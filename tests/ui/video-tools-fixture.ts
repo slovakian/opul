@@ -172,14 +172,6 @@ export const mockVideoTools = async (page: Page, options: DesktopOptions) => {
           };
         } else if (operation.kind === "cancel_setup") {
           currentTools.video.state = { kind: "not_set_up" };
-        } else if (operation.kind === "remove") {
-          currentTools.video.state = {
-            kind:
-              operation.turn_off ||
-              currentTools.video.state.kind === "turned_off"
-                ? "turned_off"
-                : "not_set_up",
-          };
         } else if (operation.kind === "turn_off") {
           currentTools.video.state = { kind: "turned_off" };
         }
@@ -242,6 +234,19 @@ export const mockVideoTools = async (page: Page, options: DesktopOptions) => {
 
           if (name === "video_tools_execute" && args.operation) {
             execute(args.operation);
+
+            return structuredClone(currentTools.video);
+          }
+
+          if (name === "video_tools_remove") {
+            currentTools.video.state = {
+              kind:
+                args.turnOff || currentTools.video.state.kind === "turned_off"
+                  ? "turned_off"
+                  : "not_set_up",
+            };
+            currentTools.video.sequence += 1;
+            pushTools();
 
             return structuredClone(currentTools.video);
           }

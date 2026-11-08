@@ -19,7 +19,6 @@ impl OpulStateMachine {
         &self,
         request: MachineDownloadCommand,
     ) -> Result<MachineCommandReceipt, StateMachineError> {
-        self.sync_video_tools()?;
         self.download_command(request, |download| Command::Retry { download })
     }
 
@@ -131,8 +130,8 @@ impl OpulStateMachine {
         self.media.clear_guided_session_data().map_err(engine_error)
     }
 
-    pub fn video_tools(&self) -> Option<Arc<crate::video_tools::VideoTools>> {
-        self.video_tools.clone()
+    pub fn video_tools(&self) -> &Arc<crate::video_tools::VideoTools> {
+        &self.video_tools
     }
 
     pub fn built_in_tool_versions(&self) -> crate::media::BuiltInToolVersions {
@@ -205,28 +204,20 @@ impl OpulStateMachine {
         &self,
         turn_off: bool,
     ) -> Result<crate::video_tools::VideoToolsSnapshot, String> {
-        let tools = self
-            .video_tools
-            .as_ref()
-            .ok_or("Video tools module is unavailable.")?;
         let _execution = self
             .execution_gate
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        tools.remove_with(turn_off, || {
-            self.sync_video_tools().map_err(|error| error.to_string())?;
-            self.dispatch(None, Command::RemoveVideoTools)
+        // Downloads must wait before their writers stop, or they would fail instead.
+        self.video_tools.remove_with(turn_off, || {
+            self.refresh_video_tools()
                 .map_err(|error| error.to_string())?;
             self.media.stop_video_downloads()
         })
     }
 
     pub fn begin_shutdown(&self) -> Result<MachineCommandReceipt, StateMachineError> {
-        if let Some(tools) = &self.video_tools {
-            tools
-                .cancel()
-                .map_err(|reason| StateMachineError::Open { reason })?;
-        }
+        self.video_tools.shut_down();
         let boot = self.actor.snapshot().boot.unwrap_or_else(BootId::new);
         let receipt = self.dispatch(None, Command::BeginShutdown { boot })?;
         self.torrent.stop_all();

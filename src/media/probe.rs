@@ -101,7 +101,7 @@ pub(super) fn is_media_mime(value: &str) -> bool {
 }
 
 pub(super) fn probe_with_ytdlp(
-    yt_dlp: &YtDlpCommand,
+    yt_dlp: &YtDlp,
     cookie_path: Option<&Path>,
     url: &str,
     mut keep_running: impl FnMut() -> bool,

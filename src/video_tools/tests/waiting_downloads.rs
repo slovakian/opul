@@ -72,7 +72,7 @@ fn exercise_slow_probe(remove: bool, writer: bool) {
         media: crate::MediaEngineConfig {
             session_folder: root.join("media").to_string_lossy().into_owned(),
             resources_folder: Some(resources.to_string_lossy().into_owned()),
-            video_tools: Some(Arc::clone(&tools)),
+            video_tools: Arc::clone(&tools),
             max_concurrent_downloads: 2,
             max_download_bps: 0,
         },

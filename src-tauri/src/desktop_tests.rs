@@ -19,7 +19,14 @@ fn open_machine(root: &Path, preferences: &Preferences) -> Result<Arc<OpulStateM
         media: MediaEngineConfig {
             session_folder: root.join("media").to_string_lossy().into_owned(),
             resources_folder: None,
-            video_tools: None,
+            video_tools: opul_core::video_tools::VideoTools::open(
+                opul_core::video_tools::VideoToolsConfig {
+                    nightly_available: false,
+                    root: root.join("Tools"),
+                    opul_version: "0.2.2".into(),
+                },
+            )
+            .map_err(|error| error.to_string())?,
             max_concurrent_downloads: preferences.concurrent_downloads,
             max_download_bps: u64::from(preferences.max_download_kbps) * 1024,
         },

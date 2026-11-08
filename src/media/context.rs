@@ -1,36 +1,13 @@
 use super::*;
 
 impl MediaEngine {
-    pub(super) fn current_yt_dlp(&self) -> Option<YtDlpCommand> {
-        if let Some(path) = self
-            .developer_override
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .clone()
-        {
-            return Some(YtDlpCommand::DeveloperOverride(path));
-        }
-        self.video_tools
-            .as_ref()?
-            .invocation()
-            .map(YtDlpCommand::Managed)
-    }
-
-    pub(super) fn require_yt_dlp(&self) -> Result<YtDlpCommand, CoreError> {
-        self.current_yt_dlp()
-            .ok_or_else(|| CoreError::DependencyUnavailable {
-                reason: "Video downloads need video tools. Set them up in Settings > Tools.".into(),
-            })
-    }
-
     pub(super) fn cookie_path_if_present(&self) -> Option<PathBuf> {
         self.cookie_path.exists().then(|| self.cookie_path.clone())
     }
 
     pub(super) fn worker_context(&self) -> WorkerContext {
         WorkerContext {
-            video_tools: self.video_tools.clone(),
-            yt_dlp: self.current_yt_dlp(),
+            yt_dlp: self.yt_dlp.clone(),
             ffmpeg: self.ffmpeg.clone(),
             cookie_directory: self.cookie_directory(),
             request_header_directory: self.request_header_directory(),
@@ -153,7 +130,7 @@ impl MediaEngine {
                 if matches!(
                     item.state,
                     MediaTransferState::Queued | MediaTransferState::Paused
-                ) && (item.direct_download || self.current_yt_dlp().is_some())
+                ) && (item.direct_download || self.yt_dlp.available())
                 {
                     ids.push(item.id.clone());
                 }
@@ -171,7 +148,7 @@ impl MediaEngine {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .get(id)
-            .is_some_and(|item| item.direct_download || self.current_yt_dlp().is_some())
+            .is_some_and(|item| item.direct_download || self.yt_dlp.available())
     }
 
     pub(super) fn transition_state(

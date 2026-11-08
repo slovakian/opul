@@ -10,16 +10,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { useVideoTools } from "@/hooks/use-video-tools";
+import { useVideoTools } from "@/hooks/use-video-tools";
 import { useLibrary } from "@/lib/library";
 
-export const VideoToolsRemoval = ({
-  busy,
-  execute,
-}: {
-  busy: boolean;
-  execute: ReturnType<typeof useVideoTools>["execute"];
-}) => {
+export const VideoToolsRemoval = () => {
+  const { busy, error, remove } = useVideoTools();
   const { state: library } = useLibrary();
   const [removing, setRemoving] = useState(false);
   const [turnOff, setTurnOff] = useState(false);
@@ -61,9 +56,9 @@ export const VideoToolsRemoval = ({
           <DialogHeader>
             <DialogTitle>Remove video tools?</DialogTitle>
             <DialogDescription>
-              {count} video {count === 1 ? "download is" : "downloads are"} in
-              progress. Removing the video tools stops them. Partial downloads
-              and finished files are kept.
+              {count > 0 &&
+                `${count} video ${count === 1 ? "download is" : "downloads are"} in progress. Removing the video tools stops them. `}
+              Partial downloads and finished files are kept.
             </DialogDescription>
           </DialogHeader>
           <label className="flex items-center gap-2 text-sm">
@@ -74,6 +69,11 @@ export const VideoToolsRemoval = ({
             />
             Don&apos;t offer video tools again
           </label>
+          {error && (
+            <p role="alert" className="text-destructive text-xs">
+              {error}
+            </p>
+          )}
           <DialogFooter>
             <Button
               type="button"
@@ -87,7 +87,7 @@ export const VideoToolsRemoval = ({
               type="button"
               disabled={busy}
               onClick={async () => {
-                if (await execute({ kind: "remove", turn_off: turnOff })) {
+                if (await remove(turnOff)) {
                   setRemoving(false);
                 }
               }}

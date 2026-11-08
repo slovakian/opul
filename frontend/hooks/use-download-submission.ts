@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
 import { toast } from "@/components/ui/toast";
-import { useVideoTools } from "@/hooks/use-video-tools";
+import { sendVideoTools, useVideoTools } from "@/hooks/use-video-tools";
 import { bridge, errorMessage } from "@/lib/bridge";
 import type { Destination } from "@/lib/destination";
 import { downloadMode } from "@/lib/download-options";
@@ -154,7 +154,18 @@ export const useDownloadSubmission = ({
 
       if (consented) {
         setVideoConsent(undefined);
-        await bridge.videoToolsExecute({ kind: "set_up" });
+        setConsentError("");
+
+        // The download is already added and waits; only setup itself failed.
+        try {
+          await sendVideoTools({ kind: "set_up" });
+        } catch (error) {
+          toast.add({
+            description: errorMessage(error),
+            title: "Couldn't set up video tools",
+            type: "error",
+          });
+        }
       }
     }
   };
@@ -282,7 +293,7 @@ export const useDownloadSubmission = ({
     declineVideoTools: async (turnOff: boolean) => {
       if (turnOff) {
         try {
-          await bridge.videoToolsExecute({ kind: "turn_off" });
+          await sendVideoTools({ kind: "turn_off" });
         } catch (error) {
           setConsentError(errorMessage(error));
 

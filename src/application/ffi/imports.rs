@@ -73,7 +73,6 @@ impl OpulStateMachine {
         &self,
         request: MachineMediaRequest,
     ) -> Result<MachineCommandReceipt, StateMachineError> {
-        self.sync_video_tools()?;
         let item = request
             .items
             .first()

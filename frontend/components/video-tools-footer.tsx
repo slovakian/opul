@@ -18,7 +18,6 @@ import {
   IconAction,
   InfoTip,
   ProgressDetails,
-  megabytes,
 } from "@/components/tools-primitives";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,37 +39,15 @@ import type {
   UpdateFlag,
   VideoToolsSnapshot,
 } from "@/lib/video-tools";
-import { downloadSize } from "@/lib/video-tools";
+import { byteProgress, downloadSize, failureText } from "@/lib/video-tools";
 
 export type Execute = ReturnType<typeof useVideoTools>["execute"];
 
-export type VideoState = VideoToolsSnapshot["state"];
+type VideoState = VideoToolsSnapshot["state"];
 
 type ReadyState = Extract<VideoState, { kind: "ready" }>;
 
 type NotWorkingState = Extract<VideoState, { kind: "not_working" }>;
-
-const failures: Record<
-  NotWorkingState["reason"],
-  { hint: string; title: string }
-> = {
-  download: {
-    hint: "The download couldn't finish.",
-    title: "Download failed",
-  },
-  health_check: {
-    hint: "The video tools didn't pass their health check.",
-    title: "Health check failed",
-  },
-  stopped_working: {
-    hint: "Files may be missing or blocked by macOS.",
-    title: "Stopped working",
-  },
-  verification: {
-    hint: "The download couldn't be verified.",
-    title: "Couldn't verify",
-  },
-};
 
 export const StatusBadge = ({ state }: { state: VideoState }) => {
   const content = (() => {
@@ -322,7 +299,7 @@ const NotWorkingFooter = ({
   execute: Execute;
   state: NotWorkingState;
 }) => {
-  const failure = failures[state.reason];
+  const failure = failureText[state.reason];
 
   return (
     <Collapsible>
@@ -397,9 +374,7 @@ const SetupFooter = ({
   return (
     <Footer stateKey="setting-up">
       <span className="text-muted-foreground flex-1 text-xs tabular-nums">
-        {known && total > 0
-          ? `${megabytes(downloaded)} of ${megabytes(total)} MB`
-          : ""}
+        {known && total > 0 ? byteProgress(downloaded, total) : ""}
       </span>
       <Button
         type="button"
@@ -426,7 +401,7 @@ const OfferFooter = ({
   publishedSize: number | null;
   turnedOff: boolean;
 }) => {
-  const size = downloadSize(publishedSize);
+  const size = downloadSize(publishedSize, { compact: true });
 
   return (
     <Footer stateKey={turnedOff ? "turned-off" : "not-set-up"}>
@@ -453,7 +428,7 @@ const OfferFooter = ({
         <Download data-icon="inline-start" aria-hidden="true" />
         Download{" "}
         <span className="text-primary-foreground/60 font-normal tabular-nums">
-          {size.replace("about ", "~")}
+          {size}
         </span>
       </Button>
     </Footer>

@@ -1,9 +1,33 @@
 use super::*;
 
+/// A download that needs the video tools runs only while they are Ready.
+pub(super) fn must_wait_for_tools(state: &AppState, download: &Download) -> bool {
+    download.needs_video_tools() && state.video_tools != VideoToolsAvailability::Ready
+}
+
 pub(super) fn hold_for_tools(state: &AppState, download: &mut Download) {
-    if download.needs_video_tools() && state.video_tools != VideoToolsAvailability::Ready {
+    if must_wait_for_tools(state, download) {
         download.lifecycle = DownloadLifecycle::WaitingForVideoTools;
     }
+}
+
+/// Running, or about to run without the person doing anything. A person's pause, a recovery
+/// hold awaiting acknowledgement, a failure or a cancellation is left as it is.
+pub(super) fn would_run(lifecycle: &DownloadLifecycle) -> bool {
+    matches!(
+        lifecycle,
+        DownloadLifecycle::Queued
+            | DownloadLifecycle::Starting
+            | DownloadLifecycle::Active(_)
+            | DownloadLifecycle::Pausing {
+                cause: HoldCause::Shutdown,
+                ..
+            }
+            | DownloadLifecycle::Paused {
+                cause: HoldCause::Shutdown,
+                ..
+            }
+    )
 }
 
 pub(super) fn start_effect(download: &Download) -> Option<EffectPlan> {
@@ -35,18 +59,15 @@ pub(super) fn decide_video_tools(
     state: &AppState,
     availability: VideoToolsAvailability,
 ) -> Decision {
-    let mut decision = Decision::none();
-    if availability != state.video_tools
-        && matches!(
-            availability,
-            VideoToolsAvailability::NotSetUp | VideoToolsAvailability::TurnedOff
-        )
-    {
-        decision = decide_remove_video_tools(state);
+    if availability == state.video_tools {
+        return Decision::none();
     }
-    if availability != state.video_tools {
-        decision.events.push(Event::VideoToolsChanged(availability));
-    }
+    let mut decision = if availability == VideoToolsAvailability::Ready {
+        Decision::none()
+    } else {
+        hold_running_downloads(state)
+    };
+    decision.events.push(Event::VideoToolsChanged(availability));
     if availability == VideoToolsAvailability::Ready
         && matches!(state.session, SessionPhase::Running)
     {
@@ -163,32 +184,31 @@ pub(super) fn decide_page_failed(
     })
 }
 
-/// Invalidate in-flight probes and effects while retaining identity, destination and partials.
-pub(super) fn decide_remove_video_tools(state: &AppState) -> Decision {
+/// The tools stopped being Ready: every download that would run waits instead. A new attempt
+/// invalidates in-flight probes and effects while keeping identity, destination and partials.
+fn hold_running_downloads(state: &AppState) -> Decision {
     let mut decision = Decision::none();
     for download in state
         .workspaces
         .iter()
         .flat_map(|workspace| &workspace.downloads)
     {
-        if download.needs_video_tools()
-            && !download.lifecycle.is_retired()
-            && !matches!(
-                download.lifecycle,
-                DownloadLifecycle::Finished | DownloadLifecycle::WaitingForVideoTools
-            )
-        {
-            decision.events.push(Event::DownloadRetried {
-                download: download.id,
-                attempt: download.attempt + 1,
-                control_generation: download.control_generation + 1,
-            });
-            decision.events.push(Event::DownloadLifecycleChanged {
-                download: download.id,
-                lifecycle: DownloadLifecycle::WaitingForVideoTools,
-                control_generation: download.control_generation + 1,
-            });
+        if download.needs_video_tools() && would_run(&download.lifecycle) {
+            push_waiting(download, &mut decision);
         }
     }
     decision
+}
+
+pub(super) fn push_waiting(download: &Download, decision: &mut Decision) {
+    decision.events.push(Event::DownloadRetried {
+        download: download.id,
+        attempt: download.attempt + 1,
+        control_generation: download.control_generation + 1,
+    });
+    decision.events.push(Event::DownloadLifecycleChanged {
+        download: download.id,
+        lifecycle: DownloadLifecycle::WaitingForVideoTools,
+        control_generation: download.control_generation + 1,
+    });
 }

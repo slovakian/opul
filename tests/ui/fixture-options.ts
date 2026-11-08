@@ -14,6 +14,7 @@ import type {
 export interface DesktopInvokeArgs {
   command?: Command;
   operation?: VideoToolsOperation;
+  turnOff?: boolean;
   event?: string;
   handler?: number;
   eventId?: number;

@@ -33,6 +33,7 @@ fn page(state: &AppState) -> Download {
     }
 }
 
+mod rules;
 mod update_advice;
 
 #[test]
@@ -443,7 +444,11 @@ fn removal_holds_unfinished_video_items_and_invalidates_old_transfer_facts() {
         };
     }
     state.workspaces[0].downloads = vec![video.clone(), finished.clone(), direct.clone()];
-    let decision = decide(&state, &command(Command::RemoveVideoTools)).unwrap();
+    let decision = decide_fact(
+        &state,
+        &Fact::VideoToolsChanged(VideoToolsAvailability::NotSetUp),
+    )
+    .unwrap();
     let next = evolve(&state, &decision).unwrap();
     let held = &next.workspaces[0].downloads[0];
     assert_eq!(held.id, video.id);

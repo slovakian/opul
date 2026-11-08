@@ -20,11 +20,13 @@ pub(super) fn decide_reconciled(state: &AppState) -> Result<Decision, Rejection>
                         && effect.control_generation == Some(generation)
                 })
             };
+            let tools_missing = must_wait_for_tools(state, item);
             match &item.lifecycle {
-                DownloadLifecycle::WaitingForVideoTools
-                    if state.video_tools == VideoToolsAvailability::Ready =>
-                {
+                DownloadLifecycle::WaitingForVideoTools if !tools_missing => {
                     queue_waiting(item, &mut decision);
+                }
+                lifecycle if tools_missing && would_run(lifecycle) => {
+                    push_waiting(item, &mut decision);
                 }
                 DownloadLifecycle::Queued | DownloadLifecycle::Starting => {
                     let kind = EffectKind::EnsureTransfer { download: item.id };

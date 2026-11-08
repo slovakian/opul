@@ -66,12 +66,7 @@ pub(super) fn restart_download(context: WorkerContext, id: String) {
         let Some(item) = items.get_mut(&id) else {
             return;
         };
-        let can_start = item.direct_download
-            || context.yt_dlp.is_some()
-            || context
-                .video_tools
-                .as_ref()
-                .is_some_and(|tools| tools.invocation().is_some());
+        let can_start = item.direct_download || context.yt_dlp.available();
         item.state = if can_start {
             MediaTransferState::Queued
         } else {
@@ -90,32 +85,19 @@ pub(super) fn restart_download(context: WorkerContext, id: String) {
     }
 }
 
-pub(super) fn run_worker(mut context: WorkerContext, id: String) {
+pub(super) fn run_worker(context: WorkerContext, id: String) {
     if !wait_for_slot(&context, &id) {
         return;
     }
-    let managed = !matches!(context.yt_dlp, Some(YtDlpCommand::DeveloperOverride(_)))
-        && context.video_tools.is_some();
     let is_video = context
         .items
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .get(&id)
         .is_some_and(|item| !item.direct_download);
-    let download = if managed && is_video {
-        context
-            .video_tools
-            .as_ref()
-            .and_then(|tools| tools.acquire())
-    } else {
-        None
-    };
-    if managed && is_video {
-        context.yt_dlp = download
-            .as_ref()
-            .map(|download| YtDlpCommand::Managed(download.invocation.clone()));
-    }
-    let result = run_download(&context, &id);
+    // Held from here to the outcome, so an update cannot replace the pair mid-Download.
+    let yt_dlp = is_video.then(|| context.yt_dlp.acquire().map_err(|error| error.to_string()));
+    let result = run_download(&context, &id, yt_dlp.as_ref());
     let report_outcome = {
         let mut items = context
             .items
@@ -149,11 +131,10 @@ pub(super) fn run_worker(mut context: WorkerContext, id: String) {
         save_downloads(&context.store_path, &items);
         report_outcome
     };
-    if let Some(download) = download
+    if let Some(Ok(yt_dlp)) = yt_dlp
         && report_outcome
     {
-        // The module logs persistence failures and keeps runtime probation in that case.
-        let _ = download.finish_download(result.is_ok());
+        yt_dlp.finish_download(result.is_ok());
     }
     context
         .processes
@@ -225,7 +206,11 @@ pub(super) fn wait_for_slot(context: &WorkerContext, id: &str) -> bool {
     }
 }
 
-pub(super) fn run_download(context: &WorkerContext, id: &str) -> Result<(), String> {
+pub(super) fn run_download(
+    context: &WorkerContext,
+    id: &str,
+    yt_dlp: Option<&Result<YtDlp, String>>,
+) -> Result<(), String> {
     let mut item = context
         .items
         .lock()
@@ -237,10 +222,10 @@ pub(super) fn run_download(context: &WorkerContext, id: &str) -> Result<(), Stri
     if item.direct_download {
         return run_direct_download(context, id, &item);
     }
-    let yt_dlp = context
-        .yt_dlp
+    let yt_dlp = yt_dlp
+        .ok_or_else(|| "yt-dlp is required for this download".to_string())?
         .as_ref()
-        .ok_or_else(|| "yt-dlp is required for this download".to_string())?;
+        .map_err(Clone::clone)?;
     let mut command = yt_dlp.command();
     command
         .arg("--newline")
@@ -294,11 +279,6 @@ pub(super) fn run_download(context: &WorkerContext, id: &str) -> Result<(), Stri
     }
     if let Some(cookie_file) = item_cookie_path(context, &item) {
         command.arg("--cookies").arg(cookie_file);
-    }
-    if let Some(ffmpeg) = context.ffmpeg.as_ref() {
-        command
-            .arg("--ffmpeg-location")
-            .arg(ffmpeg.parent().expect("bundled FFmpeg has a parent"));
     }
     let max_download_bps = *context
         .max_download_bps

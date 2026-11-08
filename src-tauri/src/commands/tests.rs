@@ -6,13 +6,18 @@ use std::io::{Read, Write};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-fn test_machine(root: &std::path::Path) -> Arc<OpulStateMachine> {
-    test_machine_with_tools(root, None)
+fn video_tools(root: &std::path::Path) -> Arc<opul_core::video_tools::VideoTools> {
+    opul_core::video_tools::VideoTools::open(opul_core::video_tools::VideoToolsConfig {
+        nightly_available: false,
+        root: root.join("Tools"),
+        opul_version: "0.2.2".into(),
+    })
+    .unwrap()
 }
 
-fn test_machine_with_tools(
+fn test_machine(
     root: &std::path::Path,
-    tools: Option<Arc<opul_core::video_tools::VideoTools>>,
+    tools: &Arc<opul_core::video_tools::VideoTools>,
 ) -> Arc<OpulStateMachine> {
     OpulStateMachine::open(OpulMachineConfig {
         application_support_folder: root.join("state").to_string_lossy().into_owned(),
@@ -35,7 +40,7 @@ fn test_machine_with_tools(
                 .to_string_lossy()
                 .into_owned(),
             resources_folder: None,
-            video_tools: tools,
+            video_tools: Arc::clone(tools),
             max_concurrent_downloads: 1,
             max_download_bps: 0,
         },
@@ -45,17 +50,10 @@ fn test_machine_with_tools(
 
 #[test]
 fn desktop_video_submission_waits_without_probing_and_survives_restart() {
-    use opul_core::video_tools::{VideoTools, VideoToolsConfig};
     let root = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(root.path().join("downloads")).unwrap();
-    let tools = VideoTools::open(VideoToolsConfig {
-        nightly_available: false,
-        root: root.path().join("Tools"),
-        opul_version: "0.2.2".into(),
-        built_in_tools: root.path().join("resources"),
-    })
-    .unwrap();
-    let machine = test_machine_with_tools(root.path(), Some(tools.clone()));
+    let tools = video_tools(root.path());
+    let machine = test_machine(root.path(), &tools);
     let snapshot = machine.snapshot();
     let workspace = &snapshot.workspaces[0];
     let receipt = DesktopCommand::AddUrl {
@@ -78,7 +76,7 @@ fn desktop_video_submission_waits_without_probing_and_survives_restart() {
     assert_eq!(download.source_url, "https://example.com/playlist");
     machine.begin_shutdown().unwrap();
     drop(machine);
-    let reopened = test_machine_with_tools(root.path(), Some(tools));
+    let reopened = test_machine(root.path(), &tools);
     let saved = reopened.snapshot();
     assert_eq!(saved.workspaces[0].downloads.len(), 1);
     assert_eq!(saved.workspaces[0].downloads[0], *download);
@@ -89,6 +87,7 @@ fn desktop_video_submission_waits_without_probing_and_survives_restart() {
 fn desktop_command_downloads_a_real_file_without_tools_and_reopens_its_library() {
     let root = std::env::temp_dir().join(format!("opul-bridge-{}", Uuid::new_v4()));
     std::fs::create_dir_all(root.join("downloads")).unwrap();
+    let tools = video_tools(&root);
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
     listener.set_nonblocking(true).unwrap();
@@ -116,7 +115,7 @@ fn desktop_command_downloads_a_real_file_without_tools_and_reopens_its_library()
             }
         }
     });
-    let machine = test_machine(&root);
+    let machine = test_machine(&root, &tools);
     let initial = machine.snapshot();
     assert_eq!(initial.workspaces[0].icon.value, "📁");
     let workspace_id = initial.workspaces[0].id.clone();
@@ -166,7 +165,7 @@ fn desktop_command_downloads_a_real_file_without_tools_and_reopens_its_library()
     assert_eq!(wire["workspaces"][0]["downloads"][0]["state"], "Finished");
     machine.begin_shutdown().unwrap();
     drop(machine);
-    let machine = test_machine(&root);
+    let machine = test_machine(&root, &tools);
     assert_eq!(machine.snapshot().workspaces[0].downloads[0].id, id);
     DesktopCommand::RemoveDownloads {
         download_ids: vec![id],

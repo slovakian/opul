@@ -22,7 +22,6 @@ impl OpulStateMachine {
             runner: Mutex::new(None),
             support_directory,
         });
-        machine.sync_video_tools()?;
         machine.start_runner()?;
         if matches!(machine.actor.snapshot().session, SessionPhase::Reconciling) {
             machine.reconcile_bindings()?;

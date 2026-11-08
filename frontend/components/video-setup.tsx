@@ -27,7 +27,7 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Trace, TraceIcon, TraceLine, TraceTitle } from "@/components/ui/trace";
 import { VideoToolsProgress } from "@/components/video-tools-progress";
 import type { useVideoSetup } from "@/hooks/use-video-setup";
-import { downloadSize, setupFraction } from "@/lib/video-tools";
+import { downloadSize, failureText, setupFraction } from "@/lib/video-tools";
 import type {
   SetupStep,
   VideoToolsOperation,
@@ -68,13 +68,6 @@ const copy: Record<Phase, { description: string; title: string }> = {
     description: "Opul can now download from video pages.",
     title: "Video tools are ready",
   },
-};
-
-const failureTitles: Record<NotWorking["reason"], string> = {
-  download: "The download couldn't finish",
-  health_check: "The video tools didn't pass their health check",
-  stopped_working: "The video tools stopped working",
-  verification: "The download couldn't be verified",
 };
 
 const featureGroups = [
@@ -251,7 +244,7 @@ const KeepUpToDate = ({
 
 const FailureAlert = ({ failure }: { failure: NotWorking }) => (
   <Alert variant="destructive">
-    <AlertTitle>{failureTitles[failure.reason]}</AlertTitle>
+    <AlertTitle>{failureText[failure.reason].summary}</AlertTitle>
     <AlertDescription className="select-text">
       {failure.details}
     </AlertDescription>
@@ -424,7 +417,6 @@ const useSetupView = ({ close, execute, tools }: Setup) => {
 
   const run = async (operation: VideoToolsOperation) => {
     setPending(operation.kind);
-    // `execute` reports failures itself and resolves false.
     const succeeded = await execute(operation);
     setPending(null);
 

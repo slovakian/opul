@@ -13,7 +13,6 @@ impl Eq for CommandEnvelope {}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) enum Command {
-    RemoveVideoTools,
     SetWorkspaceAppearance {
         workspace: WorkspaceId,
         emoji: String,

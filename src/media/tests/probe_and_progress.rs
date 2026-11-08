@@ -346,7 +346,13 @@ fn metadata_probe_cancellation_kills_the_process_and_preserves_error_text() {
     let tool = root.path().join("probe");
     fs::write(&tool, "#!/bin/sh\nexec /bin/sleep 30\n").unwrap();
     fs::set_permissions(&tool, fs::Permissions::from_mode(0o755)).unwrap();
-    let command = crate::media::types::YtDlpCommand::DeveloperOverride(tool.clone());
+    let command = crate::media::types::YtDlpSource {
+        tools: crate::video_tools::not_set_up(),
+        developer_override: Arc::new(Mutex::new(Some(tool.clone()))),
+        ffmpeg: None,
+    }
+    .acquire()
+    .unwrap();
     let started = Instant::now();
     let result =
         crate::media::probe::probe_with_ytdlp(&command, None, "https://example.com/page", || {
@@ -376,7 +382,13 @@ fn metadata_probe_does_not_wait_on_pipes_inherited_by_descendants() {
     let tool = root.path().join("probe");
     fs::write(&tool, "#!/bin/sh\n/bin/sleep 30 &\nexit 0\n").unwrap();
     fs::set_permissions(&tool, fs::Permissions::from_mode(0o755)).unwrap();
-    let command = crate::media::types::YtDlpCommand::DeveloperOverride(tool);
+    let command = crate::media::types::YtDlpSource {
+        tools: crate::video_tools::not_set_up(),
+        developer_override: Arc::new(Mutex::new(Some(tool))),
+        ffmpeg: None,
+    }
+    .acquire()
+    .unwrap();
     let started = Instant::now();
     let result =
         crate::media::probe::probe_with_ytdlp(&command, None, "https://example.com/page", || true);

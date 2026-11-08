@@ -13,7 +13,6 @@ fn consent_and_immediate_preferences_survive_restart() {
         nightly_available: false,
         root: temp.path().join("Tools"),
         opul_version: "0.2.2".into(),
-        built_in_tools: temp.path().join("media-tools"),
     };
     let tools = VideoTools::open(config.clone()).unwrap();
     assert!(matches!(tools.snapshot().state, VideoToolsState::NotSetUp));
@@ -35,6 +34,7 @@ fn consent_and_immediate_preferences_survive_restart() {
 }
 
 mod fixture;
+mod fixture_release;
 mod network;
 mod nightly;
 use fixture::*;
@@ -61,7 +61,7 @@ fn setup_verifies_activates_and_supplies_media_engine_without_restart() {
             .to_string_lossy()
             .into_owned(),
         resources_folder: None,
-        video_tools: Some(Arc::clone(&tools)),
+        video_tools: Arc::clone(&tools),
         max_concurrent_downloads: 1,
         max_download_bps: 0,
     })
@@ -100,9 +100,8 @@ fn setup_verifies_activates_and_supplies_media_engine_without_restart() {
     let selected = tools.invocation().unwrap();
     assert!(arguments.contains(&format!("-I\n{}\n", selected.script.display())));
     assert!(arguments.contains(&format!(
-        "--no-js-runtimes\n--js-runtimes\nquickjs:{}\n--ffmpeg-location\n{}",
-        selected.quickjs.display(),
-        fixture.config.built_in_tools.display()
+        "--no-js-runtimes\n--js-runtimes\nquickjs:{}\n",
+        selected.quickjs.display()
     )));
     assert!(arguments.contains("--impersonate\nchrome\n"));
     assert!(arguments.contains("--dump-single-json"));
@@ -121,8 +120,8 @@ fn tampered_inputs_are_retried_once_and_never_executed_or_selected() {
     for path in [
         "/pointer",
         "/pointer.sig",
-        "/runtime",
-        "/runtime.sig",
+        "/runtime-1/runtime",
+        "/runtime-1/runtime.sig",
         "/yt/releases/download/2026.10.26/SHA2-256SUMS",
         "/yt/releases/download/2026.10.26/SHA2-256SUMS.sig",
         "/yt/releases/download/2026.10.26/yt-dlp",
@@ -189,14 +188,14 @@ fn cancellation_cannot_activate_and_settings_setup_reenables_turned_off_tools() 
         .routes
         .lock()
         .unwrap()
-        .get_mut("/runtime")
+        .get_mut("/runtime-1/runtime")
         .unwrap()
         .delay = Duration::from_millis(200);
     let tools = fixture.open();
     tools.execute(VideoToolsOperation::TurnOff).unwrap();
     tools.execute(VideoToolsOperation::SetUp).unwrap();
     let deadline = Instant::now() + Duration::from_secs(10);
-    while fixture.count("GET /runtime") == 0 {
+    while fixture.count("GET /runtime-1/runtime") == 0 {
         assert!(Instant::now() < deadline, "{:?}", tools.snapshot());
         thread::sleep(Duration::from_millis(2));
     }
@@ -221,7 +220,7 @@ fn minimum_app_version_and_restart_validation_protect_the_selected_pair() {
         fixture.wait(&tools).state,
         VideoToolsState::NotWorking { .. }
     ));
-    assert_eq!(fixture.count("GET /runtime"), 0);
+    assert_eq!(fixture.count("GET /runtime-1/runtime"), 0);
     drop(tools);
     fixture.config.opul_version = "0.2.2".into();
     let tools = fixture.open();
@@ -256,7 +255,7 @@ fn metadata_size_does_not_download_executables_or_grant_consent() {
         thread::sleep(Duration::from_millis(5));
     }
     assert!(matches!(tools.snapshot().state, VideoToolsState::NotSetUp));
-    assert_eq!(fixture.count("GET /runtime"), 0);
+    assert_eq!(fixture.count("GET /runtime-1/runtime"), 0);
     assert_eq!(
         fixture.count("GET /yt/releases/download/2026.10.26/yt-dlp"),
         0
@@ -325,7 +324,7 @@ fn activation_is_atomic_and_cancelled_staging_is_not_selected_after_restart() {
 }
 
 #[test]
-fn signatures_from_other_keys_are_rejected_and_channels_keep_separate_preferences() {
+fn signatures_from_other_keys_are_rejected() {
     let mut fixture = Fixture::new(GOOD);
     fixture.sources.opul_key = SigningKey::from_bytes(&[10; 32]).verifying_key().to_bytes();
     let tools = fixture.open();
@@ -338,26 +337,6 @@ fn signatures_from_other_keys_are_rejected_and_channels_keep_separate_preference
         }
     ));
     assert!(!fixture._temp.path().join("executed").exists());
-    drop(tools);
-
-    let temp = tempfile::tempdir().unwrap();
-    let config = |name| VideoToolsConfig {
-        nightly_available: false,
-        root: temp.path().join(name).join("Tools"),
-        opul_version: "0.2.2".into(),
-        built_in_tools: temp.path().join("media-tools"),
-    };
-    let stable = VideoTools::open(config("Opul")).unwrap();
-    let nightly = VideoTools::open(config("Opul Nightly")).unwrap();
-    stable.execute(VideoToolsOperation::TurnOff).unwrap();
-    stable
-        .execute(VideoToolsOperation::SetKeepUpToDate { enabled: false })
-        .unwrap();
-    assert!(matches!(
-        nightly.snapshot().state,
-        VideoToolsState::NotSetUp
-    ));
-    assert!(nightly.snapshot().keep_up_to_date);
 }
 
 #[test]

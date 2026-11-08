@@ -1,9 +1,9 @@
 use super::install::{Failure, Resolved, Staging, download_error};
-use super::manager::{invocation, is_current, persist};
+use super::layout;
+use super::manager::{LiveState, runtime_label};
 use super::verification::{HealthFailure, health};
 use super::*;
-use std::fs::{self, OpenOptions};
-use std::io::Write;
+use std::fs;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -51,11 +51,10 @@ impl Drop for VideoToolsUse {
         let mut live = self.tools.lock();
         live.active_users -= 1;
         if live.active_users == 0 {
-            // Files may still be in use by another Download or metadata probe.
             if let Err(error) = super::recovery::prune(&self.tools.config.root, &live.stored) {
                 self.tools.log_failure(&error);
             }
-            self.tools.idle.notify_one();
+            self.tools.idle.notify_waiters();
         }
     }
 }
@@ -70,92 +69,87 @@ impl VideoTools {
         live.active_users += 1;
         Some(VideoToolsUse {
             tools: Arc::clone(self),
-            invocation: invocation(&self.config, &pair),
+            invocation: layout::selected(&self.config, &pair),
             pair,
         })
     }
 
-    /// Shared by shutdown and Remove. Cancels setup, checks, and updates without changing selection.
-    pub fn cancel(self: &Arc<Self>) -> Result<VideoToolsSnapshot, String> {
-        if let Some(schedule) = self.lock().schedule.take() {
-            schedule.abort();
+    /// Run `act` under the activation lock once no Download or probe holds the tools.
+    /// Returns None when the job was cancelled or replaced while it waited.
+    pub(super) async fn when_idle<T>(
+        &self,
+        id: Uuid,
+        mut act: impl FnMut(&mut LiveState) -> Result<T, Failure>,
+    ) -> Result<Option<T>, Failure> {
+        loop {
+            let notified = self.idle.notified();
+            {
+                let mut live = self.lock();
+                if !live.is_current(id) {
+                    return Ok(None);
+                }
+                if live.active_users == 0 {
+                    return act(&mut live).map(Some);
+                }
+            }
+            notified.await;
         }
-        self.execute(VideoToolsOperation::Cancel)
     }
 
     fn download_outcome(&self, pair: &InstalledPair, success: bool) -> Result<(), String> {
         let mut live = self.lock();
-        let Some(previous) = live.stored.rollback_pair.clone() else {
-            return Ok(());
-        };
-        if live.stored.installed.as_ref().map(|p| p.runtime) != Some(pair.runtime) {
-            return Ok(());
-        }
-        let mut stored = live.stored.clone();
-        if !success {
-            stored.installed = Some(previous.clone());
-        }
-        stored.previous_runtime = None;
-        stored.rollback_pair = None;
-        persist(&self.config, &stored)?;
-        live.stored = stored;
-        if let VideoToolsState::Ready {
-            installed,
-            update_flag,
-            ..
-        } = &mut live.snapshot.state
-            && !success
+        if live.stored.rollback_pair.is_none()
+            || live.stored.installed.as_ref().map(|p| p.runtime) != Some(pair.runtime)
         {
-            *installed = previous;
-            *update_flag = UpdateFlag::Failed {
-                version: format!("Python runtime {}", pair.runtime),
-            };
+            return Ok(());
+        }
+        live.commit(&self.config, |stored| {
+            if success {
+                stored.rollback_pair = None;
+            } else {
+                stored.roll_back();
+            }
+        })?;
+        if !success && let Some(previous) = live.stored.installed.clone() {
+            if let VideoToolsState::Ready { installed, .. } = &mut live.snapshot.state {
+                *installed = previous;
+            }
+            live.set_update_flag(UpdateFlag::Failed {
+                version: runtime_label(pair.runtime),
+            });
             self.log_failure(&format!(
-                "Python runtime {} failed its first video Download; rolled back.",
-                pair.runtime
+                "{} failed its first video Download; rolled back.",
+                runtime_label(pair.runtime)
             ));
         }
         self.publish(&mut live);
         Ok(())
     }
 
-    pub(super) fn log_failure(&self, details: &str) {
-        if let Ok(mut file) = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(self.config.root.join("updates.log"))
-        {
-            let _ = writeln!(file, "{details}");
-        }
-    }
-
     pub(super) async fn run_update(self: Arc<Self>, id: Uuid, mode: UpdateMode) {
         let result = self.prepare_update(id, mode).await;
         let mut live = self.lock();
-        if !is_current(&live, id) {
+        if !live.is_current(id) {
             return;
         }
         live.job = None;
         if let Err(failure) = result {
             self.log_failure(&failure.details);
             // Metadata checks fail silently; an install failure stays Ready with the old pair.
-            if matches!(
-                live.snapshot.state,
-                VideoToolsState::Ready {
-                    update_flag: UpdateFlag::Updating { .. },
-                    ..
-                }
-            ) && let Some((_, version)) = live.candidate.clone()
-                && let VideoToolsState::Ready { update_flag, .. } = &mut live.snapshot.state
+            if let VideoToolsState::Ready {
+                update_flag: UpdateFlag::Updating { version, .. },
+                ..
+            } = &live.snapshot.state
             {
-                *update_flag = UpdateFlag::Failed { version };
+                let version = version.clone();
+                live.set_update_flag(UpdateFlag::Failed { version });
             }
             self.publish(&mut live);
         }
     }
 
     async fn prepare_update(self: &Arc<Self>, id: Uuid, mode: UpdateMode) -> Result<(), Failure> {
-        let staging = Staging(self.config.root.join(format!(".install-{id}")));
+        let staging = Staging(layout::staging_dir(&self.config.root, id));
         fs::create_dir(&staging.0).map_err(download_error)?;
         let client = self.sources.client()?;
         let transfer = super::transport::Transfer {
@@ -172,7 +166,6 @@ impl VideoTools {
             runtime_update,
             script_update,
         } = &plan;
-        // Runtime is fetched and installed first when both components have updates.
         let runtime_dir = if *runtime_update {
             match self.fetch_runtime(id, &staging.0, &client, &resolved).await {
                 Ok(path) => Some(path),
@@ -203,25 +196,20 @@ impl VideoTools {
                 "The selected pair changed while preparing an update.",
             ));
         }
-        let mut candidate = invocation(&self.config, old);
-        if let Some(path) = &script_dir {
-            candidate.script = path.join("yt-dlp");
-        }
+        let selected_runtime = layout::runtime_dir(&self.config.root, old.runtime);
+        let selected_script =
+            layout::script_dir(&self.config.root, old.yt_dlp_channel, &old.yt_dlp);
+        let script = script_dir.as_deref().unwrap_or(&selected_script);
         let version = if *script_update {
             &resolved.yt_dlp
         } else {
             &old.yt_dlp
         };
         // Every candidate script is checked on the installed runtime first, even with a newer runtime available.
-        let existing_health = health(&candidate, version).await;
-        if let Some(path) = &runtime_dir {
-            candidate.interpreter = path.join("bin/python3");
-            candidate.quickjs = path.join("bin/qjs");
-        }
-        let python_version = if *runtime_update {
-            health(&candidate, version).await
-        } else {
-            existing_health
+        let existing_health = health(&layout::invocation(&selected_runtime, script), version).await;
+        let python_version = match &runtime_dir {
+            Some(runtime) => health(&layout::invocation(runtime, script), version).await,
+            None => existing_health,
         };
         drop(usage);
         let python_version = match python_version {
@@ -234,32 +222,7 @@ impl VideoTools {
                 });
             }
             Err(HealthFailure::Incompatible(details)) => {
-                let mut live = self.lock();
-                if !is_current(&live, id) {
-                    return Ok(());
-                }
-                if live.stored.installed.as_ref() != Some(old) {
-                    return Err(download_error(
-                        "The selected pair changed during its health check.",
-                    ));
-                }
-                let mut stored = live.stored.clone();
-                stored.available_update = None;
-                stored.compatibility_hold = Some(CompatibilityHold {
-                    yt_dlp: resolved.yt_dlp.clone(),
-                    runtime: resolved.runtime,
-                    opul_version: self.config.opul_version.clone(),
-                });
-                persist(&self.config, &stored).map_err(download_error)?;
-                live.stored = stored;
-                if let VideoToolsState::Ready { update_flag, .. } = &mut live.snapshot.state {
-                    *update_flag = UpdateFlag::WaitingForRuntime {
-                        version: version.clone(),
-                    };
-                }
-                self.log_failure(&details);
-                self.publish(&mut live);
-                return Ok(());
+                return self.hold_for_runtime(id, old, &resolved, &details);
             }
         };
         let installed = InstalledPair {
@@ -286,6 +249,39 @@ impl VideoTools {
         .await
     }
 
+    /// The new yt-dlp needs a newer runtime than is published. Keep the pair and wait.
+    fn hold_for_runtime(
+        &self,
+        id: Uuid,
+        old: &InstalledPair,
+        resolved: &Resolved,
+        details: &str,
+    ) -> Result<(), Failure> {
+        let mut live = self.lock();
+        if !live.is_current(id) {
+            return Ok(());
+        }
+        if live.stored.installed.as_ref() != Some(old) {
+            return Err(download_error(
+                "The selected pair changed during its health check.",
+            ));
+        }
+        live.commit(&self.config, |stored| {
+            stored.available_update = None;
+            stored.compatibility_hold = Some(CompatibilityHold {
+                yt_dlp: resolved.yt_dlp.clone(),
+                runtime: resolved.runtime,
+                opul_version: self.config.opul_version.clone(),
+            });
+        })
+        .map_err(download_error)?;
+        let flag = live.stored.update_flag();
+        live.set_update_flag(flag);
+        self.log_failure(details);
+        self.publish(&mut live);
+        Ok(())
+    }
+
     fn update_plan(
         &self,
         id: Uuid,
@@ -293,36 +289,44 @@ impl VideoTools {
         mode: UpdateMode,
     ) -> Result<Option<UpdatePlan>, Failure> {
         let mut live = self.lock();
-        if !is_current(&live, id) {
+        if !live.is_current(id) {
             return Ok(None);
         }
         let install = matches!(mode, UpdateMode::Manual)
             || (matches!(mode, UpdateMode::Automatic) && live.stored.keep_up_to_date);
-        let old = live.stored.installed.clone().unwrap();
+        let old = live
+            .stored
+            .installed
+            .clone()
+            .ok_or_else(|| download_error("No video tools are installed."))?;
         let runtime_update = resolved.runtime_compatible
             && resolved.runtime > old.runtime
             && live.stored.skipped_runtime != Some(resolved.runtime);
         let script_update = (resolved.yt_dlp_channel != old.yt_dlp_channel
             || resolved.yt_dlp > old.yt_dlp)
             && live.stored.skipped_yt_dlp.as_ref() != Some(&resolved.yt_dlp);
+        let any_update = runtime_update || script_update;
         let version = if script_update {
             resolved.yt_dlp.clone()
         } else {
-            format!("Python runtime {}", resolved.runtime)
+            runtime_label(resolved.runtime)
         };
-        live.candidate = Some((resolved.runtime, version.clone()));
+        live.candidate = Some((resolved.runtime, resolved.yt_dlp.clone()));
         let held = live.stored.compatibility_hold.as_ref().is_some_and(|hold| {
             hold.yt_dlp == resolved.yt_dlp
                 && hold.runtime == resolved.runtime
                 && hold.opul_version == self.config.opul_version
         });
-        let mut stored = live.stored.clone();
-        stored.last_checked = Some(self.sources.environment.now().as_secs());
-        stored.available_update = if !held && (runtime_update || script_update) {
-            Some(UpdateNotice {
+        let checked = self.sources.environment.now().as_secs();
+        live.commit(&self.config, |stored| {
+            stored.last_checked = Some(checked);
+            stored.available_update = (!held && any_update).then(|| UpdateNotice {
                 identity: format!(
-                    "{:?}:runtime-{}:yt-dlp-{}",
-                    resolved.yt_dlp_channel,
+                    "{}:runtime-{}:yt-dlp-{}",
+                    match resolved.yt_dlp_channel {
+                        YtDlpChannel::Stable => "Stable",
+                        YtDlpChannel::Nightly => "Nightly",
+                    },
                     if runtime_update {
                         resolved.runtime
                     } else {
@@ -335,38 +339,30 @@ impl VideoTools {
                     }
                 ),
                 version: version.clone(),
-            })
+            });
+            if !held {
+                stored.compatibility_hold = None;
+            }
+        })
+        .map_err(download_error)?;
+        if let VideoToolsState::Ready { last_checked, .. } = &mut live.snapshot.state {
+            *last_checked = Some(checked);
+        }
+        let flag = if held {
+            live.stored.update_flag()
+        } else if !any_update {
+            UpdateFlag::None
+        } else if install {
+            UpdateFlag::Updating {
+                version,
+                progress: 0,
+            }
         } else {
-            None
+            UpdateFlag::Available { version }
         };
-        if !held {
-            stored.compatibility_hold = None;
-        }
-        persist(&self.config, &stored).map_err(download_error)?;
-        live.stored = stored;
-        let checked = live.stored.last_checked;
-        if let VideoToolsState::Ready {
-            last_checked,
-            update_flag,
-            ..
-        } = &mut live.snapshot.state
-        {
-            *last_checked = checked;
-            *update_flag = if held {
-                UpdateFlag::WaitingForRuntime { version }
-            } else if !runtime_update && !script_update {
-                UpdateFlag::None
-            } else if install {
-                UpdateFlag::Updating {
-                    version,
-                    progress: 0,
-                }
-            } else {
-                UpdateFlag::Available { version }
-            };
-        }
+        live.set_update_flag(flag);
         self.publish(&mut live);
-        if !install || held || (!runtime_update && !script_update) {
+        if !install || held || !any_update {
             return Ok(None);
         }
         Ok(Some(UpdatePlan {
@@ -384,53 +380,41 @@ impl VideoTools {
         runtime_dir: Option<&std::path::Path>,
         script_dir: Option<&std::path::Path>,
     ) -> Result<(), Failure> {
-        // Recheck under the acquisition lock after every wake: a new Download may have started.
-        loop {
-            let notified = self.idle.notified();
-            {
-                let mut live = self.lock();
-                if !is_current(&live, id) {
-                    return Ok(());
+        self.when_idle(id, |live| {
+            if live.stored.installed.as_ref() != Some(&plan.old) {
+                return Err(download_error(
+                    "The selected pair changed while preparing an update.",
+                ));
+            }
+            super::install::place_pair(&self.config, &installed, runtime_dir, script_dir)
+                .map_err(download_error)?;
+            live.commit(&self.config, |stored| {
+                if plan.runtime_update && stored.rollback_pair.is_none() {
+                    stored.rollback_pair = Some(plan.old.clone());
                 }
-                if live.stored.installed.as_ref() != Some(&plan.old) {
-                    return Err(download_error(
-                        "The selected pair changed while preparing an update.",
+                if plan.script_update {
+                    stored.previous_yt_dlp = Some(layout::script_name(
+                        plan.old.yt_dlp_channel,
+                        &plan.old.yt_dlp,
                     ));
                 }
-                if live.active_users == 0 {
-                    super::install::place_pair(&self.config, &installed, runtime_dir, script_dir)
-                        .map_err(download_error)?;
-                    let mut stored = live.stored.clone();
-                    if plan.runtime_update && stored.rollback_pair.is_none() {
-                        stored.rollback_pair = Some(plan.old.clone());
-                        stored.previous_runtime = Some(plan.old.runtime);
-                    }
-                    if plan.script_update {
-                        stored.previous_yt_dlp =
-                            Some(plan.old.yt_dlp_channel.directory(&plan.old.yt_dlp));
-                    }
-                    stored.installed = Some(installed.clone());
-                    stored.compatibility_hold = None;
-                    stored.available_update = None;
-                    persist(&self.config, &stored).map_err(download_error)?;
-                    live.stored = stored;
-                    if let VideoToolsState::Ready {
-                        installed: current,
-                        update_flag,
-                        ..
-                    } = &mut live.snapshot.state
-                    {
-                        *current = installed;
-                        *update_flag = UpdateFlag::None;
-                    }
-                    self.publish(&mut live);
-                    super::recovery::prune(&self.config.root, &live.stored)
-                        .map_err(download_error)?;
-                    return Ok(());
-                }
+                stored.installed = Some(installed.clone());
+                stored.compatibility_hold = None;
+                stored.available_update = None;
+            })
+            .map_err(download_error)?;
+            if let VideoToolsState::Ready {
+                installed: current, ..
+            } = &mut live.snapshot.state
+            {
+                *current = installed.clone();
             }
-            notified.await;
-        }
+            live.set_update_flag(UpdateFlag::None);
+            self.publish(live);
+            super::recovery::prune(&self.config.root, &live.stored).map_err(download_error)
+        })
+        .await
+        .map(|_| ())
     }
 
     fn skip_integrity(
@@ -444,17 +428,16 @@ impl VideoTools {
             return Ok(());
         }
         let mut live = self.lock();
-        if !is_current(&live, id) {
+        if !live.is_current(id) {
             return Ok(());
         }
-        let mut stored = live.stored.clone();
-        stored.available_update = None;
-        match component {
-            Component::Python => stored.skipped_runtime = Some(resolved.runtime),
-            Component::YtDlp => stored.skipped_yt_dlp = Some(resolved.yt_dlp.clone()),
-        }
-        persist(&self.config, &stored).map_err(download_error)?;
-        live.stored = stored;
-        Ok(())
+        live.commit(&self.config, |stored| {
+            stored.available_update = None;
+            match component {
+                Component::Python => stored.skipped_runtime = Some(resolved.runtime),
+                Component::YtDlp => stored.skipped_yt_dlp = Some(resolved.yt_dlp.clone()),
+            }
+        })
+        .map_err(download_error)
     }
 }

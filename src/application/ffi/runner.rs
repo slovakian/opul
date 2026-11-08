@@ -22,9 +22,8 @@ impl OpulStateMachine {
                     let _execution = execution_gate
                         .lock()
                         .unwrap_or_else(std::sync::PoisonError::into_inner);
-                    if let Some(tools) = &video_tools {
-                        let _ = observe_video_tools(&actor, tools);
-                    }
+                    // Picks up tool changes that no command caused, such as setup finishing.
+                    let _ = observe_video_tools(&actor, &video_tools);
                     match actor.claim_effect() {
                         Ok(Some(effect)) => {
                             if super::page_probes::is_page_probe(&actor, &effect) {
@@ -91,6 +90,7 @@ impl OpulStateMachine {
         expected_revision: Option<u64>,
         command: Command,
     ) -> Result<MachineCommandReceipt, StateMachineError> {
+        self.refresh_video_tools()?;
         let fingerprint = fingerprint(&command)?;
         let receipt = self
             .actor
@@ -195,10 +195,8 @@ pub(super) fn observe_video_tools(
 }
 
 impl OpulStateMachine {
-    pub(super) fn sync_video_tools(&self) -> Result<(), StateMachineError> {
-        if let Some(tools) = &self.video_tools {
-            observe_video_tools(&self.actor, tools)?;
-        }
-        Ok(())
+    /// Every decision that depends on the tools sees their current state.
+    pub(super) fn refresh_video_tools(&self) -> Result<(), StateMachineError> {
+        observe_video_tools(&self.actor, &self.video_tools)
     }
 }

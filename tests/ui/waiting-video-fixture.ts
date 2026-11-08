@@ -48,7 +48,7 @@ export const mockWaitingVideos = async (page: Page) => {
       invokeTools: (name, args, snapshot) => {
         const result = window.testVideoTools.invoke(name, args);
 
-        if (args.operation?.kind === "remove") {
+        if (name === "video_tools_remove") {
           for (const download of snapshot.workspaces.flatMap(
             (workspace) => workspace.downloads
           )) {

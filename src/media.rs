@@ -17,7 +17,7 @@ use uuid::Uuid;
 use crate::CoreError;
 use crate::destination::{DownloadContentLayout, resolve_download_destination};
 use crate::persistence::{LoadedState, load_state, save_state};
-use crate::video_tools::{VideoTools, VideoToolsInvocation};
+use crate::video_tools::{VideoTools, VideoToolsUse};
 
 pub use probe::classify_guided_url;
 

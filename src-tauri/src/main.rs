@@ -51,33 +51,26 @@ fn open_machine(
                 .resource_dir()
                 .ok()
                 .map(|path| path.to_string_lossy().into_owned()),
-            video_tools: Some(opul_core::video_tools::VideoTools::open(
+            video_tools: opul_core::video_tools::VideoTools::open(
                 opul_core::video_tools::VideoToolsConfig {
                     nightly_available: current_channel(app) == channel::ReleaseChannel::Nightly,
                     root: support.join("Tools"),
                     opul_version: app.package_info().version.to_string(),
-                    built_in_tools: app
-                        .path()
-                        .resource_dir()
-                        .map_err(|error| error.to_string())?
-                        .join("media-tools"),
                 },
-            )?),
+            )?,
             max_concurrent_downloads: preferences.concurrent_downloads,
             max_download_bps: u64::from(preferences.max_download_kbps) * 1024,
         },
     })
     .map_err(|error| error.to_string())?;
-    if let Some(tools) = machine.video_tools() {
-        let app = app.clone();
-        let mut snapshots = tools.subscribe();
-        tauri::async_runtime::spawn(async move {
-            while snapshots.changed().await.is_ok() {
-                let snapshot = snapshots.borrow_and_update().clone();
-                let _ = app.emit("video-tools", &snapshot);
-            }
-        });
-    }
+    let mut snapshots = machine.video_tools().subscribe();
+    let events = app.clone();
+    tauri::async_runtime::spawn(async move {
+        while snapshots.changed().await.is_ok() {
+            let snapshot = snapshots.borrow_and_update().clone();
+            let _ = events.emit("video-tools", &snapshot);
+        }
+    });
     Ok(machine)
 }
 
@@ -198,6 +191,7 @@ fn main() {
             commands::tools::tools_snapshot,
             commands::tools::video_tools_details,
             commands::tools::video_tools_execute,
+            commands::tools::video_tools_remove,
             commands::tools::video_tools_take_update_notice,
             commands::reveal_download,
         ])
@@ -215,10 +209,6 @@ fn main() {
                 let machine = app.state::<Desktop>().machine();
                 std::thread::spawn(move || {
                     if let Ok(machine) = machine {
-                        if let Some(tools) = machine.video_tools() {
-                            let _ = tools
-                                .execute(opul_core::video_tools::VideoToolsOperation::CancelSetup);
-                        }
                         let _ = machine.begin_shutdown();
                     }
                     app.exit(0);

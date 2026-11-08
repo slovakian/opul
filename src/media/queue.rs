@@ -234,7 +234,9 @@ impl MediaEngine {
                     reason: "Opul’s built-in media tools are unavailable. Reinstall Opul to restore them.".to_string(),
                 });
             }
-            self.require_yt_dlp()?;
+            if !self.yt_dlp.available() {
+                return Err(video_tools_unavailable());
+            }
         }
         let title = if item.title.trim().is_empty() {
             item.webpage_url.clone()

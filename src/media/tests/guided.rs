@@ -328,7 +328,7 @@ fn authenticated_adaptive_headers_are_not_forwarded_to_yt_dlp() {
     let engine = MediaEngine::new(MediaEngineConfig {
         session_folder: root.join("session").to_string_lossy().into_owned(),
         resources_folder: None,
-        video_tools: None,
+        video_tools: crate::video_tools::not_set_up(),
         max_concurrent_downloads: 1,
         max_download_bps: 0,
     })

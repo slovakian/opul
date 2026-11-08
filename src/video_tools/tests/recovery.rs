@@ -5,7 +5,7 @@ fn interrupted_payload_resumes_from_the_received_offset() {
     let fixture = Fixture::new(GOOD);
     let size = {
         let mut routes = fixture.routes.lock().unwrap();
-        let response = routes.get_mut("/runtime").unwrap();
+        let response = routes.get_mut("/runtime-1/runtime").unwrap();
         response.interruptions = 1;
         response.bytes.len()
     };
@@ -18,9 +18,9 @@ fn interrupted_payload_resumes_from_the_received_offset() {
     );
     assert_eq!(
         *fixture.ranges.lock().unwrap(),
-        vec![("/runtime".into(), (size / 2) as u64)]
+        vec![("/runtime-1/runtime".into(), (size / 2) as u64)]
     );
-    assert_eq!(fixture.count("GET /runtime"), 2);
+    assert_eq!(fixture.count("GET /runtime-1/runtime"), 2);
 }
 
 #[test]
@@ -57,7 +57,7 @@ fn retries_exhaust_after_two_ten_and_thirty_seconds_and_retry_recovers() {
     for path in [
         "/pointer",
         "/yt/releases/latest",
-        "/runtime",
+        "/runtime-1/runtime",
         "/yt/releases/download/2026.10.26/yt-dlp",
     ] {
         let fixture = Fixture::new(GOOD);
@@ -165,7 +165,7 @@ fn offline_during_backoff_preserves_the_retry_budget_and_resume_offset() {
         .routes
         .lock()
         .unwrap()
-        .get_mut("/runtime")
+        .get_mut("/runtime-1/runtime")
         .unwrap()
         .interruptions = 4;
     fixture
@@ -175,7 +175,7 @@ fn offline_during_backoff_preserves_the_retry_budget_and_resume_offset() {
     let tools = fixture.open();
     tools.execute(VideoToolsOperation::SetUp).unwrap();
     wait_offline(&tools);
-    assert_eq!(fixture.count("GET /runtime"), 1);
+    assert_eq!(fixture.count("GET /runtime-1/runtime"), 1);
     assert_eq!(
         *fixture.network.sleeps.lock().unwrap(),
         vec![Duration::from_secs(2)]
@@ -190,10 +190,10 @@ fn offline_during_backoff_preserves_the_retry_budget_and_resume_offset() {
         fixture.wait(&tools).state,
         VideoToolsState::Ready { .. }
     ));
-    assert_eq!(fixture.count("GET /runtime"), 5);
+    assert_eq!(fixture.count("GET /runtime-1/runtime"), 5);
     assert_eq!(
         fixture.ranges.lock().unwrap()[0],
-        ("/runtime".into(), offset)
+        ("/runtime-1/runtime".into(), offset)
     );
     assert_eq!(
         *fixture.network.sleeps.lock().unwrap(),
@@ -245,8 +245,8 @@ fn cancelling_offline_setup_releases_the_root_and_restart_never_resumes_without_
 fn transient_corruption_is_discarded_and_a_fresh_verified_copy_is_activated() {
     for path in [
         "/pointer.sig",
-        "/runtime",
-        "/runtime.sig",
+        "/runtime-1/runtime",
+        "/runtime-1/runtime.sig",
         "/yt/releases/download/2026.10.26/SHA2-256SUMS.sig",
         "/yt/releases/download/2026.10.26/yt-dlp",
     ] {
@@ -278,7 +278,7 @@ fn permanent_http_errors_do_not_retry() {
     let fixture = Fixture::new(GOOD);
     {
         let mut routes = fixture.routes.lock().unwrap();
-        let response = routes.get_mut("/runtime").unwrap();
+        let response = routes.get_mut("/runtime-1/runtime").unwrap();
         response.failures = 10;
         response.failure_status = 404;
     }
@@ -291,12 +291,12 @@ fn permanent_http_errors_do_not_retry() {
             ..
         }
     ));
-    assert_eq!(fixture.count("GET /runtime"), 1);
+    assert_eq!(fixture.count("GET /runtime-1/runtime"), 1);
     assert!(fixture.network.sleeps.lock().unwrap().is_empty());
     let details = tools.diagnostics();
     assert!(details.contains("HTTP 404"));
     assert!(details.contains("2026.10.26"));
-    assert!(details.contains("Some((1,"));
+    assert!(details.contains("Candidate: Python runtime 1, yt-dlp 2026.10.26"));
     assert!(details.contains(std::env::consts::ARCH));
 }
 
@@ -321,7 +321,8 @@ fn startup_keeps_only_selected_and_explicitly_retained_versions() {
         std::fs::create_dir_all(fixture.config.root.join(path)).unwrap();
     }
     let mut state: serde_json::Value = serde_json::from_slice(&committed).unwrap();
-    state["previous_runtime"] = 2.into();
+    state["rollback_pair"] =
+        serde_json::json!({"runtime": 2, "python_version": "3.13.18", "yt_dlp": "2026.10.26"});
     state["previous_yt_dlp"] = "previous".into();
     std::fs::write(
         fixture.config.root.join("state.json"),
@@ -342,7 +343,7 @@ fn startup_keeps_only_selected_and_explicitly_retained_versions() {
     for path in ["python-runtime/3", "yt-dlp/candidate"] {
         assert!(!fixture.config.root.join(path).exists(), "{path}");
     }
-    assert_eq!(fixture.count("GET /runtime"), 1);
+    assert_eq!(fixture.count("GET /runtime-1/runtime"), 1);
 }
 
 #[test]
@@ -398,7 +399,7 @@ fn invalid_resume_ranges_fail_closed() {
         let fixture = Fixture::new(GOOD);
         {
             let mut routes = fixture.routes.lock().unwrap();
-            let response = routes.get_mut("/runtime").unwrap();
+            let response = routes.get_mut("/runtime-1/runtime").unwrap();
             response.interruptions = 1;
             response.range_header = Some(range.into());
         }
@@ -413,7 +414,7 @@ fn invalid_resume_ranges_fail_closed() {
         ));
         assert!(tools.invocation().is_none());
         assert!(!fixture._temp.path().join("executed").exists());
-        assert_eq!(fixture.count("GET /runtime"), 2);
+        assert_eq!(fixture.count("GET /runtime-1/runtime"), 2);
     }
 }
 
@@ -444,7 +445,7 @@ fn authentic_runtime_with_the_wrong_signed_checksum_is_rejected_before_execution
             ..
         }
     ));
-    assert_eq!(fixture.count("GET /runtime"), 2);
+    assert_eq!(fixture.count("GET /runtime-1/runtime"), 2);
     assert!(tools.diagnostics().contains("SHA-256"));
     assert!(!fixture._temp.path().join("executed").exists());
 }

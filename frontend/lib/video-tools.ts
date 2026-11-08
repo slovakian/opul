@@ -23,7 +23,7 @@ const updateFlagSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("waiting_for_runtime"), version: z.string() }),
 ]);
 
-export const setupStepSchema = z.object({
+const setupStepSchema = z.object({
   component: z.enum(["python", "yt_dlp"]),
   downloaded_bytes: z.number(),
   status: z.enum([
@@ -89,7 +89,6 @@ export type UpdateFlag = z.infer<typeof updateFlagSchema>;
 
 export type VideoToolsOperation =
   | { kind: "set_up" }
-  | { kind: "remove"; turn_off: boolean }
   | { kind: "cancel_setup" }
   | { kind: "check_for_updates" }
   | { kind: "update" }
@@ -99,8 +98,84 @@ export type VideoToolsOperation =
   | { kind: "set_keep_up_to_date"; enabled: boolean }
   | { kind: "set_use_nightly"; enabled: boolean };
 
-export const downloadSize = (bytes: number | null) =>
-  bytes === null ? "about 23 MB" : `${(bytes / 1_000_000).toFixed(1)} MB`;
+const BYTES_PER_MB = 1_000_000;
+
+const megabytes = (bytes: number) => (bytes / BYTES_PER_MB).toFixed(1);
+
+export const byteProgress = (downloaded: number, total: number) =>
+  `${megabytes(downloaded)} of ${megabytes(total)} MB`;
+
+/** Before the size is published, an estimate: "about 23 MB", or "~23 MB" when compact. */
+export const downloadSize = (
+  bytes: number | null,
+  { compact = false } = {}
+) => {
+  if (bytes !== null) {
+    return `${megabytes(bytes)} MB`;
+  }
+
+  return compact ? "~23 MB" : "about 23 MB";
+};
+
+type StepStatus = SetupStep["status"];
+
+export const isWorkingStep = (status: StepStatus) =>
+  status === "downloading" || status === "verifying" || status === "installing";
+
+/** Working, but with no byte count to show progress against. */
+export const isIndeterminateStep = (status: StepStatus) =>
+  status === "verifying" || status === "installing";
+
+export const isSettledStep = (step: SetupStep) =>
+  step.status === "done" || step.status === "failed";
+
+const stepLabels: Record<StepStatus, string> = {
+  done: "Done",
+  downloading: "Downloading",
+  failed: "Failed",
+  installing: "Installing",
+  pending: "Waiting",
+  verifying: "Verifying",
+  waiting_for_internet: "Waiting for an internet connection…",
+};
+
+/** Settings ▸ Tools has a narrow column, so it uses the short wording. */
+export const stepLabel = (status: StepStatus, { compact = false } = {}) =>
+  compact && status === "waiting_for_internet"
+    ? "Waiting for internet…"
+    : stepLabels[status];
+
+type FailureReason = Extract<
+  VideoToolsSnapshot["state"],
+  { kind: "not_working" }
+>["reason"];
+
+/** A short title, the sentence Setup shows, and the hint Settings shows. */
+export const failureText: Record<
+  FailureReason,
+  { hint: string; summary: string; title: string }
+> = {
+  download: {
+    hint: "The download couldn't finish.",
+    summary: "The download couldn't finish",
+    title: "Download failed",
+  },
+  health_check: {
+    hint: "The video tools didn't pass their health check.",
+    summary: "The video tools didn't pass their health check",
+    title: "Health check failed",
+  },
+  stopped_working: {
+    hint: "Files may be missing or blocked by macOS.",
+    summary: "The video tools stopped working",
+    title: "Stopped working",
+  },
+  verification: {
+    hint: "The download couldn't be verified.",
+    summary: "The download couldn't be verified",
+    title: "Couldn't verify",
+  },
+};
 
 const SECONDS_PER_MINUTE = 60;
 
@@ -118,8 +193,8 @@ const relativeTime = new Intl.RelativeTimeFormat(undefined, {
 });
 
 /** "checked 3 days ago" for a Unix timestamp in seconds. */
-export const checkedAgo = (seconds: number, now = Date.now()): string => {
-  const elapsed = now / 1000 - seconds;
+export const checkedAgo = (seconds: number): string => {
+  const elapsed = Date.now() / 1000 - seconds;
 
   for (const [unit, size] of relativeUnits) {
     if (elapsed >= size) {
@@ -128,6 +203,16 @@ export const checkedAgo = (seconds: number, now = Date.now()): string => {
   }
 
   return "checked just now";
+};
+
+export const stepFraction = (step: SetupStep): number => {
+  if (step.status === "done") {
+    return 1;
+  }
+
+  return step.total_bytes
+    ? Math.min(1, step.downloaded_bytes / step.total_bytes)
+    : 0;
 };
 
 /** Overall setup progress from 0 to 1, counting each step equally. */
@@ -139,11 +224,7 @@ export const setupFraction = (steps: SetupStep[]): number => {
   let progress = 0;
 
   for (const step of steps) {
-    if (step.status === "done") {
-      progress += 1;
-    } else if (step.total_bytes) {
-      progress += Math.min(1, step.downloaded_bytes / step.total_bytes);
-    }
+    progress += stepFraction(step);
   }
 
   return progress / steps.length;

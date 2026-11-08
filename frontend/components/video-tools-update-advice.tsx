@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
+import { updateVideoTools } from "@/hooks/use-video-tools";
 import type { Download } from "@/lib/model";
-import { updateVideoTools } from "@/lib/update-video-tools";
 
 export const VideoToolsUpdateAdvice = ({ download }: { download: Download }) =>
   download.capabilities.can_update_video_tools ? (

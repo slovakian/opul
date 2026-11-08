@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
 
 import { toast } from "@/components/ui/toast";
+import { updateVideoTools } from "@/hooks/use-video-tools";
 import { bridge } from "@/lib/bridge";
-import { updateVideoTools } from "@/lib/update-video-tools";
 import type { VideoToolsSnapshot } from "@/lib/video-tools";
 
 export const useVideoUpdateNotice = (video: VideoToolsSnapshot | undefined) => {

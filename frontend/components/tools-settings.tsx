@@ -9,8 +9,6 @@ import {
   SettledStepMark,
   StepRing,
   ToolRow,
-  isSettledStep,
-  megabytes,
   stepPercent,
   videoToolParts,
 } from "@/components/tools-primitives";
@@ -37,25 +35,16 @@ import type { Execute } from "@/components/video-tools-footer";
 import { VideoToolsRemoval } from "@/components/video-tools-removal";
 import { useVideoTools } from "@/hooks/use-video-tools";
 import type { SetupStep, VideoToolsSnapshot } from "@/lib/video-tools";
-import { checkedAgo } from "@/lib/video-tools";
+import {
+  byteProgress,
+  checkedAgo,
+  isIndeterminateStep,
+  isSettledStep,
+  isWorkingStep,
+  stepLabel,
+} from "@/lib/video-tools";
 
 const STAGGER_MS = 40;
-
-const stepLabels: Record<SetupStep["status"], string> = {
-  done: "Done",
-  downloading: "Downloading",
-  failed: "Failed",
-  installing: "Installing",
-  pending: "Waiting",
-  verifying: "Verifying",
-  waiting_for_internet: "Waiting for internet…",
-};
-
-const activeSteps = new Set<SetupStep["status"]>([
-  "downloading",
-  "installing",
-  "verifying",
-]);
 
 const stagger = (index: number): React.CSSProperties => ({
   animationDelay: `${index * STAGGER_MS}ms`,
@@ -66,8 +55,7 @@ const StepIndicator = ({ label, step }: { label: string; step: SetupStep }) => {
     return <SettledStepMark label={label} step={step} className="size-4" />;
   }
 
-  const indeterminate =
-    step.status === "verifying" || step.status === "installing";
+  const indeterminate = isIndeterminateStep(step.status);
 
   const percent = stepPercent(step);
 
@@ -87,12 +75,12 @@ const StepIndicator = ({ label, step }: { label: string; step: SetupStep }) => {
       />
       <TooltipContent side="left">
         <ProgressDetails
-          label={stepLabels[step.status]}
+          label={stepLabel(step.status, { compact: true })}
           percent={indeterminate ? null : percent}
           detail={
             step.total_bytes === null
               ? undefined
-              : `${megabytes(step.downloaded_bytes)} of ${megabytes(step.total_bytes)} MB`
+              : byteProgress(step.downloaded_bytes, step.total_bytes)
           }
         />
       </TooltipContent>
@@ -118,8 +106,8 @@ const componentRow = (
 
       return {
         ...base,
-        active: activeSteps.has(step.status),
-        description: stepLabels[step.status],
+        active: isWorkingStep(step.status),
+        description: stepLabel(step.status, { compact: true }),
         dimmed: step.status === "pending",
         trailing: <StepIndicator label={`Setting up ${name}`} step={step} />,
       };
@@ -320,7 +308,7 @@ const VideoPreferences = ({
       {removable && (
         <div className="animate-settle flex min-h-12 items-center gap-3 px-4 py-2">
           <span className="flex-1 text-sm">Remove video tools</span>
-          <VideoToolsRemoval busy={busy} execute={execute} />
+          <VideoToolsRemoval />
         </div>
       )}
     </section>

@@ -1,7 +1,7 @@
 //! Opul owns a verified Python runtime and the official bare yt-dlp script as one selected pair.
 //!
-//! Call `execute` to change tools, read `snapshot`, or `subscribe` to pushed snapshots. Only
-//! `invocation` in Ready supplies an interpreter/script/QuickJS command to MediaEngine.
+//! Call `execute` to change tools, read `snapshot`, or `subscribe` to pushed snapshots. Only a
+//! Ready pair can be acquired; MediaEngine runs yt-dlp through the `VideoToolsUse` it acquires.
 //! Setup requires an explicit command, including after TurnedOff. Preferences commit immediately.
 //! Installers stage both parts, verify each project's signature before its checksum, unpack,
 //! health-check the pair, then atomically replace state.json. A failed candidate is never selected.
@@ -16,6 +16,7 @@
 //! docs/video-tools-compatibility.md for pairing, storage and compatibility monitoring.
 
 mod install;
+mod layout;
 mod manager;
 mod nightly;
 mod recovery;
@@ -31,7 +32,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 pub use manager::VideoTools;
-pub use transport::{NetworkEnvironment, NetworkFuture};
+pub(crate) use transport::NetworkEnvironment;
 pub use updates::VideoToolsUse;
 
 #[derive(Debug, Clone)]
@@ -39,7 +40,6 @@ pub struct VideoToolsConfig {
     /// Already resolved by the shell for Stable/Nightly and OPUL_DATA_DIR. Ends in Tools/.
     pub root: PathBuf,
     pub opul_version: String,
-    pub built_in_tools: PathBuf,
     pub nightly_available: bool,
 }
 
@@ -47,9 +47,7 @@ pub struct VideoToolsConfig {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum VideoToolsOperation {
     SetUp,
-    Remove { turn_off: bool },
     CancelSetup,
-    Cancel,
     CheckForUpdates,
     Update,
     Retry,
@@ -158,22 +156,12 @@ pub enum YtDlpChannel {
     Nightly,
 }
 
-impl YtDlpChannel {
-    fn directory(self, version: &str) -> String {
-        match self {
-            Self::Stable => version.to_string(),
-            Self::Nightly => format!("nightly-{version}"),
-        }
-    }
-}
-
 /// A selected, health-checked pair. Paths come from the module, never user preferences or PATH.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VideoToolsInvocation {
     pub interpreter: PathBuf,
     pub script: PathBuf,
     pub quickjs: PathBuf,
-    pub built_in_tools: PathBuf,
 }
 
 impl VideoToolsInvocation {
@@ -192,11 +180,21 @@ impl VideoToolsInvocation {
                 "--no-js-runtimes",
                 "--js-runtimes",
             ])
-            .arg(format!("quickjs:{}", self.quickjs.display()))
-            .arg("--ffmpeg-location")
-            .arg(&self.built_in_tools);
+            .arg(format!("quickjs:{}", self.quickjs.display()));
         command
     }
+}
+
+/// Tools that are not set up, for tests of code that only needs them to exist.
+#[cfg(test)]
+pub(crate) fn not_set_up() -> std::sync::Arc<VideoTools> {
+    let root = std::env::temp_dir().join(format!("opul-tools-{}", uuid::Uuid::new_v4()));
+    VideoTools::open(VideoToolsConfig {
+        root,
+        opul_version: "0.2.2".into(),
+        nightly_available: false,
+    })
+    .unwrap()
 }
 
 #[cfg(test)]

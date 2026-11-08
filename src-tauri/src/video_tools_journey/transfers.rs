@@ -7,7 +7,7 @@ pub(super) fn independent(
     phase: &str,
     evidence: &mut Vec<Value>,
 ) -> Result<VideoToolsState, String> {
-    let tools = machine.video_tools().ok_or("No managed tools")?;
+    let tools = machine.video_tools().clone();
     let tools_at_start = tools.snapshot();
     let initial_state = tools_at_start.state.clone();
     let snapshot = machine.snapshot();

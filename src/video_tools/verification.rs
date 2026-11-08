@@ -152,7 +152,7 @@ pub(super) fn validate_installed(
     if pair.runtime == 0 || !safe_version(&pair.yt_dlp) {
         return Err("Invalid installed video-tools versions.".into());
     }
-    let invocation = super::manager::invocation(config, pair);
+    let invocation = super::layout::selected(config, pair);
     for path in [
         &invocation.interpreter,
         &invocation.script,

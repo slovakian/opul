@@ -1,3 +1,4 @@
+use super::layout;
 use super::*;
 use fs2::FileExt;
 use std::fs::{self, File, OpenOptions};
@@ -13,10 +14,10 @@ pub(super) struct StoredState {
     #[serde(default)]
     pub yt_dlp_channel: YtDlpChannel,
     pub installed: Option<InstalledPair>,
-    #[serde(default)]
-    pub previous_runtime: Option<u64>,
+    /// The script directory kept until the next successful update replaces it.
     #[serde(default)]
     pub previous_yt_dlp: Option<String>,
+    /// The full pair restored if a new runtime fails before its first successful Download.
     #[serde(default)]
     pub rollback_pair: Option<InstalledPair>,
     #[serde(default)]
@@ -40,7 +41,6 @@ impl Default for StoredState {
         Self {
             yt_dlp_channel: YtDlpChannel::Stable,
             installed: None,
-            previous_runtime: None,
             previous_yt_dlp: None,
             rollback_pair: None,
             last_checked: None,
@@ -55,15 +55,99 @@ impl Default for StoredState {
     }
 }
 
+impl StoredState {
+    /// The state when nothing is installed and nothing is running.
+    pub(super) fn resting_state(&self) -> VideoToolsState {
+        if self.turned_off {
+            VideoToolsState::TurnedOff
+        } else {
+            VideoToolsState::NotSetUp
+        }
+    }
+
+    /// The update flag a Ready pair shows when no check or update is running.
+    pub(super) fn update_flag(&self) -> UpdateFlag {
+        if let Some(hold) = &self.compatibility_hold {
+            UpdateFlag::WaitingForRuntime {
+                version: hold.yt_dlp.clone(),
+            }
+        } else if let Some(notice) = &self.available_update {
+            UpdateFlag::Available {
+                version: notice.version.clone(),
+            }
+        } else {
+            UpdateFlag::None
+        }
+    }
+
+    /// What survives when the installed tools are replaced or removed: the person's choices.
+    pub(super) fn preferences_only(&self, turned_off: bool) -> Self {
+        Self {
+            yt_dlp_channel: self.yt_dlp_channel,
+            keep_up_to_date: self.keep_up_to_date,
+            notified_updates: self.notified_updates.clone(),
+            turned_off,
+            ..Self::default()
+        }
+    }
+
+    /// Select the retained pair again. Returns the pair that was replaced.
+    pub(super) fn roll_back(&mut self) -> Option<InstalledPair> {
+        let previous = self.rollback_pair.take()?;
+        self.installed.replace(previous)
+    }
+
+    fn uses_nightly(&self) -> bool {
+        self.yt_dlp_channel == YtDlpChannel::Nightly
+            || self
+                .installed
+                .iter()
+                .chain(self.rollback_pair.iter())
+                .any(|pair| pair.yt_dlp_channel == YtDlpChannel::Nightly)
+    }
+}
+
 pub(super) struct LiveState {
     pub stored: StoredState,
     pub snapshot: VideoToolsSnapshot,
     pub job: Option<(Uuid, AbortHandle)>,
+    /// The runtime and yt-dlp versions the last setup or update resolved, for diagnostics.
     pub candidate: Option<(u64, String)>,
     pub active_users: usize,
     pub schedule: Option<AbortHandle>,
     pub automatic_update: bool,
     pub removing: bool,
+}
+
+impl LiveState {
+    /// Change the stored state durably. Memory changes only after state.json does.
+    pub(super) fn commit(
+        &mut self,
+        config: &VideoToolsConfig,
+        change: impl FnOnce(&mut StoredState),
+    ) -> Result<(), String> {
+        let mut stored = self.stored.clone();
+        change(&mut stored);
+        persist(config, &stored)?;
+        self.stored = stored;
+        Ok(())
+    }
+
+    pub(super) fn set_update_flag(&mut self, flag: UpdateFlag) {
+        if let VideoToolsState::Ready { update_flag, .. } = &mut self.snapshot.state {
+            *update_flag = flag;
+        }
+    }
+
+    pub(super) fn stop_job(&mut self) {
+        if let Some((_, task)) = self.job.take() {
+            task.abort();
+        }
+    }
+
+    pub(super) fn is_current(&self, id: Uuid) -> bool {
+        self.job.as_ref().is_some_and(|(current, _)| *current == id)
+    }
 }
 
 pub struct VideoTools {
@@ -99,15 +183,6 @@ impl VideoTools {
         Self::open_with_sources(config, super::sources::Sources::production())
     }
 
-    pub fn open_with_environment(
-        config: VideoToolsConfig,
-        environment: Arc<dyn NetworkEnvironment>,
-    ) -> Result<Arc<Self>, String> {
-        let mut sources = super::sources::Sources::production();
-        sources.environment = environment;
-        Self::open_with_sources(config, sources)
-    }
-
     pub(super) fn open_with_sources(
         config: VideoToolsConfig,
         sources: super::sources::Sources,
@@ -118,13 +193,12 @@ impl VideoTools {
             .write(true)
             .create(true)
             .truncate(false)
-            .open(config.root.join("tools.lock"))
+            .open(config.root.join(layout::LOCK))
             .map_err(|e| e.to_string())?;
         lock.try_lock_exclusive()
             .map_err(|_| "The video tools directory is already in use.".to_string())?;
         super::recovery::clean_temporary(&config.root)?;
-        let state_path = config.root.join("state.json");
-        let (mut stored, load_error) = match fs::read(state_path) {
+        let (mut stored, load_error) = match fs::read(config.root.join(layout::STATE)) {
             Ok(bytes) => match serde_json::from_slice::<StoredState>(&bytes) {
                 Ok(stored) => (stored, None),
                 Err(error) => (
@@ -137,14 +211,7 @@ impl VideoTools {
             }
             Err(error) => return Err(error.to_string()),
         };
-        if !config.nightly_available
-            && (stored.yt_dlp_channel == YtDlpChannel::Nightly
-                || stored
-                    .installed
-                    .iter()
-                    .chain(stored.rollback_pair.iter())
-                    .any(|pair| pair.yt_dlp_channel == YtDlpChannel::Nightly))
-        {
+        if !config.nightly_available && stored.uses_nightly() {
             return Err(
                 "Nightly video tools state requires Opul Nightly and its own data directory."
                     .into(),
@@ -154,78 +221,18 @@ impl VideoTools {
         if load_error.is_none() {
             super::recovery::prune(&config.root, &stored)?;
         }
-        let state = if let Some(details) = load_error {
-            VideoToolsState::NotWorking {
+        let state = match (load_error, stored.installed.clone()) {
+            (Some(details), _) => VideoToolsState::NotWorking {
                 reason: FailureReason::StoppedWorking,
                 details,
-            }
-        } else if stored.turned_off {
-            VideoToolsState::TurnedOff
-        } else if let Some(pair) = stored.installed.clone() {
-            match super::verification::validate_installed(&config, &pair) {
-                Ok(()) => VideoToolsState::Ready {
-                    installed: pair.clone(),
-                    last_checked: stored.last_checked,
-                    update_flag: stored.compatibility_hold.as_ref().map_or(
-                        stored
-                            .available_update
-                            .as_ref()
-                            .map_or(UpdateFlag::None, |notice| UpdateFlag::Available {
-                                version: notice.version.clone(),
-                            }),
-                        |hold| UpdateFlag::WaitingForRuntime {
-                            version: hold.yt_dlp.clone(),
-                        },
-                    ),
-                },
-                Err(details) => {
-                    if let Some(previous) = stored.rollback_pair.clone()
-                        && super::verification::validate_installed(&config, &previous).is_ok()
-                    {
-                        stored.installed = Some(previous.clone());
-                        stored.previous_runtime = None;
-                        stored.rollback_pair = None;
-                        persist(&config, &stored)?;
-                        super::recovery::prune(&config.root, &stored)?;
-                        if let Ok(mut file) = OpenOptions::new()
-                            .create(true)
-                            .append(true)
-                            .open(config.root.join("updates.log"))
-                        {
-                            let _ = writeln!(
-                                file,
-                                "Rolled back Python runtime {} at startup: {details}",
-                                pair.runtime
-                            );
-                        }
-                        let mut state = ready(previous);
-                        if let VideoToolsState::Ready {
-                            last_checked,
-                            update_flag,
-                            ..
-                        } = &mut state
-                        {
-                            *last_checked = stored.last_checked;
-                            *update_flag = UpdateFlag::Failed {
-                                version: format!("Python runtime {}", pair.runtime),
-                            };
-                        }
-                        state
-                    } else {
-                        VideoToolsState::NotWorking {
-                            reason: FailureReason::StoppedWorking,
-                            details,
-                        }
-                    }
-                }
-            }
-        } else {
-            VideoToolsState::NotSetUp
+            },
+            _ if stored.turned_off => VideoToolsState::TurnedOff,
+            (None, None) => VideoToolsState::NotSetUp,
+            (None, Some(pair)) => Self::startup_state(&config, &mut stored, pair)?,
         };
         let snapshot = VideoToolsSnapshot {
             sequence: 0,
-            update_available: stored.available_update.is_some()
-                && matches!(state, VideoToolsState::Ready { .. }),
+            update_available: false,
             state,
             keep_up_to_date: stored.keep_up_to_date,
             nightly_available: config.nightly_available,
@@ -253,6 +260,7 @@ impl VideoTools {
         tools.start_schedule();
         {
             let mut live = tools.lock();
+            tools.publish(&mut live);
             if live
                 .stored
                 .installed
@@ -265,6 +273,54 @@ impl VideoTools {
         Ok(tools)
     }
 
+    /// Ready with the installed pair, the retained pair if the installed one stopped working,
+    /// or NotWorking.
+    fn startup_state(
+        config: &VideoToolsConfig,
+        stored: &mut StoredState,
+        pair: InstalledPair,
+    ) -> Result<VideoToolsState, String> {
+        let details = match super::verification::validate_installed(config, &pair) {
+            Ok(()) => {
+                return Ok(VideoToolsState::Ready {
+                    installed: pair,
+                    last_checked: stored.last_checked,
+                    update_flag: stored.update_flag(),
+                });
+            }
+            Err(details) => details,
+        };
+        let retained = stored
+            .rollback_pair
+            .clone()
+            .filter(|previous| super::verification::validate_installed(config, previous).is_ok());
+        let Some(previous) = retained else {
+            return Ok(VideoToolsState::NotWorking {
+                reason: FailureReason::StoppedWorking,
+                details,
+            });
+        };
+        let mut rolled_back = stored.clone();
+        rolled_back.roll_back();
+        persist(config, &rolled_back)?;
+        *stored = rolled_back;
+        super::recovery::prune(&config.root, stored)?;
+        append_log(
+            config,
+            &format!(
+                "Rolled back {} at startup: {details}",
+                runtime_label(pair.runtime)
+            ),
+        );
+        Ok(VideoToolsState::Ready {
+            installed: previous,
+            last_checked: stored.last_checked,
+            update_flag: UpdateFlag::Failed {
+                version: runtime_label(pair.runtime),
+            },
+        })
+    }
+
     pub(super) fn lock(&self) -> MutexGuard<'_, LiveState> {
         self.live
             .lock()
@@ -273,11 +329,14 @@ impl VideoTools {
 
     pub fn diagnostics(&self) -> String {
         let live = self.lock();
+        let candidate = live.candidate.as_ref().map_or_else(
+            || "none".to_string(),
+            |(runtime, yt_dlp)| format!("{}, yt-dlp {yt_dlp}", runtime_label(*runtime)),
+        );
         format!(
-            "Video tools: {:?}\nInstalled: {:?}\nCandidate runtime / yt-dlp: {:?}\nChip: {}\nOpul: {}",
+            "Video tools: {:?}\nInstalled: {:?}\nCandidate: {candidate}\nChip: {}\nOpul: {}",
             live.snapshot.state,
             live.stored.installed,
-            live.candidate,
             std::env::consts::ARCH,
             self.config.opul_version
         )
@@ -287,14 +346,15 @@ impl VideoTools {
         self.lock().snapshot.clone()
     }
 
-    /// A watch receiver starts with the current snapshot and coalesces slow subscribers.
     pub fn subscribe(&self) -> watch::Receiver<VideoToolsSnapshot> {
         self.publisher.subscribe()
     }
 
     pub fn invocation(&self) -> Option<VideoToolsInvocation> {
         match &self.lock().snapshot.state {
-            VideoToolsState::Ready { installed, .. } => Some(invocation(&self.config, installed)),
+            VideoToolsState::Ready { installed, .. } => {
+                Some(layout::selected(&self.config, installed))
+            }
             _ => None,
         }
     }
@@ -303,118 +363,102 @@ impl VideoTools {
         self: &Arc<Self>,
         operation: VideoToolsOperation,
     ) -> Result<VideoToolsSnapshot, String> {
-        if let VideoToolsOperation::Remove { turn_off } = operation {
-            return self.remove_with(turn_off, || Ok(()));
-        }
         let mut live = self.lock();
         if live.removing {
             return Err("Video tools are being removed.".into());
         }
-        match operation {
-            VideoToolsOperation::SetUseNightly { enabled } => {
-                let restart_setup = self.set_use_nightly(&mut live, enabled)?;
-                self.publish(&mut live);
-                if restart_setup {
-                    drop(live);
-                    return self.execute(VideoToolsOperation::SetUp);
+        // Publish even after a failure: some changes may already be in memory.
+        let result = (|| -> Result<(), String> {
+            match operation {
+                VideoToolsOperation::SetUseNightly { enabled } => {
+                    self.set_use_nightly(&mut live, enabled)?;
                 }
-                return Ok(live.snapshot.clone());
-            }
-            VideoToolsOperation::Remove { .. } => unreachable!(),
-            VideoToolsOperation::SetKeepUpToDate { enabled } => {
-                self.set_keep_up_to_date(&mut live, enabled)?;
-            }
-            VideoToolsOperation::TurnOff => {
-                if matches!(live.snapshot.state, VideoToolsState::Ready { .. }) {
-                    return Err(
-                        "Installed video tools must be removed before turning them off.".into(),
-                    );
+                VideoToolsOperation::SetKeepUpToDate { enabled } => {
+                    self.set_keep_up_to_date(&mut live, enabled)?;
                 }
-                let mut stored = live.stored.clone();
-                stored.turned_off = true;
-                persist(&self.config, &stored)?;
-                cancel(&mut live);
-                live.stored = stored;
-                live.snapshot.state = VideoToolsState::TurnedOff;
-            }
-            VideoToolsOperation::CheckForUpdates | VideoToolsOperation::Update => {
-                let mode = if operation == VideoToolsOperation::Update {
-                    super::updates::UpdateMode::Manual
-                } else {
-                    super::updates::UpdateMode::Check
-                };
-                self.start_update(&mut live, mode);
-            }
-            VideoToolsOperation::Cancel => {
-                cancel(&mut live);
-                if let VideoToolsState::Ready { update_flag, .. } = &mut live.snapshot.state {
-                    *update_flag = UpdateFlag::None;
-                } else if matches!(live.snapshot.state, VideoToolsState::SettingUp { .. }) {
-                    live.snapshot.state = if live.stored.turned_off {
-                        VideoToolsState::TurnedOff
-                    } else {
-                        VideoToolsState::NotSetUp
-                    };
-                }
-            }
-            VideoToolsOperation::CancelSetup => {
-                if matches!(live.snapshot.state, VideoToolsState::SettingUp { .. })
-                    && live.job.is_some()
-                {
-                    cancel(&mut live);
-                    live.snapshot.state = if live.stored.turned_off {
-                        VideoToolsState::TurnedOff
-                    } else {
-                        VideoToolsState::NotSetUp
-                    };
-                }
-            }
-            VideoToolsOperation::SetUp | VideoToolsOperation::Retry => {
-                if live.job.is_some()
-                    || matches!(live.snapshot.state, VideoToolsState::Ready { .. })
-                {
-                    return Ok(live.snapshot.clone());
-                }
-                let mut stored = live.stored.clone();
-                stored.turned_off = false;
-                persist(&self.config, &stored)?;
-                live.stored = stored;
-                live.snapshot.state = VideoToolsState::SettingUp {
-                    steps: [Component::Python, Component::YtDlp]
-                        .into_iter()
-                        .map(|component| SetupStep {
-                            component,
-                            status: StepStatus::Pending,
-                            downloaded_bytes: 0,
-                            total_bytes: None,
-                        })
-                        .collect(),
-                };
-                live.candidate = None;
-                let id = Uuid::new_v4();
-                let tools = Arc::clone(self);
-                let task = runtime().spawn(async move {
-                    tools.install(id).await;
-                });
-                live.job = Some((id, task.abort_handle()));
-            }
-            VideoToolsOperation::RefreshPublishedSize => {
-                let tools = Arc::clone(self);
-                // Explicit metadata request from Settings. Never fetch executable payloads before consent.
-                runtime().spawn(async move {
-                    if let Ok(size) = tools.published_size().await {
-                        let mut live = tools.lock();
-                        live.snapshot.published_size = Some(size);
-                        tools.publish(&mut live);
+                VideoToolsOperation::TurnOff => {
+                    if matches!(live.snapshot.state, VideoToolsState::Ready { .. }) {
+                        Err("Installed video tools must be removed before turning them off.")?;
                     }
-                });
-                return Ok(live.snapshot.clone());
+                    live.commit(&self.config, |stored| stored.turned_off = true)?;
+                    live.stop_job();
+                    live.snapshot.state = VideoToolsState::TurnedOff;
+                }
+                VideoToolsOperation::CheckForUpdates => {
+                    self.start_update(&mut live, super::updates::UpdateMode::Check);
+                }
+                VideoToolsOperation::Update => {
+                    self.start_update(&mut live, super::updates::UpdateMode::Manual);
+                }
+                VideoToolsOperation::CancelSetup => {
+                    if matches!(live.snapshot.state, VideoToolsState::SettingUp { .. }) {
+                        live.stop_job();
+                        live.snapshot.state = live.stored.resting_state();
+                    }
+                }
+                VideoToolsOperation::SetUp | VideoToolsOperation::Retry => {
+                    self.start_setup(&mut live)?;
+                }
+                VideoToolsOperation::RefreshPublishedSize => {
+                    let tools = Arc::clone(self);
+                    // Metadata only. Never fetch executable payloads before consent.
+                    runtime().spawn(async move {
+                        if let Ok(size) = tools.published_size().await {
+                            let mut live = tools.lock();
+                            live.snapshot.published_size = Some(size);
+                            tools.publish(&mut live);
+                        }
+                    });
+                }
             }
-        }
+            Ok(())
+        })();
         self.publish(&mut live);
-        Ok(live.snapshot.clone())
+        result.map(|()| live.snapshot.clone())
     }
 
+    pub(super) fn start_setup(self: &Arc<Self>, live: &mut LiveState) -> Result<(), String> {
+        if live.job.is_some() || matches!(live.snapshot.state, VideoToolsState::Ready { .. }) {
+            return Ok(());
+        }
+        live.commit(&self.config, |stored| stored.turned_off = false)?;
+        live.snapshot.state = VideoToolsState::SettingUp {
+            steps: [Component::Python, Component::YtDlp]
+                .into_iter()
+                .map(|component| SetupStep {
+                    component,
+                    status: StepStatus::Pending,
+                    downloaded_bytes: 0,
+                    total_bytes: None,
+                })
+                .collect(),
+        };
+        live.candidate = None;
+        let id = Uuid::new_v4();
+        let tools = Arc::clone(self);
+        let task = runtime().spawn(async move {
+            tools.install(id).await;
+        });
+        live.job = Some((id, task.abort_handle()));
+        Ok(())
+    }
+
+    /// Stop scheduled checks and any running setup or update. The selected pair stays selected.
+    pub fn shut_down(&self) {
+        let mut live = self.lock();
+        if let Some(schedule) = live.schedule.take() {
+            schedule.abort();
+        }
+        live.stop_job();
+        if matches!(live.snapshot.state, VideoToolsState::SettingUp { .. }) {
+            live.snapshot.state = live.stored.resting_state();
+        }
+        let flag = live.stored.update_flag();
+        live.set_update_flag(flag);
+        self.publish(&mut live);
+    }
+
+    /// Every snapshot change goes out through here, with its derived fields filled in.
     pub(super) fn publish(&self, live: &mut LiveState) {
         live.snapshot.update_available = live.stored.available_update.is_some()
             && matches!(live.snapshot.state, VideoToolsState::Ready { .. })
@@ -438,45 +482,55 @@ impl VideoTools {
         total: Option<u64>,
     ) {
         let mut live = self.lock();
-        if !is_current(&live, id) {
+        if !live.is_current(id) {
             return;
         }
-        if let VideoToolsState::Ready {
-            update_flag: UpdateFlag::Updating { progress, .. },
-            ..
-        } = &mut live.snapshot.state
-        {
-            *progress = match status {
-                StepStatus::Done => 90,
-                StepStatus::Installing => 80,
-                StepStatus::Verifying => 70,
-                _ => total.filter(|size| *size > 0).map_or(0, |size| {
-                    (downloaded.saturating_mul(60) / size).min(60) as u8
-                }),
-            };
-            self.publish(&mut live);
+        match &mut live.snapshot.state {
+            VideoToolsState::Ready {
+                update_flag: UpdateFlag::Updating { progress, .. },
+                ..
+            } => {
+                *progress = match status {
+                    StepStatus::Done => 90,
+                    StepStatus::Installing => 80,
+                    StepStatus::Verifying => 70,
+                    _ => total.filter(|size| *size > 0).map_or(0, |size| {
+                        (downloaded.saturating_mul(60) / size).min(60) as u8
+                    }),
+                };
+            }
+            VideoToolsState::SettingUp { steps } => {
+                let step = steps
+                    .iter_mut()
+                    .find(|step| step.component == component)
+                    .expect("both setup steps exist");
+                step.status = status;
+                step.downloaded_bytes = downloaded;
+                step.total_bytes = total;
+            }
+            _ => return,
         }
-        if let VideoToolsState::SettingUp { steps } = &mut live.snapshot.state {
-            let step = steps
-                .iter_mut()
-                .find(|step| step.component == component)
-                .expect("both setup steps exist");
-            step.status = status;
-            step.downloaded_bytes = downloaded;
-            step.total_bytes = total;
-            self.publish(&mut live);
-        }
+        self.publish(&mut live);
+    }
+
+    pub(super) fn log_failure(&self, details: &str) {
+        append_log(&self.config, details);
     }
 }
 
-pub(super) fn cancel(live: &mut LiveState) {
-    if let Some((_, task)) = live.job.take() {
-        task.abort();
-    }
+/// How an update that changes only the Python runtime is named to people.
+pub(super) fn runtime_label(runtime: u64) -> String {
+    format!("Python runtime {runtime}")
 }
 
-pub(super) fn is_current(live: &LiveState, id: Uuid) -> bool {
-    live.job.as_ref().is_some_and(|(current, _)| *current == id)
+fn append_log(config: &VideoToolsConfig, line: &str) {
+    if let Ok(mut file) = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(config.root.join(layout::LOG))
+    {
+        let _ = writeln!(file, "{line}");
+    }
 }
 
 pub(super) fn ready(installed: InstalledPair) -> VideoToolsState {
@@ -487,28 +541,8 @@ pub(super) fn ready(installed: InstalledPair) -> VideoToolsState {
     }
 }
 
-pub(super) fn invocation(
-    config: &VideoToolsConfig,
-    installed: &InstalledPair,
-) -> VideoToolsInvocation {
-    let runtime = config
-        .root
-        .join("python-runtime")
-        .join(installed.runtime.to_string());
-    VideoToolsInvocation {
-        interpreter: runtime.join("bin/python3"),
-        quickjs: runtime.join("bin/qjs"),
-        script: config
-            .root
-            .join("yt-dlp")
-            .join(installed.yt_dlp_channel.directory(&installed.yt_dlp))
-            .join("yt-dlp"),
-        built_in_tools: config.built_in_tools.clone(),
-    }
-}
-
-pub(super) fn persist(config: &VideoToolsConfig, stored: &StoredState) -> Result<(), String> {
-    let path = config.root.join(format!(".state-{}.json", Uuid::new_v4()));
+fn persist(config: &VideoToolsConfig, stored: &StoredState) -> Result<(), String> {
+    let path = layout::state_draft(&config.root);
     let result: Result<(), String> = (|| {
         let mut file = OpenOptions::new()
             .write(true)
@@ -518,7 +552,7 @@ pub(super) fn persist(config: &VideoToolsConfig, stored: &StoredState) -> Result
         file.write_all(&serde_json::to_vec_pretty(stored).map_err(|e| e.to_string())?)
             .map_err(|e| e.to_string())?;
         file.sync_all().map_err(|e| e.to_string())?;
-        fs::rename(&path, config.root.join("state.json")).map_err(|e| e.to_string())?;
+        fs::rename(&path, config.root.join(layout::STATE)).map_err(|e| e.to_string())?;
         File::open(&config.root)
             .and_then(|file| file.sync_all())
             .map_err(|e| e.to_string())

@@ -1,5 +1,4 @@
 import { isTauri } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { toast } from "@/components/ui/toast";
@@ -73,7 +72,7 @@ export const useVideoSetup = () => {
       return;
     }
 
-    const subscription = listen("set-up-video-tools", handleShow);
+    const subscription = bridge.onSetUpVideoToolsMenu(handleShow);
 
     return () => {
       void (async () => {

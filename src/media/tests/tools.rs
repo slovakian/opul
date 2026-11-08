@@ -10,12 +10,12 @@ fn built_in_tools_enable_audio_formats_and_require_ffprobe() {
     let config = MediaEngineConfig {
         session_folder: root.join("session").to_string_lossy().into_owned(),
         resources_folder: Some(resources.to_string_lossy().into_owned()),
-        video_tools: None,
+        video_tools: crate::video_tools::not_set_up(),
         max_concurrent_downloads: 1,
         max_download_bps: 0,
     };
     let engine = MediaEngine::new(config.clone()).unwrap();
-    *engine.developer_override.lock().unwrap() = Some(yt_dlp);
+    *engine.yt_dlp.developer_override.lock().unwrap() = Some(yt_dlp);
     let status = engine.built_in_tool_versions();
     assert_eq!(status.ffmpeg.as_deref(), Some("test"));
     assert_eq!(status.ffprobe.as_deref(), Some("test"));
@@ -54,7 +54,27 @@ fn built_in_tools_enable_audio_formats_and_require_ffprobe() {
     drop(engine);
     fs::remove_file(resources.join("media-tools/ffprobe")).unwrap();
     let incomplete = MediaEngine::new(config).unwrap();
-    assert!(incomplete.ffmpeg.is_none());
+    *incomplete.yt_dlp.developer_override.lock().unwrap() = Some(root.join("yt-dlp"));
+    assert!(incomplete.built_in_tool_versions().ffprobe.is_none());
+    let refused = incomplete.add_download(
+        super::MediaProbeItem {
+            webpage_url: "https://example.com/cc0-tone".into(),
+            title: "CC0 tone".into(),
+            thumbnail_url: None,
+            extractor: None,
+            duration_seconds: None,
+            playlist_index: None,
+        },
+        root.join("downloads").to_string_lossy().into_owned(),
+        MediaDownloadOptions {
+            format: MediaFormat::AudioMp3,
+            ..MediaDownloadOptions::default()
+        },
+    );
+    assert!(matches!(
+        refused,
+        Err(CoreError::DependencyUnavailable { .. })
+    ));
     drop(incomplete);
     fs::remove_dir_all(root).unwrap();
 }
@@ -69,12 +89,12 @@ fn built_in_tools_never_fall_back_to_homebrew_or_path() {
                 .to_string_lossy()
                 .into_owned(),
         ),
-        video_tools: None,
+        video_tools: crate::video_tools::not_set_up(),
         max_concurrent_downloads: 1,
         max_download_bps: 0,
     })
     .unwrap();
-    assert!(engine.ffmpeg.is_none());
-    assert!(engine.require_yt_dlp().is_err());
+    assert!(engine.built_in_tool_versions().ffmpeg.is_none());
+    assert!(engine.yt_dlp.acquire().is_err());
     fs::remove_dir_all(root).unwrap();
 }

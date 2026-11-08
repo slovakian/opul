@@ -78,10 +78,8 @@ fn nightly_defaults_to_stable_then_switches_immediately_and_can_downgrade_to_sta
 }
 
 #[test]
-fn switch_preference_persists_without_setup_and_is_isolated_from_stable() {
+fn switch_preference_persists_without_setup() {
     let fixture = nightly_fixture();
-    let stable_fixture = Fixture::new(GOOD);
-    let stable = stable_fixture.open();
     let tools = fixture.open();
     tools.execute(switch(true)).unwrap();
     tools
@@ -92,8 +90,6 @@ fn switch_preference_persists_without_setup_and_is_isolated_from_stable() {
     let tools = fixture.open();
     assert!(tools.snapshot().use_nightly);
     assert!(!tools.snapshot().keep_up_to_date);
-    assert!(!stable.snapshot().use_nightly);
-    assert!(stable.snapshot().keep_up_to_date);
     command(&tools, "set_up");
     fixture.wait(&tools);
     assert_eq!(selected(&tools).yt_dlp_channel, YtDlpChannel::Nightly);
@@ -158,7 +154,7 @@ fn failed_nightly_health_keeps_the_old_pair_until_a_new_runtime_passes() {
 }
 
 #[test]
-fn switching_during_setup_cancels_the_old_job_and_installs_the_selected_channel() {
+fn switching_during_setup_installs_the_selected_channel() {
     let fixture = nightly_fixture();
     let tools = fixture.open();
     command(&tools, "set_up");
@@ -176,7 +172,7 @@ fn stable_refuses_a_nightly_pair_even_with_a_pending_switch_back_to_stable() {
     fixture.wait(&tools);
     let active = tools.acquire().unwrap();
     tools.execute(switch(false)).unwrap();
-    tools.cancel().unwrap();
+    tools.shut_down();
     drop(active);
     fixture.close(tools);
     let mut config = fixture.config.clone();

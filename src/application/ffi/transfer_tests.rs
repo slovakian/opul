@@ -54,7 +54,7 @@ fn check_output(layout: Layout) {
         media: MediaEngineConfig {
             session_folder: root.path().join("media").to_string_lossy().into_owned(),
             resources_folder: None,
-            video_tools: None,
+            video_tools: crate::video_tools::not_set_up(),
             max_concurrent_downloads: 1,
             max_download_bps: 0,
         },

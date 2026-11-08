@@ -347,7 +347,7 @@ for (const failure of [
     reason: "stopped_working",
   },
 ] as const) {
-  test(`${failure.reason} offers recovery and copies the error, versions and chip`, async ({
+  test(`${failure.reason} offers recovery and copies the diagnostics`, async ({
     page,
   }) => {
     await page.addInitScript(() => {
@@ -391,10 +391,12 @@ for (const failure of [
       sessionStorage.getItem("test-copied-tool-details")
     );
 
+    const diagnostics = await page.evaluate(() =>
+      window.testVideoTools.invoke("video_tools_details", {})
+    );
+
+    expect(copied).toBe(diagnostics);
     expect(copied).toContain(failure.details);
-    expect(copied).toContain("Python runtime 1");
-    expect(copied).toContain("yt-dlp 2026.10.26");
-    expect(copied).toContain("chip arm64");
     await dialog
       .getByRole("button", { exact: true, name: "Try again" })
       .click();

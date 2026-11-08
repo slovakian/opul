@@ -103,7 +103,7 @@ fn ineligible_states_do_not_schedule_or_request_updates() {
         assert!(fixture.hits.lock().unwrap().is_empty());
         assert!(fixture.network.scheduled.lock().unwrap().is_empty());
     }
-    fixture.tamper("/runtime.sig");
+    fixture.tamper("/runtime-1/runtime.sig");
     command(&tools, "set_up");
     fixture.wait(&tools);
     let hits = fixture.hits.lock().unwrap().len();
@@ -219,9 +219,7 @@ fn removing_tools_and_shutdown_cancel_scheduled_work() {
     command(&tools, "set_up");
     fixture.wait(&tools);
     until(|| !fixture.network.scheduled.lock().unwrap().is_empty());
-    tools
-        .execute(VideoToolsOperation::Remove { turn_off: true })
-        .unwrap();
+    tools.remove_with(true, || Ok(())).unwrap();
     let requests = fixture.hits.lock().unwrap().len();
     advance(&fixture, 86_460);
     thread::sleep(Duration::from_millis(20));
@@ -229,7 +227,7 @@ fn removing_tools_and_shutdown_cancel_scheduled_work() {
     assert!(matches!(tools.snapshot().state, VideoToolsState::TurnedOff));
     command(&tools, "set_up");
     fixture.wait(&tools);
-    tools.cancel().unwrap();
+    tools.shut_down();
     let requests = fixture.hits.lock().unwrap().len();
     advance(&fixture, 172_800);
     thread::sleep(Duration::from_millis(20));

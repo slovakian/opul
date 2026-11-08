@@ -60,7 +60,7 @@ impl Default for MediaDownloadOptions {
 pub struct MediaEngineConfig {
     pub session_folder: String,
     pub resources_folder: Option<String>,
-    pub video_tools: Option<Arc<VideoTools>>,
+    pub video_tools: Arc<VideoTools>,
     pub max_concurrent_downloads: u32,
     pub max_download_bps: u64,
 }
@@ -71,17 +71,80 @@ pub struct BuiltInToolVersions {
     pub ffprobe: Option<String>,
 }
 
+/// Where video Downloads and probes get yt-dlp: the managed pair, or a developer's own build.
 #[derive(Debug, Clone)]
-pub(super) enum YtDlpCommand {
-    Managed(VideoToolsInvocation),
+pub(super) struct YtDlpSource {
+    pub(super) tools: Arc<VideoTools>,
+    pub(super) developer_override: Arc<Mutex<Option<PathBuf>>>,
+    pub(super) ffmpeg: Option<PathBuf>,
+}
+
+/// A yt-dlp held for one Download or probe. A managed one keeps its pair selected until dropped.
+pub(super) struct YtDlp {
+    program: YtDlpProgram,
+    ffmpeg: Option<PathBuf>,
+}
+
+enum YtDlpProgram {
+    Managed(VideoToolsUse),
     DeveloperOverride(PathBuf),
 }
 
-impl YtDlpCommand {
+pub(super) fn video_tools_unavailable() -> CoreError {
+    CoreError::DependencyUnavailable {
+        reason: "Video downloads need video tools. Set them up in Settings > Tools.".into(),
+    }
+}
+
+impl YtDlpSource {
+    fn developer_override(&self) -> Option<PathBuf> {
+        self.developer_override
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+    }
+
+    pub(super) fn available(&self) -> bool {
+        self.developer_override().is_some() || self.tools.invocation().is_some()
+    }
+
+    pub(super) fn acquire(&self) -> Result<YtDlp, CoreError> {
+        let program = match self.developer_override() {
+            Some(path) => YtDlpProgram::DeveloperOverride(path),
+            None => {
+                YtDlpProgram::Managed(self.tools.acquire().ok_or_else(video_tools_unavailable)?)
+            }
+        };
+        Ok(YtDlp {
+            program,
+            ffmpeg: self.ffmpeg.clone(),
+        })
+    }
+
+    /// False once no managed pair is selected any more, as after removal.
+    pub(super) fn still_selected(&self, yt_dlp: &YtDlp) -> bool {
+        matches!(yt_dlp.program, YtDlpProgram::DeveloperOverride(_))
+            || self.tools.invocation().is_some()
+    }
+}
+
+impl YtDlp {
     pub(super) fn command(&self) -> Command {
-        match self {
-            Self::Managed(invocation) => invocation.command(),
-            Self::DeveloperOverride(path) => Command::new(path),
+        let mut command = match &self.program {
+            YtDlpProgram::Managed(usage) => usage.invocation.command(),
+            YtDlpProgram::DeveloperOverride(path) => Command::new(path),
+        };
+        if let Some(folder) = self.ffmpeg.as_deref().and_then(Path::parent) {
+            command.arg("--ffmpeg-location").arg(folder);
+        }
+        command
+    }
+
+    /// Report a finished Download so a new runtime is kept or rolled back.
+    pub(super) fn finish_download(self, success: bool) {
+        if let YtDlpProgram::Managed(usage) = self.program {
+            // The module logs persistence failures and keeps runtime probation in that case.
+            let _ = usage.finish_download(success);
         }
     }
 }
@@ -334,8 +397,7 @@ pub(super) struct WorkerRegistry {
 
 #[derive(Clone)]
 pub(super) struct WorkerContext {
-    pub(super) video_tools: Option<Arc<VideoTools>>,
-    pub(super) yt_dlp: Option<YtDlpCommand>,
+    pub(super) yt_dlp: YtDlpSource,
     pub(super) ffmpeg: Option<PathBuf>,
     pub(super) cookie_directory: PathBuf,
     pub(super) request_header_directory: PathBuf,
@@ -348,8 +410,7 @@ pub(super) struct WorkerContext {
 }
 
 pub struct MediaEngine {
-    pub(super) video_tools: Option<Arc<VideoTools>>,
-    pub(super) developer_override: Mutex<Option<PathBuf>>,
+    pub(super) yt_dlp: YtDlpSource,
     pub(super) ffmpeg: Option<PathBuf>,
     pub(super) ffmpeg_version: Option<String>,
     pub(super) ffprobe_version: Option<String>,

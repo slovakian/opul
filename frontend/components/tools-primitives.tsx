@@ -19,12 +19,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { SetupStep } from "@/lib/video-tools";
-
-const BYTES_PER_MB = 1_000_000;
+import { isIndeterminateStep, stepFraction } from "@/lib/video-tools";
 
 const PERCENT = 100;
-
-export const megabytes = (bytes: number) => (bytes / BYTES_PER_MB).toFixed(1);
 
 /** The two parts of the video tools, as Setup and Settings ▸ Tools name them. */
 export const videoToolParts = {
@@ -40,24 +37,8 @@ export const videoToolParts = {
   },
 } as const;
 
-export const stepPercent = (step: SetupStep) => {
-  if (step.status === "done") {
-    return PERCENT;
-  }
-
-  if (!step.total_bytes) {
-    return 0;
-  }
-
-  return Math.min(
-    PERCENT,
-    Math.round((step.downloaded_bytes / step.total_bytes) * PERCENT)
-  );
-};
-
-/** A step that has stopped (done or failed) shows one bare glyph, not a ring. */
-export const isSettledStep = (step: SetupStep) =>
-  step.status === "done" || step.status === "failed";
+export const stepPercent = (step: SetupStep) =>
+  Math.round(stepFraction(step) * PERCENT);
 
 export const SettledStepMark = ({
   className,
@@ -94,8 +75,7 @@ export const StepRing = ({
   label: string;
   step: SetupStep;
 }) => {
-  const indeterminate =
-    step.status === "verifying" || step.status === "installing";
+  const indeterminate = isIndeterminateStep(step.status);
 
   return (
     <CircularProgress
@@ -160,7 +140,6 @@ export const IconAction = ({
         aria-hidden="true"
         className={cn(spinning && "animate-spin [animation-duration:600ms]")}
       />
-      {/* Real text keeps the accessible name and visible-text lookups aligned. */}
       <span className="sr-only">{children}</span>
     </TooltipTrigger>
     <TooltipContent>{label}</TooltipContent>

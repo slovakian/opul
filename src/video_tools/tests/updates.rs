@@ -54,7 +54,8 @@ fn manual_check_and_script_update_keep_the_runtime_and_previous_script() {
     assert_eq!(selected(&tools).yt_dlp, "2026.11.01");
     assert_eq!(tools.invocation().unwrap().interpreter, old.interpreter);
     assert!(old.script.exists());
-    assert_eq!(fixture.count("GET /runtime-1"), 0);
+    // Only setup downloaded the runtime; the script update reused it.
+    assert_eq!(fixture.count("GET /runtime-1/runtime"), 1);
 }
 
 #[test]
@@ -86,7 +87,9 @@ fn runtime_only_then_both_parts_update_runtime_first_and_retain_until_success() 
     assert_eq!(selected(&tools).runtime, 3);
     let hits = fixture.hits.lock().unwrap().clone();
     assert!(
-        hits.iter().position(|p| p == "GET /runtime-3").unwrap()
+        hits.iter()
+            .position(|p| p == "GET /runtime-3/runtime")
+            .unwrap()
             < hits
                 .iter()
                 .position(|p| p == "GET /yt/releases/download/2026.11.01/yt-dlp")
@@ -112,7 +115,7 @@ fn active_download_defers_runtime_installation_and_activation_but_old_pair_runs(
     fixture.publish(2, "2026.11.01", &GOOD.replace("2026.10.26", "2026.11.01"));
     command(&tools, "update");
     let deadline = Instant::now() + Duration::from_secs(5);
-    while fixture.count("GET /runtime-2.sig") == 0 {
+    while fixture.count("GET /runtime-2/runtime.sig") == 0 {
         assert!(Instant::now() < deadline);
         thread::sleep(Duration::from_millis(5));
     }
@@ -252,16 +255,16 @@ fn cancellation_and_activation_failure_leave_committed_pair_usable() {
         .routes
         .lock()
         .unwrap()
-        .get_mut("/runtime-2")
+        .get_mut("/runtime-2/runtime")
         .unwrap()
         .delay = Duration::from_millis(200);
     command(&tools, "update");
     let deadline = Instant::now() + Duration::from_secs(5);
-    while fixture.count("GET /runtime-2") == 0 {
+    while fixture.count("GET /runtime-2/runtime") == 0 {
         assert!(Instant::now() < deadline);
         thread::sleep(Duration::from_millis(5));
     }
-    tools.cancel().unwrap();
+    tools.shut_down();
     thread::sleep(Duration::from_millis(250));
     assert_eq!(tools.invocation().unwrap(), old);
     assert!(!fixture.config.root.join("python-runtime/2").exists());
@@ -399,7 +402,7 @@ fn media_execution_reports_runtime_success_and_failure_and_defers_activation() {
                 .to_string_lossy()
                 .into_owned(),
             resources_folder: Some(resources.to_string_lossy().into_owned()),
-            video_tools: Some(Arc::clone(&tools)),
+            video_tools: Arc::clone(&tools),
             max_concurrent_downloads: 1,
             max_download_bps: 0,
         })

@@ -53,7 +53,6 @@ impl Fixture {
             nightly_available: false,
             root: temp.path().join("Tools"),
             opul_version: "0.2.2".into(),
-            built_in_tools: temp.path().join("media-tools"),
         };
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         listener.set_nonblocking(true).unwrap();
@@ -105,13 +104,16 @@ impl Fixture {
         let runtime = archive.into_inner().unwrap().finish().unwrap();
         let pointer = serde_json::to_vec(&serde_json::json!({
             "schema_version": 1, "runtime": 1, "minimum_opul_version": "0.2.2",
-            "architectures": (["arm64", "x64"].into_iter().map(|arch| (arch, serde_json::json!({ "url": format!("{base}/runtime"), "signature_url": format!("{base}/runtime.sig"), "sha256": hex::encode(Sha256::digest(&runtime)), "size": runtime.len() }))).collect::<HashMap<_,_>>())
+            "architectures": (["arm64", "x64"].into_iter().map(|arch| (arch, serde_json::json!({ "url": format!("{base}/runtime-1/runtime"), "signature_url": format!("{base}/runtime-1/runtime.sig"), "sha256": hex::encode(Sha256::digest(&runtime)), "size": runtime.len() }))).collect::<HashMap<_,_>>())
         })).unwrap();
         let data = [
             ("/pointer", pointer.clone()),
             ("/pointer.sig", signing.sign(&pointer).to_bytes().to_vec()),
-            ("/runtime", runtime.clone()),
-            ("/runtime.sig", signing.sign(&runtime).to_bytes().to_vec()),
+            ("/runtime-1/runtime", runtime.clone()),
+            (
+                "/runtime-1/runtime.sig",
+                signing.sign(&runtime).to_bytes().to_vec(),
+            ),
             ("/yt/releases/download/2026.10.26/yt-dlp", script),
             ("/yt/releases/download/2026.10.26/SHA2-256SUMS", sums),
             (
@@ -294,7 +296,9 @@ impl Fixture {
                 nightly_repository: format!("{base}/nightly"),
                 opul_key: signing.verifying_key().to_bytes(),
                 yt_dlp_key: public,
-                allow_fixture_http: true,
+                runtime_release_prefix: format!("{base}/runtime-"),
+                https_only: false,
+                exclude_from_backup: false,
                 environment: network.clone(),
             },
             routes,
@@ -340,22 +344,22 @@ impl Fixture {
         let pointer = serde_json::to_vec(&serde_json::json!({
             "schema_version": 1, "runtime": number, "minimum_opul_version": "0.2.2",
             "architectures": (["arm64", "x64"].into_iter().map(|arch| (arch, serde_json::json!({
-                "url": format!("{base}/runtime-{number}"), "signature_url": format!("{base}/runtime-{number}.sig"),
+                "url": format!("{base}/runtime-{number}/runtime"), "signature_url": format!("{base}/runtime-{number}/runtime.sig"),
                 "sha256": hex::encode(Sha256::digest(&runtime)), "size": runtime.len()
             }))).collect::<HashMap<_,_>>())
         })).unwrap();
         let signing = SigningKey::from_bytes(&[9; 32]);
         let mut routes = self.routes.lock().unwrap();
-        let template = routes["/runtime"].clone();
+        let template = routes["/runtime-1/runtime"].clone();
         for (path, bytes) in [
             ("/pointer".into(), pointer.clone()),
             (
                 "/pointer.sig".into(),
                 signing.sign(&pointer).to_bytes().to_vec(),
             ),
-            (format!("/runtime-{number}"), runtime.clone()),
+            (format!("/runtime-{number}/runtime"), runtime.clone()),
             (
-                format!("/runtime-{number}.sig"),
+                format!("/runtime-{number}/runtime.sig"),
                 signing.sign(&runtime).to_bytes().to_vec(),
             ),
             (format!("/yt/releases/download/{version}/yt-dlp"), script),
@@ -379,44 +383,6 @@ impl Fixture {
         }
         routes.get_mut("/yt/releases/latest").unwrap().redirect =
             Some(format!("{base}/yt/releases/tag/{version}"));
-    }
-    pub(super) fn minimum_opul_version(&self, version: &str) {
-        let mut routes = self.routes.lock().unwrap();
-        let mut pointer: serde_json::Value =
-            serde_json::from_slice(&routes["/pointer"].bytes).unwrap();
-        pointer["minimum_opul_version"] = version.into();
-        let bytes = serde_json::to_vec(&pointer).unwrap();
-        routes.get_mut("/pointer.sig").unwrap().bytes = SigningKey::from_bytes(&[9; 32])
-            .sign(&bytes)
-            .to_bytes()
-            .to_vec();
-        routes.get_mut("/pointer").unwrap().bytes = bytes;
-    }
-    pub(super) fn publish_nightly(&self, number: u64, version: &str, health: &str) {
-        let stable_routes: Vec<_> = self
-            .routes
-            .lock()
-            .unwrap()
-            .iter()
-            .filter(|(path, _)| path.starts_with("/yt/"))
-            .map(|(path, response)| (path.clone(), response.clone()))
-            .collect();
-        self.publish(number, version, &health.replace("2026.10.26", version));
-        let mut routes = self.routes.lock().unwrap();
-        let nightly_routes: Vec<_> = routes
-            .iter()
-            .filter(|(path, _)| path.starts_with("/yt/"))
-            .map(|(path, response)| {
-                let mut response = response.clone();
-                response.redirect = response
-                    .redirect
-                    .map(|url| url.replace("/yt/", "/nightly/"));
-                (path.replacen("/yt/", "/nightly/", 1), response)
-            })
-            .collect();
-        routes.retain(|path, _| !path.starts_with("/yt/"));
-        routes.extend(stable_routes);
-        routes.extend(nightly_routes);
     }
     pub(super) fn open(&self) -> Arc<VideoTools> {
         VideoTools::open_with_sources(self.config.clone(), self.sources.clone()).unwrap()

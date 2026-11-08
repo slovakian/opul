@@ -149,6 +149,11 @@ pub(super) fn decide_resume(state: &AppState, id: DownloadId) -> Result<Decision
     let DownloadLifecycle::Paused { .. } = item.lifecycle else {
         return Err(invalid("resume", &item.lifecycle));
     };
+    if must_wait_for_tools(state, item) {
+        let mut decision = Decision::none();
+        push_waiting(item, &mut decision);
+        return Ok(decision);
+    }
     let generation = item.control_generation + 1;
     Ok(Decision {
         events: vec![Event::DownloadLifecycleChanged {
@@ -178,10 +183,14 @@ pub(super) fn decide_retry(state: &AppState, id: DownloadId) -> Result<Decision,
     ) {
         return Err(invalid("retry", &item.lifecycle));
     }
+    if must_wait_for_tools(state, item) {
+        let mut decision = Decision::none();
+        push_waiting(item, &mut decision);
+        return Ok(decision);
+    }
     let attempt = item.attempt + 1;
     let generation = item.control_generation + 1;
-    let waiting = item.needs_video_tools() && state.video_tools != VideoToolsAvailability::Ready;
-    let mut decision = Decision {
+    Ok(Decision {
         events: vec![Event::DownloadRetried {
             download: id,
             attempt,
@@ -193,16 +202,7 @@ pub(super) fn decide_retry(state: &AppState, id: DownloadId) -> Result<Decision,
             kind: EffectKind::EnsureTransfer { download: id },
         }],
         created_downloads: Vec::new(),
-    };
-    if waiting {
-        decision.effects.clear();
-        decision.events.push(Event::DownloadLifecycleChanged {
-            download: id,
-            lifecycle: DownloadLifecycle::WaitingForVideoTools,
-            control_generation: generation,
-        });
-    }
-    Ok(decision)
+    })
 }
 
 pub(super) fn decide_cancel(state: &AppState, id: DownloadId) -> Result<Decision, Rejection> {

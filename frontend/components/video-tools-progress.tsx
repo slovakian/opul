@@ -4,8 +4,6 @@ import {
   InfoTip,
   SettledStepMark,
   StepRing,
-  isSettledStep,
-  megabytes,
   videoToolParts,
 } from "@/components/tools-primitives";
 import {
@@ -15,27 +13,21 @@ import {
   TraceTitle,
 } from "@/components/ui/trace";
 import type { SetupStep } from "@/lib/video-tools";
-
-const statusLabels: Record<SetupStep["status"], string> = {
-  done: "Done",
-  downloading: "Downloading",
-  failed: "Failed",
-  installing: "Installing",
-  pending: "Waiting",
-  verifying: "Verifying",
-  waiting_for_internet: "Waiting for an internet connection…",
-};
+import {
+  byteProgress,
+  isSettledStep,
+  isWorkingStep,
+  stepLabel,
+} from "@/lib/video-tools";
 
 const lineStatus = (
   status: SetupStep["status"]
 ): React.ComponentProps<typeof TraceLine>["status"] => {
-  switch (status) {
-    case "downloading":
-    case "installing":
-    case "verifying": {
-      return "running";
-    }
+  if (isWorkingStep(status)) {
+    return "running";
+  }
 
+  switch (status) {
     case "done": {
       return "available";
     }
@@ -57,8 +49,8 @@ const lineStatus = (
 /** Byte counts say more than "Downloading" once the size is known. */
 const stepDetail = (step: SetupStep) =>
   step.status === "downloading" && step.total_bytes
-    ? `${megabytes(step.downloaded_bytes)} of ${megabytes(step.total_bytes)} MB`
-    : statusLabels[step.status];
+    ? byteProgress(step.downloaded_bytes, step.total_bytes)
+    : stepLabel(step.status);
 
 const StepLine = ({ step }: { step: SetupStep }) => {
   const { hint, name } = videoToolParts[step.component];

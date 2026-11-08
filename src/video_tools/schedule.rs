@@ -1,4 +1,4 @@
-use super::manager::{LiveState, persist, runtime};
+use super::manager::{LiveState, runtime};
 use super::updates::UpdateMode;
 use super::*;
 use std::sync::Arc;
@@ -11,10 +11,7 @@ impl VideoTools {
         live: &mut LiveState,
         enabled: bool,
     ) -> Result<(), String> {
-        let mut stored = live.stored.clone();
-        stored.keep_up_to_date = enabled;
-        persist(&self.config, &stored)?;
-        live.stored = stored;
+        live.commit(&self.config, |stored| stored.keep_up_to_date = enabled)?;
         live.snapshot.keep_up_to_date = enabled;
         if !enabled
             && live.automatic_update
@@ -26,16 +23,12 @@ impl VideoTools {
                 }
             )
         {
-            super::manager::cancel(live);
-            let available = live.stored.available_update.clone();
-            if let VideoToolsState::Ready { update_flag, .. } = &mut live.snapshot.state {
-                *update_flag = available.map_or(UpdateFlag::None, |notice| UpdateFlag::Available {
-                    version: notice.version,
-                });
-            }
+            live.stop_job();
+            let flag = live.stored.update_flag();
+            live.set_update_flag(flag);
         }
         if enabled && live.stored.available_update.is_some() {
-            self.start_update(live, super::updates::UpdateMode::Automatic);
+            self.start_update(live, UpdateMode::Automatic);
         }
         Ok(())
     }
@@ -109,18 +102,9 @@ impl VideoTools {
         if live.stored.notified_updates.contains(&notice.identity) {
             return Ok(None);
         }
-        let mut stored = live.stored.clone();
-        stored.notified_updates.push(notice.identity.clone());
-        persist(&self.config, &stored)?;
-        live.stored = stored;
+        live.commit(&self.config, |stored| {
+            stored.notified_updates.push(notice.identity.clone());
+        })?;
         Ok(Some(notice))
-    }
-}
-
-impl Drop for VideoTools {
-    fn drop(&mut self) {
-        if let Some(schedule) = self.lock().schedule.take() {
-            schedule.abort();
-        }
     }
 }

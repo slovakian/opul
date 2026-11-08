@@ -21,7 +21,7 @@ fn newer_app_runtime_does_not_block_a_compatible_script_update() {
     fixture.wait(&tools);
     assert_eq!(selected(&tools).runtime, 1);
     assert_eq!(selected(&tools).yt_dlp, "2026.11.01");
-    assert_eq!(fixture.count("GET /runtime-2"), 0);
+    assert_eq!(fixture.count("GET /runtime-2/runtime"), 0);
 }
 
 #[test]
@@ -34,7 +34,7 @@ fn unpack_filesystem_failure_retries_without_skipping_a_verified_runtime() {
     fixture.publish(2, "2026.10.26", GOOD);
     command(&tools, "update");
     let deadline = Instant::now() + Duration::from_secs(5);
-    while fixture.count("GET /runtime-2.sig") == 0 {
+    while fixture.count("GET /runtime-2/runtime.sig") == 0 {
         assert!(Instant::now() < deadline);
         thread::sleep(Duration::from_millis(5));
     }
@@ -62,7 +62,7 @@ fn unpack_filesystem_failure_retries_without_skipping_a_verified_runtime() {
     command(&tools, "update");
     fixture.wait(&tools);
     assert_eq!(selected(&tools).runtime, 2);
-    assert_eq!(fixture.count("GET /runtime-2"), 2);
+    assert_eq!(fixture.count("GET /runtime-2/runtime"), 2);
 }
 
 #[test]
@@ -93,7 +93,7 @@ fn active_probe_retains_its_pair_and_never_counts_as_download_success() {
             .to_string_lossy()
             .into_owned(),
         resources_folder: None,
-        video_tools: Some(Arc::clone(&tools)),
+        video_tools: Arc::clone(&tools),
         max_concurrent_downloads: 1,
         max_download_bps: 0,
     })
@@ -106,7 +106,7 @@ fn active_probe_retains_its_pair_and_never_counts_as_download_success() {
     }
     fixture.publish(2, "2026.11.01", &GOOD.replace("2026.10.26", "2026.11.01"));
     command(&tools, "update");
-    while fixture.count("GET /runtime-2.sig") == 0 {
+    while fixture.count("GET /runtime-2/runtime.sig") == 0 {
         assert!(Instant::now() < deadline);
         thread::sleep(Duration::from_millis(5));
     }
@@ -150,7 +150,7 @@ fn app_upgrade_rechecks_a_hold_when_the_signed_runtime_pointer_is_unchanged() {
             ..
         }
     ));
-    assert_eq!(fixture.count("GET /runtime-2"), 0);
+    assert_eq!(fixture.count("GET /runtime-2/runtime"), 0);
     fixture.close(tools);
     fixture.config.opul_version = "0.3.0".into();
     let tools = fixture.open();
@@ -167,7 +167,7 @@ fn twice_rejected_runtime_is_skipped_across_restart_until_a_newer_runtime() {
     command(&tools, "set_up");
     fixture.wait(&tools);
     fixture.publish(2, "2026.10.26", GOOD);
-    fixture.tamper("/runtime-2.sig");
+    fixture.tamper("/runtime-2/runtime.sig");
     command(&tools, "update");
     assert!(matches!(
         fixture.wait(&tools).state,
@@ -176,12 +176,12 @@ fn twice_rejected_runtime_is_skipped_across_restart_until_a_newer_runtime() {
             ..
         }
     ));
-    assert_eq!(fixture.count("GET /runtime-2"), 2);
+    assert_eq!(fixture.count("GET /runtime-2/runtime"), 2);
     drop(tools);
     let tools = fixture.open();
     command(&tools, "update");
     fixture.wait(&tools);
-    assert_eq!(fixture.count("GET /runtime-2"), 2);
+    assert_eq!(fixture.count("GET /runtime-2/runtime"), 2);
     assert_eq!(selected(&tools).runtime, 1);
     fixture.publish(3, "2026.10.26", GOOD);
     command(&tools, "update");

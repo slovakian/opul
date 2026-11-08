@@ -1,4 +1,3 @@
-use super::manager::{StoredState, cancel, persist};
 use super::*;
 use std::sync::Arc;
 
@@ -15,22 +14,13 @@ impl VideoTools {
             if live.removing {
                 return Err("Video tools are being removed.".into());
             }
-            let stored = StoredState {
-                turned_off: turn_off || live.stored.turned_off,
-                keep_up_to_date: live.stored.keep_up_to_date,
-                notified_updates: live.stored.notified_updates.clone(),
-                ..StoredState::default()
-            };
-            persist(&self.config, &stored)?;
-            cancel(&mut live);
+            live.commit(&self.config, |stored| {
+                *stored = stored.preferences_only(turn_off || stored.turned_off);
+            })?;
+            live.stop_job();
             live.candidate = None;
-            live.stored = stored;
             live.removing = true;
-            live.snapshot.state = if live.stored.turned_off {
-                VideoToolsState::TurnedOff
-            } else {
-                VideoToolsState::NotSetUp
-            };
+            live.snapshot.state = live.stored.resting_state();
             self.publish(&mut live);
         }
         let result: Result<(), String> = (|| {

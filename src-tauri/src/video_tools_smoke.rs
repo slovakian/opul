@@ -49,9 +49,7 @@ fn download(machine: &Arc<OpulStateMachine>, url: String) -> Result<String, Stri
     if std::env::var_os("OPUL_YT_DLP").is_some() {
         return Err("Packaged smoke must use Opul's managed tools, without OPUL_YT_DLP.".into());
     }
-    let tools = machine
-        .video_tools()
-        .ok_or("Video tools module unavailable")?;
+    let tools = machine.video_tools().clone();
     if std::env::var_os("OPUL_SMOKE_VIDEO_RESTART").is_some() {
         if !matches!(tools.snapshot().state, VideoToolsState::Ready { .. }) {
             return Err("Re-setup did not survive restart.".into());

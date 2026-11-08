@@ -1,5 +1,3 @@
-"use client";
-
 import { Progress as ProgressPrimitive } from "@base-ui/react/progress";
 import { cn } from "cn";
 import type * as React from "react";
@@ -54,19 +52,7 @@ const CircularProgress = ({
         "group/circular-progress relative inline-flex shrink-0 items-center justify-center",
         className
       )}
-      style={
-        // SAFETY: Custom properties (--circumference, --percent, --size,
-        // --thickness) are valid CSS but absent from React.CSSProperties.
-        {
-          "--circumference": circumference,
-          "--percent": Math.round(fraction * 100),
-          "--size": `${size}px`,
-          "--thickness": `${thickness}px`,
-          height: size,
-          width: size,
-          ...style,
-        } as React.CSSProperties
-      }
+      style={{ height: size, width: size, ...style }}
       {...props}
     >
       <svg
@@ -107,18 +93,4 @@ const CircularProgress = ({
   );
 };
 
-const CircularProgressValue = ({
-  className,
-  ...props
-}: ProgressPrimitive.Value.Props) => (
-  <ProgressPrimitive.Value
-    data-slot="circular-progress-value"
-    className={cn(
-      "absolute inset-0 flex items-center justify-center text-[0.625rem] font-medium tabular-nums",
-      className
-    )}
-    {...props}
-  />
-);
-
-export { CircularProgress, CircularProgressValue };
+export { CircularProgress };

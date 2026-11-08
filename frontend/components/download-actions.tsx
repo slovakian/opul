@@ -14,6 +14,7 @@ import { SidebarPopover } from "@/components/sidebar-popover";
 import type { MenuAction } from "@/components/sidebar-popover";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
+import { sendVideoTools } from "@/hooks/use-video-tools";
 import { bridge, errorMessage } from "@/lib/bridge";
 import { useLibrary } from "@/lib/library";
 import type { Download, DownloadAction } from "@/lib/model";
@@ -116,7 +117,7 @@ export const DownloadActions = ({
 
   const recoverVideoTools = async () => {
     try {
-      await bridge.videoToolsExecute({
+      await sendVideoTools({
         kind: caps.can_retry_video_tools ? "retry" : "set_up",
       });
     } catch (error) {

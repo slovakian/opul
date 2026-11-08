@@ -55,6 +55,10 @@ export const bridge = {
   async markVideoToolsSetupShown() {
     return z.boolean().parse(await invoke("mark_video_tools_setup_shown"));
   },
+  /** The Help ▸ Set Up Video Tools… menu item. The shell emits each menu item's id. */
+  async onSetUpVideoToolsMenu(handler: () => void) {
+    return await listen("set-up-video-tools", handler);
+  },
   async onVideoTools(onSnapshot: (snapshot: VideoToolsSnapshot) => void) {
     return await listen("video-tools", (event) => {
       const result = videoToolsSchema.safeParse(event.payload);
@@ -109,6 +113,11 @@ export const bridge = {
   async videoToolsExecute(operation: VideoToolsOperation) {
     return videoToolsSchema.parse(
       await invoke("video_tools_execute", { operation })
+    );
+  },
+  async videoToolsRemove(turnOff: boolean) {
+    return videoToolsSchema.parse(
+      await invoke("video_tools_remove", { turnOff })
     );
   },
   async workspaceAppearanceDraft(workspaceId: string) {
