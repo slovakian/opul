@@ -26,7 +26,18 @@ pub(super) fn observe_adapters(
             }
             TorrentState::Seeding => ActivePhase::Seeding,
             TorrentState::Finished => {
-                if let Some(path) = snapshot.content_folder.clone() {
+                let path = snapshot.content_folder.clone().or_else(|| {
+                    let [file] = snapshot.files.as_slice() else {
+                        return None;
+                    };
+                    Some(
+                        Path::new(&snapshot.save_folder)
+                            .join(&file.path)
+                            .to_string_lossy()
+                            .into_owned(),
+                    )
+                });
+                if let Some(path) = path {
                     let _ = actor.observe(Fact::TransferFinished {
                         download,
                         attempt: snapshot.attempt,
