@@ -26,6 +26,7 @@ import {
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Trace, TraceIcon, TraceLine, TraceTitle } from "@/components/ui/trace";
 import { VideoToolsProgress } from "@/components/video-tools-progress";
+import { configureAppUpdates, useAppUpdates } from "@/hooks/use-app-updates";
 import type { useVideoSetup } from "@/hooks/use-video-setup";
 import {
   PERCENT,
@@ -244,6 +245,42 @@ const KeepUpToDate = ({
   </Field>
 );
 
+/** Opul's own updates, saved as soon as it changes. Unchecked unless chosen here or in Settings. */
+const UpdateOpulAutomatically = () => {
+  const { updates } = useAppUpdates();
+
+  return (
+    <Field orientation="horizontal" className="w-fit gap-2">
+      <Checkbox
+        id="setup-update-opul-automatically"
+        checked={
+          updates
+            ? updates.check_automatically && updates.install_automatically
+            : false
+        }
+        disabled={!updates}
+        onCheckedChange={(enabled) => {
+          // Installing automatically needs automatic checks, so choosing it turns them on.
+          void configureAppUpdates(
+            enabled || (updates?.check_automatically ?? true),
+            enabled
+          );
+        }}
+      />
+      <FieldLabel
+        htmlFor="setup-update-opul-automatically"
+        className="font-normal"
+      >
+        Update Opul automatically
+      </FieldLabel>
+      <InfoTip label="About updating Opul automatically">
+        Opul installs signed updates in the background. The new version starts
+        the next time you open Opul.
+      </InfoTip>
+    </Field>
+  );
+};
+
 const FailureAlert = ({ failure }: { failure: NotWorkingState }) => (
   <Alert variant="destructive">
     <AlertTitle>{failureText[failure.reason].summary}</AlertTitle>
@@ -280,7 +317,10 @@ const OfferActions = ({
       {failure ? (
         <FailureAlert failure={failure} />
       ) : (
-        <KeepUpToDate onChange={onKeepUpToDate} video={video} />
+        <div className="flex flex-col gap-2">
+          <UpdateOpulAutomatically />
+          <KeepUpToDate onChange={onKeepUpToDate} video={video} />
+        </div>
       )}
       <div className="flex flex-col gap-1.5">
         <Button

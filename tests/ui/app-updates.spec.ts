@@ -4,7 +4,7 @@ import type { Page } from "@playwright/test";
 
 import type { AppUpdates } from "../../frontend/lib/app-updates";
 import { appUpdates } from "./app-updates-fixture";
-import { mockDesktop, snapshot } from "./fixture";
+import { mockDesktop, preferences, snapshot } from "./fixture";
 
 const available: AppUpdates = {
   ...appUpdates,
@@ -293,4 +293,38 @@ test("the app menu's Check for Updates… opens Updates and checks", async ({
   await expect(settings.getByText(/You're up to date/u)).toBeVisible();
   await settings.getByRole("button", { exact: true, name: "About" }).click();
   await expect(settings.getByText("Opul 0.3.0")).toBeVisible();
+});
+
+test("Setup offers to update Opul automatically, unchecked, above video tools", async ({
+  page,
+}) => {
+  await mockDesktop(page, {
+    preferences: { ...preferences, video_tools_setup_shown: false },
+  });
+  await page.goto("/");
+  const setup = page.getByRole("dialog", { name: "Set Up Video Tools" });
+
+  const opul = setup.getByRole("checkbox", {
+    name: "Update Opul automatically",
+  });
+
+  const tools = setup.getByRole("checkbox", {
+    name: "Keep video tools up to date",
+  });
+
+  await expect(opul).not.toBeChecked();
+
+  const [opulBox, toolsBox] = await Promise.all([
+    opul.boundingBox(),
+    tools.boundingBox(),
+  ]);
+
+  expect(opulBox?.y ?? 0).toBeLessThan(toolsBox?.y ?? 0);
+  await opul.click();
+  await expect(opul).toBeChecked();
+  expect(await lastCommand(page)).toEqual({
+    args: { checkAutomatically: true, installAutomatically: true },
+    name: "app_updates_configure",
+  });
+  await page.screenshot({ path: "test-results/app-updates-setup.png" });
 });
