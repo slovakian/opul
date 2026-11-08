@@ -33,6 +33,7 @@ fn page(state: &AppState) -> Download {
     }
 }
 
+mod removal;
 mod rules;
 mod update_advice;
 

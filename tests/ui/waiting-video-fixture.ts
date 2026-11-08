@@ -36,6 +36,7 @@ export const mockWaitingVideos = async (page: Page) => {
           format: command.kind === "add_url" ? command.format : null,
           name: video ? "Waiting video" : "new-file.zip",
           progress_millionths: video ? 0 : base.progress_millionths,
+          relies_on_video_tools: video,
           source: video ? "VideoPage" : base.source,
           source_url: command.kind === "add_url" ? command.url : command.path,
           state:
@@ -57,6 +58,7 @@ export const mockWaitingVideos = async (page: Page) => {
               download.state !== "Finished"
             ) {
               download.state = "WaitingForVideoTools";
+              download.relies_on_video_tools = true;
               download.capabilities.can_pause = false;
             }
           }

@@ -35,6 +35,7 @@ import {
 import type { useVideoTools } from "@/hooks/use-video-tools";
 import { bridge, errorMessage } from "@/lib/bridge";
 import type {
+  NotWorkingState,
   SetupStep,
   UpdateFlag,
   VideoToolsSnapshot,
@@ -46,8 +47,6 @@ export type Execute = ReturnType<typeof useVideoTools>["execute"];
 type VideoState = VideoToolsSnapshot["state"];
 
 type ReadyState = Extract<VideoState, { kind: "ready" }>;
-
-type NotWorkingState = Extract<VideoState, { kind: "not_working" }>;
 
 export const StatusBadge = ({ state }: { state: VideoState }) => {
   const content = (() => {
@@ -91,7 +90,7 @@ export const StatusBadge = ({ state }: { state: VideoState }) => {
       default: {
         return (
           <Badge variant="outline" className="text-muted-foreground">
-            Not installed
+            Not set up
           </Badge>
         );
       }
@@ -406,7 +405,9 @@ const OfferFooter = ({
   return (
     <Footer stateKey={turnedOff ? "turned-off" : "not-set-up"}>
       {turnedOff ? (
-        <span className="flex-1" />
+        <span className="text-muted-foreground flex-1 truncate text-sm">
+          Video tools are turned off. Opul won&apos;t offer them.
+        </span>
       ) : (
         <Button
           type="button"

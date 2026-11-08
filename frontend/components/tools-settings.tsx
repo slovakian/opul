@@ -142,7 +142,7 @@ const componentRow = (
     }
 
     default: {
-      return { ...base, description: "Not installed", dimmed: true };
+      return { ...base, description: "Not set up", dimmed: true };
     }
   }
 };

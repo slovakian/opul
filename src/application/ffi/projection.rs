@@ -119,6 +119,7 @@ pub(super) fn download_view(download: DownloadProjection) -> MachineDownload {
         };
     MachineDownload {
         needs_video_tools: download.needs_video_tools,
+        relies_on_video_tools: download.relies_on_video_tools,
         id: download.id.to_string(),
         folder_id: download.folder.to_string(),
         name: download.name,

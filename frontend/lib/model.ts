@@ -99,6 +99,7 @@ export const downloadSchema = z.object({
   piece_length: z.number(),
   playlist_index: z.number().nullable(),
   progress_millionths: z.number(),
+  relies_on_video_tools: z.boolean().default(false),
   seed_ratio: z.number(),
   seed_ratio_limit: z.number().nullable(),
   seeds: z.number(),

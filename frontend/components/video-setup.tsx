@@ -27,8 +27,14 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Trace, TraceIcon, TraceLine, TraceTitle } from "@/components/ui/trace";
 import { VideoToolsProgress } from "@/components/video-tools-progress";
 import type { useVideoSetup } from "@/hooks/use-video-setup";
-import { downloadSize, failureText, setupFraction } from "@/lib/video-tools";
+import {
+  PERCENT,
+  downloadSize,
+  failureText,
+  setupFraction,
+} from "@/lib/video-tools";
 import type {
+  NotWorkingState,
   SetupStep,
   VideoToolsOperation,
   VideoToolsSnapshot,
@@ -38,15 +44,11 @@ type Setup = ReturnType<typeof useVideoSetup>;
 
 type Phase = "offer" | "installing" | "ready" | "failed";
 
-type NotWorking = Extract<VideoToolsSnapshot["state"], { kind: "not_working" }>;
-
 /** Entrance stagger. Short gaps so the screen reads as one arrival. */
 const RISE_GAP_MS = 60;
 
 /** The video features light up one after another when setup finishes. */
 const LIGHT_UP_GAP_MS = 90;
-
-const PERCENT = 100;
 
 const UNFINISHED_RING = 0.96;
 
@@ -242,7 +244,7 @@ const KeepUpToDate = ({
   </Field>
 );
 
-const FailureAlert = ({ failure }: { failure: NotWorking }) => (
+const FailureAlert = ({ failure }: { failure: NotWorkingState }) => (
   <Alert variant="destructive">
     <AlertTitle>{failureText[failure.reason].summary}</AlertTitle>
     <AlertDescription className="select-text">
@@ -265,7 +267,7 @@ const OfferActions = ({
 }: {
   acting: boolean;
   close: () => void;
-  failure: NotWorking | null;
+  failure: NotWorkingState | null;
   onKeepUpToDate: (enabled: boolean) => void;
   onPrimary: () => void;
   primary: React.RefObject<HTMLButtonElement | null>;
@@ -343,7 +345,7 @@ const PhaseBody = ({
   acting: boolean;
   close: () => void;
   failedTrace: SetupStep[] | null;
-  failure: NotWorking | null;
+  failure: NotWorkingState | null;
   primary: React.RefObject<HTMLButtonElement | null>;
   run: Run;
   steps: SetupStep[] | null;

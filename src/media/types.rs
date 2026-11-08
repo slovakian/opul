@@ -92,7 +92,7 @@ enum YtDlpProgram {
 
 pub(super) fn video_tools_unavailable() -> CoreError {
     CoreError::DependencyUnavailable {
-        reason: "Video downloads need video tools. Set them up in Settings > Tools.".into(),
+        reason: "Video downloads need video tools. Set them up in Settings › Tools.".into(),
     }
 }
 

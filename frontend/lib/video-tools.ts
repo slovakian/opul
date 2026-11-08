@@ -87,6 +87,13 @@ export type SetupStep = z.infer<typeof setupStepSchema>;
 
 export type UpdateFlag = z.infer<typeof updateFlagSchema>;
 
+export type NotWorkingState = Extract<
+  VideoToolsSnapshot["state"],
+  { kind: "not_working" }
+>;
+
+export const PERCENT = 100;
+
 export type VideoToolsOperation =
   | { kind: "set_up" }
   | { kind: "cancel_setup" }
@@ -145,10 +152,7 @@ export const stepLabel = (status: StepStatus, { compact = false } = {}) =>
     ? "Waiting for internet…"
     : stepLabels[status];
 
-type FailureReason = Extract<
-  VideoToolsSnapshot["state"],
-  { kind: "not_working" }
->["reason"];
+type FailureReason = NotWorkingState["reason"];
 
 /** A short title, the sentence Setup shows, and the hint Settings shows. */
 export const failureText: Record<

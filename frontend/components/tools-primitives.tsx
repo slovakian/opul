@@ -19,9 +19,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { SetupStep } from "@/lib/video-tools";
-import { isIndeterminateStep, stepFraction } from "@/lib/video-tools";
-
-const PERCENT = 100;
+import { PERCENT, isIndeterminateStep, stepFraction } from "@/lib/video-tools";
 
 /** The two parts of the video tools, as Setup and Settings ▸ Tools name them. */
 export const videoToolParts = {

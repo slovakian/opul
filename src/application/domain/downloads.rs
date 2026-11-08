@@ -19,6 +19,13 @@ impl Download {
         matches!(&self.source, DownloadSource::Media(media) if matches!(media.origin, MediaOrigin::Page { .. } | MediaOrigin::PendingPage { .. } | MediaOrigin::Guided { requires_video_tools: true, .. }))
     }
 
+    /// Running on the video tools, about to, or waiting for them: what removing them affects.
+    pub(crate) fn relies_on_video_tools(&self) -> bool {
+        self.needs_video_tools()
+            && (self.lifecycle.would_run()
+                || matches!(self.lifecycle, DownloadLifecycle::WaitingForVideoTools))
+    }
+
     pub(crate) fn active_info_hash(&self) -> Option<&str> {
         if self.lifecycle.is_retired() {
             return None;
@@ -226,6 +233,25 @@ pub(crate) enum DownloadLifecycle {
 impl DownloadLifecycle {
     pub(crate) fn is_retired(&self) -> bool {
         matches!(self, Self::Retiring { .. })
+    }
+
+    /// Running, or about to run without the person doing anything. A person's pause, a recovery
+    /// hold awaiting acknowledgement, a failure or a cancellation is left as it is.
+    pub(crate) fn would_run(&self) -> bool {
+        matches!(
+            self,
+            Self::Queued
+                | Self::Starting
+                | Self::Active(_)
+                | Self::Pausing {
+                    cause: HoldCause::Shutdown,
+                    ..
+                }
+                | Self::Paused {
+                    cause: HoldCause::Shutdown,
+                    ..
+                }
+        )
     }
 
     pub(crate) fn valid_for(&self, source: SourceKind) -> bool {

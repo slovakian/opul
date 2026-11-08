@@ -25,7 +25,7 @@ pub(super) fn decide_reconciled(state: &AppState) -> Result<Decision, Rejection>
                 DownloadLifecycle::WaitingForVideoTools if !tools_missing => {
                     queue_waiting(item, &mut decision);
                 }
-                lifecycle if tools_missing && would_run(lifecycle) => {
+                lifecycle if tools_missing && lifecycle.would_run() => {
                     push_waiting(item, &mut decision);
                 }
                 DownloadLifecycle::Queued | DownloadLifecycle::Starting => {

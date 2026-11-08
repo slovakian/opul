@@ -152,6 +152,8 @@ pub struct MachineTorrentFile {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct MachineDownload {
     pub needs_video_tools: bool,
+    /// Running on the video tools, about to, or waiting for them: what removing them affects.
+    pub relies_on_video_tools: bool,
     pub id: String,
     pub folder_id: String,
     pub name: String,

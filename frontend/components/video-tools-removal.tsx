@@ -23,18 +23,7 @@ export const VideoToolsRemoval = () => {
     library.kind === "ready"
       ? library.snapshot.workspaces
           .flatMap((workspace) => workspace.downloads)
-          .filter(
-            (download) =>
-              (download.needs_video_tools || download.source === "VideoPage") &&
-              [
-                "WaitingForVideoTools",
-                "Queued",
-                "Starting",
-                "Fetching",
-                "Processing",
-                "Pausing",
-              ].includes(download.state)
-          ).length
+          .filter((download) => download.relies_on_video_tools).length
       : 0;
 
   return (

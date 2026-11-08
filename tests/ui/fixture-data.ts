@@ -53,6 +53,7 @@ export const baseDownload: Download = {
   piece_length: 0,
   playlist_index: null,
   progress_millionths: 450_000,
+  relies_on_video_tools: false,
   seed_ratio: 0,
   seed_ratio_limit: null,
   seeds: 0,

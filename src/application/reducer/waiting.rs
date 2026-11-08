@@ -11,33 +11,18 @@ pub(super) fn hold_for_tools(state: &AppState, download: &mut Download) {
     }
 }
 
-/// Running, or about to run without the person doing anything. A person's pause, a recovery
-/// hold awaiting acknowledgement, a failure or a cancellation is left as it is.
-pub(super) fn would_run(lifecycle: &DownloadLifecycle) -> bool {
-    matches!(
-        lifecycle,
-        DownloadLifecycle::Queued
-            | DownloadLifecycle::Starting
-            | DownloadLifecycle::Active(_)
-            | DownloadLifecycle::Pausing {
-                cause: HoldCause::Shutdown,
-                ..
-            }
-            | DownloadLifecycle::Paused {
-                cause: HoldCause::Shutdown,
-                ..
-            }
-    )
-}
-
-pub(super) fn start_effect(download: &Download) -> Option<EffectPlan> {
-    matches!(download.lifecycle, DownloadLifecycle::Queued).then_some(EffectPlan {
+fn ensure_transfer(download: &Download) -> EffectPlan {
+    EffectPlan {
         attempt: Some(download.attempt),
         control_generation: Some(download.control_generation),
         kind: EffectKind::EnsureTransfer {
             download: download.id,
         },
-    })
+    }
+}
+
+pub(super) fn start_effect(download: &Download) -> Option<EffectPlan> {
+    matches!(download.lifecycle, DownloadLifecycle::Queued).then(|| ensure_transfer(download))
 }
 
 pub(super) fn queue_waiting(download: &Download, decision: &mut Decision) {
@@ -46,13 +31,7 @@ pub(super) fn queue_waiting(download: &Download, decision: &mut Decision) {
         lifecycle: DownloadLifecycle::Queued,
         control_generation: download.control_generation,
     });
-    decision.effects.push(EffectPlan {
-        attempt: Some(download.attempt),
-        control_generation: Some(download.control_generation),
-        kind: EffectKind::EnsureTransfer {
-            download: download.id,
-        },
-    });
+    decision.effects.push(ensure_transfer(download));
 }
 
 pub(super) fn decide_video_tools(
@@ -193,7 +172,7 @@ fn hold_running_downloads(state: &AppState) -> Decision {
         .iter()
         .flat_map(|workspace| &workspace.downloads)
     {
-        if download.needs_video_tools() && would_run(&download.lifecycle) {
+        if download.needs_video_tools() && download.lifecycle.would_run() {
             push_waiting(download, &mut decision);
         }
     }
