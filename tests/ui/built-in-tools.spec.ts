@@ -11,8 +11,9 @@ test("Settings identifies FFmpeg and ffprobe as built in", async ({ page }) => {
   await dialog.getByRole("button", { exact: true, name: "Tools" }).click();
   await expect(dialog.getByText("FFmpeg", { exact: true })).toBeVisible();
   await expect(
-    dialog.getByText(/Built in · 9\.0\.2 · with ffprobe/u)
+    dialog.getByText("9.0.2 · ffprobe 9.0.2", { exact: true })
   ).toBeVisible();
+  await expect(dialog.getByText("Built in", { exact: true })).toBeVisible();
   await expect(dialog.getByLabel("FFmpeg path")).toHaveCount(0);
   await expect(dialog.getByText(/Restart Opul/u)).toHaveCount(0);
   await expect(dialog.getByLabel("yt-dlp path")).toHaveCount(0);

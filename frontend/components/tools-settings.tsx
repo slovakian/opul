@@ -1,93 +1,392 @@
-import { useState } from "react";
+import { cn } from "cn";
+import { Braces, Check, Film, Maximize2, MonitorPlay, X } from "lucide-react";
+import type * as React from "react";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-} from "@/components/ui/field";
+  IconAction,
+  InfoTip,
+  ProgressDetails,
+  SectionHeading,
+  ToolRow,
+  megabytes,
+} from "@/components/tools-primitives";
+import { Badge } from "@/components/ui/badge";
+import { CircularProgress } from "@/components/ui/circular-progress";
+import { Field, FieldLabel } from "@/components/ui/field";
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemMedia,
+  ItemTitle,
+} from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { VideoToolsProgress } from "@/components/video-tools-progress";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { StatusBadge, VideoFooter } from "@/components/video-tools-footer";
+import type { Execute } from "@/components/video-tools-footer";
 import { VideoToolsRemoval } from "@/components/video-tools-removal";
 import { useVideoTools } from "@/hooks/use-video-tools";
-import { bridge, errorMessage } from "@/lib/bridge";
-import type { VideoToolsSnapshot } from "@/lib/video-tools";
-import { downloadSize, updateMessage } from "@/lib/video-tools";
+import type { SetupStep, VideoToolsSnapshot } from "@/lib/video-tools";
+import { checkedAgo } from "@/lib/video-tools";
 
-const failureMessages = {
-  download: "The download couldn't finish.",
-  health_check: "The video tools didn't pass their health check.",
-  stopped_working:
-    "The video tools stopped working. Files may be missing or blocked by macOS.",
-  verification: "The download couldn't be verified.",
+const STAGGER_MS = 40;
+const PERCENT = 100;
+
+const stepLabels: Record<SetupStep["status"], string> = {
+  done: "Done",
+  downloading: "Downloading",
+  failed: "Failed",
+  installing: "Installing",
+  pending: "Waiting",
+  verifying: "Verifying",
+  waiting_for_internet: "Waiting for internet…",
 };
 
-const ReadyVideoToolsSettings = ({
-  state,
-  busy,
-  execute,
-  updateAvailable,
-}: {
-  state: Extract<VideoToolsSnapshot["state"], { kind: "ready" }>;
-  busy: boolean;
-  updateAvailable: boolean;
-  execute: ReturnType<typeof useVideoTools>["execute"];
-}) => (
-  <>
-    <output className="text-sm">Ready</output>
-    <p className="text-muted-foreground text-sm">
-      Python runtime {state.installed.runtime} · Python{" "}
-      {state.installed.python_version}
-      <br />
-      yt-dlp {state.installed.yt_dlp}
-    </p>
-    {state.last_checked !== null && (
-      <p className="text-muted-foreground text-xs">
-        Last checked {new Date(state.last_checked * 1000).toLocaleString()}
-      </p>
-    )}
-    <Button
-      type="button"
-      variant="outline"
-      disabled={busy || state.update_flag.kind === "updating"}
-      onClick={() => execute({ kind: "check_for_updates" })}
-    >
-      Check for updates
-    </Button>
-    {updateMessage(state.update_flag) && (
-      <div className="flex flex-wrap items-center gap-2">
-        <output className="text-muted-foreground text-sm">
-          {updateMessage(state.update_flag)}
-        </output>
-        {updateAvailable && (
-          <Button
-            type="button"
-            size="sm"
-            disabled={busy}
-            onClick={() => execute({ kind: "update" })}
-          >
-            Update
-          </Button>
+const activeSteps = new Set<SetupStep["status"]>([
+  "downloading",
+  "installing",
+  "verifying",
+]);
+
+const components = {
+  python: {
+    hint: "The language yt-dlp runs on, plus a JavaScript engine for some sites.",
+    icon: Braces,
+    name: "Python",
+  },
+  yt_dlp: {
+    hint: "Downloads videos and audio from video pages.",
+    icon: MonitorPlay,
+    name: "yt-dlp",
+  },
+} as const;
+
+const stagger = (index: number): React.CSSProperties => ({
+  animationDelay: `${index * STAGGER_MS}ms`,
+});
+
+const stepPercent = (step: SetupStep) => {
+  if (step.status === "done") {
+    return PERCENT;
+  }
+
+  if (!step.total_bytes) {
+    return 0;
+  }
+
+  return Math.min(
+    PERCENT,
+    Math.round((step.downloaded_bytes / step.total_bytes) * PERCENT)
+  );
+};
+
+const StepIndicator = ({ label, step }: { label: string; step: SetupStep }) => {
+  const indeterminate =
+    step.status === "verifying" || step.status === "installing";
+
+  const percent = stepPercent(step);
+  const failed = step.status === "failed";
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <CircularProgress
+            tabIndex={0}
+            aria-label={`${label} progress`}
+            value={indeterminate ? null : percent}
+            size={20}
+            thickness={2.5}
+            className={cn(
+              "focus-visible:ring-ring/50 rounded-full outline-none focus-visible:ring-3",
+              failed &&
+                "[&_[data-slot=circular-progress-range]]:stroke-destructive"
+            )}
+          />
+        }
+      >
+        {step.status === "done" && (
+          <Check
+            aria-hidden="true"
+            strokeWidth={3}
+            className="animate-pop absolute size-2.5"
+          />
         )}
-      </div>
-    )}
-  </>
+        {failed && (
+          <X
+            aria-hidden="true"
+            strokeWidth={3}
+            className="text-destructive animate-pop absolute size-2.5"
+          />
+        )}
+      </TooltipTrigger>
+      <TooltipContent side="left">
+        <ProgressDetails
+          label={stepLabels[step.status]}
+          percent={indeterminate ? null : percent}
+          detail={
+            step.total_bytes !== null && step.status !== "done"
+              ? `${megabytes(step.downloaded_bytes)} of ${megabytes(step.total_bytes)} MB`
+              : undefined
+          }
+        />
+      </TooltipContent>
+    </Tooltip>
+  );
+};
+
+const componentRow = (
+  component: keyof typeof components,
+  video: VideoToolsSnapshot
+): React.ComponentProps<typeof ToolRow> => {
+  const { hint, icon, name } = components[component];
+  const { state } = video;
+  const base = { hint, icon, name };
+
+  switch (state.kind) {
+    case "setting_up": {
+      const step = state.steps.find((item) => item.component === component);
+
+      if (!step) {
+        return { ...base, description: "Waiting", dimmed: true };
+      }
+
+      return {
+        ...base,
+        active: activeSteps.has(step.status),
+        description: stepLabels[step.status],
+        dimmed: step.status === "pending",
+        trailing: <StepIndicator label={`Setting up ${name}`} step={step} />,
+      };
+    }
+
+    case "ready": {
+      const { installed, last_checked: lastChecked } = state;
+
+      if (component === "python") {
+        return {
+          ...base,
+          description: `${installed.python_version} · runtime ${installed.runtime}`,
+        };
+      }
+
+      return {
+        ...base,
+        description:
+          lastChecked === null
+            ? installed.yt_dlp
+            : `${installed.yt_dlp} · ${checkedAgo(lastChecked)}`,
+        trailing: video.use_nightly ? (
+          <Badge variant="outline" className="animate-settle">
+            Nightly
+          </Badge>
+        ) : undefined,
+      };
+    }
+
+    case "not_working": {
+      return { ...base, description: "Unavailable", dimmed: true };
+    }
+
+    default: {
+      return { ...base, description: "Not installed", dimmed: true };
+    }
+  }
+};
+
+const BuiltInTools = ({
+  ffmpeg,
+  ffprobe,
+}: {
+  ffmpeg: string | null;
+  ffprobe: string | null;
+}) => (
+  <section
+    aria-labelledby="built-in-tools"
+    className="animate-settle flex flex-col gap-1.5"
+    style={stagger(0)}
+  >
+    <SectionHeading
+      id="built-in-tools"
+      hint="Ships inside Opul. Torrents and direct files need nothing else."
+    >
+      Included
+    </SectionHeading>
+    <div className="bg-card overflow-hidden rounded-xl border">
+      <Item size="sm" className="flex-nowrap rounded-none px-4 py-3">
+        <ItemMedia
+          variant="icon"
+          className="bg-muted size-8 translate-y-0! self-center! rounded-lg"
+        >
+          <Film />
+        </ItemMedia>
+        <ItemContent className="min-w-0 gap-0.5">
+          <ItemTitle>FFmpeg</ItemTitle>
+          <ItemDescription className="line-clamp-1 text-xs tabular-nums">
+            {ffmpeg
+              ? `${ffmpeg} · ffprobe ${ffprobe ?? "unavailable"}`
+              : "Unavailable"}
+          </ItemDescription>
+        </ItemContent>
+        <ItemActions>
+          {ffmpeg ? (
+            <Badge variant="secondary">Built in</Badge>
+          ) : (
+            <Badge variant="outline">
+              <span
+                aria-hidden="true"
+                className="bg-destructive size-1.5 rounded-full"
+              />
+              Missing
+            </Badge>
+          )}
+        </ItemActions>
+      </Item>
+    </div>
+  </section>
 );
 
-const VideoToolsHeading = ({
-  updateAvailable,
+const VideoTools = ({
+  busy,
+  execute,
+  onVideoSetup,
+  video,
 }: {
-  updateAvailable: boolean;
-}) => (
-  <h3 className="flex flex-wrap items-center gap-2 font-medium">
-    Video tools
-    {updateAvailable && <Badge variant="outline">Update available</Badge>}
-  </h3>
+  busy: boolean;
+  execute: Execute;
+  onVideoSetup: () => void;
+  video: VideoToolsSnapshot;
+}) => {
+  const { state } = video;
+  const canOpenSetup = state.kind !== "ready" && state.kind !== "not_working";
+
+  return (
+    <section
+      aria-labelledby="video-tools"
+      className="animate-settle flex flex-col gap-1.5"
+      style={stagger(1)}
+    >
+      <SectionHeading
+        id="video-tools"
+        hint="Download videos and audio from video pages."
+        trailing={
+          <>
+            {canOpenSetup && (
+              <IconAction
+                icon={Maximize2}
+                label="Open Setup"
+                size="icon-xs"
+                onClick={onVideoSetup}
+              >
+                Set Up Video Tools…
+              </IconAction>
+            )}
+            <StatusBadge state={state} />
+          </>
+        }
+      >
+        Video tools
+      </SectionHeading>
+      <div className="bg-card overflow-hidden rounded-xl border">
+        <ToolRow {...componentRow("python", video)} />
+        <Separator />
+        <ToolRow {...componentRow("yt_dlp", video)} />
+        <VideoFooter busy={busy} execute={execute} video={video} />
+      </div>
+    </section>
+  );
+};
+
+const VideoPreferences = ({
+  busy,
+  execute,
+  video,
+}: {
+  busy: boolean;
+  execute: Execute;
+  video: VideoToolsSnapshot;
+}) => {
+  const removable =
+    video.state.kind === "ready" || video.state.kind === "not_working";
+
+  return (
+    <section
+      aria-label="Video tools preferences"
+      className="animate-settle bg-card divide-y overflow-hidden rounded-xl border"
+      style={stagger(2)}
+    >
+      <Field orientation="horizontal" className="min-h-12 px-4 py-2.5">
+        <FieldLabel
+          htmlFor="keep-video-tools-up-to-date"
+          className="font-normal"
+        >
+          Keep up to date
+        </FieldLabel>
+        <Switch
+          id="keep-video-tools-up-to-date"
+          checked={video.keep_up_to_date}
+          disabled={busy}
+          onCheckedChange={(enabled) =>
+            execute({ enabled, kind: "set_keep_up_to_date" })
+          }
+        />
+      </Field>
+      {video.nightly_available && (
+        <Field orientation="horizontal" className="min-h-12 px-4 py-2.5">
+          <div className="flex flex-1 items-center gap-1.5">
+            <FieldLabel htmlFor="use-yt-dlp-nightly" className="font-normal">
+              Nightly yt-dlp
+            </FieldLabel>
+            <InfoTip label="About nightly yt-dlp">
+              Early yt-dlp builds with the newest site fixes. Applies right
+              away.
+            </InfoTip>
+          </div>
+          <Switch
+            id="use-yt-dlp-nightly"
+            checked={video.use_nightly}
+            disabled={busy}
+            onCheckedChange={(enabled) =>
+              execute({ enabled, kind: "set_use_nightly" })
+            }
+          />
+        </Field>
+      )}
+      {removable && (
+        <div className="animate-settle flex min-h-12 items-center gap-3 px-4 py-2">
+          <span className="flex-1 text-sm">Remove video tools</span>
+          <VideoToolsRemoval busy={busy} execute={execute} />
+        </div>
+      )}
+    </section>
+  );
+};
+
+const ToolsSkeleton = ({ error }: { error: string }) => (
+  <div className="flex flex-col gap-6">
+    {error ? (
+      <p role="alert" className="text-destructive text-sm">
+        {error}
+      </p>
+    ) : (
+      <output className="sr-only">Loading tools…</output>
+    )}
+    <div className="flex flex-col gap-1.5">
+      <Skeleton className="mx-1 h-7 w-16" />
+      <Skeleton className="h-14 w-full rounded-xl" />
+    </div>
+    <div className="flex flex-col gap-1.5">
+      <Skeleton className="mx-1 h-7 w-20" />
+      <Skeleton className="h-40 w-full rounded-xl" />
+    </div>
+  </div>
 );
 
 export const ToolsSettings = ({
@@ -96,183 +395,49 @@ export const ToolsSettings = ({
   onVideoSetup: () => void;
 }) => {
   const { busy, error, execute, tools } = useVideoTools();
-  const [copyError, setCopyError] = useState("");
-  const [copied, setCopied] = useState(false);
-
-  const copyDetails = async () => {
-    try {
-      await navigator.clipboard.writeText(await bridge.videoToolsDetails());
-      setCopied(true);
-    } catch (error_) {
-      setCopyError(errorMessage(error_));
-    }
-  };
 
   if (!tools) {
-    return (
-      <div className="flex flex-col gap-4">
-        <output>{error || "Loading tools…"}</output>
-        {!error && <Skeleton className="h-20 w-full" />}
-      </div>
-    );
+    return <ToolsSkeleton error={error} />;
   }
 
   const { video, built_in: builtIn } = tools;
-  const { state } = video;
-  const initial = state.kind === "not_set_up" || state.kind === "turned_off";
 
   return (
-    <>
-      <p className="text-muted-foreground text-sm">
-        Direct files and torrents work on their own.
-      </p>
-      <FieldGroup>
-        <Field>
-          <FieldLabel>FFmpeg</FieldLabel>
-          <FieldDescription>
-            Built in · {builtIn.ffmpeg ?? "Unavailable"} · with ffprobe{" "}
-            {builtIn.ffprobe ?? "unavailable"}
-          </FieldDescription>
-        </Field>
-      </FieldGroup>
-      <Separator />
-      <section aria-label="Video tools" className="flex flex-col gap-4">
-        <VideoToolsHeading updateAvailable={video.update_available} />
-        <Button type="button" variant="outline" onClick={onVideoSetup}>
-          Set Up Video Tools…
-        </Button>
-        {initial && (
-          <>
-            <p className="text-muted-foreground text-sm">
-              {state.kind === "turned_off"
-                ? "Video tools are turned off. Opul won't offer them."
-                : "Download videos and audio from video pages."}
-            </p>
-            <Button
-              type="button"
-              disabled={busy}
-              onClick={() => execute({ kind: "set_up" })}
-            >
-              Download video tools ({downloadSize(video.published_size)})
-            </Button>
-          </>
-        )}
-        {state.kind === "setting_up" && (
-          <>
-            <VideoToolsProgress steps={state.steps} />
-            <Button
-              type="button"
-              variant="outline"
-              disabled={busy}
-              onClick={() => execute({ kind: "cancel_setup" })}
-            >
-              Cancel setup
-            </Button>
-          </>
-        )}
-        {state.kind === "ready" && (
-          <ReadyVideoToolsSettings
-            state={state}
-            updateAvailable={video.update_available}
-            busy={busy}
-            execute={execute}
-          />
-        )}
-        {state.kind === "not_working" && (
-          <>
-            <output className="text-sm">{failureMessages[state.reason]}</output>
-            <details className="text-muted-foreground text-xs">
-              <summary>Details</summary>
-              <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap">
-                {state.details}
-              </pre>
-            </details>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                disabled={busy}
-                onClick={() => execute({ kind: "retry" })}
-              >
-                Try again
-              </Button>
-              <Button type="button" variant="outline" onClick={copyDetails}>
-                {copied ? "Copied" : "Copy details"}
-              </Button>
-            </div>
-          </>
-        )}
-        {(state.kind === "ready" || state.kind === "not_working") && (
-          <VideoToolsRemoval busy={busy} execute={execute} />
-        )}
-        <FieldGroup>
-          {video.nightly_available && (
-            <Field orientation="horizontal">
-              <FieldContent>
-                <FieldLabel htmlFor="use-yt-dlp-nightly">
-                  Use yt-dlp nightly builds
-                </FieldLabel>
-                <FieldDescription>
-                  Try early yt-dlp changes. Changes take effect immediately.
-                </FieldDescription>
-              </FieldContent>
-              <Switch
-                id="use-yt-dlp-nightly"
-                checked={video.use_nightly}
-                disabled={busy}
-                onCheckedChange={(enabled) =>
-                  execute({ enabled, kind: "set_use_nightly" })
-                }
-              />
-            </Field>
-          )}
-          <Field orientation="horizontal">
-            <FieldContent>
-              <FieldLabel htmlFor="keep-video-tools-up-to-date">
-                Keep video tools up to date
-              </FieldLabel>
-              <FieldDescription>
-                Changes take effect immediately.
-              </FieldDescription>
-            </FieldContent>
-            <Switch
-              id="keep-video-tools-up-to-date"
-              checked={video.keep_up_to_date}
-              disabled={busy}
-              onCheckedChange={(enabled) =>
-                execute({ enabled, kind: "set_keep_up_to_date" })
-              }
-            />
-          </Field>
-        </FieldGroup>
-        {state.kind === "not_set_up" && (
-          <Button
-            type="button"
-            variant="link"
-            disabled={busy}
-            onClick={() => execute({ kind: "turn_off" })}
+    <div className="flex flex-col gap-6">
+      <BuiltInTools ffmpeg={builtIn.ffmpeg} ffprobe={builtIn.ffprobe} />
+      <div className="flex flex-col gap-3">
+        <VideoTools
+          busy={busy}
+          execute={execute}
+          onVideoSetup={onVideoSetup}
+          video={video}
+        />
+        <VideoPreferences busy={busy} execute={execute} video={video} />
+        {error && (
+          <p
+            role="alert"
+            className="text-destructive animate-settle px-1 text-xs"
           >
-            Don&apos;t offer video tools again
-          </Button>
-        )}
-        {(error || copyError) && (
-          <p role="alert" className="text-destructive text-sm">
-            {error || copyError}
+            {error}
           </p>
         )}
-      </section>
-      <p className="text-muted-foreground text-xs">
-        Video downloads use{" "}
+      </div>
+      <p
+        className="text-muted-foreground animate-settle px-1 text-xs"
+        style={stagger(3)}
+      >
+        Powered by{" "}
         <a
-          className="underline"
+          className="hover:text-foreground underline underline-offset-2 transition-colors"
           href="https://github.com/yt-dlp/yt-dlp"
           target="_blank"
           rel="noopener noreferrer"
         >
           yt-dlp
-        </a>
-        , a free and open source project.{" "}
+        </a>{" "}
+        ·{" "}
         <a
-          className="underline"
+          className="hover:text-foreground underline underline-offset-2 transition-colors"
           href="https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md"
           target="_blank"
           rel="noopener noreferrer"
@@ -280,6 +445,6 @@ export const ToolsSettings = ({
           Supported sites
         </a>
       </p>
-    </>
+    </div>
   );
 };

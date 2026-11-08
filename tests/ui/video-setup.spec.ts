@@ -263,7 +263,7 @@ test("Settings reopens Setup without starting it and shares its progress", async
   await page.getByRole("button", { exact: true, name: "Settings" }).click();
   await settings.getByRole("button", { exact: true, name: "Tools" }).click();
   await expect(
-    settings.getByText("Setting up Python", { exact: true })
+    settings.getByRole("progressbar", { name: "Setting up Python progress" })
   ).toBeVisible();
   await settings
     .getByRole("button", { exact: true, name: "Set Up Video Tools…" })

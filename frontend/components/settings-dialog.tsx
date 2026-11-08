@@ -11,7 +11,6 @@ import { useState } from "react";
 import opulLogo from "@/assets/opul-logo.png";
 import { Choice } from "@/components/sidebar-popover";
 import { ToolsSettings } from "@/components/tools-settings";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -34,6 +33,7 @@ import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
@@ -166,9 +166,13 @@ const SettingsContent = ({
                     <span>{item.label}</span>
                   </SidebarMenuButton>
                   {item.label === "Tools" && updateAvailable && (
-                    <Badge variant="outline" className="mb-1 ml-2">
-                      Update available
-                    </Badge>
+                    <SidebarMenuBadge className="animate-pop">
+                      <span
+                        aria-hidden="true"
+                        className="bg-primary size-1.5 rounded-full"
+                      />
+                      <span className="sr-only">Update available</span>
+                    </SidebarMenuBadge>
                   )}
                 </SidebarMenuItem>
               ))}
@@ -180,208 +184,218 @@ const SettingsContent = ({
         <header className="flex h-16 shrink-0 items-center px-6">
           <h2 className="font-medium">{section}</h2>
         </header>
-        <div className="flex flex-1 flex-col gap-6 overflow-y-auto px-6 pb-6">
-          {section === "Appearance" && (
-            <>
-              <p className="text-muted-foreground text-sm">
-                Make yourself at home.
-              </p>
-              <FieldGroup>
-                <Field>
-                  <FieldLabel>Theme</FieldLabel>
-                  <ToggleGroup
-                    aria-label="Color theme"
-                    value={[draft.theme]}
-                    onValueChange={(values) => {
-                      const [theme] = values;
-
-                      if (
-                        theme === "system" ||
-                        theme === "light" ||
-                        theme === "dark"
-                      ) {
-                        setDraft({ ...draft, theme });
-                      }
-                    }}
-                  >
-                    <ToggleGroupItem value="system">System</ToggleGroupItem>
-                    <ToggleGroupItem value="light">Light</ToggleGroupItem>
-                    <ToggleGroupItem value="dark">Dark</ToggleGroupItem>
-                  </ToggleGroup>
-                </Field>
-              </FieldGroup>
-            </>
-          )}
-          {section === "Downloads" && (
-            <>
-              <p className="text-muted-foreground text-sm">
-                Limits apply as soon as you save.
-              </p>
-              <FieldGroup>
-                <Field>
-                  <FieldLabel>Destination in aggregate views</FieldLabel>
-                  <Choice
-                    label="Aggregate destination"
-                    value={draft.aggregate_destination.kind}
-                    options={[
-                      { label: "Ask each time", value: "prompt" },
-                      { label: "Use a default workspace", value: "workspace" },
-                    ]}
-                    onChange={(kind) => {
-                      if (kind === "prompt") {
-                        setDraft({
-                          ...draft,
-                          aggregate_destination: { kind: "prompt" },
-                        });
-                      } else if (workspaces[0]) {
-                        setDraft({
-                          ...draft,
-                          aggregate_destination: {
-                            kind: "workspace",
-                            workspace_id: workspaces[0].id,
-                          },
-                        });
-                      }
-                    }}
-                  />
-                  <FieldDescription>
-                    Applies to All downloads, In progress, and Completed when
-                    you have multiple workspaces.
-                  </FieldDescription>
-                </Field>
-                {draft.aggregate_destination.kind === "workspace" && (
+        <div
+          key={section}
+          className="scroll-fade min-h-0 flex-1 overflow-y-auto px-6 pt-1 pb-6"
+        >
+          <div className="animate-settle flex flex-col gap-6">
+            {section === "Appearance" && (
+              <>
+                <p className="text-muted-foreground text-sm">
+                  Make yourself at home.
+                </p>
+                <FieldGroup>
                   <Field>
-                    <FieldLabel>Default workspace</FieldLabel>
+                    <FieldLabel>Theme</FieldLabel>
+                    <ToggleGroup
+                      aria-label="Color theme"
+                      value={[draft.theme]}
+                      onValueChange={(values) => {
+                        const [theme] = values;
+
+                        if (
+                          theme === "system" ||
+                          theme === "light" ||
+                          theme === "dark"
+                        ) {
+                          setDraft({ ...draft, theme });
+                        }
+                      }}
+                    >
+                      <ToggleGroupItem value="system">System</ToggleGroupItem>
+                      <ToggleGroupItem value="light">Light</ToggleGroupItem>
+                      <ToggleGroupItem value="dark">Dark</ToggleGroupItem>
+                    </ToggleGroup>
+                  </Field>
+                </FieldGroup>
+              </>
+            )}
+            {section === "Downloads" && (
+              <>
+                <p className="text-muted-foreground text-sm">
+                  Limits apply as soon as you save.
+                </p>
+                <FieldGroup>
+                  <Field>
+                    <FieldLabel>Destination in aggregate views</FieldLabel>
                     <Choice
-                      label="Default workspace"
-                      value={draft.aggregate_destination.workspace_id}
-                      options={workspaces.map((workspace) => ({
-                        label: workspace.name,
-                        value: workspace.id,
+                      label="Aggregate destination"
+                      value={draft.aggregate_destination.kind}
+                      options={[
+                        { label: "Ask each time", value: "prompt" },
+                        {
+                          label: "Use a default workspace",
+                          value: "workspace",
+                        },
+                      ]}
+                      onChange={(kind) => {
+                        if (kind === "prompt") {
+                          setDraft({
+                            ...draft,
+                            aggregate_destination: { kind: "prompt" },
+                          });
+                        } else if (workspaces[0]) {
+                          setDraft({
+                            ...draft,
+                            aggregate_destination: {
+                              kind: "workspace",
+                              workspace_id: workspaces[0].id,
+                            },
+                          });
+                        }
+                      }}
+                    />
+                    <FieldDescription>
+                      Applies to All downloads, In progress, and Completed when
+                      you have multiple workspaces.
+                    </FieldDescription>
+                  </Field>
+                  {draft.aggregate_destination.kind === "workspace" && (
+                    <Field>
+                      <FieldLabel>Default workspace</FieldLabel>
+                      <Choice
+                        label="Default workspace"
+                        value={draft.aggregate_destination.workspace_id}
+                        options={workspaces.map((workspace) => ({
+                          label: workspace.name,
+                          value: workspace.id,
+                        }))}
+                        onChange={(workspace_id) =>
+                          setDraft({
+                            ...draft,
+                            aggregate_destination: {
+                              kind: "workspace",
+                              workspace_id,
+                            },
+                          })
+                        }
+                      />
+                      {!workspaces.some(
+                        (workspace) =>
+                          draft.aggregate_destination.kind === "workspace" &&
+                          workspace.id ===
+                            draft.aggregate_destination.workspace_id
+                      ) && (
+                        <FieldDescription>
+                          Choose a workspace. The previous default is
+                          unavailable; downloads will ask for a destination.
+                        </FieldDescription>
+                      )}
+                    </Field>
+                  )}
+                  <Field>
+                    <FieldLabel>Concurrent media downloads</FieldLabel>
+                    <Choice
+                      label="Concurrent downloads"
+                      value={String(draft.concurrent_downloads)}
+                      options={["1", "2", "3", "4", "5", "8"].map((value) => ({
+                        label: `${value} at a time`,
+                        value,
                       }))}
-                      onChange={(workspace_id) =>
+                      onChange={(value) =>
                         setDraft({
                           ...draft,
-                          aggregate_destination: {
-                            kind: "workspace",
-                            workspace_id,
-                          },
+                          concurrent_downloads: Number(value),
                         })
                       }
                     />
-                    {!workspaces.some(
-                      (workspace) =>
-                        draft.aggregate_destination.kind === "workspace" &&
-                        workspace.id ===
-                          draft.aggregate_destination.workspace_id
-                    ) && (
-                      <FieldDescription>
-                        Choose a workspace. The previous default is unavailable;
-                        downloads will ask for a destination.
-                      </FieldDescription>
-                    )}
-                  </Field>
-                )}
-                <Field>
-                  <FieldLabel>Concurrent media downloads</FieldLabel>
-                  <Choice
-                    label="Concurrent downloads"
-                    value={String(draft.concurrent_downloads)}
-                    options={["1", "2", "3", "4", "5", "8"].map((value) => ({
-                      label: `${value} at a time`,
-                      value,
-                    }))}
-                    onChange={(value) =>
-                      setDraft({
-                        ...draft,
-                        concurrent_downloads: Number(value),
-                      })
-                    }
-                  />
-                  <FieldDescription>
-                    Applies to video pages and direct file downloads.
-                  </FieldDescription>
-                </Field>
-                {numberField(
-                  "max_download_kbps",
-                  "Max download speed (KB/s, 0 for unlimited)"
-                )}
-                {numberField(
-                  "max_upload_kbps",
-                  "Max upload speed (KB/s, 0 for unlimited)"
-                )}
-              </FieldGroup>
-            </>
-          )}
-          {section === "BitTorrent" && (
-            <>
-              <p className="text-muted-foreground text-sm">
-                Connection changes take effect when you restart Opul.
-              </p>
-              <FieldGroup>
-                <Field orientation="horizontal">
-                  <FieldContent>
-                    <FieldLabel htmlFor="dht">Peer discovery</FieldLabel>
                     <FieldDescription>
-                      Find peers using the DHT network.
+                      Applies to video pages and direct file downloads.
                     </FieldDescription>
-                  </FieldContent>
-                  <Switch
-                    id="dht"
-                    checked={draft.enable_dht}
-                    onCheckedChange={(checked) =>
-                      setDraft({ ...draft, enable_dht: checked })
-                    }
-                  />
-                </Field>
-                <Field orientation="horizontal">
-                  <FieldContent>
-                    <FieldLabel htmlFor="random-port">
-                      Randomize listen port
-                    </FieldLabel>
-                  </FieldContent>
-                  <Switch
-                    id="random-port"
-                    checked={draft.randomize_port}
-                    onCheckedChange={(checked) =>
-                      setDraft({ ...draft, randomize_port: checked })
-                    }
-                  />
-                </Field>
-                {!draft.randomize_port &&
-                  numberField("listen_port", "Listen port", 1, 65_535)}
-                {numberField(
-                  "max_connections",
-                  "Maximum connections",
-                  1,
-                  10_000
-                )}
-              </FieldGroup>
-            </>
-          )}
-          {section === "Workspaces" && (
-            <WorkspaceSettings draft={draft} setDraft={setDraft} />
-          )}
-          {section === "Tools" && <ToolsSettings onVideoSetup={onVideoSetup} />}
-          {section === "About" && (
-            <div className="flex flex-col items-start gap-4 py-4">
-              <img src={opulLogo} alt="" className="size-12" />
-              <div>
-                <h3 className="text-lg font-semibold">Opul</h3>
+                  </Field>
+                  {numberField(
+                    "max_download_kbps",
+                    "Max download speed (KB/s, 0 for unlimited)"
+                  )}
+                  {numberField(
+                    "max_upload_kbps",
+                    "Max upload speed (KB/s, 0 for unlimited)"
+                  )}
+                </FieldGroup>
+              </>
+            )}
+            {section === "BitTorrent" && (
+              <>
                 <p className="text-muted-foreground text-sm">
-                  A quiet home for your downloads.
+                  Connection changes take effect when you restart Opul.
+                </p>
+                <FieldGroup>
+                  <Field orientation="horizontal">
+                    <FieldContent>
+                      <FieldLabel htmlFor="dht">Peer discovery</FieldLabel>
+                      <FieldDescription>
+                        Find peers using the DHT network.
+                      </FieldDescription>
+                    </FieldContent>
+                    <Switch
+                      id="dht"
+                      checked={draft.enable_dht}
+                      onCheckedChange={(checked) =>
+                        setDraft({ ...draft, enable_dht: checked })
+                      }
+                    />
+                  </Field>
+                  <Field orientation="horizontal">
+                    <FieldContent>
+                      <FieldLabel htmlFor="random-port">
+                        Randomize listen port
+                      </FieldLabel>
+                    </FieldContent>
+                    <Switch
+                      id="random-port"
+                      checked={draft.randomize_port}
+                      onCheckedChange={(checked) =>
+                        setDraft({ ...draft, randomize_port: checked })
+                      }
+                    />
+                  </Field>
+                  {!draft.randomize_port &&
+                    numberField("listen_port", "Listen port", 1, 65_535)}
+                  {numberField(
+                    "max_connections",
+                    "Maximum connections",
+                    1,
+                    10_000
+                  )}
+                </FieldGroup>
+              </>
+            )}
+            {section === "Workspaces" && (
+              <WorkspaceSettings draft={draft} setDraft={setDraft} />
+            )}
+            {section === "Tools" && (
+              <ToolsSettings onVideoSetup={onVideoSetup} />
+            )}
+            {section === "About" && (
+              <div className="flex flex-col items-start gap-4 py-4">
+                <img src={opulLogo} alt="" className="size-12" />
+                <div>
+                  <h3 className="text-lg font-semibold">Opul</h3>
+                  <p className="text-muted-foreground text-sm">
+                    A quiet home for your downloads.
+                  </p>
+                </div>
+                <Separator />
+                <p className="text-muted-foreground text-sm">
+                  Built with Tauri, Base UI, and the Opul Rust core. Free and
+                  open source under the MIT license.
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  Version 0.1.0 · Updates are available on GitHub.
                 </p>
               </div>
-              <Separator />
-              <p className="text-muted-foreground text-sm">
-                Built with Tauri, Base UI, and the Opul Rust core. Free and open
-                source under the MIT license.
-              </p>
-              <p className="text-muted-foreground text-xs">
-                Version 0.1.0 · Updates are available on GitHub.
-              </p>
-            </div>
-          )}
+            )}
+          </div>
         </div>
         <footer className="flex justify-end gap-2 px-6 py-4">
           {section === "Tools" ? (

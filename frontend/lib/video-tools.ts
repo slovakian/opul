@@ -102,34 +102,32 @@ export type VideoToolsOperation =
 export const downloadSize = (bytes: number | null) =>
   bytes === null ? "about 23 MB" : `${(bytes / 1_000_000).toFixed(1)} MB`;
 
-export const updateMessage = (flag: UpdateFlag): string | null => {
-  switch (flag.kind) {
-    case "none": {
-      return null;
-    }
+const SECONDS_PER_MINUTE = 60;
 
-    case "available": {
-      return `${flag.version} is available.`;
-    }
+const relativeUnits = [
+  ["year", 31_536_000],
+  ["month", 2_592_000],
+  ["week", 604_800],
+  ["day", 86_400],
+  ["hour", 3600],
+  ["minute", SECONDS_PER_MINUTE],
+] as const;
 
-    case "updating": {
-      return `Updating to ${flag.version}… ${flag.progress}%`;
-    }
+const relativeTime = new Intl.RelativeTimeFormat(undefined, {
+  numeric: "auto",
+});
 
-    case "failed": {
-      return `Couldn't update to ${flag.version}. Opul will try again.`;
-    }
+/** "checked 3 days ago" for a Unix timestamp in seconds. */
+export const checkedAgo = (seconds: number, now = Date.now()): string => {
+  const elapsed = now / 1000 - seconds;
 
-    case "waiting_for_runtime": {
-      return `${flag.version} needs a newer Python runtime. Opul will update when one is available.`;
-    }
-
-    default: {
-      const exhaustive: never = flag;
-
-      return exhaustive;
+  for (const [unit, size] of relativeUnits) {
+    if (elapsed >= size) {
+      return `checked ${relativeTime.format(-Math.floor(elapsed / size), unit)}`;
     }
   }
+
+  return "checked just now";
 };
 
 export const setupProgress = (steps: SetupStep[]): string => {

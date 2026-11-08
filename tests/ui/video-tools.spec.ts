@@ -39,11 +39,11 @@ test("Settings requires consent and saves the tools preference immediately", asy
   await expect(
     dialog.getByRole("button", {
       exact: true,
-      name: "Download video tools (about 23 MB)",
+      name: "Download ~23 MB",
     })
   ).toBeVisible();
   await expect(
-    dialog.getByRole("switch", { name: "Keep video tools up to date" })
+    dialog.getByRole("switch", { name: "Keep up to date" })
   ).toBeChecked();
   await expect(
     dialog.getByRole("button", { name: "Save changes" })
@@ -51,20 +51,18 @@ test("Settings requires consent and saves the tools preference immediately", asy
   await expect(
     dialog.getByRole("button", { name: "Cancel setup" })
   ).toHaveCount(0);
-  await dialog
-    .getByRole("switch", { name: "Keep video tools up to date" })
-    .click();
+  await dialog.getByRole("switch", { name: "Keep up to date" }).click();
   await expect(
-    dialog.getByRole("switch", { name: "Keep video tools up to date" })
+    dialog.getByRole("switch", { name: "Keep up to date" })
   ).not.toBeChecked();
   await dialog.getByRole("button", { exact: true, name: "Done" }).click();
   await page.reload();
   const reopened = await openTools(page);
   await expect(
-    reopened.getByRole("switch", { name: "Keep video tools up to date" })
+    reopened.getByRole("switch", { name: "Keep up to date" })
   ).not.toBeChecked();
   await expect(
-    reopened.getByRole("button", { name: /Download video tools/u })
+    reopened.getByRole("button", { name: /^Download ~?[\d.]+ MB$/u })
   ).toBeVisible();
 
   const audit = await new AxeBuilder({ page })
@@ -80,30 +78,26 @@ test("turning off persists and explicit Settings consent starts setup", async ({
   await mockDesktop(page, { persist: true });
   await page.goto("/");
   const dialog = await openTools(page);
-  await dialog
-    .getByRole("button", { name: "Don't offer video tools again" })
-    .click();
-  await expect(
-    dialog.getByText("Video tools are turned off. Opul won't offer them.")
-  ).toBeVisible();
+  await dialog.getByRole("button", { name: "Don't offer again" }).click();
+  await expect(dialog.getByText("Turned off", { exact: true })).toBeVisible();
   await dialog.getByRole("button", { exact: true, name: "Done" }).click();
   await page.reload();
   const reopened = await openTools(page);
+  await expect(reopened.getByText("Turned off", { exact: true })).toBeVisible();
+  await reopened
+    .getByRole("button", { name: /^Download ~?[\d.]+ MB$/u })
+    .click();
   await expect(
-    reopened.getByText("Video tools are turned off. Opul won't offer them.")
+    reopened.getByRole("progressbar", { name: "Setting up Python progress" })
   ).toBeVisible();
-  await reopened.getByRole("button", { name: /Download video tools/u }).click();
   await expect(
-    reopened.getByText("Setting up Python", { exact: true })
-  ).toBeVisible();
-  await expect(
-    reopened.getByText("Setting up yt-dlp", { exact: true })
+    reopened.getByRole("progressbar", { name: "Setting up yt-dlp progress" })
   ).toBeVisible();
   await reopened
     .getByRole("button", { exact: true, name: "Cancel setup" })
     .click();
   await expect(
-    reopened.getByRole("button", { name: /Download video tools/u })
+    reopened.getByRole("button", { name: /^Download ~?[\d.]+ MB$/u })
   ).toBeVisible();
 });
 
@@ -118,10 +112,10 @@ test("pushed progress, published size and Ready versions replace the initial sta
   await expect(
     dialog.getByRole("button", {
       exact: true,
-      name: "Download video tools (20.1 MB)",
+      name: "Download 20.1 MB",
     })
   ).toBeVisible();
-  await dialog.getByRole("button", { name: /Download video tools/u }).click();
+  await dialog.getByRole("button", { name: /^Download ~?[\d.]+ MB$/u }).click();
   await push(page, {
     ...initial,
     sequence: 10,
@@ -170,9 +164,9 @@ test("pushed progress, published size and Ready versions replace the initial sta
   });
   await expect(dialog.getByText("Ready", { exact: true })).toBeVisible();
   await expect(
-    dialog.getByText(/Python runtime 1 · Python 3\.13\.18/u)
+    dialog.getByText("3.13.18 · runtime 1", { exact: true })
   ).toBeVisible();
-  await expect(dialog.getByText(/yt-dlp 2026\.10\.26/u)).toBeVisible();
+  await expect(dialog.getByText(/^2026\.10\.26/u)).toBeVisible();
   await expect(
     dialog.getByRole("button", { exact: true, name: "Cancel setup" })
   ).toHaveCount(0);
@@ -198,20 +192,18 @@ test("failed setup offers retry and reports preference persistence errors", asyn
   await page.goto("/");
   const dialog = await openTools(page);
   await expect(
-    dialog.getByText("The download couldn't be verified.")
+    dialog.getByText("Couldn't verify", { exact: true })
   ).toBeVisible();
-  await dialog
-    .getByRole("switch", { name: "Keep video tools up to date" })
-    .click();
+  await dialog.getByRole("switch", { name: "Keep up to date" }).click();
   await expect(dialog.getByRole("alert")).toHaveText(
     "Couldn't save the video tools preference."
   );
   await expect(
-    dialog.getByRole("switch", { name: "Keep video tools up to date" })
+    dialog.getByRole("switch", { name: "Keep up to date" })
   ).toBeChecked();
   await dialog.getByRole("button", { exact: true, name: "Try again" }).click();
   await expect(
-    dialog.getByText("Setting up Python", { exact: true })
+    dialog.getByRole("progressbar", { name: "Setting up Python progress" })
   ).toBeVisible();
 });
 
@@ -246,7 +238,7 @@ for (const update of [
       dialog.getByRole("status").filter({ hasText: "2026.11.01" })
     ).toHaveCount(1);
     await expect(dialog.getByText("Ready", { exact: true })).toBeVisible();
-    await expect(dialog.getByText(/Last checked/u)).toBeVisible();
+    await expect(dialog.getByText(/· checked /u)).toBeVisible();
 
     const audit = await new AxeBuilder({ page })
       .include('[role="dialog"]')
@@ -284,7 +276,7 @@ test("offline setup keeps its progress, resumes on a pushed snapshot and can be 
   await page.goto("/");
   const dialog = await openTools(page);
   await expect(
-    dialog.getByText("Waiting for an internet connection…", { exact: true })
+    dialog.getByText("Waiting for internet…", { exact: true })
   ).toBeVisible();
 
   const progress = dialog.getByRole("progressbar", {
@@ -316,9 +308,7 @@ test("offline setup keeps its progress, resumes on a pushed snapshot and can be 
       ],
     },
   });
-  await expect(
-    dialog.getByText("Waiting for an internet connection…")
-  ).toHaveCount(0);
+  await expect(dialog.getByText("Waiting for internet…")).toHaveCount(0);
   await expect(progress).toHaveAttribute("aria-valuenow", "75");
   await push(page, { ...waiting, sequence: 11 });
 
@@ -332,25 +322,24 @@ test("offline setup keeps its progress, resumes on a pushed snapshot and can be 
     .getByRole("button", { exact: true, name: "Cancel setup" })
     .click();
   await expect(
-    dialog.getByRole("button", { name: /Download video tools/u })
+    dialog.getByRole("button", { name: /^Download ~?[\d.]+ MB$/u })
   ).toBeVisible();
 });
 
 for (const failure of [
   {
     details: "HTTP 503 after three retries.",
-    message: "The download couldn't finish.",
+    message: "Download failed",
     reason: "download",
   },
   {
     details: "The SHA-256 checksum did not match.",
-    message: "The download couldn't be verified.",
+    message: "Couldn't verify",
     reason: "verification",
   },
   {
     details: "bin/python3: Permission denied.",
-    message:
-      "The video tools stopped working. Files may be missing or blocked by macOS.",
+    message: "Stopped working",
     reason: "stopped_working",
   },
 ] as const) {
@@ -406,7 +395,7 @@ for (const failure of [
       .getByRole("button", { exact: true, name: "Try again" })
       .click();
     await expect(
-      dialog.getByText("Setting up Python", { exact: true })
+      dialog.getByRole("progressbar", { name: "Setting up Python progress" })
     ).toBeVisible();
   });
 }
@@ -435,9 +424,11 @@ test("manual check and Update work in Ready with one live status line", async ({
     .getByRole("button", { exact: true, name: "Check for updates" })
     .click();
   await expect(dialog.getByText("2026.11.01 is available.")).toBeVisible();
-  await expect(dialog.getByText(/Last checked/u)).toBeVisible();
+  await expect(dialog.getByText(/· checked /u)).toBeVisible();
   await dialog.getByRole("button", { exact: true, name: "Update" }).click();
-  await expect(dialog.getByText("Updating to 2026.11.01… 0%")).toBeVisible();
+  await expect(
+    dialog.getByText("Updating to 2026.11.01…", { exact: true })
+  ).toBeVisible();
   await expect(dialog.getByText("Ready", { exact: true })).toBeVisible();
   await expect(
     dialog.getByRole("status").filter({ hasText: "2026.11.01" })
@@ -463,9 +454,7 @@ test("manual check and Update work in Ready with one live status line", async ({
       update_flag: { kind: "none" },
     },
   });
-  await expect(
-    dialog.getByText("yt-dlp 2026.11.01", { exact: false })
-  ).toBeVisible();
+  await expect(dialog.getByText(/^2026\.11\.01 · checked/u)).toBeVisible();
   await expect(
     dialog.getByRole("status").filter({ hasText: "Updating to" })
   ).toHaveCount(0);
@@ -578,12 +567,12 @@ for (const turnOff of [false, true]) {
       .click();
     await expect(confirmation).toHaveCount(0);
     await expect(
-      settings.getByRole("button", { name: /Download video tools/u })
+      settings.getByRole("button", { name: /^Download ~?[\d.]+ MB$/u })
     ).toBeVisible();
 
     if (turnOff) {
       await expect(
-        settings.getByText("Video tools are turned off. Opul won't offer them.")
+        settings.getByText("Turned off", { exact: true })
       ).toBeVisible();
     }
 
@@ -591,7 +580,7 @@ for (const turnOff of [false, true]) {
     await page.reload();
     const reopened = await openTools(page);
     await expect(
-      reopened.getByRole("button", { name: /Download video tools/u })
+      reopened.getByRole("button", { name: /^Download ~?[\d.]+ MB$/u })
     ).toBeVisible();
     await reopened.getByRole("button", { exact: true, name: "Done" }).click();
     await expect(
@@ -620,7 +609,7 @@ for (const nightly of [false, true]) {
     const dialog = await openTools(page);
 
     const control = dialog.getByRole("switch", {
-      name: "Use yt-dlp nightly builds",
+      name: "Nightly yt-dlp",
     });
 
     if (!nightly) {
@@ -636,7 +625,7 @@ for (const nightly of [false, true]) {
     await page.reload();
     const reopened = await openTools(page);
     await expect(
-      reopened.getByRole("switch", { name: "Use yt-dlp nightly builds" })
+      reopened.getByRole("switch", { name: "Nightly yt-dlp" })
     ).toBeChecked();
 
     const audit = await new AxeBuilder({ page })

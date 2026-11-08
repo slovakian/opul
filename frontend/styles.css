@@ -130,6 +130,39 @@ a {
     animation-duration: 0s !important;
     transition-duration: 0s !important;
   }
+  /* Scroll fades are scroll-driven masks, not motion. A zero duration would
+     pin them to their end state and fade the top edge at rest. */
+  [class*="scroll-fade"] {
+    animation-duration: 1ms !important;
+  }
+}
+
+@theme {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --animate-settle: settle 220ms var(--ease-out) both;
+  --animate-pop: pop 240ms var(--ease-out) both;
+
+  /* Content swapping in place: fade up a hair and un-blur so the old and new
+     states read as one element changing rather than two overlapping. */
+  @keyframes settle {
+    from {
+      opacity: 0;
+      filter: blur(2px);
+      transform: translateY(3px);
+    }
+  }
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+  }
+  @keyframes circular-progress-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
 }
 
 @theme inline {

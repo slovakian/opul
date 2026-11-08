@@ -47,6 +47,7 @@ export const VideoToolsRemoval = ({
       <Button
         type="button"
         variant="outline"
+        size="sm"
         disabled={busy}
         onClick={() => {
           setTurnOff(false);

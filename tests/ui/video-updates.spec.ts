@@ -108,13 +108,13 @@ test("notification Update starts installation with progress confined to Settings
   ).toHaveCount(0);
   await settings.getByRole("button", { exact: true, name: "Tools" }).click();
   await expect(
-    settings.getByText("Updating to 2026.11.01… 0%", { exact: true })
+    settings.getByText("Updating to 2026.11.01…", { exact: true })
   ).toBeVisible();
   await settings
-    .getByText("Updating to 2026.11.01… 0%", { exact: true })
+    .getByText("Updating to 2026.11.01…", { exact: true })
     .scrollIntoViewIfNeeded();
   await expect(settings.getByText("Ready", { exact: true })).toBeVisible();
-  await expect(settings.getByText("yt-dlp 2026.10.26")).toBeVisible();
+  await expect(settings.getByText(/^2026\.10\.26/u)).toBeVisible();
 
   const audit = await new AxeBuilder({ page })
     .include('[role="dialog"]')
