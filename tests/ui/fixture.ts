@@ -9,11 +9,13 @@ import { mockPreferenceResponses } from "./preference-response-fixture";
 import { mockVideoTools } from "./video-tools-fixture";
 import { mockWaitingVideos } from "./waiting-video-fixture";
 import { mockWorkspaceExpansion } from "./workspace-expansion-fixture";
+import { mockWorkspaceRemoval } from "./workspace-removal-fixture";
 
 export { preferences, snapshot } from "./fixture-data";
 
 export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
   await mockVideoTools(page, options);
+  await mockWorkspaceRemoval(page, options);
   await mockWaitingVideos(page);
   await mockFolderAddition(page, options);
   await mockWorkspaceExpansion(page, options);
@@ -420,47 +422,7 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
                 }
               }
 
-              if (command.kind === "delete_workspace") {
-                if (mockOpts.workspaceDeletion === "rejected") {
-                  throw new Error("Couldn't delete workspace. Try again.");
-                }
-
-                if (mockOpts.workspaceDeletion !== "deferred") {
-                  currentSnapshot.workspaces =
-                    currentSnapshot.workspaces.filter(
-                      (workspace) => workspace.id !== command.workspace_id
-                    );
-                }
-              }
-
-              if (command.kind === "remove_folder") {
-                if (mockOpts.folderRemoval === "rejected") {
-                  throw new Error("Couldn't remove saved folder. Try again.");
-                }
-
-                const targetWorkspace = currentSnapshot.workspaces.find(
-                  (item) => item.id === command.request.workspace_id
-                );
-
-                if (!targetWorkspace || targetWorkspace.folders.length === 1) {
-                  throw new Error("A workspace must keep a saved folder.");
-                }
-
-                if (mockOpts.folderRemoval !== "deferred") {
-                  targetWorkspace.folders = targetWorkspace.folders.filter(
-                    (item) => item.id !== command.request.folder_id
-                  );
-                  targetWorkspace.downloads = targetWorkspace.downloads.filter(
-                    (item) => item.folder_id !== command.request.folder_id
-                  );
-
-                  if (
-                    !targetWorkspace.folders.some((item) => item.is_default)
-                  ) {
-                    targetWorkspace.folders[0].is_default = true;
-                  }
-                }
-              }
+              window.testWorkspaceRemoval.execute(command, currentSnapshot);
 
               const createdDownloadIds: string[] = [];
 
