@@ -12,6 +12,7 @@ import {
   HardDriveDownload,
   Pause,
 } from "lucide-react";
+import type { MouseEvent } from "react";
 
 import { DownloadActions } from "@/components/download-actions";
 import { Button } from "@/components/ui/button";
@@ -42,7 +43,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { VideoToolsUpdateAdvice } from "@/components/video-tools-update-advice";
-import type { Download, Workspace } from "@/lib/model";
+import type { Download, ListStyle, Workspace } from "@/lib/model";
 import { bytes, sourceHost, stateNames, timeRemaining } from "@/lib/model";
 import { cn } from "@/lib/utils";
 
@@ -120,9 +121,43 @@ export const DownloadStatus = ({ download }: { download: Download }) => (
 const progress = (download: Download) =>
   Math.min(100, Math.max(0, download.progress_millionths / 10_000));
 
+// Cards mirror the outline button: a raised surface with its own border.
+// Minimal keeps rows flat until they are hovered or selected.
+const listItemStyles = {
+  cards: {
+    group: "gap-2",
+    item: "border-border bg-background shadow-xs hover:bg-muted/50 dark:border-input dark:bg-input/30 dark:hover:bg-input/50 data-[selected=true]:border-ring data-[selected=true]:bg-muted/50 data-[selected=true]:ring-1 data-[selected=true]:ring-ring/30 dark:data-[selected=true]:border-ring dark:data-[selected=true]:bg-input/50",
+    variant: "outline",
+  },
+  minimal: {
+    group: "gap-1",
+    item: "hover:bg-muted/30 data-[selected=true]:bg-muted/50 data-[selected=true]:ring-1 data-[selected=true]:ring-border data-[selected=true]:ring-inset",
+    variant: "default",
+  },
+} as const satisfies Record<
+  ListStyle,
+  { group: string; item: string; variant: "default" | "outline" }
+>;
+
+const interactiveTarget =
+  "a, button, input, select, textarea, [role='menuitem']";
+
+/** Row clicks select the download, except when they land on its own controls. */
+const selectsRow = (event: MouseEvent<HTMLElement>) => {
+  const { currentTarget, target } = event;
+
+  return (
+    target instanceof Element &&
+    // Clicks inside portaled menus still bubble through React's tree.
+    currentTarget.contains(target) &&
+    !target.closest(interactiveTarget)
+  );
+};
+
 export const Downloads = ({
   downloads,
   layout,
+  listStyle = "cards",
   selectedId,
   onInspect,
   onRemove,
@@ -131,6 +166,7 @@ export const Downloads = ({
 }: {
   downloads: Download[];
   layout: Workspace["layout"];
+  listStyle?: ListStyle;
   selectedId?: string;
   onInspect: (download: Download) => void;
   onRemove: (download: Download) => void;
@@ -238,8 +274,10 @@ export const Downloads = ({
     );
   }
 
+  const styles = listItemStyles[listStyle];
+
   return (
-    <ItemGroup className="gap-1">
+    <ItemGroup className={styles.group} data-list-style={listStyle}>
       {downloads.map((download) => {
         const Icon = fileIcon(download);
 
@@ -264,8 +302,16 @@ export const Downloads = ({
             key={download.id}
             // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role
             role="listitem"
+            variant={styles.variant}
             data-selected={selectedId === download.id}
-            className="data-[selected=true]:bg-muted/70 hover:bg-muted/40 transition-colors"
+            className={styles.item}
+            // Keyboard users select through the focusable name button below.
+            // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+            onClick={(event) => {
+              if (selectsRow(event)) {
+                onInspect(download);
+              }
+            }}
           >
             <ItemMedia
               variant="icon"

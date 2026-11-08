@@ -307,6 +307,7 @@ const App = () => {
               display={display}
               effectiveFilter={effectiveFilter}
               groups={groups}
+              listStyle={preferences?.list_style ?? "cards"}
               onInspect={(download) => setSelectedId(download.id)}
               onRemove={(download) => setModal({ download, kind: "remove" })}
               onNew={newDownload}
