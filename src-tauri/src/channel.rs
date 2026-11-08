@@ -61,6 +61,24 @@ impl ReleaseChannel {
         }
     }
 
+    /// The channel name the frontend shows next to the version.
+    #[must_use]
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::Stable => "stable",
+            Self::Nightly => "nightly",
+        }
+    }
+
+    /// The GitHub release page that describes `version`. Nightly has one rolling release.
+    #[must_use]
+    pub fn release_notes_url(self, version: &str) -> String {
+        match self {
+            Self::Stable => format!("https://github.com/slovakian/opul/releases/tag/v{version}"),
+            Self::Nightly => "https://github.com/slovakian/opul/releases/tag/nightly".into(),
+        }
+    }
+
     #[must_use]
     pub fn data_directory_name(self) -> &'static str {
         self.app_name()
@@ -111,6 +129,20 @@ mod tests {
 
         let channel_name = ReleaseChannel::detect("dev.opul.app", "Opul Nightly", None);
         assert_eq!(channel_name, ReleaseChannel::Nightly);
+    }
+
+    #[test]
+    fn release_notes_link_to_the_channel_release_page() {
+        assert_eq!(ReleaseChannel::Stable.id(), "stable");
+        assert_eq!(ReleaseChannel::Nightly.id(), "nightly");
+        assert_eq!(
+            ReleaseChannel::Stable.release_notes_url("0.3.0"),
+            "https://github.com/slovakian/opul/releases/tag/v0.3.0"
+        );
+        assert_eq!(
+            ReleaseChannel::Nightly.release_notes_url("0.3.1-nightly.20261109.2"),
+            "https://github.com/slovakian/opul/releases/tag/nightly"
+        );
     }
 
     #[test]

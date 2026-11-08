@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod app_updates;
 mod channel;
 mod commands;
 mod desktop;
@@ -98,6 +99,102 @@ fn data_directory(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     ))
 }
 
+/// The app, File, Edit and Help menus. Each item's id is emitted to the frontend.
+#[cfg(target_os = "macos")]
+fn install_menu(app: &tauri::App) -> tauri::Result<()> {
+    use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
+    let channel = current_channel(app.handle());
+    let app_name = channel.app_name();
+    let about_title = format!("About {app_name}");
+    let settings = MenuItem::with_id(app, "settings", "Settings…", true, Some("CmdOrCtrl+,"))?;
+    let check_for_updates = MenuItem::with_id(
+        app,
+        "check-for-updates",
+        "Check for Updates…",
+        true,
+        None::<&str>,
+    )?;
+    let add = MenuItem::with_id(
+        app,
+        "new-download",
+        "New Download…",
+        true,
+        Some("CmdOrCtrl+N"),
+    )?;
+    let app_menu = Submenu::with_items(
+        app,
+        app_name,
+        true,
+        &[
+            &PredefinedMenuItem::about(app, Some(&about_title), None)?,
+            &check_for_updates,
+            &PredefinedMenuItem::separator(app)?,
+            &settings,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::hide(app, None)?,
+            &PredefinedMenuItem::quit(app, None)?,
+        ],
+    )?;
+    let file = Submenu::with_items(
+        app,
+        "File",
+        true,
+        &[&add, &PredefinedMenuItem::close_window(app, None)?],
+    )?;
+    let edit = Submenu::with_items(
+        app,
+        "Edit",
+        true,
+        &[
+            &PredefinedMenuItem::undo(app, None)?,
+            &PredefinedMenuItem::redo(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::cut(app, None)?,
+            &PredefinedMenuItem::copy(app, None)?,
+            &PredefinedMenuItem::paste(app, None)?,
+            &PredefinedMenuItem::select_all(app, None)?,
+        ],
+    )?;
+    let setup_tools = MenuItem::with_id(
+        app,
+        "set-up-video-tools",
+        "Set Up Video Tools…",
+        true,
+        None::<&str>,
+    )?;
+    let help = Submenu::with_items(app, "Help", true, &[&setup_tools])?;
+    app.set_menu(Menu::with_items(app, &[&app_menu, &file, &edit, &help])?)?;
+    Ok(())
+}
+
+/// Opens Opul's own updater and publishes every change as an `app-updates` event.
+fn open_app_updates(app: &tauri::AppHandle) -> Arc<app_updates::AppUpdates> {
+    let install_blocker = std::env::current_exe().map_or(
+        Some(app_updates::InstallBlocker::Development),
+        |executable| {
+            app_updates::detect_install_blocker(&executable, app_updates::folder_is_writable)
+        },
+    );
+    let events = app.clone();
+    let updates = app_updates::AppUpdates::open(
+        app_updates::AppUpdatesConfig {
+            state_file: data_directory(app)
+                .ok()
+                .map(|directory| directory.join("app-updates.json")),
+            current_version: app.package_info().version.to_string(),
+            channel: current_channel(app),
+            install_blocker,
+        },
+        Arc::new(app_updates::TauriSource::new(app.clone())),
+        Arc::new(app_updates::SystemClock),
+        Box::new(move |snapshot| {
+            let _ = events.emit("app-updates", snapshot);
+        }),
+    );
+    updates.start_schedule();
+    updates
+}
+
 fn main() {
     let shutting_down = Arc::new(AtomicBool::new(false));
     let application = tauri::Builder::default()
@@ -110,63 +207,9 @@ fn main() {
                 open_machine(app.handle(), preferences)
             }));
             video_tools_smoke::start(app.handle());
+            app.manage(open_app_updates(app.handle()));
             #[cfg(target_os = "macos")]
-            {
-                use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
-                let channel = current_channel(app.handle());
-                let app_name = channel.app_name();
-                let about_title = format!("About {app_name}");
-                let settings =
-                    MenuItem::with_id(app, "settings", "Settings…", true, Some("CmdOrCtrl+,"))?;
-                let add = MenuItem::with_id(
-                    app,
-                    "new-download",
-                    "New Download…",
-                    true,
-                    Some("CmdOrCtrl+N"),
-                )?;
-                let app_menu = Submenu::with_items(
-                    app,
-                    app_name,
-                    true,
-                    &[
-                        &PredefinedMenuItem::about(app, Some(&about_title), None)?,
-                        &settings,
-                        &PredefinedMenuItem::separator(app)?,
-                        &PredefinedMenuItem::hide(app, None)?,
-                        &PredefinedMenuItem::quit(app, None)?,
-                    ],
-                )?;
-                let file = Submenu::with_items(
-                    app,
-                    "File",
-                    true,
-                    &[&add, &PredefinedMenuItem::close_window(app, None)?],
-                )?;
-                let edit = Submenu::with_items(
-                    app,
-                    "Edit",
-                    true,
-                    &[
-                        &PredefinedMenuItem::undo(app, None)?,
-                        &PredefinedMenuItem::redo(app, None)?,
-                        &PredefinedMenuItem::separator(app)?,
-                        &PredefinedMenuItem::cut(app, None)?,
-                        &PredefinedMenuItem::copy(app, None)?,
-                        &PredefinedMenuItem::paste(app, None)?,
-                        &PredefinedMenuItem::select_all(app, None)?,
-                    ],
-                )?;
-                let setup_tools = MenuItem::with_id(
-                    app,
-                    "set-up-video-tools",
-                    "Set Up Video Tools…",
-                    true,
-                    None::<&str>,
-                )?;
-                let help = Submenu::with_items(app, "Help", true, &[&setup_tools])?;
-                app.set_menu(Menu::with_items(app, &[&app_menu, &file, &edit, &help])?)?;
-            }
+            install_menu(app)?;
             Ok(())
         })
         .on_menu_event(|app, event| {
@@ -189,6 +232,12 @@ fn main() {
             commands::tools::video_tools_remove,
             commands::tools::video_tools_take_update_notice,
             commands::reveal_download,
+            commands::updates::app_updates_snapshot,
+            commands::updates::app_updates_check,
+            commands::updates::app_updates_download,
+            commands::updates::app_updates_configure,
+            commands::updates::app_updates_take_notice,
+            commands::updates::app_updates_restart,
         ])
         .build(tauri::generate_context!())
         .expect("Could not start Opul");
