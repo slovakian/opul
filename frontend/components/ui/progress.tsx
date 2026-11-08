@@ -9,7 +9,12 @@ const ProgressIndicator = ({
 }: ProgressPrimitive.Indicator.Props) => (
   <ProgressPrimitive.Indicator
     data-slot="progress-indicator"
-    className={cn("bg-primary h-full transition-all", className)}
+    // An indeterminate bar has no inline width, so `w-0` lets the fill grow in
+    // from nothing once a value arrives.
+    className={cn(
+      "bg-primary relative h-full w-0 overflow-hidden rounded-full transition-all",
+      className
+    )}
     {...props}
   />
 );
@@ -28,21 +33,35 @@ const ProgressTrack = ({
   />
 );
 
+type ProgressProps = ProgressPrimitive.Root.Props & {
+  /**
+   * Sweeps a soft highlight across the fill, or across the whole track while
+   * indeterminate, to say the work is moving. See `.progress-shimmer` in styles.css.
+   */
+  shimmer?: boolean;
+  /** Mutes the fill, for work that's held rather than moving. */
+  muted?: boolean;
+};
+
 const Progress = ({
   className,
   children,
   value,
+  shimmer = false,
+  muted = false,
   ...props
-}: ProgressPrimitive.Root.Props) => (
+}: ProgressProps) => (
   <ProgressPrimitive.Root
     value={value}
     data-slot="progress"
-    className={cn("flex flex-wrap gap-3", className)}
+    data-shimmer={shimmer || undefined}
+    data-muted={muted || undefined}
+    className={cn("group/progress flex flex-wrap gap-3", className)}
     {...props}
   >
     {children}
     <ProgressTrack>
-      <ProgressIndicator />
+      <ProgressIndicator className="group-data-muted/progress:bg-muted-foreground/40" />
     </ProgressTrack>
   </ProgressPrimitive.Root>
 );

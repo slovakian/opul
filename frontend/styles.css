@@ -109,6 +109,103 @@ a {
 .download-item[data-selected="true"] {
   background: var(--muted);
 }
+/* Download list rows: icon | name and description | status | controls.
+   The list is the query container, so every row changes tier together and
+   changing tiers only swaps CSS, never what React renders. */
+.download-list {
+  container-type: inline-size;
+}
+.download-row {
+  /* Narrow: the ring or the check in an icon-button box. */
+  --download-status-width: 2rem;
+  --download-status-text-width: 5.5rem;
+  --download-status-column: calc(var(--download-status-width) + 0.875rem);
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr) var(
+      --download-status-column
+    ) auto;
+  align-items: center;
+  column-gap: 0;
+  transition-property:
+    color, background-color, border-color, box-shadow, grid-template-columns;
+  transition-duration: 100ms, 100ms, 100ms, 100ms, 200ms;
+  transition-timing-function: var(--ease-out);
+}
+.download-row[data-status="text"] {
+  --download-status-column: calc(var(--download-status-text-width) + 0.875rem);
+}
+/* Finished rows hand the name the whole width, once the check has faded. */
+.download-row[data-status="empty"] {
+  --download-status-column: 0rem;
+  transition-delay: 0s, 0s, 0s, 0s, 200ms;
+}
+@container (width >= 440px) {
+  .download-row {
+    --download-status-width: 7rem;
+    --download-status-text-width: 7rem;
+  }
+}
+@container (width >= 640px) {
+  .download-row {
+    --download-status-width: 12rem;
+    --download-status-text-width: 12rem;
+  }
+}
+/* Stacked layers that crossfade in place: the bar, the check, status text and
+   each description line. Inactive layers keep their space, so swapping one
+   for another never moves anything. */
+.download-row-layer {
+  transition-property: opacity, filter, scale, visibility;
+  transition-duration: 200ms;
+  transition-timing-function: var(--ease-out);
+}
+.download-row-layer[data-active="false"] {
+  visibility: hidden;
+  opacity: 0;
+  filter: blur(2px);
+  transition-duration: 150ms;
+}
+.download-row-layer[data-pop][data-active="false"] {
+  scale: 0.85;
+}
+
+/* A soft highlight sweeping across the fill, or across the whole track while
+   there's no value yet. It moves by transform alone. */
+[data-slot="progress-indicator"] {
+  --progress-shimmer: color-mix(in oklch, var(--background) 50%, transparent);
+}
+[data-slot="progress-track"] {
+  --progress-shimmer: color-mix(in oklch, var(--foreground) 12%, transparent);
+}
+[data-slot="progress"][data-shimmer]:not([data-muted])
+  [data-slot="progress-indicator"]::after,
+[data-slot="progress"][data-shimmer][data-indeterminate]
+  [data-slot="progress-track"]::after {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 60%;
+  content: "";
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--progress-shimmer),
+    transparent
+  );
+  translate: -100% 0;
+  animation: progress-shimmer 1.8s var(--ease-in-out) infinite;
+}
+@keyframes progress-shimmer {
+  0% {
+    translate: -100% 0;
+  }
+  /* 100% / 60%: the band's left edge reaches the far end, then rests. */
+  70%,
+  100% {
+    translate: 167% 0;
+  }
+}
+
 .details-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -134,6 +231,18 @@ a {
      pin them to their end state and fade the top edge at rest. */
   [class*="scroll-fade"] {
     animation-duration: 1ms !important;
+  }
+  /* Row layers still crossfade, by opacity alone, so a swap reads as one
+     element changing rather than a jump. */
+  .download-row-layer {
+    filter: none !important;
+    scale: none !important;
+    transition-property: opacity, visibility;
+    transition-duration: 150ms !important;
+  }
+  [data-slot="progress-indicator"]::after,
+  [data-slot="progress-track"]::after {
+    display: none;
   }
 }
 

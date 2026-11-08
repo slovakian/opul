@@ -23,6 +23,9 @@ import {
   useActionAfterClose,
   useDownloadMenuGroups,
 } from "@/components/download-menu";
+import { DownloadRowDescription } from "@/components/download-row-description";
+import { useCompletion, statusKind } from "@/components/download-row-parts";
+import { DownloadRowStatus } from "@/components/download-row-status";
 import { Button } from "@/components/ui/button";
 import {
   ContextMenu,
@@ -41,12 +44,10 @@ import {
   Item,
   ItemActions,
   ItemContent,
-  ItemDescription,
   ItemGroup,
   ItemMedia,
   ItemTitle,
 } from "@/components/ui/item";
-import { Progress } from "@/components/ui/progress";
 import {
   Table,
   TableBody,
@@ -55,9 +56,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { VideoToolsUpdateAdvice } from "@/components/video-tools-update-advice";
 import type { Download, ListStyle, Workspace } from "@/lib/model";
-import { bytes, sourceHost, stateNames, timeRemaining } from "@/lib/model";
+import { bytes, sourceHost, stateNames } from "@/lib/model";
 import { cn } from "@/lib/utils";
 
 export const fileIcon = (download: Download) => {
@@ -130,9 +130,6 @@ export const DownloadStatus = ({ download }: { download: Download }) => (
     {download.waiting_label ?? stateNames[download.state]}
   </span>
 );
-
-const progress = (download: Download) =>
-  Math.min(100, Math.max(0, download.progress_millionths / 10_000));
 
 // Cards mirror the outline button: a raised surface with its own border.
 // Minimal keeps rows flat until they are hovered or selected.
@@ -299,7 +296,6 @@ const DownloadTableRow = (props: RowProps) => {
               {download.error_message}
             </p>
           )}
-          <VideoToolsUpdateAdvice download={download} />
         </TableCell>
         <TableCell className="text-muted-foreground hidden lg:table-cell">
           {sourceHost(download)}
@@ -317,13 +313,6 @@ const DownloadTableRow = (props: RowProps) => {
   );
 };
 
-const transferringStates = new Set<Download["state"]>([
-  "Fetching",
-  "Starting",
-  "Verifying",
-  "Seeding",
-]);
-
 const DownloadListItem = ({
   listStyle,
   ...props
@@ -340,15 +329,8 @@ const DownloadListItem = ({
   } = useDownloadRow(props);
 
   const styles = listItemStyles[listStyle];
-  const transferring = transferringStates.has(download.state);
-
-  let rateOrProgress = "";
-
-  if (download.download_rate) {
-    rateOrProgress = `${bytes(download.download_rate)}/s · ${timeRemaining(download.eta_seconds)}`;
-  } else if (transferring) {
-    rateOrProgress = `${Math.round(progress(download))}%`;
-  }
+  const completion = useCompletion(download.state);
+  const kind = statusKind(download.state, completion.phase);
 
   return (
     <ContextMenu onOpenChangeComplete={handleContextMenuClosed}>
@@ -361,7 +343,8 @@ const DownloadListItem = ({
             role="listitem"
             variant={styles.variant}
             data-selected={selected}
-            className={cn(styles.item, styles.menuTarget)}
+            data-status={kind}
+            className={cn("download-row", styles.item, styles.menuTarget)}
           />
         }
         // Keyboard users select through the focusable name button below.
@@ -375,7 +358,7 @@ const DownloadListItem = ({
         <ItemMedia className="size-9">
           <DownloadFolderIcon download={download} className="size-8" />
         </ItemMedia>
-        <ItemContent className="min-w-0">
+        <ItemContent className="min-w-0 ps-3.5">
           <ItemTitle className="max-w-full">
             <button
               ref={nameRef}
@@ -386,41 +369,14 @@ const DownloadListItem = ({
               {download.name}
             </button>
           </ItemTitle>
-          <ItemDescription className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-            <span>{sourceHost(download)}</span>
-            <span aria-hidden>·</span>
-            <span className="tabular-nums">
-              {download.total_size
-                ? bytes(download.total_size)
-                : "Size unknown"}
-            </span>
-            {download.error_message && (
-              <span
-                className="text-destructive truncate"
-                title={download.error_message}
-              >
-                {download.error_message}
-              </span>
-            )}
-          </ItemDescription>
-          <VideoToolsUpdateAdvice download={download} />
-          {transferring && (
-            <Progress
-              className="mt-1 max-w-96"
-              value={progress(download)}
-              aria-label={`${download.name} progress`}
-            />
-          )}
+          <DownloadRowDescription download={download} completion={completion} />
         </ItemContent>
-        <ItemActions className="gap-4">
-          <div className="hidden min-w-28 flex-col items-end gap-1 sm:flex">
-            <DownloadStatus download={download} />
-            <span className="text-muted-foreground text-xs tabular-nums">
-              {rateOrProgress}
-            </span>
-          </div>
-          {actions}
-        </ItemActions>
+        <DownloadRowStatus
+          download={download}
+          completion={completion}
+          kind={kind}
+        />
+        <ItemActions className="ps-3.5">{actions}</ItemActions>
       </ContextMenuTrigger>
       {contextMenu}
     </ContextMenu>
@@ -504,7 +460,7 @@ export const Downloads = ({
 
   return (
     <ItemGroup
-      className={listItemStyles[listStyle].group}
+      className={cn("download-list", listItemStyles[listStyle].group)}
       data-list-style={listStyle}
     >
       {downloads.map((download) => (

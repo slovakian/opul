@@ -3,9 +3,12 @@ import {
   MoreHorizontal,
   Pause,
   Play,
+  RefreshCw,
   RotateCcw,
+  Wrench,
 } from "lucide-react";
 import { useRef } from "react";
+import type { ReactNode } from "react";
 
 import {
   DownloadMenuBody,
@@ -21,10 +24,51 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/ui/toast";
-import { sendVideoTools } from "@/hooks/use-video-tools";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { sendVideoTools, updateVideoTools } from "@/hooks/use-video-tools";
 import { errorMessage } from "@/lib/bridge";
 import { useLibrary } from "@/lib/library";
 import type { Download, DownloadAction } from "@/lib/model";
+
+/**
+ * The row's one most useful action, always an icon button so the slot keeps
+ * one width in every state. `hint` is the tooltip when it differs from the
+ * accessible name, which names the download for screen readers.
+ */
+const PrimaryAction = ({
+  label,
+  hint = label,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  disabled?: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) => (
+  <Tooltip>
+    <TooltipTrigger
+      render={
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={label}
+          disabled={disabled}
+          onClick={onClick}
+        />
+      }
+    >
+      {children}
+    </TooltipTrigger>
+    <TooltipContent>{hint}</TooltipContent>
+  </Tooltip>
+);
 
 export const DownloadActions = ({
   download,
@@ -71,83 +115,91 @@ export const DownloadActions = ({
   const renderPrimaryAction = () => {
     if (caps.can_set_up_video_tools || caps.can_retry_video_tools) {
       return (
-        <Button
-          variant="ghost"
-          size="sm"
+        <PrimaryAction
+          label={
+            caps.can_retry_video_tools
+              ? "Try setting up video tools again"
+              : "Set up video tools"
+          }
           disabled={busy}
           onClick={recoverVideoTools}
         >
-          {caps.can_retry_video_tools ? "Try again" : "Set up"}
-        </Button>
+          {caps.can_retry_video_tools ? <RotateCcw /> : <Wrench />}
+        </PrimaryAction>
+      );
+    }
+
+    if (caps.can_update_video_tools) {
+      return (
+        <PrimaryAction
+          label="Update video tools"
+          hint="An update may fix this"
+          onClick={updateVideoTools}
+        >
+          <RefreshCw />
+        </PrimaryAction>
       );
     }
 
     if (caps.can_pause) {
       return (
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={`Pause ${download.name}`}
-          title="Pause download"
+        <PrimaryAction
+          label={`Pause ${download.name}`}
+          hint="Pause download"
           disabled={busy}
           onClick={() => act("Pause")}
         >
           <Pause />
-        </Button>
+        </PrimaryAction>
       );
     }
 
     if (caps.can_resume) {
       return (
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={`Resume ${download.name}`}
-          title="Resume download"
+        <PrimaryAction
+          label={`Resume ${download.name}`}
+          hint="Resume download"
           disabled={busy}
           onClick={() => act("Resume")}
         >
           <Play />
-        </Button>
+        </PrimaryAction>
       );
     }
 
     if (caps.can_retry) {
       return (
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={`Retry ${download.name}`}
-          title="Retry download"
+        <PrimaryAction
+          label={`Retry ${download.name}`}
+          hint="Retry download"
           disabled={busy}
           onClick={() => act("Retry")}
         >
           <RotateCcw />
-        </Button>
+        </PrimaryAction>
       );
     }
 
     if (caps.can_reveal_output) {
       return (
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={`Reveal ${download.name}`}
-          title="Show in Finder"
+        <PrimaryAction
+          label={`Reveal ${download.name}`}
+          hint="Show in Finder"
           onClick={() => {
             reveal(download.id).catch(() => null);
           }}
         >
           <FolderOpen />
-        </Button>
+        </PrimaryAction>
       );
     }
 
-    return null;
+    // The slot keeps its width, so the "…" button never moves between states.
+    return <span aria-hidden className="size-8 shrink-0" />;
   };
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex shrink-0 items-center gap-1">
       {renderPrimaryAction()}
       <DropdownMenu
         open={menuOpen}

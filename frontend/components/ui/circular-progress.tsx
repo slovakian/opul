@@ -9,6 +9,8 @@ type CircularProgressProps = Omit<
   "className" | "style"
 > & {
   className?: string;
+  /** Mutes the arc, for work that's held rather than moving. */
+  muted?: boolean;
   /** Diameter in pixels. */
   size?: number;
   style?: React.CSSProperties;
@@ -27,6 +29,7 @@ const CircularProgress = ({
   children,
   max = 100,
   min = 0,
+  muted = false,
   size = 32,
   style,
   thickness = 4,
@@ -45,6 +48,7 @@ const CircularProgress = ({
   return (
     <ProgressPrimitive.Root
       data-slot="circular-progress"
+      data-muted={muted || undefined}
       value={value ?? null}
       min={min}
       max={max}
@@ -83,7 +87,8 @@ const CircularProgress = ({
           strokeDasharray={circumference}
           strokeDashoffset={circumference * (1 - fraction)}
           className={cn(
-            "stroke-primary transition-[stroke-dashoffset,opacity] duration-500 ease-(--ease-out)",
+            "stroke-primary transition-[stroke-dashoffset,opacity,stroke] duration-500 ease-(--ease-out)",
+            muted && "stroke-muted-foreground/40",
             fraction === 0 && "opacity-0"
           )}
         />

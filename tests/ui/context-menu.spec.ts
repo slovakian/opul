@@ -35,7 +35,7 @@ test("right-clicking a list row opens the same menu as its … button", async ({
   await page.keyboard.press("Escape");
   await expect(menu).toHaveCount(0);
 
-  await row.locator('[data-slot="item-description"]').click({
+  await row.locator('[data-slot="item-description"]').first().click({
     button: "right",
   });
   await expect(menu.locator('[data-slot="sidebar"]')).toBeVisible();

@@ -30,7 +30,7 @@ test("download rows default to cards, select on click, and can switch to minimal
   await expect(row).toHaveAttribute("data-selected", "false");
 
   // Clicking anywhere else on the row selects it.
-  await row.locator('[data-slot="item-description"]').click();
+  await row.locator('[data-slot="item-description"]').first().click();
   await expect(details).toBeVisible();
   await expect(row).toHaveAttribute("data-selected", "true");
   await page.screenshot({ path: "test-results/list-style-cards.png" });

@@ -190,7 +190,12 @@ test("Setting up accepts without another consent dialog and Not working offers p
     .analyze();
 
   expect(audit.violations).toEqual([]);
-  await page.getByRole("button", { exact: true, name: "Try again" }).click();
+  await page
+    .getByRole("button", {
+      exact: true,
+      name: "Try setting up video tools again",
+    })
+    .click();
   await expect(
     page.getByText("Waiting for video tools…", { exact: true })
   ).toBeVisible();
@@ -270,7 +275,9 @@ test("a retried video in Turned off waits and offers projected Set up", async ({
     .analyze();
 
   expect(audit.violations).toEqual([]);
-  await page.getByRole("button", { exact: true, name: "Set up" }).click();
+  await page
+    .getByRole("button", { exact: true, name: "Set up video tools" })
+    .click();
   await expect(
     page.getByText("Waiting for video tools…", { exact: true })
   ).toBeVisible();

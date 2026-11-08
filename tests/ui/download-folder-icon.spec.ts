@@ -35,6 +35,7 @@ test("list rows and details show a colored folder, while the table keeps file ic
 
   await row(page, "Design resources.zip")
     .locator('[data-slot="item-description"]')
+    .first()
     .click();
   const details = page.getByRole("complementary", { name: "Download details" });
   await expect(folderIcon(details)).toHaveAttribute("data-color", "green");
