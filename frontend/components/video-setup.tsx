@@ -7,7 +7,7 @@ import {
   Music,
   RotateCw,
 } from "lucide-react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import type * as React from "react";
 
 import opulIcon from "@/assets/opul-icon.png";
@@ -23,22 +23,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldLabel,
-  FieldTitle,
-} from "@/components/ui/field";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Trace, TraceIcon, TraceLine, TraceTitle } from "@/components/ui/trace";
 import { VideoToolsProgress } from "@/components/video-tools-progress";
 import type { useVideoSetup } from "@/hooks/use-video-setup";
 import { downloadSize, setupFraction } from "@/lib/video-tools";
-import type { SetupStep, VideoToolsSnapshot } from "@/lib/video-tools";
+import type {
+  SetupStep,
+  VideoToolsOperation,
+  VideoToolsSnapshot,
+} from "@/lib/video-tools";
 
 type Setup = ReturnType<typeof useVideoSetup>;
-
-type Execute = Setup["execute"];
 
 type Phase = "offer" | "installing" | "ready" | "failed";
 
@@ -228,52 +224,57 @@ const Features = ({ ready }: { ready: boolean }) => (
   </div>
 );
 
-/** The one preference worth deciding up front, as a choice card. */
+/** A plain checkbox; the why lives in a hover tip so the screen stays quiet. */
 const KeepUpToDate = ({
-  busy,
-  execute,
+  onChange,
   video,
 }: {
-  busy: boolean;
-  execute: Execute;
+  onChange: (enabled: boolean) => void;
   video: VideoToolsSnapshot | undefined;
 }) => (
-  <FieldLabel
-    htmlFor="setup-keep-up-to-date"
-    // The border marks it as chosen; a tinted fill would cost the description its contrast.
-    className="bg-card has-data-checked:bg-card dark:has-data-checked:bg-card"
-  >
-    <Field orientation="horizontal" data-disabled={busy || !video}>
-      <FieldContent>
-        <FieldTitle>Keep video tools up to date</FieldTitle>
-        <FieldDescription className="text-xs">
-          Video sites change often. Opul tests each update first.
-        </FieldDescription>
-      </FieldContent>
-      <Checkbox
-        id="setup-keep-up-to-date"
-        checked={video?.keep_up_to_date ?? true}
-        disabled={busy || !video}
-        onCheckedChange={(enabled) =>
-          execute({ enabled, kind: "set_keep_up_to_date" })
-        }
-      />
-    </Field>
-  </FieldLabel>
+  <Field orientation="horizontal" className="w-fit gap-2">
+    <Checkbox
+      id="setup-keep-up-to-date"
+      checked={video?.keep_up_to_date ?? true}
+      disabled={!video}
+      onCheckedChange={onChange}
+    />
+    <FieldLabel htmlFor="setup-keep-up-to-date" className="font-normal">
+      Keep video tools up to date
+    </FieldLabel>
+    <InfoTip label="Why keep video tools up to date">
+      Video sites change often, and an old yt-dlp stops working on them. Opul
+      tests each update before switching to it.
+    </InfoTip>
+  </Field>
 );
 
+const FailureAlert = ({ failure }: { failure: NotWorking }) => (
+  <Alert variant="destructive">
+    <AlertTitle>{failureTitles[failure.reason]}</AlertTitle>
+    <AlertDescription className="select-text">
+      {failure.details}
+    </AlertDescription>
+  </Alert>
+);
+
+const primaryButton =
+  "h-11 rounded-lg transition-[transform,background-color] duration-150 ease-(--ease-out) active:scale-[0.98]";
+
 const OfferActions = ({
-  busy,
+  acting,
   close,
-  execute,
   failure,
+  onKeepUpToDate,
+  onPrimary,
   primary,
   video,
 }: {
-  busy: boolean;
+  acting: boolean;
   close: () => void;
-  execute: Execute;
   failure: NotWorking | null;
+  onKeepUpToDate: (enabled: boolean) => void;
+  onPrimary: () => void;
   primary: React.RefObject<HTMLButtonElement | null>;
   video: VideoToolsSnapshot | undefined;
 }) => {
@@ -282,22 +283,17 @@ const OfferActions = ({
   return (
     <>
       {failure ? (
-        <Alert variant="destructive">
-          <AlertTitle>{failureTitles[failure.reason]}</AlertTitle>
-          <AlertDescription className="select-text">
-            {failure.details}
-          </AlertDescription>
-        </Alert>
+        <FailureAlert failure={failure} />
       ) : (
-        <KeepUpToDate busy={busy} execute={execute} video={video} />
+        <KeepUpToDate onChange={onKeepUpToDate} video={video} />
       )}
       <div className="flex flex-col gap-1.5">
         <Button
           ref={primary}
           size="lg"
-          disabled={busy || !video}
-          className="h-11 rounded-lg transition-[transform,background-color] duration-150 ease-(--ease-out) active:scale-[0.98]"
-          onClick={() => execute({ kind: failure ? "retry" : "set_up" })}
+          disabled={acting || !video}
+          className={primaryButton}
+          onClick={onPrimary}
         >
           {failure ? (
             <RotateCw data-icon="inline-start" aria-hidden="true" />
@@ -328,48 +324,148 @@ const OfferActions = ({
   );
 };
 
-const ProgressActions = ({
-  close,
-  primary,
-  steps,
-}: {
-  close: () => void;
-  primary: React.RefObject<HTMLButtonElement | null>;
-  steps: SetupStep[];
-}) => (
-  <>
-    <div className="bg-card/60 rounded-xl border px-4 py-3.5 backdrop-blur-sm">
-      <VideoToolsProgress steps={steps} />
-    </div>
-    <Button
-      ref={primary}
-      size="lg"
-      className="h-11 rounded-lg transition-[transform,background-color] duration-150 ease-(--ease-out) active:scale-[0.98]"
-      onClick={close}
-    >
-      Continue to Opul
-    </Button>
-  </>
-);
+/** Steps that hadn't finished when setup stopped are the ones that failed. */
+const failedSteps = (steps: SetupStep[]): SetupStep[] =>
+  steps.map((step) =>
+    step.status === "done" ? step : { ...step, status: "failed" }
+  );
 
-export const VideoSetup = ({ setup }: { setup: Setup }) => {
-  const { busy, close, error, execute, open, tools } = setup;
-  const primary = useRef<HTMLButtonElement>(null);
+type Run = (operation: VideoToolsOperation) => Promise<boolean>;
+
+/**
+ * Below the header: the live steps while installing or ready; otherwise what
+ * video tools add (or, after a failed setup, the steps that failed) and the
+ * offer.
+ */
+const PhaseBody = ({
+  acting,
+  close,
+  failedTrace,
+  failure,
+  primary,
+  run,
+  steps,
+  video,
+}: {
+  acting: boolean;
+  close: () => void;
+  failedTrace: SetupStep[] | null;
+  failure: NotWorking | null;
+  primary: React.RefObject<HTMLButtonElement | null>;
+  run: Run;
+  steps: SetupStep[] | null;
+  video: VideoToolsSnapshot | undefined;
+}) => {
+  if (steps) {
+    return (
+      <>
+        <VideoToolsProgress steps={steps} />
+        <Button
+          ref={primary}
+          size="lg"
+          className={primaryButton}
+          onClick={close}
+        >
+          Continue to Opul
+        </Button>
+      </>
+    );
+  }
+
+  return (
+    <>
+      {failedTrace ? (
+        <VideoToolsProgress steps={failedTrace} />
+      ) : (
+        <Features ready={false} />
+      )}
+      <div className="flex flex-col gap-4">
+        <OfferActions
+          acting={acting}
+          close={close}
+          failure={failure}
+          primary={primary}
+          video={video}
+          onKeepUpToDate={(enabled) => {
+            void run({ enabled, kind: "set_keep_up_to_date" });
+          }}
+          onPrimary={() => {
+            void run({ kind: failure ? "retry" : "set_up" });
+          }}
+        />
+      </div>
+    </>
+  );
+};
+
+/** Everything Setup derives from the video tools snapshot and its own actions. */
+const useSetupView = ({ close, execute, tools }: Setup) => {
+  const [pending, setPending] = useState<VideoToolsOperation["kind"] | null>(
+    null
+  );
+
+  const [lastSteps, setLastSteps] = useState<SetupStep[] | null>(null);
   const video = tools?.video;
   const state = video?.state;
   const phase = phaseOf(state);
-  const steps = state?.kind === "setting_up" ? state.steps : finishedSteps;
   const failure = state?.kind === "not_working" ? state : null;
+
+  // Remember the last live steps so a failure can show where setup stopped.
+  if (state?.kind === "setting_up" && state.steps !== lastSteps) {
+    setLastSteps(state.steps);
+  }
+
+  const failedTrace = failure && lastSteps ? failedSteps(lastSteps) : null;
+  const steps = state?.kind === "setting_up" ? state.steps : finishedSteps;
+  const showSteps = phase === "installing" || phase === "ready";
+
+  // Saving the update preference must not disable (and flash) the main button.
+  const acting = pending !== null && pending !== "set_keep_up_to_date";
+
+  const run = async (operation: VideoToolsOperation) => {
+    setPending(operation.kind);
+    // `execute` reports failures itself and resolves false.
+    const succeeded = await execute(operation);
+    setPending(null);
+
+    return succeeded;
+  };
+
+  const handleTurnOff = async () => {
+    if (await run({ kind: "turn_off" })) {
+      close();
+    }
+  };
 
   // Downloads can finish before verifying and installing do, so the ring only
   // closes once the tools are actually ready.
   const progress =
     phase === "ready" ? 1 : Math.min(UNFINISHED_RING, setupFraction(steps));
 
-  const { description, title } = copy[phase];
-
   const offerTurnOff =
     (phase === "offer" || phase === "failed") && state?.kind !== "turned_off";
+
+  return {
+    acting,
+    failedTrace,
+    failure,
+    handleTurnOff,
+    offerTurnOff,
+    phase,
+    progress,
+    run,
+    showSteps,
+    steps,
+    video,
+  };
+};
+
+export const VideoSetup = ({ setup }: { setup: Setup }) => {
+  const { close, error, open } = setup;
+  const primary = useRef<HTMLButtonElement>(null);
+  const view = useSetupView(setup);
+  const { acting, failedTrace, failure, phase, showSteps, video } = view;
+  const { description, title } = copy[phase];
 
   return (
     <Dialog
@@ -394,10 +490,10 @@ export const VideoSetup = ({ setup }: { setup: Setup }) => {
         {/* The window has no title bar here, so keep it draggable. */}
         <div data-tauri-drag-region className="absolute inset-x-0 top-0 h-12" />
         <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto">
-          {/* Anchored to the top, not centred, so the hero and features stay put
-              while the actions below change height between phases. */}
+          {/* Anchored to the top, not centred, so the hero stays put while the
+              content below changes height between phases. */}
           <div className="mx-auto mt-[max(3.5rem,11vh)] mb-auto flex w-full max-w-md flex-col items-center gap-8 px-6 pb-14">
-            <Hero phase={phase} progress={progress} />
+            <Hero phase={phase} progress={view.progress} />
             <DialogHeader
               className="animate-rise items-center gap-2 text-center"
               style={rise(1)}
@@ -416,29 +512,21 @@ export const VideoSetup = ({ setup }: { setup: Setup }) => {
               </DialogDescription>
             </DialogHeader>
             <div className="animate-rise w-full" style={rise(2)}>
-              <Features ready={phase === "ready"} />
-            </div>
-            <div className="animate-rise w-full" style={rise(3)}>
               <div
-                key={phase === "ready" ? "installing" : phase}
-                className="animate-settle flex flex-col gap-4"
+                // Ready keeps the install key so the steps tick over in place.
+                key={showSteps ? "steps" : `${phase}-${Boolean(failedTrace)}`}
+                className="animate-settle flex flex-col gap-6"
               >
-                {phase === "installing" || phase === "ready" ? (
-                  <ProgressActions
-                    close={close}
-                    primary={primary}
-                    steps={steps}
-                  />
-                ) : (
-                  <OfferActions
-                    busy={busy}
-                    close={close}
-                    execute={execute}
-                    failure={failure}
-                    primary={primary}
-                    video={video}
-                  />
-                )}
+                <PhaseBody
+                  acting={acting}
+                  close={close}
+                  failedTrace={failedTrace}
+                  failure={failure}
+                  primary={primary}
+                  run={view.run}
+                  steps={showSteps ? view.steps : null}
+                  video={video}
+                />
                 {error && (
                   <p
                     role="alert"
@@ -450,21 +538,17 @@ export const VideoSetup = ({ setup }: { setup: Setup }) => {
               </div>
             </div>
           </div>
-          {offerTurnOff && (
+          {view.offerTurnOff && (
             <div
               className="animate-rise flex justify-center pb-6"
-              style={rise(4)}
+              style={rise(3)}
             >
               <Button
                 variant="link"
                 size="xs"
                 className="text-muted-foreground hover:text-foreground"
-                disabled={busy || !video}
-                onClick={async () => {
-                  if (await execute({ kind: "turn_off" })) {
-                    close();
-                  }
-                }}
+                disabled={acting || !video}
+                onClick={view.handleTurnOff}
               >
                 Don&apos;t show this again
               </Button>

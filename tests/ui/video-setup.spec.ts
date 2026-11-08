@@ -341,6 +341,16 @@ test("live steps show waiting, verification, installation and failure recovery",
   await expect(setup(page).getByRole("alert")).toContainText(
     "couldn't be verified"
   );
+  // The steps stay where setup stopped: done stays checked, the rest failed.
+  await expect(
+    setup(page).getByText("Setting up Python done", { exact: true })
+  ).toBeAttached();
+  await expect(
+    setup(page).getByText("Setting up yt-dlp failed", { exact: true })
+  ).toBeAttached();
+  await expect(
+    setup(page).getByText("Direct files", { exact: true })
+  ).toHaveCount(0);
   await setup(page)
     .getByRole("button", { exact: true, name: "Try again" })
     .click();
@@ -350,6 +360,50 @@ test("live steps show waiting, verification, installation and failure recovery",
   await push(page, ready);
   await expect(setup(page).getByText("Done", { exact: true })).toHaveCount(2);
   await setup(page).getByRole("button", { name: "Continue to Opul" }).click();
+});
+
+test("the update preference saves without disabling Download, and setup hides the feature list", async ({
+  page,
+}) => {
+  await launch(page);
+
+  const download = setup(page).getByRole("button", {
+    name: /Download video tools/u,
+  });
+
+  await expect(download).toBeEnabled();
+  await download.evaluate((button) => {
+    const observer = new MutationObserver(() => {
+      if (button.hasAttribute("disabled")) {
+        document.body.dataset.downloadDisabled = "true";
+      }
+    });
+
+    observer.observe(button, { attributes: true });
+  });
+
+  const keep = setup(page).getByRole("checkbox", {
+    name: "Keep video tools up to date",
+  });
+
+  await keep.uncheck();
+  await expect(keep).not.toBeChecked();
+  await keep.check();
+  await expect(keep).toBeChecked();
+  expect(
+    await page.evaluate(() => document.body.dataset.downloadDisabled)
+  ).toBeUndefined();
+
+  await expect(
+    setup(page).getByText("Direct files", { exact: true })
+  ).toBeVisible();
+  await download.click();
+  await expect(
+    setup(page).getByText("Setting up Python", { exact: true })
+  ).toBeVisible();
+  await expect(
+    setup(page).getByText("Direct files", { exact: true })
+  ).toHaveCount(0);
 });
 
 for (const kind of ["turned_off", "ready"] as const) {
