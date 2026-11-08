@@ -29,6 +29,22 @@ Optional video tools download only with consent. Runtime 1's top-level inventory
 | PyCryptodome (Cryptodome namespace) | 3.24.1 | BSD/public-domain terms, `pycryptodomex-3.24.1.dist-info/LICENSE.rst` |
 | pycparser | 3.11 | BSD-3-Clause, corresponding `.dist-info/licenses/LICENSE` |
 
-`Python-dependencies.rst` preserves upstream's bundled-library notice inventory, including libffi, OpenSSL, SQLite, bzip2, ncurses and zlib. Wheel metadata and notices are retained rather than replaced by this summary. curl_cffi also embeds curl-impersonate and its native dependencies; its wheel's MIT notice alone does not establish a complete notice inventory for that embedded code. The final distribution audit must resolve that inventory before marking third-party notices complete; numbered runtime 1 must not be overwritten to repair it.
+`Python-dependencies.rst` preserves upstream's bundled-library notice inventory, including libffi, OpenSSL, SQLite, bzip2, ncurses and zlib. Wheel metadata and notices are retained rather than replaced by this summary.
+
+Runtime 2 repairs runtime 1's missing native curl notices without changing its executable pins. `licenses/curl-impersonate/` includes the upstream release's complete macOS notice bundle, plus BoringSSL's fiat-crypto license and author attribution. Every notice has a pinned SHA-256 and is checked before publication. The directory also retains curl_cffi's tagged Makefile, curl-impersonate's exact CMake recipe, and source/archive URLs and checksums. Those recipes identify the native source versions and patches used by the pinned wheel; AppleIDN is provided by macOS rather than bundled.
+
+| Embedded component | Version | Notice file in `licenses/curl-impersonate/` |
+| --- | --- | --- |
+| curl-impersonate | 2.3.1 | `LICENSE` |
+| curl | 8.23.0 | `LICENSE_CURL` |
+| BoringSSL | `156c7b75ae9b8c3b3f847acf264f17594c3859fb` | `LICENSE_BORINGSSL` |
+| fiat-crypto | BoringSSL's pinned copy | `LICENSE_BORINGSSL_FIAT`, `AUTHORS_BORINGSSL_FIAT` |
+| Brotli | 1.2.1 | `LICENSE_BROTLI` |
+| c-ares | 1.34.9 | `LICENSE_CARES` |
+| nghttp2 | 1.63.0 | `LICENSE_NGHTTP2` |
+| nghttp3 | 1.15.0 | `LICENSE_NGHTTP3` |
+| ngtcp2 | 1.20.0 | `LICENSE_NGTCP2` |
+| zlib | 1.3.1 | `LICENSE_ZLIB` |
+| zstd | 1.5.7 | `LICENSE_ZSTD` |
 
 Opul downloads yt-dlp's official bare script directly from [yt-dlp releases](https://github.com/yt-dlp/yt-dlp/releases). yt-dlp is under the Unlicense and includes yt-dlp-ejs under the Unlicense. It is not included in the app installer. Settings links to the project and its supported-sites list.

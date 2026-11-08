@@ -64,6 +64,7 @@ jobs:
         run: |
           export PATH="$(brew --prefix openssl@3)/bin:$PATH"
           python3 tools/python-runtime/test_release.py
+          python3 tools/python-runtime/test_notices.py
       - name: Import optional Developer ID certificate
         if: env.DEVELOPER_ID_CERTIFICATE_P12 != '' && github.event_name != 'pull_request'
         run: |

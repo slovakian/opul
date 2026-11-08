@@ -8,10 +8,13 @@ import subprocess
 import tempfile
 
 from build import ROOT, TOOLS, fetch
+from notices import notice_hashes, verify_notices
 
 
 def verify(stage, arch, smoke=True):
     stage = stage.resolve()
+    lock = json.loads((stage / 'runtime.lock.json').read_text())
+    verify_notices(stage, notice_hashes(lock))
     cpu = 'arm64' if arch == 'arm64' else 'x86_64'
     native = []
     for path in sorted(stage.rglob('*')):

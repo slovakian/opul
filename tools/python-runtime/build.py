@@ -12,6 +12,8 @@ import urllib.parse
 import urllib.request
 import zipfile
 
+from notices import install_notices, notice_hashes, verify_notices
+
 ROOT = Path(__file__).resolve().parents[2]
 TOOLS = ROOT / 'tools/python-runtime'
 
@@ -58,6 +60,22 @@ def build(arch, output):
     licenses.mkdir(exist_ok=True)
     shutil.copyfile(stage / 'lib/python3.13/LICENSE.txt', licenses / 'Python-LICENSE.txt')
     shutil.copyfile(fetch(lock['python_licenses'], cache), licenses / 'Python-dependencies.rst')
+    install_notices(stage, fetch(lock['curl_licenses'], cache), lock['curl_licenses']['files'])
+    for name, notice_pin in lock['curl_additional_notices'].items():
+        shutil.copyfile(fetch(notice_pin, cache), licenses / 'curl-impersonate' / name)
+    verify_notices(stage, notice_hashes(lock))
+    shutil.copyfile(fetch(lock['curl_binding_recipe'], cache), licenses / 'curl-impersonate/curl_cffi-Makefile')
+    # Preserve the hash-pinned upstream recipe identifying native sources and patches.
+    with tarfile.open(fetch(lock['curl_source'], cache)) as tar:
+        recipe = tar.extractfile('curl-impersonate-2.3.1/CMakeLists.txt').read()
+    (licenses / 'curl-impersonate/CMakeLists.txt').write_bytes(recipe)
+    (licenses / 'curl-impersonate/SOURCE.txt').write_text(
+        'curl_cffi 0.17.0 uses curl-impersonate 2.3.1 (its tagged Makefile).\n'
+        'Native dependency versions, source URLs and hashes: CMakeLists.txt.\n'
+        f"Exact upstream source and patches: {lock['curl_source']['url']}\n"
+        f"SHA-256: {lock['curl_source']['sha256']}\n"
+        f"Exact upstream notice bundle: {lock['curl_licenses']['url']}\n"
+        f"SHA-256: {lock['curl_licenses']['sha256']}\n")
     with tarfile.open(fetch(lock['quickjs'], cache)) as tar:
         tar.extractall(work, filter='data')
     source = work / f"quickjs-{lock['quickjs']['version']}"

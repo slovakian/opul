@@ -1,5 +1,5 @@
 {
-  "runtime": 1,
+  "runtime": 2,
   "minimum_opul_version": "0.2.2",
   "python_version": "3.13.18",
   "python_release": "20261026",
@@ -121,5 +121,39 @@
   "python_licenses": {
     "url": "https://raw.githubusercontent.com/astral-sh/python-build-standalone/20261026/python-licenses.rst",
     "sha256": "e43fb936c6655d7996dba480d7ebdea492d6040ec388eb8ed9d1000f72de8cab"
+  },
+  "curl_licenses": {
+    "url": "https://github.com/lexiforest/curl-impersonate/releases/download/v2.3.1/curl-impersonate-v2.3.1.arm64-macos.tar.gz",
+    "sha256": "0c7224fe24f576c7617ec177630ccfd09adf0278a22b21f0ff07d48db77d9b58",
+    "files": {
+      "LICENSE": "c25fc35eb1692c95fa1406efca2f08cc14afda2c71d5cb1ae44da60358d1787b",
+      "LICENSE_BORINGSSL": "827c8d8fc207c2392794eef9e00fe246f9f61fdcc132556c275be3dd8c3cd97f",
+      "LICENSE_BROTLI": "3d180008e36922a4e8daec11c34c7af264fed5962d07924aea928c38e8663c94",
+      "LICENSE_CARES": "460f5e768fda3752ca2169a95df062578a10fb126bfd65f3b9b1a1bed2f84807",
+      "LICENSE_CURL": "82f2f4427d6545ee5aaac4f0b80428da6cc8ba41c2cf5da3a03680ec327b9681",
+      "LICENSE_NGHTTP2": "6b94f3abc1aabd0c72a7c7d92a77f79dda7c8a0cb3df839a97890b4116a2de2a",
+      "LICENSE_NGHTTP3": "58cc3fc8c6d6cb2485ab35eb5918e849b5bf1e56522974e106d7a39a88d61dcd",
+      "LICENSE_NGTCP2": "542dd526d2ea23565f0571cc68df6f05ed11248a90ff0f32de19d8ba589db513",
+      "LICENSE_ZLIB": "845efc77857d485d91fb3e0b884aaa929368c717ae8186b66fe1ed2495753243",
+      "LICENSE_ZSTD": "7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8"
+    }
+  },
+  "curl_source": {
+    "url": "https://github.com/lexiforest/curl-impersonate/archive/refs/tags/v2.3.1.tar.gz",
+    "sha256": "7ba6eb87aefa6fb5c0974945e84783bf55faed0d08c70972e3f2807125264451"
+  },
+  "curl_additional_notices": {
+    "LICENSE_BORINGSSL_FIAT": {
+      "url": "https://raw.githubusercontent.com/google/boringssl/156c7b75ae9b8c3b3f847acf264f17594c3859fb/third_party/fiat/LICENSE",
+      "sha256": "9eacbcb81be660840c714a560a9d65ba07913db98dd4baf969f78dd499fdd60f"
+    },
+    "AUTHORS_BORINGSSL_FIAT": {
+      "url": "https://raw.githubusercontent.com/google/boringssl/156c7b75ae9b8c3b3f847acf264f17594c3859fb/third_party/fiat/AUTHORS",
+      "sha256": "ad74c036a6afaedc418fed65f171c877c2f74a4c70938a03930aa11c98a20508"
+    }
+  },
+  "curl_binding_recipe": {
+    "url": "https://raw.githubusercontent.com/lexiforest/curl_cffi/v0.17.0/Makefile",
+    "sha256": "461f46c28c0d28ba5ed2e9754a64bf219ea6d91bad01865f3196592c9536047e"
   }
 }

@@ -1,5 +1,9 @@
 # Python runtime releases
 
+Runtime 2 retains runtime 1's executable and wheel pins and adds the complete native curl dependency notice inventory. `runtime.lock.json` pins both the upstream notice archive and every copied notice, the exact curl-impersonate source archive/recipe, curl_cffi's binding recipe, and BoringSSL fiat-crypto attribution. `test_notices.py` rejects missing, modified and symlinked notices. Build and release verification require all twelve notice/author files; numbered runtime 1 remains immutable.
+
+The current verifier rejects runtime 1's incomplete notice inventory explicitly. To repeat its historical architecture/signature/import audit, use the recipe at its recorded release commit (`841d4aa`); that historical result does not establish complete native notices. New publications must pass the current verifier.
+
 The Python runtime is optional video tooling downloaded by Opul. It is never built or bundled by normal app CI, nightly builds, or app release builds. `.github/workflows/python-runtime.yml` builds only when `tools/python-runtime/runtime.lock.json` changes, on a runtime pull request, or on manual dispatch. Existing numbered releases are skipped. Any change to the inputs or recipe needs a new runtime number. Pull requests build and test without publishing.
 
 The runtime contains Python from [python-build-standalone](https://github.com/astral-sh/python-build-standalone/releases/tag/20261026), wheel dependencies pinned to [yt-dlp 2026.10.26](https://github.com/yt-dlp/yt-dlp/blob/2026.10.26/pyproject.toml), and the Opul driver built against [Bellard QuickJS](https://bellard.org/quickjs/). The lock records exact URLs and SHA-256 hashes for each architecture, wheel, source archive, upstream dependency pins and Python license inventory. The Intel Python archive is upstream's cross build. The Intel QuickJS driver is cross-compiled on Apple silicon with `-arch x86_64`. No CPython build or Intel runner is needed.

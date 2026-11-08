@@ -38,6 +38,7 @@ jobs:
         run: |
           export PATH="$(brew --prefix openssl@3)/bin:$PATH"
           python3 tools/python-runtime/test_release.py
+          python3 tools/python-runtime/test_notices.py
       - name: Reject corrupted built-in tools
         run: Scripts/test_ffmpeg_fetch.sh
       - name: Test offline compatibility workflow contracts
