@@ -149,6 +149,8 @@ export const WorkspaceSidebar = ({
     0
   );
 
+  const downloading = downloadRate > 0;
+
   const go = (next: Location) => {
     navigate(next);
 
@@ -237,7 +239,19 @@ export const WorkspaceSidebar = ({
                 onClick={() => go({ kind: item.status })}
               >
                 <item.icon />
-                <span>{item.label}</span>
+                {/* The shimmer stays mounted and fades via its text fill, so
+                    starting or stopping never snaps the sweep mid-frame. */}
+                <span
+                  className={cn(
+                    item.status === "active" &&
+                      "shimmer transition-[-webkit-text-fill-color] duration-500 ease-out",
+                    item.status === "active" &&
+                      !downloading &&
+                      "[--shimmer-text-fill:currentColor] [animation-play-state:paused]"
+                  )}
+                >
+                  {item.label}
+                </span>
               </SidebarMenuButton>
               {item.count > 0 && (
                 <SidebarMenuBadge>{item.count}</SidebarMenuBadge>
