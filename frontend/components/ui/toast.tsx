@@ -166,8 +166,13 @@ const ToastIcon = ({ type }: { type: string | undefined }) => {
   );
 };
 
+/** Optional per-toast data. `dismissLabel` adds a text button that closes the toast. */
+interface ToastData {
+  dismissLabel?: string;
+}
+
 const ToastList = () => {
-  const { toasts } = ToastPrimitive.useToastManager();
+  const { close, toasts } = ToastPrimitive.useToastManager<ToastData>();
 
   return toasts.map((toastItem) => (
     <Toast key={toastItem.id} toast={toastItem}>
@@ -178,7 +183,20 @@ const ToastList = () => {
           <ToastDescription />
         </div>
         <ToastAction />
-        <ToastClose />
+        {toastItem.data?.dismissLabel ? (
+          // Toast.Close hides from assistive tech until the region is focused; a decision
+          // like "Not now" must stay reachable, so it's an ordinary button.
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground shrink-0"
+            onClick={() => close(toastItem.id)}
+          >
+            {toastItem.data.dismissLabel}
+          </Button>
+        ) : (
+          <ToastClose />
+        )}
       </ToastContent>
     </Toast>
   ));
