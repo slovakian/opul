@@ -10,6 +10,7 @@ use std::sync::Mutex;
 #[serde(default)]
 pub struct Preferences {
     pub theme: Theme,
+    pub list_style: ListStyle,
     pub video_tools_setup_shown: bool,
     pub aggregate_views: AggregateViews,
     pub aggregate_destination: AggregateDestination,
@@ -76,6 +77,14 @@ pub struct AggregateViews {
     pub finished: DisplayPreferences,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ListStyle {
+    #[default]
+    Cards,
+    Minimal,
+}
+
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Theme {
@@ -89,6 +98,7 @@ impl Default for Preferences {
     fn default() -> Self {
         Self {
             theme: Theme::System,
+            list_style: ListStyle::Cards,
             video_tools_setup_shown: false,
             aggregate_views: AggregateViews::default(),
             aggregate_destination: AggregateDestination::default(),
@@ -300,6 +310,30 @@ mod tests {
         assert_eq!(
             restored.workspace_expansion_startup,
             WorkspaceExpansionStartup::Collapsed
+        );
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn list_style_defaults_to_cards_and_survives_a_save() {
+        let directory =
+            std::env::temp_dir().join(format!("opul-list-style-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(
+            directory.join("desktop-preferences.json"),
+            br#"{"theme":"dark"}"#,
+        )
+        .unwrap();
+        let store = PreferenceStore::open(&directory).unwrap();
+        assert_eq!(store.get().list_style, ListStyle::Cards);
+        let mut preferences = store.get();
+        preferences.list_style = ListStyle::Minimal;
+        store.save(preferences).unwrap();
+        let restored = PreferenceStore::open(&directory).unwrap().get();
+        assert_eq!(restored.list_style, ListStyle::Minimal);
+        assert_eq!(
+            serde_json::to_value(&restored).unwrap()["list_style"],
+            "minimal"
         );
         fs::remove_dir_all(directory).unwrap();
     }

@@ -76,6 +76,7 @@ export const preferences: Preferences = {
   },
   concurrent_downloads: 3,
   enable_dht: true,
+  list_style: "cards",
   listen_port: 6881,
   max_connections: 200,
   max_download_kbps: 0,

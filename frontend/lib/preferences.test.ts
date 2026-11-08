@@ -15,6 +15,7 @@ test("older preference responses default to no remembered workspace choices", ()
   });
 
   expect(restored.workspace_expansion).toEqual({});
+  expect(restored.list_style).toBe("cards");
 });
 
 test("expansion IPC accepts independent boolean choices and rejects malformed values", () => {

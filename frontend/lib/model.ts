@@ -201,6 +201,10 @@ export type WorkspaceExpansion = z.infer<typeof workspaceExpansionSchema>;
 
 export type WorkspaceExpansionChanges = Record<string, boolean | null>;
 
+export const listStyleSchema = z.enum(["cards", "minimal"]);
+
+export type ListStyle = z.infer<typeof listStyleSchema>;
+
 export const preferencesSchema = z.object({
   aggregate_destination: z
     .discriminatedUnion("kind", [
@@ -211,6 +215,7 @@ export const preferencesSchema = z.object({
   aggregate_views: aggregateViewsSchema.prefault({}),
   concurrent_downloads: z.number(),
   enable_dht: z.boolean(),
+  list_style: listStyleSchema.default("cards"),
   listen_port: z.number(),
   max_connections: z.number(),
   max_download_kbps: z.number(),
