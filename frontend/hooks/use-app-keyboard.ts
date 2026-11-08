@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
 
 import type { Modal } from "@/components/app-modals";
+import { checkForAppUpdates } from "@/hooks/use-app-updates";
 
 interface UseAppKeyboardProps {
   focusInput: (select: boolean) => void;
@@ -47,6 +48,11 @@ export const useAppKeyboard = ({
       listen("settings", () => setModal({ kind: "settings" })),
       listen("new-download", () => {
         newDownload();
+      }),
+      // The app menu's Check for Updates… opens the Updates section with a check running.
+      listen("check-for-updates", () => {
+        setModal({ kind: "settings", section: "Updates" });
+        void checkForAppUpdates();
       }),
     ];
 

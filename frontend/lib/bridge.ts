@@ -3,6 +3,8 @@ import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { z } from "zod";
 
+import { appUpdatesSchema } from "@/lib/app-updates";
+import type { AppUpdates } from "@/lib/app-updates";
 import {
   appearanceSchema,
   preferencesSchema,
@@ -35,6 +37,13 @@ const requireDesktop = () => {
 };
 
 export const bridge = {
+  async appUpdates() {
+    return appUpdatesSchema.parse(await invoke("app_updates_snapshot"));
+  },
+  /** Starts a check; the result arrives through `onAppUpdates`. */
+  async checkForAppUpdates() {
+    return appUpdatesSchema.parse(await invoke("app_updates_check"));
+  },
   chooseFolder() {
     return open({
       directory: true,
@@ -49,11 +58,31 @@ export const bridge = {
       title: "Open a torrent",
     });
   },
+  async configureAppUpdates(choices: {
+    checkAutomatically: boolean;
+    installAutomatically: boolean;
+  }) {
+    return appUpdatesSchema.parse(
+      await invoke("app_updates_configure", choices)
+    );
+  },
+  async downloadAppUpdate() {
+    return appUpdatesSchema.parse(await invoke("app_updates_download"));
+  },
   async execute(command: Command) {
     return receiptSchema.parse(await invoke("execute", { command }));
   },
   async markVideoToolsSetupShown() {
     return z.boolean().parse(await invoke("mark_video_tools_setup_shown"));
+  },
+  async onAppUpdates(onSnapshot: (snapshot: AppUpdates) => void) {
+    return await listen("app-updates", (event) => {
+      const result = appUpdatesSchema.safeParse(event.payload);
+
+      if (result.success) {
+        onSnapshot(result.data);
+      }
+    });
   },
   /** The Help ▸ Set Up Video Tools… menu item. The shell emits each menu item's id. */
   async onSetUpVideoToolsMenu(handler: () => void) {
@@ -72,6 +101,9 @@ export const bridge = {
     requireDesktop();
 
     return preferencesSchema.parse(await invoke("get_preferences"));
+  },
+  async restartForAppUpdate() {
+    await invoke("app_updates_restart");
   },
   async reveal(downloadId: string) {
     await invoke("reveal_download", { downloadId });
@@ -98,6 +130,13 @@ export const bridge = {
     requireDesktop();
 
     return snapshotSchema.parse(await invoke("snapshot"));
+  },
+  /** Claims the one notification a version gets. Null when it was already shown. */
+  async takeAppUpdateNotice() {
+    return z
+      .string()
+      .nullable()
+      .parse(await invoke("app_updates_take_notice"));
   },
   async takeVideoToolsUpdateNotice() {
     return updateNoticeSchema

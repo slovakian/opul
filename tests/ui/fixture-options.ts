@@ -1,3 +1,4 @@
+import type { AppUpdates } from "../../frontend/lib/app-updates";
 import type {
   AggregateView,
   Command,
@@ -12,6 +13,8 @@ import type {
 } from "../../frontend/lib/video-tools";
 
 export interface DesktopInvokeArgs {
+  checkAutomatically?: boolean;
+  installAutomatically?: boolean;
   command?: Command;
   operation?: VideoToolsOperation;
   turnOff?: boolean;
@@ -25,6 +28,8 @@ export interface DesktopInvokeArgs {
 }
 
 export interface DesktopOptions {
+  appUpdates?: AppUpdates;
+  failAppUpdateDownload?: boolean;
   videoTools?: VideoToolsSnapshot;
   failVideoToolsPreference?: boolean;
   holdPreferenceResponses?: PreferenceResponse[];

@@ -3,6 +3,7 @@
 
 pub mod preferences;
 pub mod tools;
+pub mod updates;
 
 use crate::Desktop;
 use opul_core::{

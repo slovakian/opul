@@ -1,6 +1,6 @@
 # Releasing Opul
 
-Opul packages with Tauri. App updates currently require downloading a new app; the registered updater does not check automatically. Video tools have their own consent and update lifecycle.
+Opul packages with Tauri and [updates itself](app-updates.md) from the signed updater manifests these workflows publish. Video tools have their own consent and update lifecycle.
 
 ## Local packages
 
@@ -57,4 +57,15 @@ Audit app-owned copy, release notes and screenshots for “video sites”/“vid
 
 `.github/workflows/release.yml` supports a `v*.*.*` tag or manual dispatch with a patch/minor/major bump. The matrix publishes the two architecture DMGs and the friendly alias. It generates signed updater manifests with `Scripts/generate-updater-manifest.mjs` and verifies public asset checksums. Nightly uses an isolated app identity/data folder and defaults to stable yt-dlp, with an optional nightly script switch.
 
-Optional Developer ID signing uses `DEVELOPER_ID_CERTIFICATE_P12` and `DEVELOPER_ID_CERTIFICATE_PASSWORD`. Notarization uses `NOTARY_APPLE_ID`, `NOTARY_TEAM_ID`, and `NOTARY_PASSWORD`. Tauri updater signing uses `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Do not describe ad-hoc signed packages as notarized.
+Optional Developer ID signing uses `DEVELOPER_ID_CERTIFICATE_P12` and `DEVELOPER_ID_CERTIFICATE_PASSWORD`. Notarization uses `NOTARY_APPLE_ID`, `NOTARY_TEAM_ID`, and `NOTARY_PASSWORD`. Tauri updater signing uses `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Both workflows fail without them, and the manifest generator rejects missing or placeholder signatures, so a release can never advertise an update that won't verify. Do not describe ad-hoc signed packages as notarized.
+
+### Rotating the updater key
+
+The public key in `src-tauri/tauri.conf.json` (`plugins.updater.pubkey`) must match the private key in the secrets. Installed copies trust only the key they shipped with, so a rotation strands every earlier build: those users must download the next release by hand. Rotate only when the private key is lost or exposed:
+
+1. Run `pnpm exec tauri signer generate -w <path outside the repo>` with a strong password.
+2. Store the private key and password in the maintainers' password manager.
+3. Set them with `gh secret set TAURI_SIGNING_PRIVATE_KEY < <key file>` and `gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, then delete the local copies.
+4. Commit only the new `.pub` contents to `tauri.conf.json`, and say in the release notes that this release must be installed manually.
+
+The current key id is `FD050D5EBFEE2E4E`. It replaced `D5A4676F417CDAA6`, whose private key was lost, so no Tauri build signed before the rotation can update itself.

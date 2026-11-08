@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/sidebar";
 import { WorkspaceIcon } from "@/components/workspace-icon";
 import { useWorkspaceRemovalFocus } from "@/hooks/use-workspace-removal-focus";
+import { isActiveDownload } from "@/lib/download-activity";
 import { useLibrary } from "@/lib/library";
 import { aggregateNames, bytes } from "@/lib/model";
 import type { AggregateView, Folder, Workspace } from "@/lib/model";
@@ -137,12 +138,7 @@ export const WorkspaceSidebar = ({
 
   const allDownloads = workspaces.flatMap((workspace) => workspace.downloads);
 
-  const active = allDownloads.filter(
-    (download) =>
-      download.capabilities.can_pause ||
-      download.state === "Pausing" ||
-      download.state === "WaitingForVideoTools"
-  );
+  const active = allDownloads.filter(isActiveDownload);
 
   const downloadRate = allDownloads.reduce(
     (sum, download) => sum + download.download_rate,

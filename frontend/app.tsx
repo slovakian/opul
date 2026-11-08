@@ -6,6 +6,7 @@ import { AppContent } from "@/components/app-content";
 import { AppHeader } from "@/components/app-header";
 import { AppModals } from "@/components/app-modals";
 import type { Modal } from "@/components/app-modals";
+import { AppUpdateRestartDialog } from "@/components/app-update-restart";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { SidebarInset, useSidebar } from "@/components/ui/sidebar";
@@ -13,6 +14,7 @@ import { VideoSetup } from "@/components/video-setup";
 import { WorkspaceSidebar } from "@/components/workspace-sidebar";
 import type { Location, StatusFilter } from "@/components/workspace-sidebar";
 import { useAppKeyboard } from "@/hooks/use-app-keyboard";
+import { useAppUpdateNotices } from "@/hooks/use-app-update-notices";
 import { useDownloadNotifications } from "@/hooks/use-download-notifications";
 import { useSavedFolderAddition } from "@/hooks/use-saved-folder-addition";
 import { useVideoSetup } from "@/hooks/use-video-setup";
@@ -23,6 +25,7 @@ import {
   normalizeWorkspaceLocation,
   useWorkspaceView,
 } from "@/hooks/use-workspace-view";
+import { isActiveDownload } from "@/lib/download-activity";
 import { useLibrary } from "@/lib/library";
 import type { DisplayPreferences } from "@/lib/model";
 import { cn } from "@/lib/utils";
@@ -112,6 +115,12 @@ const App = () => {
   );
 
   const workspaces = state.kind === "ready" ? state.snapshot.workspaces : [];
+
+  const activeDownloads = workspaces
+    .flatMap((item) => item.downloads)
+    .filter(isActiveDownload).length;
+
+  useAppUpdateNotices(activeDownloads);
 
   const {
     display,
@@ -325,6 +334,7 @@ const App = () => {
         </div>
       </SidebarInset>
       <VideoSetup setup={videoSetup} />
+      <AppUpdateRestartDialog activeDownloads={activeDownloads} />
       <AppModals
         onVideoSetup={() => {
           setModal(null);

@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 
+import type { AppUpdates } from "../../frontend/lib/app-updates";
 import type {
   ToolsSnapshot,
   VideoToolsSnapshot,
@@ -7,10 +8,13 @@ import type {
 import { toolsSnapshot } from "./fixture-data";
 import type { DesktopInvokeArgs, DesktopOptions } from "./fixture-options";
 
+/** What the shell emits: snapshots, or nothing for menu items. */
+type EventPayload = VideoToolsSnapshot | AppUpdates | null;
+
 interface ToolsEvent {
   event: string;
   id: number;
-  payload: VideoToolsSnapshot;
+  payload: EventPayload;
 }
 
 declare global {
@@ -28,6 +32,8 @@ declare global {
         | number
         | null;
       register: (handler: (event: ToolsEvent) => void) => number;
+      /** Delivers a Tauri event to every frontend listener for `event`. */
+      emit: (event: string, payload: EventPayload) => void;
     };
   }
 }
@@ -46,14 +52,7 @@ export const mockVideoTools = async (page: Page, options: DesktopOptions) => {
           : structuredClone(mockOpts.videoTools ?? tools.video),
       };
 
-      const toolCallbacks = new Map<
-        number,
-        (event: {
-          event: string;
-          id: number;
-          payload: VideoToolsSnapshot;
-        }) => void
-      >();
+      const toolCallbacks = new Map<number, (event: ToolsEvent) => void>();
 
       const toolListeners = new Map<number, string>();
 
@@ -182,6 +181,17 @@ export const mockVideoTools = async (page: Page, options: DesktopOptions) => {
 
       let callbackId = 0;
       window.testVideoTools = {
+        emit: (event, payload) => {
+          for (const [id, name] of toolListeners) {
+            if (name === event) {
+              toolCallbacks.get(id)?.({
+                event,
+                id,
+                payload: structuredClone(payload),
+              });
+            }
+          }
+        },
         invoke: (name, args) => {
           if (name === "video_tools_take_update_notice") {
             const { video } = currentTools;
