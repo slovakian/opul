@@ -1,5 +1,6 @@
 import { DownloadInspector } from "@/components/download-inspector";
 import { SettingsDialog } from "@/components/settings-dialog";
+import type { SettingsSection } from "@/components/settings-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,7 +18,7 @@ import type { Download, Workspace } from "@/lib/model";
 
 export type Modal =
   | { kind: "icon"; workspace: Workspace; anchor: HTMLButtonElement | null }
-  | { kind: "settings" }
+  | { kind: "settings"; section?: SettingsSection }
   | { kind: "workspace"; workspace: Workspace | null }
   | { kind: "remove"; download: Download }
   | { kind: "delete-workspace"; workspace: Workspace };
@@ -140,7 +141,11 @@ export const AppModals = ({
       />
     )}
     {modal?.kind === "settings" && (
-      <SettingsDialog onClose={onClose} onVideoSetup={onVideoSetup} />
+      <SettingsDialog
+        onClose={onClose}
+        onVideoSetup={onVideoSetup}
+        section={modal.section}
+      />
     )}
     {modal?.kind === "icon" && (
       <WorkspaceIconEditor
