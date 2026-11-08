@@ -16,6 +16,7 @@ import { createElement, useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
 
 import { DownloadActions } from "@/components/download-actions";
+import { DownloadFolderIcon } from "@/components/download-folder-icon";
 import {
   DownloadMenuBody,
   downloadMenuPopup,
@@ -371,11 +372,8 @@ const DownloadListItem = ({
         }}
         onKeyDown={handleMenuKey}
       >
-        <ItemMedia
-          variant="icon"
-          className="text-muted-foreground size-9 rounded-lg"
-        >
-          {createElement(fileIcon(download))}
+        <ItemMedia className="size-9">
+          <DownloadFolderIcon download={download} className="size-8" />
         </ItemMedia>
         <ItemContent className="min-w-0">
           <ItemTitle className="max-w-full">

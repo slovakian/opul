@@ -9,3 +9,11 @@ The distinction matters because Tauri development sets `NSApplication`'s icon di
 `Scripts/build_icon.sh` regenerates both Tauri assets from the native master. Tauri runs it before development and production builds, including DMG builds. After packaging, `swift Scripts/check_macos_icon.swift [Opul.app]` compares the actual development assets, bundled ICNS, and Finder icon against this reference at several sizes. The packaged smoke test runs this check in CI and saves previews under `test-results/macos-icon/`.
 
 Provenance of the native master: build the ICNS with the pre-PR `Scripts/build_icon.sh` from commit `aaab364`, place it in a temporary app with `CFBundleIconFile` pointing to it, then render `NSWorkspace.shared.icon(forFile: appPath)` into a 1024px RGBA `NSBitmapImageRep`. The original artwork's SHA-256 is `45656fa471420237fbae262b97801b90478720656b97919bfe3cdcd0204fffbf`.
+
+# Download folder artwork
+
+`download-folder.png` is the unchanged 1254px generated master for the folder shown beside each download in list rows and the details panel. Keep it for future re-exports. Its SHA-256 is `e45ee683cefa46ea44e926e062027bb4819228e3e3334f148bb9dff7d9fda7f4`.
+
+`frontend/assets/download-folder.png` is the shipped 144px export (48px at 3x). To regenerate it: drop the nearly transparent specks left over from background removal (keep the largest connected region with alpha ≥ 32, plus a 3px margin), crop to that region, center it on a square transparent canvas, and downscale with Lanczos using premultiplied alpha. Keep it full-color RGBA: palette quantization causes banding once the color filters boost saturation.
+
+The colors come from CSS filters in `frontend/lib/download-folder.ts`, tuned in WebKit against this artwork. Retune them whenever the artwork's base color changes.

@@ -9,11 +9,12 @@ import {
   Magnet,
   X,
 } from "lucide-react";
-import { createElement, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { DownloadActions } from "@/components/download-actions";
+import { DownloadFolderIcon } from "@/components/download-folder-icon";
 import { reveal } from "@/components/download-menu";
-import { DownloadStatus, fileIcon } from "@/components/downloads";
+import { DownloadStatus } from "@/components/downloads";
 import { InspectorPanel } from "@/components/inspector-panel";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -152,11 +153,7 @@ export const DownloadInspector = ({
       </SidebarHeader>
       <SidebarContent className="scroll-fade gap-6 px-5 pb-6">
         <div className="flex flex-col items-start gap-4 pt-4">
-          <div className="bg-muted flex size-14 items-center justify-center rounded-xl">
-            {createElement(fileIcon(download), {
-              className: "text-muted-foreground size-6",
-            })}
-          </div>
+          <DownloadFolderIcon download={download} className="size-12" />
           <h3 className="max-w-full text-base font-medium break-words">
             {download.name}
           </h3>
