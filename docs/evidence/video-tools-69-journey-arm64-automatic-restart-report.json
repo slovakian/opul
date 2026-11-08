@@ -1,0 +1,130 @@
+{
+  "evidence": [
+    {
+      "direct": "4efb355a-b5c0-49d3-becc-804530e2fa6e",
+      "direct_bytes_verified": true,
+      "phase": "restart",
+      "tools_at_completion": {
+        "keep_up_to_date": true,
+        "nightly_available": false,
+        "published_size": null,
+        "sequence": 0,
+        "state": {
+          "installed": {
+            "python_version": "3.13.18",
+            "runtime": 2,
+            "yt_dlp": "2026.10.26",
+            "yt_dlp_channel": "stable"
+          },
+          "kind": "ready",
+          "last_checked": 1794107564,
+          "update_flag": {
+            "kind": "none"
+          }
+        },
+        "update_available": false,
+        "use_nightly": false
+      },
+      "tools_at_start": {
+        "keep_up_to_date": true,
+        "nightly_available": false,
+        "published_size": null,
+        "sequence": 0,
+        "state": {
+          "installed": {
+            "python_version": "3.13.18",
+            "runtime": 2,
+            "yt_dlp": "2026.10.26",
+            "yt_dlp_channel": "stable"
+          },
+          "kind": "ready",
+          "last_checked": 1794107564,
+          "update_flag": {
+            "kind": "none"
+          }
+        },
+        "update_available": false,
+        "use_nightly": false
+      },
+      "torrent": "688c0846-5235-4fcd-97a8-1c468acbdeac",
+      "torrent_bytes_verified": true
+    },
+    {
+      "restart": "Ready and independent transfers verified"
+    }
+  ],
+  "mode": "restart",
+  "ok": true,
+  "tools": {
+    "keep_up_to_date": true,
+    "nightly_available": false,
+    "published_size": null,
+    "sequence": 0,
+    "state": {
+      "installed": {
+        "python_version": "3.13.18",
+        "runtime": 2,
+        "yt_dlp": "2026.10.26",
+        "yt_dlp_channel": "stable"
+      },
+      "kind": "ready",
+      "last_checked": 1794107564,
+      "update_flag": {
+        "kind": "none"
+      }
+    },
+    "update_available": false,
+    "use_nightly": false
+  },
+  "prior_downloads_preserved": {
+    "a91558b5-c3e1-4556-ae26-b4112db6dc9b": {
+      "folder": "09999c3b-64c4-49db-910b-d2563d37485d",
+      "format": "Original",
+      "output": "/Users/jason/orca/workspaces/opul/set-up-verified-video-tools-from-settings-and-ru/.build/issue-69-acceptance-arm64/automatic/downloads/automatic-waiting.txt",
+      "sha256": "47b87bb488a3721cbeaa14fb819d72a1223125ce6ae4ace71a45ac9ddf73eba3"
+    },
+    "1e67e4ce-31b7-4b14-ba15-25fbc0034bd7": {
+      "folder": "09999c3b-64c4-49db-910b-d2563d37485d",
+      "format": null,
+      "output": "/Users/jason/orca/workspaces/opul/set-up-verified-video-tools-from-settings-and-ru/.build/issue-69-acceptance-arm64/automatic/downloads/automatic-waiting.bin",
+      "sha256": "4bb21afcfa374ab375bf160968108aa9a4f06ad92b59a20dee187b34c493ba44"
+    },
+    "07af7fc4-2fe5-446f-b70b-ba592aa77818": {
+      "folder": "09999c3b-64c4-49db-910b-d2563d37485d",
+      "format": "Original",
+      "output": "/Users/jason/orca/workspaces/opul/set-up-verified-video-tools-from-settings-and-ru/.build/issue-69-acceptance-arm64/automatic/downloads/automatic-updating.txt",
+      "sha256": "33ec5ea35fadf2fd9db958619d166c36029079ad0353cf68befde8a973691f2c"
+    },
+    "d231724b-8437-45a1-b3ad-9c3082933879": {
+      "folder": "09999c3b-64c4-49db-910b-d2563d37485d",
+      "format": null,
+      "output": "/Users/jason/orca/workspaces/opul/set-up-verified-video-tools-from-settings-and-ru/.build/issue-69-acceptance-arm64/automatic/downloads/automatic-updating.bin",
+      "sha256": "4bf5013bf190e720a958d3cbb495bc39af1d2b8f8972b6e88aad9cbb362f41e6"
+    },
+    "54985219-9d99-411a-9169-2902df2b8ae9": {
+      "folder": "09999c3b-64c4-49db-910b-d2563d37485d",
+      "format": "Original",
+      "output": "/Users/jason/orca/workspaces/opul/set-up-verified-video-tools-from-settings-and-ru/.build/issue-69-acceptance-arm64/automatic/downloads/success.mp4",
+      "sha256": "dbd49391ceba05234524270c8f2451a846ee30abb668ca4026a9e597bf5487b5"
+    },
+    "ea456488-3df8-4002-bcca-85dd3c547f87": {
+      "folder": "09999c3b-64c4-49db-910b-d2563d37485d",
+      "format": "Original",
+      "output": "/Users/jason/orca/workspaces/opul/set-up-verified-video-tools-from-settings-and-ru/.build/issue-69-acceptance-arm64/automatic/downloads/automatic-ready.txt",
+      "sha256": "950eac2f122fefc38437a1748ba22d1ba8af9939586de880c2fe1933043a543b"
+    },
+    "4334733b-b384-4e80-b434-79d4dd4a94b2": {
+      "folder": "09999c3b-64c4-49db-910b-d2563d37485d",
+      "format": null,
+      "output": "/Users/jason/orca/workspaces/opul/set-up-verified-video-tools-from-settings-and-ru/.build/issue-69-acceptance-arm64/automatic/downloads/automatic-ready.bin",
+      "sha256": "1d036ef49b3214e423eef0db7da3d9791602a2b8d253a2a8b365d87f86825185"
+    }
+  },
+  "video_bytes_verified": [
+    {
+      "id": "54985219-9d99-411a-9169-2902df2b8ae9",
+      "sha256": "dbd49391ceba05234524270c8f2451a846ee30abb668ca4026a9e597bf5487b5"
+    }
+  ],
+  "time_machine": "[Excluded]  /Users/jason/orca/workspaces/opul/set-up-verified-video-tools-from-settings-and-ru/.build/issue-69-acceptance-arm64/automatic/state/Tools"
+}

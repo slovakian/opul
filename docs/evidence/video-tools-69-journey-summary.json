@@ -1,0 +1,86 @@
+{
+  "host_macos": "26.2",
+  "hardware": "Apple silicon arm64",
+  "x64_execution": "Rosetta",
+  "macos_13_execution": false,
+  "architectures": {
+    "arm64": {
+      "launches": 7,
+      "all_passed": true,
+      "direct_and_torrent_phases": [
+        "not-set-up",
+        "turned-off",
+        "off-after-restart",
+        "setting-up",
+        "ready",
+        "video-running",
+        "removed",
+        "re-setup",
+        "restart",
+        "manual-before",
+        "update-available",
+        "manual-updating",
+        "rolled-back",
+        "manual-finished",
+        "restart",
+        "automatic-waiting",
+        "automatic-updating",
+        "automatic-ready",
+        "restart"
+      ],
+      "real_peer_pieces": 19,
+      "real_peer_bytes": 18016,
+      "http_ranges": [
+        {
+          "path": "/slow.mp4",
+          "start": 130048
+        }
+      ],
+      "automatic_update_seconds": 82,
+      "manual_update": [1, 2],
+      "rollback": [2, 1],
+      "retry_update": [1, 2],
+      "completed_videos_compared_to_fixture_bytes": true,
+      "ordinary_quit_and_restart_inventories_verified": true
+    },
+    "x64": {
+      "launches": 7,
+      "all_passed": true,
+      "direct_and_torrent_phases": [
+        "not-set-up",
+        "turned-off",
+        "off-after-restart",
+        "setting-up",
+        "ready",
+        "video-running",
+        "removed",
+        "re-setup",
+        "restart",
+        "manual-before",
+        "update-available",
+        "manual-updating",
+        "rolled-back",
+        "manual-finished",
+        "restart",
+        "automatic-waiting",
+        "automatic-updating",
+        "automatic-ready",
+        "restart"
+      ],
+      "real_peer_pieces": 19,
+      "real_peer_bytes": 18016,
+      "http_ranges": [
+        {
+          "path": "/slow.mp4",
+          "start": 130048
+        }
+      ],
+      "automatic_update_seconds": 82,
+      "manual_update": [1, 2],
+      "rollback": [2, 1],
+      "retry_update": [1, 2],
+      "completed_videos_compared_to_fixture_bytes": true,
+      "ordinary_quit_and_restart_inventories_verified": true
+    }
+  }
+}

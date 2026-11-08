@@ -2,12 +2,12 @@
   "app": "Opul.app",
   "version": "0.2.2",
   "architecture": "arm64",
-  "app_file_bytes": 40924816,
+  "app_file_bytes": 41021056,
   "native_files": [
     {
       "path": "Contents/MacOS/Opul",
       "minimum_macos": ["13.0"],
-      "sha256": "96e7ebfa956e58fbf39caa43b9e4671fc947b8709e9374e943e73223e393ef91"
+      "sha256": "0df1feebb99ed7a59cdb0be3451a79eb1ec9e97010b2edf0c6fc595ea1c72321"
     },
     {
       "path": "Contents/Resources/media-tools/ffmpeg",
@@ -22,6 +22,6 @@
   ],
   "audit_host_macos": "26.2",
   "minimum_os_evidence": "Deployment metadata only; run separately on macOS 13.",
-  "dmg_bytes": 17676580,
-  "dmg_sha256": "304178e7ae4e698bdace0a006c09eaad4df55f8958f6c17624b4a1d518e4f1cb"
+  "dmg_bytes": 17743200,
+  "dmg_sha256": "0b0c0c848d95e3ec8fb16e4ec28ed0b047daf9d5c573cec2e1e7c21f177deb46"
 }

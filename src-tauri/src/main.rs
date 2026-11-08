@@ -4,6 +4,7 @@ mod channel;
 mod commands;
 mod desktop;
 mod preferences;
+mod video_tools_journey;
 mod video_tools_smoke;
 
 use desktop::Desktop;

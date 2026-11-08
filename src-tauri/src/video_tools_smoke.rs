@@ -16,10 +16,15 @@ pub fn start(app: &tauri::AppHandle) {
     let machine = app.state::<Desktop>().machine();
     let app = app.clone();
     std::thread::spawn(move || {
-        let result =
-            machine.and_then(|machine| download(&machine, url.to_string_lossy().into_owned()));
+        let result = machine.and_then(|machine| {
+            if let Some(config) = std::env::var_os("OPUL_SMOKE_JOURNEY_CONFIG") {
+                return crate::video_tools_journey::run(&app, &machine, config.into());
+            }
+            download(&machine, url.to_string_lossy().into_owned())
+                .map(|message| serde_json::json!({ "ok": true, "evidence": message }))
+        });
         let result = match result {
-            Ok(message) => serde_json::json!({ "ok": true, "evidence": message }),
+            Ok(report) => report,
             Err(error) => serde_json::json!({ "ok": false, "error": error }),
         };
         let _ = std::fs::write(

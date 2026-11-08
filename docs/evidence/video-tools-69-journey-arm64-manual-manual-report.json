@@ -1,0 +1,331 @@
+{
+  "evidence": [
+    {
+      "action": "click",
+      "ok": true,
+      "request_id": "5735f360-4d44-45aa-ab85-8dd32f052889",
+      "target": "Tools"
+    },
+    {
+      "action": "switch",
+      "ok": true,
+      "request_id": "870e4b44-cb05-4320-96c0-d4e42b32db19",
+      "target": "keep-video-tools-up-to-date"
+    },
+    {
+      "direct": "61044ea9-7012-45af-a021-401639bab3dd",
+      "direct_bytes_verified": true,
+      "phase": "manual-before",
+      "tools_at_completion": {
+        "keep_up_to_date": false,
+        "nightly_available": false,
+        "published_size": null,
+        "sequence": 0,
+        "state": {
+          "installed": {
+            "python_version": "3.13.18",
+            "runtime": 1,
+            "yt_dlp": "2026.10.26",
+            "yt_dlp_channel": "stable"
+          },
+          "kind": "ready",
+          "last_checked": null,
+          "update_flag": {
+            "kind": "none"
+          }
+        },
+        "update_available": false,
+        "use_nightly": false
+      },
+      "tools_at_start": {
+        "keep_up_to_date": false,
+        "nightly_available": false,
+        "published_size": null,
+        "sequence": 0,
+        "state": {
+          "installed": {
+            "python_version": "3.13.18",
+            "runtime": 1,
+            "yt_dlp": "2026.10.26",
+            "yt_dlp_channel": "stable"
+          },
+          "kind": "ready",
+          "last_checked": null,
+          "update_flag": {
+            "kind": "none"
+          }
+        },
+        "update_available": false,
+        "use_nightly": false
+      },
+      "torrent": "15c551eb-9288-4965-af6e-dbd6c7d7345a",
+      "torrent_bytes_verified": true
+    },
+    {
+      "action": "click",
+      "ok": true,
+      "request_id": "81cbdf2a-9f3d-46e1-b3d1-ec8f4700d8b5",
+      "target": "Check for updates"
+    },
+    {
+      "direct": "16d1aeb5-0cfb-4198-9288-d855e10d3cc3",
+      "direct_bytes_verified": true,
+      "phase": "update-available",
+      "tools_at_completion": {
+        "keep_up_to_date": false,
+        "nightly_available": false,
+        "published_size": null,
+        "sequence": 2,
+        "state": {
+          "installed": {
+            "python_version": "3.13.18",
+            "runtime": 1,
+            "yt_dlp": "2026.10.26",
+            "yt_dlp_channel": "stable"
+          },
+          "kind": "ready",
+          "last_checked": 1794107429,
+          "update_flag": {
+            "kind": "available",
+            "version": "Python runtime 2"
+          }
+        },
+        "update_available": true,
+        "use_nightly": false
+      },
+      "tools_at_start": {
+        "keep_up_to_date": false,
+        "nightly_available": false,
+        "published_size": null,
+        "sequence": 2,
+        "state": {
+          "installed": {
+            "python_version": "3.13.18",
+            "runtime": 1,
+            "yt_dlp": "2026.10.26",
+            "yt_dlp_channel": "stable"
+          },
+          "kind": "ready",
+          "last_checked": 1794107429,
+          "update_flag": {
+            "kind": "available",
+            "version": "Python runtime 2"
+          }
+        },
+        "update_available": true,
+        "use_nightly": false
+      },
+      "torrent": "6d31e540-5315-4a27-9c3c-7da5c3119e0e",
+      "torrent_bytes_verified": true
+    },
+    {
+      "action": "click",
+      "ok": true,
+      "request_id": "28222e74-c0f5-439b-b4a0-f17a99a7b580",
+      "target": "Update"
+    },
+    {
+      "direct": "fbdd1011-d9ce-4944-9c9b-210a3f88a04f",
+      "direct_bytes_verified": true,
+      "phase": "manual-updating",
+      "tools_at_completion": {
+        "keep_up_to_date": false,
+        "nightly_available": false,
+        "published_size": null,
+        "sequence": 4,
+        "state": {
+          "installed": {
+            "python_version": "3.13.18",
+            "runtime": 1,
+            "yt_dlp": "2026.10.26",
+            "yt_dlp_channel": "stable"
+          },
+          "kind": "ready",
+          "last_checked": 1794107432,
+          "update_flag": {
+            "kind": "updating",
+            "progress": 0,
+            "version": "Python runtime 2"
+          }
+        },
+        "update_available": false,
+        "use_nightly": false
+      },
+      "tools_at_start": {
+        "keep_up_to_date": false,
+        "nightly_available": false,
+        "published_size": null,
+        "sequence": 4,
+        "state": {
+          "installed": {
+            "python_version": "3.13.18",
+            "runtime": 1,
+            "yt_dlp": "2026.10.26",
+            "yt_dlp_channel": "stable"
+          },
+          "kind": "ready",
+          "last_checked": 1794107432,
+          "update_flag": {
+            "kind": "updating",
+            "progress": 0,
+            "version": "Python runtime 2"
+          }
+        },
+        "update_available": false,
+        "use_nightly": false
+      },
+      "torrent": "bf9ad142-fac1-41f1-bda8-9c281ba4c16f",
+      "torrent_bytes_verified": true
+    },
+    {
+      "direct": "845ac08b-0e88-41b2-89d0-fd007b869c33",
+      "direct_bytes_verified": true,
+      "phase": "rolled-back",
+      "tools_at_completion": {
+        "keep_up_to_date": false,
+        "nightly_available": false,
+        "published_size": null,
+        "sequence": 589,
+        "state": {
+          "installed": {
+            "python_version": "3.13.18",
+            "runtime": 1,
+            "yt_dlp": "2026.10.26",
+            "yt_dlp_channel": "stable"
+          },
+          "kind": "ready",
+          "last_checked": 1794107432,
+          "update_flag": {
+            "kind": "failed",
+            "version": "Python runtime 2"
+          }
+        },
+        "update_available": false,
+        "use_nightly": false
+      },
+      "tools_at_start": {
+        "keep_up_to_date": false,
+        "nightly_available": false,
+        "published_size": null,
+        "sequence": 589,
+        "state": {
+          "installed": {
+            "python_version": "3.13.18",
+            "runtime": 1,
+            "yt_dlp": "2026.10.26",
+            "yt_dlp_channel": "stable"
+          },
+          "kind": "ready",
+          "last_checked": 1794107432,
+          "update_flag": {
+            "kind": "failed",
+            "version": "Python runtime 2"
+          }
+        },
+        "update_available": false,
+        "use_nightly": false
+      },
+      "torrent": "a9a04044-0076-49bb-b25f-e497c9ac21cf",
+      "torrent_bytes_verified": true
+    },
+    {
+      "action": "click",
+      "ok": true,
+      "request_id": "56185cb7-39bc-4ede-b2eb-3ae5840305e2",
+      "target": "Check for updates"
+    },
+    {
+      "action": "click",
+      "ok": true,
+      "request_id": "8ed2f8c9-b0e6-40a2-b4a3-e1ab69d26f53",
+      "target": "Update"
+    },
+    {
+      "direct": "f919a220-bf54-4493-b068-14ee4f9b9a3c",
+      "direct_bytes_verified": true,
+      "phase": "manual-finished",
+      "tools_at_completion": {
+        "keep_up_to_date": false,
+        "nightly_available": false,
+        "published_size": null,
+        "sequence": 1004,
+        "state": {
+          "installed": {
+            "python_version": "3.13.18",
+            "runtime": 2,
+            "yt_dlp": "2026.10.26",
+            "yt_dlp_channel": "stable"
+          },
+          "kind": "ready",
+          "last_checked": 1794107456,
+          "update_flag": {
+            "kind": "none"
+          }
+        },
+        "update_available": false,
+        "use_nightly": false
+      },
+      "tools_at_start": {
+        "keep_up_to_date": false,
+        "nightly_available": false,
+        "published_size": null,
+        "sequence": 1004,
+        "state": {
+          "installed": {
+            "python_version": "3.13.18",
+            "runtime": 2,
+            "yt_dlp": "2026.10.26",
+            "yt_dlp_channel": "stable"
+          },
+          "kind": "ready",
+          "last_checked": 1794107456,
+          "update_flag": {
+            "kind": "none"
+          }
+        },
+        "update_available": false,
+        "use_nightly": false
+      },
+      "torrent": "fd6d9011-a5d7-4614-9f11-b63c8d16e77e",
+      "torrent_bytes_verified": true
+    },
+    {
+      "automatic_rollback": [2, 1],
+      "manual_update": [1, 2],
+      "previous_runtime_removed_after_success": true,
+      "retry_succeeded": true,
+      "upstream_error_preserved": "WARNING: \"-f best\" selects the best pre-merged format which is often not the best option.\n         To let yt-dlp download and merge the best available formats, simply do not pass any format selection.\n         If you know what you are doing and want only the best pre-merged format, use \"-f b\" instead to suppress this warning\nERROR: [generic] missing-video: Unable to download webpage: HTTP Error 404: Not Found (caused by <HTTPError 404: Not Found>)"
+    }
+  ],
+  "mode": "manual",
+  "ok": true,
+  "tools": {
+    "keep_up_to_date": false,
+    "nightly_available": false,
+    "published_size": null,
+    "sequence": 1004,
+    "state": {
+      "installed": {
+        "python_version": "3.13.18",
+        "runtime": 2,
+        "yt_dlp": "2026.10.26",
+        "yt_dlp_channel": "stable"
+      },
+      "kind": "ready",
+      "last_checked": 1794107456,
+      "update_flag": {
+        "kind": "none"
+      }
+    },
+    "update_available": false,
+    "use_nightly": false
+  },
+  "prior_downloads_preserved": {},
+  "video_bytes_verified": [
+    {
+      "id": "f36b9bab-cda1-4ea7-a46c-e7205cf306d3",
+      "sha256": "dbd49391ceba05234524270c8f2451a846ee30abb668ca4026a9e597bf5487b5"
+    }
+  ],
+  "time_machine": "[Excluded]  /Users/jason/orca/workspaces/opul/set-up-verified-video-tools-from-settings-and-ru/.build/issue-69-acceptance-arm64/manual/state/Tools"
+}
