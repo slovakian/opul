@@ -251,7 +251,17 @@ pub(super) fn probe_item(
     let extractor = json_string(value, "extractor_key")
         .or_else(|| json_string(value, "extractor"))
         .or_else(|| parent_extractor.map(str::to_string));
-    let webpage_url = json_string(value, "webpage_url")
+    // Generic HTML playlists share one page across embedded videos. Their media URLs
+    // identify individual entries; site extractors keep their stable watch-page URLs.
+    let embedded_url = extractor
+        .as_deref()
+        .filter(|name| {
+            name.eq_ignore_ascii_case("generic") || name.eq_ignore_ascii_case("HTML5MediaEmbed")
+        })
+        .and_then(|_| json_string(value, "url"))
+        .filter(|url| url.starts_with("http://") || url.starts_with("https://"));
+    let webpage_url = embedded_url
+        .or_else(|| json_string(value, "webpage_url"))
         .or_else(|| json_string(value, "original_url"))
         .or_else(|| json_string(value, "url"))
         .or_else(|| youtube_url(id.as_deref(), extractor.as_deref()))?;

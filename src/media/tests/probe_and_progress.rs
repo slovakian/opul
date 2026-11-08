@@ -38,6 +38,47 @@ fn expands_playlist_probe_into_entries() {
 }
 
 #[test]
+fn generic_playlist_keeps_distinct_media_urls_when_entries_share_the_page() {
+    let probe = parse_probe(
+        &json!({
+            "title": "CC0 fixture playlist",
+            "webpage_url": "https://example.test/playlist.html",
+            "extractor_key": "Generic",
+            "entries": [
+                {"title": "First", "webpage_url": "https://example.test/playlist.html",
+                 "extractor_key": "HTML5MediaEmbed",
+                 "url": "https://example.test/first.mp4"},
+                {"title": "Second", "webpage_url": "https://example.test/playlist.html",
+                 "extractor_key": "HTML5MediaEmbed",
+                 "url": "https://example.test/second.mp4"}
+            ]
+        }),
+        "https://example.test/playlist.html",
+    )
+    .unwrap();
+    assert_eq!(probe.items[0].webpage_url, "https://example.test/first.mp4");
+    assert_eq!(
+        probe.items[1].webpage_url,
+        "https://example.test/second.mp4"
+    );
+    assert_eq!(probe.items[1].playlist_index, Some(2));
+}
+
+#[test]
+fn site_playlist_keeps_stable_pages_instead_of_temporary_stream_urls() {
+    let probe = parse_probe(
+        &json!({
+            "title": "Collection", "extractor_key": "FixtureSite",
+            "entries": [{"title": "First", "webpage_url": "https://example.test/watch/1",
+                         "url": "https://cdn.example.test/expiring-stream.mp4"}]
+        }),
+        "https://example.test/collection",
+    )
+    .unwrap();
+    assert_eq!(probe.items[0].webpage_url, "https://example.test/watch/1");
+}
+
+#[test]
 fn parses_progress_numbers_without_panicking_on_na() {
     assert_eq!(numeric_field(Some("1048576")), Some(1_048_576));
     assert_eq!(numeric_field(Some("1250.5")), Some(1_250));
