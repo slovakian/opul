@@ -1,5 +1,6 @@
 import { DownloadInspector } from "@/components/download-inspector";
 import { SettingsDialog } from "@/components/settings-dialog";
+import type { SettingsSection } from "@/components/settings-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,12 +13,14 @@ import {
 import { WorkspaceDialog } from "@/components/workspace-dialog";
 import { WorkspaceIconEditor } from "@/components/workspace-icon-picker";
 import type { Location } from "@/components/workspace-sidebar";
+import { useLibrarySelector } from "@/lib/library";
 import type { useLibrary } from "@/lib/library";
+import { selectWorkspaces } from "@/lib/library-store";
 import type { Download, Workspace } from "@/lib/model";
 
 export type Modal =
   | { kind: "icon"; workspace: Workspace; anchor: HTMLButtonElement | null }
-  | { kind: "settings" }
+  | { kind: "settings"; section?: SettingsSection }
   | { kind: "workspace"; workspace: Workspace | null }
   | { kind: "remove"; download: Download }
   | { kind: "delete-workspace"; workspace: Workspace };
@@ -110,12 +113,42 @@ export interface AppModalsProps {
   navigate: (next: Location) => void;
   onClose: () => void;
   onVideoSetup: () => void;
-  onRemoveSelected: () => void;
+  onRemove: (download: Download) => void;
   run: ReturnType<typeof useLibrary>["run"];
-  selected: Download | undefined;
-  selectedWorkspace: Workspace | undefined;
+  selectedId: string | undefined;
   setSelectedId: (id: string | undefined) => void;
 }
+
+/** The selected download's details. Only this panel follows its every change. */
+const SelectedDownload = ({
+  onRemove,
+  selectedId,
+  setSelectedId,
+}: Pick<AppModalsProps, "onRemove" | "selectedId" | "setSelectedId">) => {
+  const download = useLibrarySelector((state) =>
+    selectedId && state.kind === "ready"
+      ? state.library.downloadById.get(selectedId)
+      : undefined
+  );
+
+  const workspace = useLibrarySelector((state) =>
+    selectWorkspaces(state).find((item) => item.id === download?.workspace_id)
+  );
+
+  if (!download || !workspace) {
+    return null;
+  }
+
+  return (
+    <DownloadInspector
+      key={download.id}
+      download={download}
+      workspace={workspace}
+      onClose={() => setSelectedId(undefined)}
+      onRemove={() => onRemove(download)}
+    />
+  );
+};
 
 export const AppModals = ({
   busy,
@@ -123,24 +156,23 @@ export const AppModals = ({
   navigate,
   onClose,
   onVideoSetup,
-  onRemoveSelected,
+  onRemove,
   run,
-  selected,
-  selectedWorkspace,
+  selectedId,
   setSelectedId,
 }: AppModalsProps) => (
   <>
-    {selected && selectedWorkspace && (
-      <DownloadInspector
-        key={selected.id}
-        download={selected}
-        workspace={selectedWorkspace}
-        onClose={() => setSelectedId(undefined)}
-        onRemove={onRemoveSelected}
-      />
-    )}
+    <SelectedDownload
+      onRemove={onRemove}
+      selectedId={selectedId}
+      setSelectedId={setSelectedId}
+    />
     {modal?.kind === "settings" && (
-      <SettingsDialog onClose={onClose} onVideoSetup={onVideoSetup} />
+      <SettingsDialog
+        onClose={onClose}
+        onVideoSetup={onVideoSetup}
+        section={modal.section}
+      />
     )}
     {modal?.kind === "icon" && (
       <WorkspaceIconEditor

@@ -39,12 +39,7 @@ const identities = async (page: Page) =>
 
 const saved = async (page: Page) =>
   snapshotSchema.parse(
-    await page.evaluate(async () => {
-      const path = "/frontend/lib/bridge.ts";
-      const { bridge } = await import(path);
-
-      return bridge.snapshot();
-    })
+    await page.evaluate(async () => await window.testReadSnapshot())
   );
 
 test("color suggestions have square targets and equal spacing in both directions", async ({

@@ -2,11 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { errorMessage } from "@/lib/bridge";
 import { useLibrary } from "@/lib/library";
-import type { Preferences, Snapshot } from "@/lib/model";
+import type { Preferences, Workspace } from "@/lib/model";
 
 export const useWorkspaceExpansion = (
   preferences: Preferences | null,
-  snapshot: Snapshot | null
+  /** The workspaces once the library has loaded. */
+  workspaces: readonly Workspace[] | null
 ) => {
   const { saveWorkspaceExpansion } = useLibrary();
 
@@ -70,7 +71,7 @@ export const useWorkspaceExpansion = (
   }, [saveWorkspaceExpansion]);
 
   useEffect(() => {
-    if (!preferences || !snapshot) {
+    if (!preferences || !workspaces) {
       return;
     }
 
@@ -90,9 +91,7 @@ export const useWorkspaceExpansion = (
       session.current = new Map([...initial, ...session.current]);
     }
 
-    const surviving = new Set(
-      snapshot.workspaces.map((workspace) => workspace.id)
-    );
+    const surviving = new Set(workspaces.map((workspace) => workspace.id));
 
     const known = new Set([
       ...(persisted.current?.keys() ?? []),
@@ -115,7 +114,7 @@ export const useWorkspaceExpansion = (
       setExpansion(new Map(session.current));
       void save();
     }
-  }, [snapshot, preferences, save]);
+  }, [workspaces, preferences, save]);
 
   const handleExpansionChange = useCallback(
     (workspaceId: string, expanded: boolean) => {

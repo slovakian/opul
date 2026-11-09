@@ -6,38 +6,36 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import type { ReactNode } from "react";
 
 import { toast } from "@/components/ui/toast";
 import { bridge, errorMessage } from "@/lib/bridge";
+import { createLibraryStore } from "@/lib/library-store";
+import type { LibraryState, LibraryStore } from "@/lib/library-store";
 import type {
   AggregateView,
   Command,
   DisplayPreferences,
   Preferences,
   Receipt,
-  Snapshot,
   WorkspaceExpansion,
   WorkspaceExpansionChanges,
 } from "@/lib/model";
-
-type LibraryState =
-  | { kind: "loading" }
-  | { kind: "failed"; message: string }
-  | { kind: "ready"; snapshot: Snapshot };
 
 type PreferenceStatus =
   | { kind: "unread" }
   | { kind: "failed"; message: string }
   | { kind: "ready" };
 
-interface Library {
-  state: LibraryState;
+/** Library commands and preferences. The library itself is read with `useLibrarySelector`. */
+interface LibraryActions {
   preferences: Preferences | null;
   preferenceStatus: PreferenceStatus;
   busy: boolean;
-  refresh: () => Promise<void>;
+  /** Opens a new feed, which starts again from the whole library. */
+  reconnect: () => void;
   retryPreferences: () => Promise<void>;
   saveWorkspaceExpansion: (
     choices: WorkspaceExpansionChanges
@@ -61,10 +59,21 @@ const isRowToggle = (command: Command) =>
   command.kind === "download" &&
   (command.action === "Pause" || command.action === "Resume");
 
-const LibraryContext = createContext<Library | null>(null);
+/** How long to wait before trying again when the feed can't open. */
+const reconnectDelay = 1000;
+
+/**
+ * How long a command waits for the feed to show its result. The desktop
+ * publishes before it replies, so this only matters if the feed broke.
+ */
+const acknowledgementTimeout = 2000;
+
+const LibraryContext = createContext<LibraryActions | null>(null);
+const LibraryStoreContext = createContext<LibraryStore | null>(null);
 
 export const LibraryProvider = ({ children }: { children: ReactNode }) => {
-  const [state, setState] = useState<LibraryState>({ kind: "loading" });
+  // One store for the provider's lifetime; it never needs to be recreated.
+  const store = useMemo(() => createLibraryStore(), []);
   const [preferences, setPreferences] = useState<Preferences | null>(null);
 
   const [preferenceStatus, setPreferenceStatus] = useState<PreferenceStatus>({
@@ -77,41 +86,59 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
   const aggregateViewSave = useRef(new Map<AggregateView, number>());
   const [pending, setPending] = useState(0);
 
-  const refresh = useCallback(async () => {
-    try {
-      const snapshot = await bridge.snapshot();
-      setState((previous) =>
-        previous.kind === "ready" &&
-        previous.snapshot.boot_id === snapshot.boot_id &&
-        previous.snapshot.sequence > snapshot.sequence
-          ? previous
-          : { kind: "ready", snapshot }
-      );
-    } catch (error) {
-      // A failed read is not evidence that library containers disappeared.
-      setState((previous) =>
-        previous.kind === "ready"
-          ? previous
-          : { kind: "failed", message: errorMessage(error) }
-      );
-    }
-  }, []);
+  const connectFeed = useRef(() => null);
+  const reconnect = useCallback(() => connectFeed.current(), []);
+
+  useEffect(() => {
+    let mounted = true;
+    let connection = 0;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+
+    // Each connection starts from the whole library, so a newer connection
+    // makes everything an older one might still deliver irrelevant.
+    const connect = async () => {
+      clearTimeout(retry);
+      connection += 1;
+      const attempt = connection;
+      const isCurrent = () => mounted && attempt === connection;
+
+      try {
+        await bridge.subscribeLibrary(
+          (message) => {
+            if (isCurrent()) {
+              store.receive(message);
+            }
+          },
+          () => {
+            if (isCurrent()) {
+              void connect();
+            }
+          }
+        );
+      } catch (error) {
+        if (isCurrent()) {
+          store.fail(errorMessage(error));
+          retry = setTimeout(connect, reconnectDelay);
+        }
+      }
+    };
+
+    connectFeed.current = () => {
+      void connect();
+
+      return null;
+    };
+
+    void connect();
+
+    return () => {
+      mounted = false;
+      clearTimeout(retry);
+    };
+  }, [store]);
 
   useEffect(() => {
     let stopped = false;
-    let timer: ReturnType<typeof setTimeout>;
-
-    const poll = async () => {
-      try {
-        await refresh();
-      } catch {
-        // Ignore poll refresh errors
-      }
-
-      if (!stopped) {
-        timer = setTimeout(poll, 800);
-      }
-    };
 
     const loadPreferences = async () => {
       const read = preferenceRead.current + 1;
@@ -135,14 +162,12 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
-    void poll();
     void loadPreferences();
 
     return () => {
       stopped = true;
-      clearTimeout(timer);
     };
-  }, [refresh]);
+  }, []);
 
   const retryPreferences = useCallback(async () => {
     const read = preferenceRead.current + 1;
@@ -193,7 +218,8 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
       try {
         const receipt = await bridge.execute(command);
         onAccepted?.(receipt);
-        await refresh();
+        // Settle once the result is on screen, so controls never act on stale state.
+        await store.reach(receipt.revision, acknowledgementTimeout);
 
         if (affectsBusy) {
           setPending((count) => count - 1);
@@ -214,7 +240,7 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
         return null;
       }
     },
-    [refresh]
+    [store]
   );
 
   const saveAggregateView = useCallback(
@@ -314,30 +340,32 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
       busy: pending > 0,
       preferenceStatus,
       preferences,
-      refresh,
+      reconnect,
       retryPreferences,
       run,
       saveAggregateView,
       savePreferences,
       saveWorkspaceExpansion,
-      state,
     }),
     [
       pending,
       preferences,
       preferenceStatus,
-      refresh,
+      reconnect,
       retryPreferences,
       run,
       saveAggregateView,
       savePreferences,
       saveWorkspaceExpansion,
-      state,
     ]
   );
 
   return (
-    <LibraryContext.Provider value={value}>{children}</LibraryContext.Provider>
+    <LibraryStoreContext.Provider value={store}>
+      <LibraryContext.Provider value={value}>
+        {children}
+      </LibraryContext.Provider>
+    </LibraryStoreContext.Provider>
   );
 };
 
@@ -349,4 +377,52 @@ export const useLibrary = () => {
   }
 
   return library;
+};
+
+export const useLibraryStore = () => {
+  const store = useContext(LibraryStoreContext);
+
+  if (!store) {
+    throw new Error("LibraryProvider is required");
+  }
+
+  return store;
+};
+
+/**
+ * Reads part of the library and renders again only when that part changes.
+ * `isEqual` lets a selector that builds a new value each time (a count, a
+ * pair) keep the previous one when it is equivalent.
+ */
+export const useLibrarySelector = <T,>(
+  select: (state: LibraryState) => T,
+  isEqual: (previous: T, next: T) => boolean = Object.is
+): T => {
+  const store = useLibraryStore();
+
+  const selection = useRef<{
+    select: typeof select;
+    state: LibraryState;
+    value: T;
+  } | null>(null);
+
+  const getSelection = () => {
+    const state = store.getState();
+    const previous = selection.current;
+
+    if (previous?.state === state && previous.select === select) {
+      return previous.value;
+    }
+
+    const next = select(state);
+
+    const value =
+      previous && isEqual(previous.value, next) ? previous.value : next;
+
+    selection.current = { select, state, value };
+
+    return value;
+  };
+
+  return useSyncExternalStore(store.subscribe, getSelection);
 };

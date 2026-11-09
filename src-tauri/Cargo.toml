@@ -17,6 +17,8 @@ serde_json = "1"
 uuid = { version = "1", features = ["v4"] }
 url = "2"
 tauri-plugin-updater = "2"
+semver = "1"
+tokio = { version = "1", features = ["time", "sync"] }
 
 [lints.rust]
 unsafe_code = "warn"

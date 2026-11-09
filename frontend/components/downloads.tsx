@@ -13,7 +13,7 @@ import {
   HardDriveDownload,
   Pause,
 } from "lucide-react";
-import { createElement, useRef, useState } from "react";
+import { createElement, memo, useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
 
 import { DownloadActions } from "@/components/download-actions";
@@ -424,6 +424,11 @@ const DownloadListItem = ({
   );
 };
 
+// The library keeps an unchanged download's object, so a row renders again
+// only when its own download or its selection changes.
+const StableTableRow = memo(DownloadTableRow);
+const StableListItem = memo(DownloadListItem);
+
 export const Downloads = ({
   downloads,
   layout,
@@ -486,7 +491,7 @@ export const Downloads = ({
         </TableHeader>
         <TableBody>
           {downloads.map((download) => (
-            <DownloadTableRow
+            <StableTableRow
               key={download.id}
               download={download}
               selected={selectedId === download.id}
@@ -505,7 +510,7 @@ export const Downloads = ({
       data-list-style={listStyle}
     >
       {downloads.map((download) => (
-        <DownloadListItem
+        <StableListItem
           key={download.id}
           download={download}
           listStyle={listStyle}

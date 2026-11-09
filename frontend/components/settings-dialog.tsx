@@ -3,6 +3,7 @@ import {
   Info,
   Monitor,
   Network,
+  RefreshCw,
   Settings2,
   Wrench,
 } from "lucide-react";
@@ -39,8 +40,13 @@ import {
 } from "@/components/ui/sidebar";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { UpdatesSettings } from "@/components/updates-settings";
+import { useAppUpdates } from "@/hooks/use-app-updates";
 import { useVideoTools } from "@/hooks/use-video-tools";
-import { useLibrary } from "@/lib/library";
+import { appName, needsAttention } from "@/lib/app-updates";
+import { isActiveDownload } from "@/lib/download-activity";
+import { useLibrary, useLibrarySelector } from "@/lib/library";
+import { countDownloads, selectWorkspaces } from "@/lib/library-store";
 import type { Preferences } from "@/lib/model";
 
 const sections = [
@@ -49,8 +55,14 @@ const sections = [
   { icon: Network, label: "Torrents" },
   { icon: Settings2, label: "Workspaces" },
   { icon: Wrench, label: "Tools" },
+  { icon: RefreshCw, label: "Updates" },
   { icon: Info, label: "About" },
-];
+] as const;
+
+export type SettingsSection = (typeof sections)[number]["label"];
+
+/** These sections apply each change at once, so they close with Done instead of Save. */
+const immediateSections = new Set<SettingsSection>(["Tools", "Updates"]);
 
 const WorkspaceSettings = ({
   draft,
@@ -91,20 +103,31 @@ const WorkspaceSettings = ({
 // oxlint-disable-next-line complexity -- Settings intentionally keeps all sections in one draft form.
 const SettingsContent = ({
   initial,
+  initialSection,
   onClose,
   onVideoSetup,
 }: {
   initial: Preferences;
+  initialSection: SettingsSection;
   onClose: () => void;
   onVideoSetup: () => void;
 }) => {
-  const { savePreferences, state } = useLibrary();
+  const { savePreferences } = useLibrary();
+  const workspaces = useLibrarySelector(selectWorkspaces);
+
+  const activeDownloads = useLibrarySelector((state) =>
+    countDownloads(state, isActiveDownload)
+  );
+
   const { tools } = useVideoTools();
+  const { updates } = useAppUpdates();
 
-  const updateAvailable = tools?.video.update_available;
+  const marked: Partial<Record<SettingsSection, boolean>> = {
+    Tools: tools?.video.update_available,
+    Updates: needsAttention(updates),
+  };
 
-  const workspaces = state.kind === "ready" ? state.snapshot.workspaces : [];
-  const [section, setSection] = useState("Appearance");
+  const [section, setSection] = useState<SettingsSection>(initialSection);
   const [draft, setDraft] = useState(initial);
   const [saving, setSaving] = useState(false);
 
@@ -165,7 +188,7 @@ const SettingsContent = ({
                     <item.icon />
                     <span>{item.label}</span>
                   </SidebarMenuButton>
-                  {item.label === "Tools" && updateAvailable && (
+                  {marked[item.label] && (
                     <SidebarMenuBadge className="animate-pop">
                       <span
                         aria-hidden="true"
@@ -397,6 +420,9 @@ const SettingsContent = ({
             {section === "Tools" && (
               <ToolsSettings onVideoSetup={onVideoSetup} />
             )}
+            {section === "Updates" && (
+              <UpdatesSettings activeDownloads={activeDownloads} />
+            )}
             {section === "About" && (
               <div className="flex flex-col items-start gap-4 py-4">
                 <img src={opulLogo} alt="" className="size-12" />
@@ -411,15 +437,17 @@ const SettingsContent = ({
                   Built with Tauri, Base UI, and the Opul Rust core. Free and
                   open source under the MIT license.
                 </p>
-                <p className="text-muted-foreground text-xs">
-                  Version 0.1.0 · Updates are available on GitHub.
-                </p>
+                {updates && (
+                  <p className="text-muted-foreground text-xs tabular-nums">
+                    {`${appName(updates)} ${updates.current_version}`}
+                  </p>
+                )}
               </div>
             )}
           </div>
         </div>
         <footer className="flex justify-end gap-2 px-6 py-4">
-          {section === "Tools" ? (
+          {immediateSections.has(section) ? (
             <Button type="button" variant="ghost" onClick={onClose}>
               Done
             </Button>
@@ -442,9 +470,11 @@ const SettingsContent = ({
 export const SettingsDialog = ({
   onClose,
   onVideoSetup,
+  section = "Appearance",
 }: {
   onClose: () => void;
   onVideoSetup: () => void;
+  section?: SettingsSection;
 }) => {
   const { preferences } = useLibrary();
 
@@ -465,6 +495,7 @@ export const SettingsDialog = ({
         {preferences ? (
           <SettingsContent
             initial={preferences}
+            initialSection={section}
             onClose={onClose}
             onVideoSetup={onVideoSetup}
           />

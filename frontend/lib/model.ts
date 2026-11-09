@@ -162,10 +162,10 @@ export const workspaceDraftSchema = z.object({
 
 export type WorkspaceDraft = z.infer<typeof workspaceDraftSchema>;
 
+/** A workspace's own settings. Its downloads live beside it in the library. */
 export const workspaceSchema = z.object({
   appearance: appearanceSchema,
   default_format: formatSchema,
-  downloads: z.array(downloadSchema),
   file_organization: z.enum([
     "Automatic",
     "AlwaysCreateFolder",
@@ -180,23 +180,51 @@ export const workspaceSchema = z.object({
   sort: sortSchema,
 });
 
+const sessionSchema = z.enum([
+  "Booting",
+  "Reconciling",
+  "Running",
+  "Quiescing",
+  "Stopped",
+  "RecoveryRequired",
+  "ReadOnly",
+]);
+
+/** The whole library as the desktop sends it: each workspace holds its downloads. */
 export const snapshotSchema = z.object({
   boot_id: z.string().nullable(),
   recent_emoji: z.array(z.string()).max(24).default([]),
   recovery_notices: z.array(z.string()),
   revision: z.number(),
   sequence: z.number(),
-  session: z.enum([
-    "Booting",
-    "Reconciling",
-    "Running",
-    "Quiescing",
-    "Stopped",
-    "RecoveryRequired",
-    "ReadOnly",
-  ]),
-  workspaces: z.array(workspaceSchema),
+  session: sessionSchema,
+  workspaces: z.array(
+    workspaceSchema.extend({ downloads: z.array(downloadSchema) })
+  ),
 });
+
+/**
+ * What changed since the previous feed message. Absent fields are unchanged.
+ * `workspaces` lists every workspace when any of them, or the downloads they
+ * hold, changed; a download no workspace lists was removed.
+ */
+export const patchSchema = z.object({
+  downloads: z.array(downloadSchema).default([]),
+  recent_emoji: z.array(z.string()).max(24).optional(),
+  recovery_notices: z.array(z.string()).optional(),
+  revision: z.number(),
+  sequence: z.number(),
+  session: sessionSchema.optional(),
+  workspaces: z
+    .array(workspaceSchema.extend({ download_ids: z.array(z.string()) }))
+    .optional(),
+});
+
+/** The library feed: the whole library once, then a patch per change. */
+export const feedMessageSchema = z.discriminatedUnion("kind", [
+  snapshotSchema.extend({ kind: z.literal("snapshot") }),
+  patchSchema.extend({ kind: z.literal("patch") }),
+]);
 
 export const workspaceExpansionSchema = z.record(z.string(), z.boolean());
 
@@ -244,6 +272,15 @@ export type Workspace = z.infer<typeof workspaceSchema>;
 export type Folder = z.infer<typeof folderSchema>;
 
 export type Snapshot = z.infer<typeof snapshotSchema>;
+
+export type Session = Snapshot["session"];
+
+export type Patch = z.infer<typeof patchSchema>;
+
+export type FeedMessage = z.infer<typeof feedMessageSchema>;
+
+/** A feed message as the desktop sends it, before defaults are applied. */
+export type FeedMessageInput = z.input<typeof feedMessageSchema>;
 
 export type Preferences = z.infer<typeof preferencesSchema>;
 

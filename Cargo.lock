@@ -7,6 +7,7 @@ name = "Opul"
 version = "0.1.0"
 dependencies = [
  "opul_core",
+ "semver",
  "serde",
  "serde_json",
  "tauri",
@@ -15,6 +16,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-updater",
  "tempfile",
+ "tokio",
  "url",
  "uuid",
 ]

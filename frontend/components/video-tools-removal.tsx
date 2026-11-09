@@ -11,20 +11,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useVideoTools } from "@/hooks/use-video-tools";
-import { useLibrary } from "@/lib/library";
+import { useLibrarySelector } from "@/lib/library";
+import { countDownloads } from "@/lib/library-store";
 
 export const VideoToolsRemoval = () => {
   const { busy, error, remove } = useVideoTools();
-  const { state: library } = useLibrary();
+
+  const count = useLibrarySelector((state) =>
+    countDownloads(state, (download) => download.relies_on_video_tools)
+  );
+
   const [removing, setRemoving] = useState(false);
   const [turnOff, setTurnOff] = useState(false);
-
-  const count =
-    library.kind === "ready"
-      ? library.snapshot.workspaces
-          .flatMap((workspace) => workspace.downloads)
-          .filter((download) => download.relies_on_video_tools).length
-      : 0;
 
   return (
     <>

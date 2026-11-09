@@ -1,23 +1,37 @@
 import type { Page } from "@playwright/test";
 
-import type { Receipt } from "../../frontend/lib/model";
+import type { Download, Receipt, Snapshot } from "../../frontend/lib/model";
 import folderTreatments from "../../src/application/folder-treatments.json" with { type: "json" };
+import { mockAppUpdates } from "./app-updates-fixture";
 import { baseDownload, preferences, snapshot } from "./fixture-data";
 import type { DesktopInvokeArgs, DesktopOptions } from "./fixture-options";
 import { mockFolderAddition } from "./folder-addition-fixture";
+import { mockLibraryFeed } from "./library-feed-fixture";
 import { mockPreferenceResponses } from "./preference-response-fixture";
 import { mockVideoTools } from "./video-tools-fixture";
 import { mockWaitingVideos } from "./waiting-video-fixture";
 import { mockWorkspaceExpansion } from "./workspace-expansion-fixture";
+import { mockWorkspaceRemoval } from "./workspace-removal-fixture";
 
 export { preferences, snapshot } from "./fixture-data";
 
+declare global {
+  interface Window {
+    testUpdateDownload: (id: string, changes: Partial<Download>) => void;
+    /** The library the mock desktop holds, as its `snapshot` command returns it. */
+    testReadSnapshot: () => Promise<Snapshot>;
+  }
+}
+
 export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
   await mockVideoTools(page, options);
+  await mockAppUpdates(page, options);
+  await mockWorkspaceRemoval(page, options);
   await mockWaitingVideos(page);
   await mockFolderAddition(page, options);
   await mockWorkspaceExpansion(page, options);
   await mockPreferenceResponses(page, options);
+  await mockLibraryFeed(page);
   await page.addInitScript(
     ({
       defaultDownload,
@@ -51,6 +65,7 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
 
         if (replacement) {
           Object.assign(currentSnapshot, JSON.parse(replacement));
+          window.testLibraryFeed.push();
         }
       });
 
@@ -60,12 +75,50 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
         currentSnapshot.workspaces[0].downloads = [];
       }
 
+      // Stands in for the engine changing one download, as a transfer advancing would.
+      window.testUpdateDownload = (id, changes) => {
+        const download = currentSnapshot.workspaces
+          .flatMap((item) => item.downloads)
+          .find((item) => item.id === id);
+
+        if (download) {
+          Object.assign(download, changes);
+          currentSnapshot.sequence += 1;
+          window.testLibraryFeed.push();
+        }
+      };
+
       if (mockOpts.recovery) {
         currentSnapshot.session = "RecoveryRequired";
         currentSnapshot.recovery_notices = [
           "A previous checkpoint was recovered. Review your library before continuing.",
         ];
       }
+
+      // What the desktop reads whenever it publishes the library.
+      const readSnapshot = async () => {
+        window.testWaitingVideos.project(currentSnapshot);
+
+        const held = await window.testFolderAddition.snapshot(currentSnapshot);
+
+        if (held) {
+          return held;
+        }
+
+        if (mockOpts.fail || snapshotReadFailure) {
+          sessionStorage.setItem("test-snapshot-failed", "true");
+          throw new Error("The state directory is already in use");
+        }
+
+        sessionStorage.setItem(
+          "test-snapshot-sequence",
+          String(currentSnapshot.sequence)
+        );
+
+        return structuredClone(currentSnapshot);
+      };
+
+      window.testReadSnapshot = readSnapshot;
 
       let viewAttempts = 0;
       let addAttempts = 0;
@@ -84,26 +137,14 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
           // oxlint-disable-next-line eslint/complexity
           invoke: async (name: string, args: DesktopInvokeArgs = {}) => {
             if (name === "snapshot") {
-              window.testWaitingVideos.project(currentSnapshot);
+              return await readSnapshot();
+            }
 
-              const held =
-                await window.testFolderAddition.snapshot(currentSnapshot);
-
-              if (held) {
-                return held;
-              }
-
-              if (mockOpts.fail || snapshotReadFailure) {
-                sessionStorage.setItem("test-snapshot-failed", "true");
-                throw new Error("The state directory is already in use");
-              }
-
-              sessionStorage.setItem(
-                "test-snapshot-sequence",
-                String(currentSnapshot.sequence)
+            if (name === "subscribe_library" && args.feed) {
+              return await window.testLibraryFeed.subscribe(
+                args.feed,
+                readSnapshot
               );
-
-              return structuredClone(currentSnapshot);
             }
 
             if (name === "mark_video_tools_setup_shown") {
@@ -234,6 +275,10 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
                 args,
                 currentSnapshot
               );
+            }
+
+            if (name.startsWith("app_updates_")) {
+              return window.testAppUpdates.invoke(name, args);
             }
 
             if (name === "plugin:dialog|open") {
@@ -420,47 +465,7 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
                 }
               }
 
-              if (command.kind === "delete_workspace") {
-                if (mockOpts.workspaceDeletion === "rejected") {
-                  throw new Error("Couldn't delete workspace. Try again.");
-                }
-
-                if (mockOpts.workspaceDeletion !== "deferred") {
-                  currentSnapshot.workspaces =
-                    currentSnapshot.workspaces.filter(
-                      (workspace) => workspace.id !== command.workspace_id
-                    );
-                }
-              }
-
-              if (command.kind === "remove_folder") {
-                if (mockOpts.folderRemoval === "rejected") {
-                  throw new Error("Couldn't remove saved folder. Try again.");
-                }
-
-                const targetWorkspace = currentSnapshot.workspaces.find(
-                  (item) => item.id === command.request.workspace_id
-                );
-
-                if (!targetWorkspace || targetWorkspace.folders.length === 1) {
-                  throw new Error("A workspace must keep a saved folder.");
-                }
-
-                if (mockOpts.folderRemoval !== "deferred") {
-                  targetWorkspace.folders = targetWorkspace.folders.filter(
-                    (item) => item.id !== command.request.folder_id
-                  );
-                  targetWorkspace.downloads = targetWorkspace.downloads.filter(
-                    (item) => item.folder_id !== command.request.folder_id
-                  );
-
-                  if (
-                    !targetWorkspace.folders.some((item) => item.is_default)
-                  ) {
-                    targetWorkspace.folders[0].is_default = true;
-                  }
-                }
-              }
+              window.testWorkspaceRemoval.execute(command, currentSnapshot);
 
               const createdDownloadIds: string[] = [];
 
@@ -557,6 +562,9 @@ export const mockDesktop = async (page: Page, options: DesktopOptions = {}) => {
                   JSON.stringify(currentSnapshot)
                 );
               }
+
+              // The desktop publishes a commit before it replies to the command.
+              window.testLibraryFeed.push();
 
               if (command.kind === "add_folder") {
                 await window.testFolderAddition.waitForReceipt();

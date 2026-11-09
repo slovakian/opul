@@ -1,3 +1,4 @@
+import type { AppUpdates } from "../../frontend/lib/app-updates";
 import type {
   AggregateView,
   Command,
@@ -10,8 +11,11 @@ import type {
   VideoToolsOperation,
   VideoToolsSnapshot,
 } from "../../frontend/lib/video-tools";
+import type { FeedChannel } from "./library-feed-fixture";
 
 export interface DesktopInvokeArgs {
+  checkAutomatically?: boolean;
+  installAutomatically?: boolean;
   command?: Command;
   operation?: VideoToolsOperation;
   turnOff?: boolean;
@@ -22,9 +26,12 @@ export interface DesktopInvokeArgs {
   view?: AggregateView;
   workspaceId?: string;
   choices?: WorkspaceExpansionChanges;
+  feed?: FeedChannel;
 }
 
 export interface DesktopOptions {
+  appUpdates?: AppUpdates;
+  failAppUpdateDownload?: boolean;
   videoTools?: VideoToolsSnapshot;
   failVideoToolsPreference?: boolean;
   holdPreferenceResponses?: PreferenceResponse[];

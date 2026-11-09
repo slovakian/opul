@@ -26,7 +26,7 @@ enum Message {
         mpsc::Sender<Result<CommandReceipt, ActorError>>,
     ),
     Fact(Fact, mpsc::Sender<Result<u64, ActorError>>),
-    Telemetry(super::DownloadId, super::TransferTelemetry),
+    Telemetry(Vec<(super::DownloadId, super::TransferTelemetry)>),
     VideoUpdateAvailable(bool),
     ClaimEffect(mpsc::Sender<Result<Option<PendingEffect>, ActorError>>),
     CompleteEffect {
@@ -238,13 +238,13 @@ impl ApplicationActor {
             .map_err(|_| ActorError::Stopped)
     }
 
+    /// Records one adapter pass of volatile telemetry and publishes once if any of it changed.
     pub(crate) fn observe_telemetry(
         &self,
-        download: super::DownloadId,
-        telemetry: super::TransferTelemetry,
+        telemetry: Vec<(super::DownloadId, super::TransferTelemetry)>,
     ) -> Result<(), ActorError> {
         self.sender
-            .send(Message::Telemetry(download, telemetry))
+            .send(Message::Telemetry(telemetry))
             .map_err(|_| ActorError::Stopped)
     }
 

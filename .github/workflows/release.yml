@@ -132,11 +132,11 @@ jobs:
           TARBALL="Opul-${{ matrix.arch }}.app.tar.gz"
           tar -czf "$TARBALL" -C "$(dirname "$BUNDLE_PATH")" "$(basename "$BUNDLE_PATH")"
 
-          if [[ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
-            pnpm exec tauri signer sign -k "$TAURI_SIGNING_PRIVATE_KEY" ${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:+-p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"} "$TARBALL"
-          else
-            echo "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkK" > "${TARBALL}.sig"
+          if [[ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY is not set. In-app updates need a real signature; see docs/releasing.md."
+            exit 1
           fi
+          pnpm exec tauri signer sign -k "$TAURI_SIGNING_PRIVATE_KEY" ${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:+-p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"} "$TARBALL"
       - name: Optional Apple notarization
         if: env.APPLE_ID != '' && env.APPLE_PASSWORD != '' && env.APPLE_TEAM_ID != ''
         run: |

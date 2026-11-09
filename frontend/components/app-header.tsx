@@ -121,7 +121,7 @@ export interface AppHeaderProps {
   setQuery: Dispatch<SetStateAction<string>>;
   title: string;
   workspace: Workspace | undefined;
-  workspaces: Workspace[];
+  workspaces: readonly Workspace[];
 }
 
 export const AppHeader = ({
