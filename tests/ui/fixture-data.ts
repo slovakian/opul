@@ -29,6 +29,7 @@ export const baseDownload: Download = {
     can_retry_video_tools: false,
     can_reveal_output: false,
     can_set_up_video_tools: false,
+    can_start_seeding: false,
     can_stop_seeding: false,
     can_update_video_tools: false,
   },

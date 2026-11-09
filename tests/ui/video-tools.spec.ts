@@ -597,6 +597,8 @@ for (const turnOff of [false, true]) {
         .getByText(turnOff ? "Needs video tools" : "Waiting for video tools…", {
           exact: true,
         })
+        // Narrow lists repeat the label under the name; this one is wide.
+        .filter({ visible: true })
         .first()
     ).toBeVisible();
   });
