@@ -510,21 +510,12 @@ export const compactTimeRemaining = (seconds: number | null) => {
   return `${days}d ${hours % HOURS_PER_DAY}h`;
 };
 
-export const timeRemaining = (seconds: number | null) => {
-  if (seconds === null) {
-    return "Calculating…";
-  }
-
-  if (seconds < 60) {
-    return `${seconds}s left`;
-  }
-
-  if (seconds < 3600) {
-    return `${Math.ceil(seconds / 60)}m left`;
-  }
-
-  return `${Math.floor(seconds / 3600)}h ${Math.ceil((seconds % 3600) / 60)}m left`;
-};
+/**
+ * Time left for the details panel and screen readers. It reuses the compact
+ * breakdown so a row's visible and spoken values always agree.
+ */
+export const timeRemaining = (seconds: number | null) =>
+  seconds === null ? "Calculating…" : `${compactTimeRemaining(seconds)} left`;
 
 export const sourceHost = (download: Download) => {
   if (download.source === "Torrent") {

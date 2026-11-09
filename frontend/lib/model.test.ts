@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 
-import { compactTimeRemaining, liveBytes } from "./model";
+import { compactTimeRemaining, liveBytes, timeRemaining } from "./model";
 
 const KB = 1024;
 const MB = KB * 1024;
@@ -35,4 +35,20 @@ test("compact time left stays short and says nothing while unknown", () => {
   expect(compactTimeRemaining(72 * 60)).toBe("1h 12m");
   expect(compactTimeRemaining(52 * 3600)).toBe("2d 4h");
   expect(compactTimeRemaining(200 * 24 * 3600)).toBe("99d+");
+});
+
+test("full time left matches the compact value it is read in place of", () => {
+  expect(timeRemaining(null)).toBe("Calculating…");
+  expect(timeRemaining(45)).toBe("45s left");
+  expect(timeRemaining(59.4)).toBe("1m left");
+  expect(timeRemaining(3599)).toBe("1h 0m left");
+  expect(timeRemaining(7199)).toBe("2h 0m left");
+  expect(timeRemaining(52 * 3600)).toBe("2d 4h left");
+  expect(timeRemaining(-5)).toBe("0s left");
+
+  for (const seconds of [0, 45, 61, 3599, 3601, 7199, 52 * 3600]) {
+    expect(timeRemaining(seconds)).toBe(
+      `${compactTimeRemaining(seconds)} left`
+    );
+  }
 });
