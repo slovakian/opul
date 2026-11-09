@@ -151,12 +151,7 @@ test("creation retains its proposed treatment and identity through polling and a
   ).toHaveCount(1);
 
   const saved = snapshotSchema.parse(
-    await page.evaluate(async () => {
-      const modulePath = "/frontend/lib/bridge.ts";
-      const { bridge } = await import(modulePath);
-
-      return bridge.snapshot();
-    })
+    await page.evaluate(async () => await window.testReadSnapshot())
   );
 
   const created = saved.workspaces.find(

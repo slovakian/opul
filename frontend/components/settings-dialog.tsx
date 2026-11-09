@@ -45,7 +45,8 @@ import { useAppUpdates } from "@/hooks/use-app-updates";
 import { useVideoTools } from "@/hooks/use-video-tools";
 import { appName, needsAttention } from "@/lib/app-updates";
 import { isActiveDownload } from "@/lib/download-activity";
-import { useLibrary } from "@/lib/library";
+import { useLibrary, useLibrarySelector } from "@/lib/library";
+import { countDownloads, selectWorkspaces } from "@/lib/library-store";
 import type { Preferences } from "@/lib/model";
 
 const sections = [
@@ -111,7 +112,13 @@ const SettingsContent = ({
   onClose: () => void;
   onVideoSetup: () => void;
 }) => {
-  const { savePreferences, state } = useLibrary();
+  const { savePreferences } = useLibrary();
+  const workspaces = useLibrarySelector(selectWorkspaces);
+
+  const activeDownloads = useLibrarySelector((state) =>
+    countDownloads(state, isActiveDownload)
+  );
+
   const { tools } = useVideoTools();
   const { updates } = useAppUpdates();
 
@@ -119,12 +126,6 @@ const SettingsContent = ({
     Tools: tools?.video.update_available,
     Updates: needsAttention(updates),
   };
-
-  const workspaces = state.kind === "ready" ? state.snapshot.workspaces : [];
-
-  const activeDownloads = workspaces
-    .flatMap((workspace) => workspace.downloads)
-    .filter(isActiveDownload).length;
 
   const [section, setSection] = useState<SettingsSection>(initialSection);
   const [draft, setDraft] = useState(initial);

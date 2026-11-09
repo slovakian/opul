@@ -14,7 +14,6 @@ const makeWorkspace = (id: string, name: string): Workspace => ({
     preference: { kind: "Automatic" },
   },
   default_format: "Best",
-  downloads: [],
   file_organization: "Automatic",
   folders: [
     {

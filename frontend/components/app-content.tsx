@@ -4,38 +4,38 @@ import { Downloads } from "@/components/downloads";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { StatusFilter } from "@/components/workspace-sidebar";
-import type { useLibrary } from "@/lib/library";
-import type { DisplayPreferences, Download } from "@/lib/model";
+import { useVisibleDownloads } from "@/hooks/use-workspace-view";
+import type { VisibleDownloadsOptions } from "@/hooks/use-workspace-view";
+import { useLibrary, useLibrarySelector } from "@/lib/library";
+import type { Download } from "@/lib/model";
 
 const noop = () => null;
 
-export interface AppContentProps {
-  display: DisplayPreferences;
-  effectiveFilter: StatusFilter;
-  groups: Map<string, Download[]>;
+export interface AppContentProps extends VisibleDownloadsOptions {
   onInspect: (download: Download) => void;
   onNew: () => void;
   onRemove: (download: Download) => void;
-  query: string;
-  refresh: () => Promise<void>;
   selectedId: string | undefined;
-  state: ReturnType<typeof useLibrary>["state"];
 }
 
 export const AppContent = ({
-  display,
-  effectiveFilter,
-  groups,
   onInspect,
   onNew,
   onRemove,
-  query,
-  refresh,
   selectedId,
-  state,
+  ...view
 }: AppContentProps) => {
-  if (state.kind === "loading") {
+  const { reconnect } = useLibrary();
+  const state = useLibrarySelector((library) => library.kind);
+
+  const failure = useLibrarySelector((library) =>
+    library.kind === "failed" ? library.message : null
+  );
+
+  const { count, groups } = useVisibleDownloads(view);
+  const { display, effectiveFilter, query } = view;
+
+  if (state === "loading") {
     return (
       <div className="flex flex-col gap-4" aria-label="Loading downloads">
         {[0, 1, 2].map((key) => (
@@ -45,20 +45,14 @@ export const AppContent = ({
     );
   }
 
-  if (state.kind === "failed") {
+  if (failure !== null) {
     return (
       <Alert>
         <CircleAlert />
         <AlertTitle>Couldn&apos;t open your library</AlertTitle>
         <AlertDescription>
-          <p>{state.message}</p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              refresh().catch(() => null);
-            }}
-          >
+          <p>{failure}</p>
+          <Button variant="outline" size="sm" onClick={reconnect}>
             Try again
           </Button>
         </AlertDescription>
@@ -68,26 +62,31 @@ export const AppContent = ({
 
   if (groups.size) {
     return (
-      <div className="flex flex-col gap-7">
-        {Array.from(groups, ([label, items]) => (
-          <section key={label} className="flex flex-col gap-2">
-            {label && (
-              <h2 className="text-muted-foreground px-3 text-xs font-medium">
-                {label} · {items.length}
-              </h2>
-            )}
-            <Downloads
-              downloads={items}
-              layout={display.layout}
-              selectedId={selectedId}
-              onInspect={onInspect}
-              onRemove={onRemove}
-              onNew={onNew}
-              filtered={Boolean(query) || effectiveFilter !== "all"}
-            />
-          </section>
-        ))}
-      </div>
+      <>
+        <div className="flex flex-col gap-7">
+          {Array.from(groups, ([label, items]) => (
+            <section key={label} className="flex flex-col gap-2">
+              {label && (
+                <h2 className="text-muted-foreground px-3 text-xs font-medium">
+                  {label} · {items.length}
+                </h2>
+              )}
+              <Downloads
+                downloads={items}
+                layout={display.layout}
+                selectedId={selectedId}
+                onInspect={onInspect}
+                onRemove={onRemove}
+                onNew={onNew}
+                filtered={Boolean(query) || effectiveFilter !== "all"}
+              />
+            </section>
+          ))}
+        </div>
+        <p className="text-muted-foreground px-3 text-xs">
+          {count} {count === 1 ? "download" : "downloads"}
+        </p>
+      </>
     );
   }
 

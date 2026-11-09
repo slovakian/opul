@@ -26,7 +26,7 @@ export const DestinationDialog = ({
   onClose,
   inputRef,
 }: {
-  workspaces: Workspace[];
+  workspaces: readonly Workspace[];
   recommended: Workspace;
   canSaveDefault: boolean;
   disabled: boolean;

@@ -1,4 +1,4 @@
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { Channel, invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { z } from "zod";
@@ -7,9 +7,9 @@ import { appUpdatesSchema } from "@/lib/app-updates";
 import type { AppUpdates } from "@/lib/app-updates";
 import {
   appearanceSchema,
+  feedMessageSchema,
   preferencesSchema,
   receiptSchema,
-  snapshotSchema,
   workspaceDraftSchema,
   workspaceExpansionSchema,
 } from "@/lib/model";
@@ -17,6 +17,8 @@ import type {
   AggregateView,
   Command,
   DisplayPreferences,
+  FeedMessage,
+  FeedMessageInput,
   Preferences,
   WorkspaceExpansionChanges,
 } from "@/lib/model";
@@ -126,10 +128,35 @@ export const bridge = {
       await invoke("save_workspace_expansion", { choices })
     );
   },
-  async snapshot() {
+  /**
+   * Streams the library: the whole library first, then each change as the
+   * desktop publishes it. A message that fails validation ends the stream for
+   * this subscriber through `onBroken`, since later changes build on it.
+   */
+  async subscribeLibrary(
+    onMessage: (message: FeedMessage) => void,
+    onBroken: (message: string) => void
+  ) {
     requireDesktop();
 
-    return snapshotSchema.parse(await invoke("snapshot"));
+    let broken = false;
+
+    const feed = new Channel<FeedMessageInput>((message) => {
+      if (broken) {
+        return;
+      }
+
+      const result = feedMessageSchema.safeParse(message);
+
+      if (result.success) {
+        onMessage(result.data);
+      } else {
+        broken = true;
+        onBroken(result.error.message);
+      }
+    });
+
+    await invoke("subscribe_library", { feed });
   },
   /** Claims the one notification a version gets. Null when it was already shown. */
   async takeAppUpdateNotice() {

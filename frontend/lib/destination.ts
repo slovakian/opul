@@ -21,7 +21,7 @@ export const workspaceDestination = (
 };
 
 export const naturalDestination = (
-  workspaces: Workspace[],
+  workspaces: readonly Workspace[],
   location: Location,
   preferences: Preferences | null
 ) => {
@@ -46,7 +46,7 @@ export const naturalDestination = (
 };
 
 export const recommendedWorkspace = (
-  workspaces: Workspace[],
+  workspaces: readonly Workspace[],
   preferences: Preferences | null,
   lastUsed?: string
 ) => {

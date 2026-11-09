@@ -9,6 +9,7 @@
     "preview": "vp preview",
     "tauri": "tauri",
     "test": "playwright test",
+    "bench": "playwright test --config tests/bench/playwright.config.ts && vpx tests/bench/decode.ts",
     "format": "vp fmt",
     "prepare": "vp config",
     "check": "vp check"

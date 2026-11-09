@@ -5,6 +5,8 @@ pub(super) fn observe_adapters(
     torrent: &TorrentEngine,
     media: &MediaEngine,
 ) {
+    // One batch per pass, so a pass publishes at most one telemetry projection.
+    let mut telemetry = Vec::new();
     for snapshot in torrent.snapshots() {
         let Some(download_id_value) = snapshot.download_id.as_deref() else {
             continue;
@@ -98,7 +100,7 @@ pub(super) fn observe_adapters(
                 phase,
             });
         }
-        let _ = actor.observe_telemetry(
+        telemetry.push((
             download,
             TransferTelemetry {
                 downloaded_bytes: snapshot.bytes_downloaded,
@@ -111,7 +113,7 @@ pub(super) fn observe_adapters(
                 seeds: snapshot.seeds,
                 progress_millionths: fraction_to_millionths(snapshot.progress),
             },
-        );
+        ));
     }
     for snapshot in media.snapshots() {
         let Some(download_id_value) = snapshot.download_id.as_deref() else {
@@ -166,7 +168,7 @@ pub(super) fn observe_adapters(
             }
             MediaTransferState::Cancelled => {}
         }
-        let _ = actor.observe_telemetry(
+        telemetry.push((
             download,
             TransferTelemetry {
                 downloaded_bytes: snapshot.downloaded_bytes,
@@ -179,6 +181,9 @@ pub(super) fn observe_adapters(
                 seeds: 0,
                 progress_millionths: fraction_to_millionths(snapshot.progress),
             },
-        );
+        ));
+    }
+    if !telemetry.is_empty() {
+        let _ = actor.observe_telemetry(telemetry);
     }
 }

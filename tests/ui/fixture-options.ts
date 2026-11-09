@@ -11,6 +11,7 @@ import type {
   VideoToolsOperation,
   VideoToolsSnapshot,
 } from "../../frontend/lib/video-tools";
+import type { FeedChannel } from "./library-feed-fixture";
 
 export interface DesktopInvokeArgs {
   checkAutomatically?: boolean;
@@ -25,6 +26,7 @@ export interface DesktopInvokeArgs {
   view?: AggregateView;
   workspaceId?: string;
   choices?: WorkspaceExpansionChanges;
+  feed?: FeedChannel;
 }
 
 export interface DesktopOptions {

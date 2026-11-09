@@ -45,7 +45,9 @@ import {
 import { WorkspaceIcon } from "@/components/workspace-icon";
 import { useWorkspaceRemovalFocus } from "@/hooks/use-workspace-removal-focus";
 import { isActiveDownload } from "@/lib/download-activity";
-import { useLibrary } from "@/lib/library";
+import { useLibrary, useLibrarySelector } from "@/lib/library";
+import { selectDownloads, selectSession } from "@/lib/library-store";
+import type { LibraryState } from "@/lib/library-store";
 import { aggregateNames, bytes } from "@/lib/model";
 import type { AggregateView, Folder, Workspace } from "@/lib/model";
 import { cn } from "@/lib/utils";
@@ -67,6 +69,48 @@ const folderRequest = (workspace: Workspace, folder: Folder) => ({
   workspace_id: workspace.id,
 });
 
+interface DownloadCounts {
+  active: number;
+  all: number;
+  /** Whether anything is transferring, which animates the In progress label. */
+  downloading: boolean;
+  finished: number;
+}
+
+const selectDownloadCounts = (state: LibraryState): DownloadCounts => {
+  const downloads = selectDownloads(state);
+
+  return {
+    active: downloads.filter(isActiveDownload).length,
+    all: downloads.length,
+    downloading: downloads.some((download) => download.download_rate > 0),
+    finished: downloads.filter((download) => download.state === "Finished")
+      .length,
+  };
+};
+
+const sameCounts = (previous: DownloadCounts, next: DownloadCounts) =>
+  previous.active === next.active &&
+  previous.all === next.all &&
+  previous.downloading === next.downloading &&
+  previous.finished === next.finished;
+
+/** The combined download rate, which changes with every transfer update. */
+const TransferRate = () => {
+  const rate = useLibrarySelector((state) =>
+    selectDownloads(state).reduce(
+      (sum, download) => sum + download.download_rate,
+      0
+    )
+  );
+
+  return (
+    <span className="tabular-nums">
+      {rate ? `${bytes(rate)}/s` : "No active transfers"}
+    </span>
+  );
+};
+
 export const WorkspaceSidebar = ({
   workspaces,
   workspaceExpansion,
@@ -82,7 +126,7 @@ export const WorkspaceSidebar = ({
   onVideoSetup,
   videoTools,
 }: {
-  workspaces: Workspace[];
+  workspaces: readonly Workspace[];
   workspaceExpansion: ReadonlyMap<string, boolean>;
   onExpansionChange: (workspaceId: string, expanded: boolean) => void;
   onAddFolder: (workspace: Workspace) => void;
@@ -99,7 +143,9 @@ export const WorkspaceSidebar = ({
   onVideoSetup: () => void;
   videoTools: VideoToolsSnapshot | null;
 }) => {
-  const { run, busy, state } = useLibrary();
+  const { run, busy } = useLibrary();
+  const session = useLibrarySelector(selectSession);
+  const counts = useLibrarySelector(selectDownloadCounts, sameCounts);
   const { isMobile, open, openMobile, setOpenMobile } = useSidebar();
   const selectedFolderRef = useRef<HTMLButtonElement>(null);
 
@@ -136,16 +182,7 @@ export const WorkspaceSidebar = ({
     !isMobile || openMobile
   );
 
-  const allDownloads = workspaces.flatMap((workspace) => workspace.downloads);
-
-  const active = allDownloads.filter(isActiveDownload);
-
-  const downloadRate = allDownloads.reduce(
-    (sum, download) => sum + download.download_rate,
-    0
-  );
-
-  const downloading = downloadRate > 0;
+  const { downloading } = counts;
 
   const go = (next: Location) => {
     navigate(next);
@@ -209,21 +246,19 @@ export const WorkspaceSidebar = ({
         <SidebarMenu>
           {[
             {
-              count: allDownloads.length,
+              count: counts.all,
               icon: Inbox,
               label: aggregateNames.all,
               status: "all" as const,
             },
             {
-              count: active.length,
+              count: counts.active,
               icon: ArrowDown,
               label: aggregateNames.active,
               status: "active" as const,
             },
             {
-              count: allDownloads.filter(
-                (download) => download.state === "Finished"
-              ).length,
+              count: counts.finished,
               icon: Check,
               label: aggregateNames.finished,
               status: "finished" as const,
@@ -332,10 +367,7 @@ export const WorkspaceSidebar = ({
                       {
                         actions: [
                           {
-                            disabled:
-                              busy ||
-                              state.kind !== "ready" ||
-                              state.snapshot.session !== "Running",
+                            disabled: busy || session !== "Running",
                             icon: Smile,
                             label: "Change icon…",
                             onClick: (anchor) =>
@@ -502,17 +534,13 @@ export const WorkspaceSidebar = ({
           aria-live="polite"
         >
           <ArrowDown className="size-3" />
-          <span className="tabular-nums">
-            {downloadRate ? `${bytes(downloadRate)}/s` : "No active transfers"}
-          </span>
+          <TransferRate />
           <span
             className="ml-auto"
-            title={`Engine: ${state.kind === "ready" ? state.snapshot.session : "connecting"}`}
+            title={`Engine: ${session ?? "connecting"}`}
           >
             <span className="sr-only">Engine </span>
-            {state.kind === "ready" && state.snapshot.session === "Running"
-              ? "Ready"
-              : "Connecting"}
+            {session === "Running" ? "Ready" : "Connecting"}
           </span>
         </div>
       </SidebarFooter>

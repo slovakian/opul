@@ -29,7 +29,7 @@ interface DestinationOverride {
 }
 
 const resolveDestination = (
-  workspaces: Workspace[],
+  workspaces: readonly Workspace[],
   override: DestinationOverride | undefined,
   navigation: number,
   location: Location,
@@ -72,7 +72,7 @@ export const DownloadInput = ({
   setQuery,
   inputRef,
 }: {
-  workspaces: Workspace[];
+  workspaces: readonly Workspace[];
   location: Location;
   navigation: number;
   onAdded: (ids: string[]) => void;
