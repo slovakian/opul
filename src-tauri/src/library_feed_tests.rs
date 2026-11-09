@@ -300,3 +300,49 @@ fn feed_cost() {
     }
     machine.begin_shutdown().unwrap();
 }
+
+/// Writes a library of idle downloads for measuring the app at rest. See
+/// `tests/bench/README.md`.
+#[test]
+#[ignore = "benchmark setup"]
+fn seed_benchmark_library() {
+    let directory = std::path::PathBuf::from(std::env::var_os("OPUL_SEED_DIR").unwrap());
+    let count = std::env::var("OPUL_SEED_COUNT").map_or(500, |count| count.parse().unwrap());
+    std::fs::create_dir_all(directory.join("downloads")).unwrap();
+    let tools =
+        opul_core::video_tools::VideoTools::open(opul_core::video_tools::VideoToolsConfig {
+            nightly_available: false,
+            root: directory.join("Tools"),
+            opul_version: "0.1.0".into(),
+        })
+        .unwrap();
+    let machine = OpulStateMachine::open(OpulMachineConfig {
+        application_support_folder: directory.to_string_lossy().into_owned(),
+        downloads_folder: directory.join("downloads").to_string_lossy().into_owned(),
+        torrent: EngineConfig {
+            session_folder: directory
+                .join("torrent-session")
+                .to_string_lossy()
+                .into_owned(),
+            listen_port: 0,
+            randomize_port: true,
+            enable_dht: false,
+            max_connections: 32,
+            max_download_bps: 0,
+            max_upload_bps: 0,
+        },
+        media: MediaEngineConfig {
+            session_folder: directory
+                .join("media-session")
+                .to_string_lossy()
+                .into_owned(),
+            resources_folder: None,
+            video_tools: tools,
+            max_concurrent_downloads: 1,
+            max_download_bps: 0,
+        },
+    })
+    .unwrap();
+    add_pages(&machine, count);
+    machine.begin_shutdown().unwrap();
+}
