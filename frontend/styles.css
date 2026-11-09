@@ -161,6 +161,27 @@ a {
   width: 0;
   transition-delay: 200ms;
 }
+/* Below 440px status text moves under the name (download-row-description
+   renders it there), so the slot keeps only the ring, the check and nothing
+   else. A torrent hint that took the bar's place hands the slot back to the
+   ring. */
+@container (width < 440px) {
+  .download-row[data-status="text"] [data-slot="download-status"] {
+    width: 0;
+  }
+  .download-row[data-status="text"][data-ring] [data-slot="download-status"] {
+    width: calc(var(--download-bar-width) + 0.875rem);
+  }
+  .download-row[data-status="text"] [data-layer="text"] {
+    visibility: hidden;
+    opacity: 0;
+  }
+  .download-row[data-status="text"][data-ring] [data-layer="progress"] {
+    visibility: visible;
+    opacity: 1;
+    filter: none;
+  }
+}
 /* Rows appear at their width; only later changes animate. */
 .download-row [data-slot="download-status"]:not([data-ready]) {
   transition: none;

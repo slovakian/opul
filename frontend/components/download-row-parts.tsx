@@ -4,11 +4,19 @@ import type { ComponentProps } from "react";
 
 import type { Download } from "@/lib/model";
 import { liveBytes } from "@/lib/model";
-import { workingStates } from "@/lib/row-view";
+import { isStalled, workingStates } from "@/lib/row-view";
 import type { RowView } from "@/lib/row-view";
 
-/** The transfer is done: Finished, or a torrent that went on to seed. */
-const completedStates = new Set<Download["state"]>(["Finished", "Seeding"]);
+/**
+ * The transfer is done: Finished, or a torrent that went on to seed (or
+ * stopped at once). Checking files isn't here: that's a complete torrent
+ * starting to seed again, which never replays the check.
+ */
+const completedStates = new Set<Download["state"]>([
+  "Finished",
+  "Seeding",
+  "NotSeeding",
+]);
 
 /** The bar's fill transition, then a short hold at 100%. */
 const FILL_SETTLE_MS = 300;
@@ -134,11 +142,15 @@ export type LingerPhase = "shown" | "fading" | "gone";
  * Shows a value as soon as it's there and keeps its last real value for about
  * 3s after it goes away, then fades it out before it's removed.
  */
-export const useLinger = (value: number | null) => {
+export const useLinger = (
+  value: number | null,
+  /** Starts as if the value had just gone, so even a first absence waits. */
+  graceAtStart = false
+) => {
   const [last, setLast] = useState(value);
 
   const [phase, setPhase] = useState<LingerPhase>(
-    value === null ? "gone" : "shown"
+    value === null && !graceAtStart ? "gone" : "shown"
   );
 
   if (value !== null && (value !== last || phase !== "shown")) {
@@ -187,3 +199,16 @@ export const Segment = ({
     {children}
   </span>
 );
+
+/**
+ * A torrent stalled at 0 B/s with nobody connected says "Looking for peers…"
+ * in place of its bar once that has lasted as long as speed lingers, and goes
+ * back to the bar as soon as data or a peer arrives. It's the speed's grace
+ * and linger, run on "something is happening".
+ */
+export const useLookingForPeers = (download: Download) => {
+  const stalled = isStalled(download);
+  const active = useLinger(stalled ? null : 1, true);
+
+  return stalled && active.phase === "gone";
+};

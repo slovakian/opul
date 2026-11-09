@@ -46,7 +46,7 @@ import type { Preferences } from "@/lib/model";
 const sections = [
   { icon: Monitor, label: "Appearance" },
   { icon: Download, label: "Downloads" },
-  { icon: Network, label: "BitTorrent" },
+  { icon: Network, label: "Torrents" },
   { icon: Settings2, label: "Workspaces" },
   { icon: Wrench, label: "Tools" },
   { icon: Info, label: "About" },
@@ -345,7 +345,7 @@ const SettingsContent = ({
                 </FieldGroup>
               </>
             )}
-            {section === "BitTorrent" && (
+            {section === "Torrents" && (
               <>
                 <p className="text-muted-foreground text-sm">
                   Connection changes take effect when you restart Opul.

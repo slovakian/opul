@@ -75,6 +75,7 @@ export const downloadSchema = z.object({
     can_retry_video_tools: z.boolean().default(false),
     can_reveal_output: z.boolean(),
     can_set_up_video_tools: z.boolean().default(false),
+    can_start_seeding: z.boolean().default(false),
     can_stop_seeding: z.boolean(),
     can_update_video_tools: z.boolean().default(false),
   }),
@@ -113,6 +114,8 @@ export const downloadSchema = z.object({
     "Processing",
     "Verifying",
     "Seeding",
+    "NotSeeding",
+    "CheckingFiles",
     "Pausing",
     "Paused",
     "Finished",
@@ -276,7 +279,8 @@ export type DownloadAction =
   | "Resume"
   | "Retry"
   | "Cancel"
-  | "StopSeeding";
+  | "StopSeeding"
+  | "StartSeeding";
 
 export interface WorkspaceAppearanceRequest {
   request_id: string;
@@ -333,9 +337,11 @@ export const formatNames: Record<Format, string> = {
 
 export const stateNames: Record<Download["state"], string> = {
   Cancelled: "Cancelled",
+  CheckingFiles: "Checking files",
   Failed: "Failed",
   Fetching: "Downloading",
   Finished: "Complete",
+  NotSeeding: "Not seeding",
   Paused: "Paused",
   Pausing: "Pausing",
   Processing: "Processing",
@@ -349,9 +355,20 @@ export const stateNames: Record<Download["state"], string> = {
 export const sourceNames: Record<Download["source"], string> = {
   Direct: "Direct link",
   Guided: "Guided",
-  Torrent: "BitTorrent",
+  Torrent: "Torrent",
   VideoPage: "Video",
 };
+
+/**
+ * Done downloading: finished, or a complete torrent whether it's seeding,
+ * not seeding, or checking its files before it seeds again.
+ */
+export const completeStates = new Set<Download["state"]>([
+  "Finished",
+  "Seeding",
+  "NotSeeding",
+  "CheckingFiles",
+]);
 
 export const workspaceEmoji = (workspace: Pick<Workspace, "icon">) =>
   workspace.icon.kind === "Emoji" && workspace.icon.value.trim()
@@ -474,7 +491,7 @@ export const timeRemaining = (seconds: number | null) => {
 
 export const sourceHost = (download: Download) => {
   if (download.source === "Torrent") {
-    return "BitTorrent";
+    return sourceNames.Torrent;
   }
 
   try {

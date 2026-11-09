@@ -45,7 +45,7 @@ import {
 import { WorkspaceIcon } from "@/components/workspace-icon";
 import { useWorkspaceRemovalFocus } from "@/hooks/use-workspace-removal-focus";
 import { useLibrary } from "@/lib/library";
-import { aggregateNames, bytes } from "@/lib/model";
+import { aggregateNames, bytes, completeStates } from "@/lib/model";
 import type { AggregateView, Folder, Workspace } from "@/lib/model";
 import { cn } from "@/lib/utils";
 import type { VideoToolsSnapshot } from "@/lib/video-tools";
@@ -223,8 +223,8 @@ export const WorkspaceSidebar = ({
               status: "active" as const,
             },
             {
-              count: allDownloads.filter(
-                (download) => download.state === "Finished"
+              count: allDownloads.filter((download) =>
+                completeStates.has(download.state)
               ).length,
               icon: Check,
               label: aggregateNames.finished,

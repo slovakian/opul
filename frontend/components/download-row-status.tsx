@@ -7,7 +7,6 @@ import {
   Segment,
   rowLine,
   useLinger,
-  useRetained,
 } from "@/components/download-row-parts";
 import type { Completion, StatusKind } from "@/components/download-row-parts";
 import { CircularProgress } from "@/components/ui/circular-progress";
@@ -25,7 +24,7 @@ import { rowView } from "@/lib/row-view";
 import type { BarView, StatusText } from "@/lib/row-view";
 
 /** Shimmers only while Opul is setting video tools up; waiting on you stays still. */
-const WaitingLabel = ({ label }: { label: string }) => {
+export const WaitingLabel = ({ label }: { label: string }) => {
   const { tools } = useVideoTools();
   const settingUp = tools?.video.state.kind === "setting_up";
 
@@ -36,39 +35,46 @@ const WaitingLabel = ({ label }: { label: string }) => {
   );
 };
 
-/** `↑ speed · N peers`, each only while it has a value, or just "Seeding". */
+/** `↑ 820 KB/s`, read as "Uploading at 820 KB/s". */
+export const UploadSpeed = ({ value }: { value: number }) => (
+  <>
+    <span className="sr-only">Uploading at </span>
+    <span aria-hidden>↑ </span>
+    {liveBytes(value)}/s
+  </>
+);
+
+/** "Seeding" while idle; while uploading, the speed replaces the word. */
 const SeedingLabel = ({
   text,
 }: {
   text: Extract<StatusText, { kind: "seeding" }>;
 }) => {
   const upload = useLinger(text.upload);
-  const peers = useLinger(text.peers);
-  const idle = upload.value === null && peers.value === null;
 
   return (
     <span className="shimmer-up">
-      {idle && "Seeding"}
-      {upload.value !== null && (
+      {upload.value === null ? (
+        "Seeding"
+      ) : (
         <Segment first phase={upload.phase}>
-          <span className="sr-only">Uploading at </span>
-          <span aria-hidden>↑ </span>
-          {liveBytes(upload.value)}/s
-        </Segment>
-      )}
-      {peers.value !== null && (
-        <Segment
-          first={upload.value === null}
-          phase={peers.phase}
-          // Narrow lists keep the speed; peers show alone when there's no speed.
-          className={cn(upload.value !== null && "@max-[640px]:hidden")}
-        >
-          {peers.value} {peers.value === 1 ? "peer" : "peers"}
+          <UploadSpeed value={upload.value} />
         </Segment>
       )}
     </span>
   );
 };
+
+/** A short label; the torrent hints shimmer like "Processing…". */
+export const LabelText = ({
+  text,
+}: {
+  text: Extract<StatusText, { kind: "label" }>;
+}) => (
+  <span className={cn(text.tone === "shimmer" && "shimmer shimmer-spread-32")}>
+    {text.text}
+  </span>
+);
 
 const StatusLabel = ({ text }: { text: StatusText | null }) => {
   switch (text?.kind) {
@@ -85,7 +91,7 @@ const StatusLabel = ({ text }: { text: StatusText | null }) => {
     }
 
     case "label": {
-      return text.text;
+      return <LabelText text={text} />;
     }
 
     default: {
@@ -98,6 +104,20 @@ const FULL = 100;
 
 const sameBar = (a: BarView | null, b: BarView | null) =>
   a?.value === b?.value && a?.motion === b?.motion && a?.label === b?.label;
+
+const sameText = (a: StatusText | null, b: StatusText | null) =>
+  JSON.stringify(a) === JSON.stringify(b);
+
+/** Keeps the last label while its layer fades out, so it doesn't go blank. */
+const useRetainedText = (text: StatusText | null) => {
+  const [retained, setRetained] = useState(text);
+
+  if (text && !sameText(text, retained)) {
+    setRetained(text);
+  }
+
+  return text ?? retained;
+};
 
 /** Keeps the last bar while its layer fades out, so it doesn't flip to empty. */
 const useRetainedBar = (bar: BarView | null) => {
@@ -176,10 +196,12 @@ export const DownloadRowStatus = ({
   download,
   completion,
   kind,
+  lookingForPeers,
 }: {
   download: Download;
   completion: Completion;
   kind: StatusKind;
+  lookingForPeers: boolean;
 }) => {
   const filling = completion.phase === "filling";
 
@@ -188,15 +210,12 @@ export const DownloadRowStatus = ({
       ? { ...download, state: completion.from }
       : download;
 
+  const view = rowView(download, { lookingForPeers });
   const bar = useRetainedBar(rowView(source).bar);
   const value = filling ? FULL : (bar?.value ?? null);
   const motion = bar?.motion ?? "still";
   const label = bar?.label ?? "";
-  const textState = useRetained(kind === "text" ? download.state : null);
-
-  const text = textState
-    ? rowView({ ...download, state: textState }).statusText
-    : null;
+  const text = useRetainedText(kind === "text" ? view.statusText : null);
 
   const { label: labelRef, slot } = useLabelWidth();
 
@@ -206,7 +225,11 @@ export const DownloadRowStatus = ({
       data-slot="download-status"
       className="grid min-w-0 grid-cols-[minmax(0,1fr)] items-center justify-items-end overflow-hidden"
     >
-      <RowLayer active={kind === "progress"} className="flex">
+      <RowLayer
+        active={kind === "progress"}
+        data-layer="progress"
+        className="flex"
+      >
         <Tooltip>
           <TooltipTrigger
             render={
@@ -244,6 +267,7 @@ export const DownloadRowStatus = ({
       </RowLayer>
       <RowLayer
         active={kind === "text"}
+        data-layer="text"
         className="max-w-(--download-status-text-max)"
       >
         <ItemDescription ref={labelRef} className={cn(rowLine, "text-right")}>

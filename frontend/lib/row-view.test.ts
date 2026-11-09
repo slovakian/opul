@@ -162,26 +162,99 @@ test("status slot: bar while transferring, text while waiting, nothing when fini
   expect(statusOf("Finished")).toBe("empty");
 });
 
-test("seeding leaves out an idle upload and zero peers", () => {
+test("seeding shows the upload speed or nothing, never peers", () => {
   expect(seedingText({ peers: 12, upload_rate: MB })).toEqual({
     kind: "seeding",
-    peers: 12,
     upload: MB,
   });
-  expect(seedingText({})).toEqual({
-    kind: "seeding",
-    peers: null,
-    upload: null,
-  });
+  // A connection alone doesn't change the label.
+  expect(seedingText({ peers: 1 })).toEqual({ kind: "seeding", upload: null });
 });
 
 test("status labels", () => {
   expect(statusText({ state: "Queued" })).toEqual({
     kind: "label",
     text: "Queued",
+    tone: "plain",
   });
   expect(statusText({ state: "Failed" })).toEqual({ kind: "failed" });
   expect(
     statusText({ state: "WaitingForVideoTools", waiting_label: "Setting up…" })
   ).toEqual({ kind: "waiting", label: "Setting up…" });
+});
+
+const torrent = (patch: Partial<Download>) =>
+  download({ source: "Torrent", ...patch });
+
+test("a complete torrent that isn't seeding collapses like a finished file", () => {
+  const view = rowView(torrent({ state: "NotSeeding" }));
+  expect(view.status).toBe("empty");
+  expect(view.bar).toBeNull();
+  expect(view.description.line).toBe("origin");
+});
+
+test("starting to seed again checks files with no bar", () => {
+  const view = rowView(torrent({ state: "CheckingFiles" }));
+  expect(view.bar).toBeNull();
+  expect(view.status).toBe("text");
+  expect(view.statusText).toEqual({
+    kind: "label",
+    text: "Checking files…",
+    tone: "shimmer",
+  });
+  expect(view.description.line).toBe("origin");
+});
+
+test.each([
+  ["Starting", "Starting"],
+  ["Fetching", "Fetching"],
+] satisfies [string, Download["state"]][])(
+  "a magnet waiting for its file list (%s) says so in place of the bar",
+  (_name, state) => {
+    const view = rowView(
+      torrent({ bytes_downloaded: 0, state, total_size: 0 })
+    );
+
+    expect(view.status).toBe("text");
+    expect(view.statusText).toEqual({
+      kind: "label",
+      text: "Getting file info…",
+      tone: "shimmer",
+    });
+    // The ring stays below 440px, with the hint under the name.
+    expect(view.ring).toBe(true);
+    expect(view.bar).toMatchObject({ motion: "sheen", value: null });
+    expect(view.description).toMatchObject({ line: "origin", size: false });
+  }
+);
+
+test("a stalled torrent keeps its bar until the row says it's looking for peers", () => {
+  const stalled = torrent({ download_rate: 0, eta_seconds: null, peers: 0 });
+  expect(rowView(stalled).status).toBe("progress");
+
+  const looking = rowView(stalled, { lookingForPeers: true });
+  expect(looking.status).toBe("text");
+  expect(looking.statusText).toEqual({
+    kind: "label",
+    text: "Looking for peers…",
+    tone: "plain",
+  });
+  expect(looking.ring).toBe(true);
+  expect(looking.description.line).toBe("live");
+
+  // Peers or data mean it isn't stalled, whatever the row last decided.
+  expect(
+    rowView({ ...stalled, peers: 2 }, { lookingForPeers: true }).status
+  ).toBe("progress");
+});
+
+test("other states keep their status text in the narrow line too", () => {
+  expect(rowView(download({ state: "Queued" })).description.status).toEqual({
+    kind: "label",
+    text: "Queued",
+    tone: "plain",
+  });
+  expect(
+    rowView(download({ state: "Fetching" })).description.status
+  ).toBeNull();
 });

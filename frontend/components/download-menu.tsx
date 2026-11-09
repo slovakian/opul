@@ -1,5 +1,6 @@
 import { Menu } from "@base-ui/react/menu";
 import {
+  CirclePlay,
   CircleStop,
   FolderOpen,
   Info,
@@ -49,7 +50,11 @@ export interface DownloadMenuAction {
 /** Each inner list is one group; groups render with a separator between them. */
 export type DownloadMenuGroups = DownloadMenuAction[][];
 
-/** Builds the actions shared by a download's "…" menu and its right-click menu. */
+/**
+ * Builds the actions shared by a download's "…" menu and its right-click menu:
+ * what it is (details, Finder), what it's doing (pause or resume and cancel,
+ * retry, or the seeding switch), and removing it. Empty groups are left out.
+ */
 export const useDownloadMenuGroups = ({
   download,
   onInspect,
@@ -68,12 +73,12 @@ export const useDownloadMenuGroups = ({
     );
   };
 
-  const actions: DownloadMenuAction[] = [
+  const about: DownloadMenuAction[] = [
     { icon: Info, label: "Show details", onClick: onInspect },
   ];
 
   if (caps.can_reveal_output) {
-    actions.push({
+    about.push({
       icon: FolderOpen,
       label: "Show in Finder",
       onClick: () => {
@@ -87,17 +92,21 @@ export const useDownloadMenuGroups = ({
     [caps.can_resume, Play, "Resume download", "Resume"],
     [caps.can_retry, RotateCcw, "Retry download", "Retry"],
     [caps.can_stop_seeding, CircleStop, "Stop seeding", "StopSeeding"],
+    [caps.can_start_seeding, CirclePlay, "Start seeding", "StartSeeding"],
     [caps.can_cancel, X, "Cancel download", "Cancel"],
   ];
 
+  const control: DownloadMenuAction[] = [];
+
   for (const [allowed, icon, label, action] of transfers) {
     if (allowed) {
-      actions.push({ disabled: busy, icon, label, onClick: () => act(action) });
+      control.push({ disabled: busy, icon, label, onClick: () => act(action) });
     }
   }
 
   return [
-    actions,
+    about,
+    ...(control.length > 0 ? [control] : []),
     [
       {
         disabled: busy || !caps.can_remove,

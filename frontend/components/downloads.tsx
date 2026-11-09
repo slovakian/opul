@@ -1,6 +1,7 @@
 import {
   Archive,
   ArrowDown,
+  ArrowUp,
   Check,
   CircleAlert,
   File,
@@ -24,7 +25,11 @@ import {
   useDownloadMenuGroups,
 } from "@/components/download-menu";
 import { DownloadRowDescription } from "@/components/download-row-description";
-import { useCompletion, statusKind } from "@/components/download-row-parts";
+import {
+  statusKind,
+  useCompletion,
+  useLookingForPeers,
+} from "@/components/download-row-parts";
 import { DownloadRowStatus } from "@/components/download-row-status";
 import { Button } from "@/components/ui/button";
 import {
@@ -105,8 +110,13 @@ export const fileIcon = (download: Download) => {
 };
 
 const StatusIcon = ({ state }: { state: Download["state"] }) => {
-  if (state === "Finished") {
+  // A complete torrent shows what it's doing now, never Pause or Play.
+  if (state === "Finished" || state === "NotSeeding") {
     return <Check className="size-3" />;
+  }
+
+  if (state === "Seeding" || state === "CheckingFiles") {
+    return <ArrowUp className="size-3" />;
   }
 
   if (state === "Failed") {
@@ -118,6 +128,27 @@ const StatusIcon = ({ state }: { state: Download["state"] }) => {
   }
 
   return <ArrowDown className="size-3" />;
+};
+
+const UploadSpeedPrecise = ({ value }: { value: number }) => (
+  <>
+    <span className="sr-only">Uploading at </span>
+    <span aria-hidden>↑ </span>
+    {bytes(value)}/s
+  </>
+);
+
+/** Download speed, or `↑` upload speed while seeding. */
+const TableSpeed = ({ download }: { download: Download }) => {
+  if (download.state === "Seeding") {
+    return download.upload_rate ? (
+      <UploadSpeedPrecise value={download.upload_rate} />
+    ) : (
+      "—"
+    );
+  }
+
+  return download.download_rate ? `${bytes(download.download_rate)}/s` : "—";
 };
 
 export const DownloadStatus = ({ download }: { download: Download }) => (
@@ -305,7 +336,7 @@ const DownloadTableRow = (props: RowProps) => {
           {download.total_size ? bytes(download.total_size) : "—"}
         </TableCell>
         <TableCell className="text-muted-foreground text-right tabular-nums">
-          {download.download_rate ? `${bytes(download.download_rate)}/s` : "—"}
+          <TableSpeed download={download} />
         </TableCell>
         <TableCell>{actions}</TableCell>
       </ContextMenuTrigger>
@@ -331,7 +362,9 @@ const DownloadListItem = ({
 
   const styles = listItemStyles[listStyle];
   const completion = useCompletion(download.state);
-  const kind = statusKind(rowView(download).status, completion.phase);
+  const lookingForPeers = useLookingForPeers(download);
+  const view = rowView(download, { lookingForPeers });
+  const kind = statusKind(view.status, completion.phase);
 
   return (
     <ContextMenu onOpenChangeComplete={handleContextMenuClosed}>
@@ -345,6 +378,8 @@ const DownloadListItem = ({
             variant={styles.variant}
             data-selected={selected}
             data-status={kind}
+            // Below 440px a hint that replaced the bar moves under the name and the ring returns.
+            data-ring={(kind === "text" && view.ring) || undefined}
             className={cn("download-row", styles.item, styles.menuTarget)}
           />
         }
@@ -370,12 +405,17 @@ const DownloadListItem = ({
               {download.name}
             </button>
           </ItemTitle>
-          <DownloadRowDescription download={download} completion={completion} />
+          <DownloadRowDescription
+            download={download}
+            completion={completion}
+            lookingForPeers={lookingForPeers}
+          />
         </ItemContent>
         <DownloadRowStatus
           download={download}
           completion={completion}
           kind={kind}
+          lookingForPeers={lookingForPeers}
         />
         <ItemActions className="ps-3.5">{actions}</ItemActions>
       </ContextMenuTrigger>

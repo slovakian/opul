@@ -19,10 +19,10 @@ export interface BarView {
 }
 
 export type StatusText =
-  | { kind: "seeding"; upload: number | null; peers: number | null }
+  | { kind: "seeding"; upload: number | null }
   | { kind: "waiting"; label: string }
   | { kind: "failed" }
-  | { kind: "label"; text: string };
+  | { kind: "label"; text: string; tone: "plain" | "shimmer" };
 
 export interface DescriptionMessage {
   text: string;
@@ -40,13 +40,30 @@ export interface DescriptionView {
   /** A word after the amount in place of speed and time left. */
   note: string | null;
   message: DescriptionMessage | null;
+  /** The origin line leaves out the size while there's none to show yet. */
+  size: boolean;
+  /** Below 440px the status slot keeps only the ring and the check, so its text joins this line. */
+  status: StatusText | null;
 }
 
 export interface RowView {
   status: "progress" | "text" | "empty";
   bar: BarView | null;
   statusText: StatusText | null;
+  /**
+   * The text took the bar's place, but the bar still has something to say:
+   * below 440px the ring stays and the text moves under the name.
+   */
+  ring: boolean;
   description: DescriptionView;
+}
+
+export interface RowOptions {
+  /**
+   * A stalled torrent has gone a few seconds without data or peers (see
+   * `useLookingForPeers`), so "Looking for peers…" replaces its bar.
+   */
+  lookingForPeers?: boolean;
 }
 
 /** Opul is actively working for you. */
@@ -70,6 +87,27 @@ const MILLIONTHS_PER_PERCENT = 10_000;
 /** A resumed download goes back through Starting with its bytes still there. */
 export const isResuming = (download: Download) =>
   download.state === "Starting" && download.bytes_downloaded > 0;
+
+/** A magnet link waiting for its file list: nothing to measure yet. */
+export const isGettingFileInfo = (download: Download) =>
+  download.source === "Torrent" &&
+  (download.state === "Starting" || download.state === "Fetching") &&
+  download.bytes_downloaded === 0 &&
+  download.total_size === 0;
+
+/**
+ * A torrent downloading at 0 B/s with nobody connected. The row waits a few
+ * seconds before saying so, which `useLookingForPeers` decides.
+ */
+export const isStalled = (download: Download) =>
+  download.source === "Torrent" &&
+  download.state === "Fetching" &&
+  download.total_size > 0 &&
+  download.download_rate === 0 &&
+  download.peers === 0;
+
+const GETTING_FILE_INFO = "Getting file info…";
+const LOOKING_FOR_PEERS = "Looking for peers…";
 
 const positive = (value: number | null) =>
   value !== null && value > 0 ? value : null;
@@ -113,6 +151,10 @@ const barLabel = (download: Download, value: number | null) => {
   const held = heldStates.has(download.state);
   const resuming = isResuming(download);
 
+  if (isGettingFileInfo(download)) {
+    return GETTING_FILE_INFO;
+  }
+
   if (value === null) {
     if (held) {
       return "Paused";
@@ -144,14 +186,26 @@ const barView = (download: Download): BarView | null => {
   };
 };
 
-const statusTextView = (download: Download): StatusText | null => {
+const statusTextView = (
+  download: Download,
+  { lookingForPeers = false }: RowOptions
+): StatusText | null => {
+  if (isGettingFileInfo(download)) {
+    return { kind: "label", text: GETTING_FILE_INFO, tone: "shimmer" };
+  }
+
+  if (lookingForPeers && isStalled(download)) {
+    return { kind: "label", text: LOOKING_FOR_PEERS, tone: "plain" };
+  }
+
   switch (download.state) {
     case "Seeding": {
-      return {
-        kind: "seeding",
-        peers: positive(download.peers),
-        upload: positive(download.upload_rate),
-      };
+      // Peers live in the details panel; a connection alone changes nothing here.
+      return { kind: "seeding", upload: positive(download.upload_rate) };
+    }
+
+    case "CheckingFiles": {
+      return { kind: "label", text: "Checking files…", tone: "shimmer" };
     }
 
     case "WaitingForVideoTools": {
@@ -167,7 +221,7 @@ const statusTextView = (download: Download): StatusText | null => {
 
     case "Queued":
     case "Cancelled": {
-      return { kind: "label", text: stateNames[download.state] };
+      return { kind: "label", text: stateNames[download.state], tone: "plain" };
     }
 
     default: {
@@ -214,10 +268,17 @@ const messageFor = (download: Download): DescriptionMessage | null => {
   }
 };
 
-const descriptionView = (download: Download): DescriptionView => {
+const descriptionView = (
+  download: Download,
+  status: StatusText | null
+): DescriptionView => {
   const note = noteFor(download);
   const message = messageFor(download);
-  const live = download.state === "Fetching" || note !== null;
+  const gettingFileInfo = isGettingFileInfo(download);
+
+  const live =
+    !gettingFileInfo && (download.state === "Fetching" || note !== null);
+
   const fetching = download.state === "Fetching";
 
   let line: DescriptionView["line"] = "origin";
@@ -237,7 +298,9 @@ const descriptionView = (download: Download): DescriptionView => {
     line,
     message,
     note,
+    size: !gettingFileInfo,
     speed: fetching ? positive(download.download_rate) : null,
+    status,
   };
 };
 
@@ -245,13 +308,19 @@ const descriptionView = (download: Download): DescriptionView => {
  * Everything a list row shows for one snapshot of a download. Purely visual
  * timing (the finish check, the speed grace period, fade-outs) lives in hooks.
  */
-export const rowView = (download: Download): RowView => {
+export const rowView = (
+  download: Download,
+  options: RowOptions = {}
+): RowView => {
   const bar = barView(download);
-  const statusText = statusTextView(download);
+  const statusText = statusTextView(download, options);
+
+  // The two torrent hints take the bar's place; anything else with a bar shows it.
+  const hint = bar !== null && statusText !== null;
 
   let status: RowView["status"] = "empty";
 
-  if (bar) {
+  if (bar && !hint) {
     status = "progress";
   } else if (statusText) {
     status = "text";
@@ -259,7 +328,8 @@ export const rowView = (download: Download): RowView => {
 
   return {
     bar,
-    description: descriptionView(download),
+    description: descriptionView(download, statusText),
+    ring: hint,
     status,
     statusText,
   };
