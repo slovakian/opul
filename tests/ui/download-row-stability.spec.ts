@@ -4,7 +4,17 @@ import type { Locator, Page } from "@playwright/test";
 import type { Download, ListStyle, Snapshot } from "../../frontend/lib/model";
 import { mockDesktop } from "./fixture";
 import { baseDownload, preferences, snapshot } from "./fixture-data";
+import type { DesktopInvokeArgs } from "./fixture-options";
 import { replaceSnapshot } from "./workspace-sidebar-fixture";
+
+declare global {
+  interface Window {
+    __TAURI_INTERNALS__: {
+      invoke: (name: string, args?: DesktopInvokeArgs) => Promise<object>;
+    };
+    testHeldCommands: { count: number; release: () => void };
+  }
+}
 
 const MB = 1024 * 1024;
 const GB = 1024 * MB;
@@ -29,7 +39,12 @@ const row = (
 
 /** One row for every state the list can show. */
 const everyState: Download[] = [
-  row("starting", "Starting", { download_rate: 0, eta_seconds: null }),
+  row("starting", "Starting", {
+    bytes_downloaded: 0,
+    download_rate: 0,
+    eta_seconds: null,
+    progress_millionths: 0,
+  }),
   row("fetching", "Fetching", {
     bytes_downloaded: 4.2 * MB,
     download_rate: 512 * 1024,
@@ -98,8 +113,18 @@ const library = (downloads: Download[]): Snapshot => {
   return value;
 };
 
-/** The tiers follow the list's width, so pinning it tests each one directly. */
-const tiers = { medium: 520, narrow: 380, wide: 760 } as const;
+/** Sends the next snapshot, as the 800ms poll would. */
+const advance = async (page: Page, start: Snapshot, downloads: Download[]) => {
+  const next = library(downloads);
+  next.sequence = start.sequence + 1;
+  next.revision = start.revision + 1;
+  await replaceSnapshot(page, next);
+
+  return next;
+};
+
+/** The tiers follow the list's width: ring, short bar, full bar. */
+const tiers = { medium: 580, narrow: 460, wide: 760 } as const;
 
 const pinListWidth = async (page: Page, width: number) => {
   await page.addStyleTag({
@@ -107,7 +132,19 @@ const pinListWidth = async (page: Page, width: number) => {
   });
 };
 
-/** Rounded left edges, so sub-pixel layout noise doesn't count as movement. */
+/** Rounded boxes, so sub-pixel layout noise doesn't count as movement. */
+const box = (locator: Locator) =>
+  locator.evaluate((element) => {
+    const { height, width, x, y } = element.getBoundingClientRect();
+
+    return {
+      height: Math.round(height),
+      width: Math.round(width),
+      x: Math.round(x),
+      y: Math.round(y),
+    };
+  });
+
 const lefts = (locator: Locator) =>
   locator.evaluateAll((elements) =>
     elements.map((element) => Math.round(element.getBoundingClientRect().x))
@@ -115,6 +152,47 @@ const lefts = (locator: Locator) =>
 
 const rows = (page: Page) =>
   page.locator('[data-slot="item"][role="listitem"]');
+
+const rowFor = (page: Page, download: Download) =>
+  rows(page).filter({ hasText: download.name });
+
+const activeLine = (item: Locator) =>
+  item
+    .locator(
+      '[data-slot="item-description"] > [data-slot="download-row-layer"][data-active="true"]'
+    )
+    .first();
+
+/** The visible line as read aloud, with each separator as " · ". */
+const lineText = (line: Locator) =>
+  line.evaluate((element) => {
+    const copy = element.cloneNode(true);
+
+    if (!(copy instanceof HTMLElement)) {
+      return null;
+    }
+
+    for (const separator of copy.querySelectorAll(
+      '[data-slot="download-separator"]'
+    )) {
+      separator.textContent = " · ";
+    }
+
+    for (const hidden of copy.querySelectorAll(".sr-only")) {
+      hidden.remove();
+    }
+
+    return copy.textContent;
+  });
+
+const expectLine = async (line: Locator, expected: string) => {
+  await expect.poll(() => lineText(line)).toBe(expected);
+};
+
+const statusSlot = (item: Locator) =>
+  item.locator('[data-slot="download-status"]');
+
+const bar = (item: Locator) => item.locator('[data-slot="progress"]');
 
 for (const listStyle of ["cards", "minimal"] satisfies ListStyle[]) {
   for (const [tier, width] of Object.entries(tiers)) {
@@ -150,7 +228,65 @@ for (const listStyle of ["cards", "minimal"] satisfies ListStyle[]) {
   }
 }
 
-test("changing live values never moves the row or its separators", async ({
+for (const [tier, barWidth] of [
+  ["narrow", null],
+  ["medium", 112],
+  ["wide", 192],
+] as const) {
+  test(`a ${tier} list shows the ${barWidth ? `${barWidth}px bar` : "ring"}`, async ({
+    page,
+  }) => {
+    await mockDesktop(page, { snapshot: library([byId("fetching")]) });
+    await page.goto("/");
+    await pinListWidth(page, tiers[tier]);
+
+    const item = rows(page).first();
+    const ring = item.locator('[data-slot="circular-progress"]');
+
+    if (barWidth === null) {
+      await expect(ring).toBeVisible();
+      await expect(bar(item)).toBeHidden();
+
+      return;
+    }
+
+    await expect(ring).toBeHidden();
+    await expect(bar(item)).toBeVisible();
+
+    const { width } = await box(bar(item));
+    expect(width).toBe(barWidth);
+  });
+}
+
+test("empty speed, time left and seeding numbers aren't shown", async ({
+  page,
+}) => {
+  const stalled = row("stalled", "Fetching", {
+    download_rate: 0,
+    eta_seconds: null,
+  });
+
+  const quiet = row("quiet", "Seeding", {
+    capabilities: { ...idle, can_stop_seeding: true },
+    peers: 0,
+    source: "Torrent",
+    upload_rate: 0,
+  });
+
+  await mockDesktop(page, { snapshot: library([stalled, quiet]) });
+  await page.goto("/");
+  await pinListWidth(page, tiers.wide);
+
+  const line = activeLine(rowFor(page, stalled));
+  await expectLine(line, "22.5 MB of 50.0 MB");
+  await expect(line.locator('[data-segment="speed"]')).toHaveCount(0);
+  await expect(line.locator('[data-segment="eta"]')).toHaveCount(0);
+  await expect(rowFor(page, quiet)).toContainText("Seeding");
+  await expect(rowFor(page, quiet)).not.toContainText("0 B/s");
+  await expect(rowFor(page, quiet)).not.toContainText("peers");
+});
+
+test("changing live values never moves the row, its bar or its buttons", async ({
   page,
 }) => {
   const fetching = byId("fetching");
@@ -160,23 +296,20 @@ test("changing live values never moves the row or its separators", async ({
   await pinListWidth(page, tiers.wide);
 
   const item = rows(page).first();
-
-  const live = item
-    .locator('[data-slot="download-row-layer"][data-active="true"]')
-    .first();
-
-  const separators = live.locator('[data-slot="download-separator"]');
-  await expect(live).toContainText("4.2 MB");
-  await expect(separators).toHaveCount(2);
+  const line = activeLine(item);
+  await expectLine(line, "4.2 MB of 2.20 GB · 512 KB/s · 45s");
 
   const measure = async () => ({
-    row: await item.boundingBox(),
-    separators: await lefts(separators),
+    bar: await box(bar(item)),
+    buttons: await lefts(
+      item.getByRole("button", { name: /^(?:Pause|Actions)/u })
+    ),
+    row: await box(item),
   });
 
   const before = await measure();
 
-  const next = library([
+  await advance(page, start, [
     {
       ...fetching,
       bytes_downloaded: 412 * MB,
@@ -185,16 +318,124 @@ test("changing live values never moves the row or its separators", async ({
       progress_millionths: 600_000,
     },
   ]);
+  await expectLine(line, "412 MB of 2.20 GB · 99.9 MB/s · 3h 12m");
+  expect(await measure()).toEqual(before);
+});
 
-  next.sequence = start.sequence + 1;
-  next.revision = start.revision + 1;
-  await replaceSnapshot(page, next);
-  await expect(live).toContainText("412 MB");
-  await expect(live).toContainText("3h 12m");
+test("changing digits keeps a label's width while the character count holds", async ({
+  page,
+}) => {
+  const seeding = byId("seeding");
+  const start = library([seeding]);
+  await mockDesktop(page, { snapshot: start });
+  await page.goto("/");
+  await pinListWidth(page, tiers.wide);
 
-  const after = await measure();
-  expect(after.separators).toEqual(before.separators);
-  expect(after.row).toEqual(before.row);
+  const item = rows(page).first();
+  const slot = statusSlot(item);
+  await expect(slot).toContainText("↑ 1.2 MB/s");
+  await expect(slot).toContainText("12 peers");
+
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+  });
+  await expect(slot).toHaveAttribute("data-ready", "true");
+
+  const before = await box(slot);
+
+  await advance(page, start, [
+    { ...seeding, peers: 47, upload_rate: 3.4 * MB },
+  ]);
+  await expect(slot).toContainText("↑ 3.4 MB/s");
+  await expect(slot).toContainText("47 peers");
+  expect(await box(slot)).toEqual(before);
+});
+
+test("resuming keeps the bar's value and says so", async ({ page }) => {
+  const paused = row("resume", "Paused", {
+    capabilities: { ...idle, can_resume: true },
+    download_rate: 0,
+    eta_seconds: null,
+    progress_millionths: 450_000,
+  });
+
+  const start = library([paused]);
+  await mockDesktop(page, { snapshot: start });
+  await page.goto("/");
+  await pinListWidth(page, tiers.wide);
+
+  const item = rows(page).first();
+  const progress = bar(item);
+  const line = activeLine(item);
+  await expectLine(line, "22.5 MB of 50.0 MB · Paused");
+  await expect(progress).toHaveAttribute("aria-valuenow", "45");
+  await expect(progress).toHaveAttribute("data-motion", "muted");
+
+  const resuming = await advance(page, start, [
+    { ...paused, capabilities: idle, state: "Starting" },
+  ]);
+
+  await expectLine(line, "22.5 MB of 50.0 MB · Resuming…");
+  await expect(progress).toHaveAttribute("aria-valuenow", "45");
+  await expect(progress).toHaveAttribute("data-motion", "pulse");
+
+  const fill = progress.locator('[data-slot="progress-indicator"]');
+  const { width } = await box(fill);
+  expect(width).toBeGreaterThan(0);
+
+  await advance(page, resuming, [
+    {
+      ...paused,
+      capabilities: baseDownload.capabilities,
+      download_rate: 2 * MB,
+      eta_seconds: 14,
+      progress_millionths: 460_000,
+      state: "Fetching",
+    },
+  ]);
+  await expect(progress).toHaveAttribute("aria-valuenow", "46");
+  await expect(progress).toHaveAttribute("data-motion", "sheen");
+  const { width: after } = await box(fill);
+  expect(after).toBeGreaterThanOrEqual(width);
+});
+
+test("pause guards only its own button while Rust answers", async ({
+  page,
+}) => {
+  const fetching = byId("fetching");
+  const failed = byId("failed");
+  await mockDesktop(page, { snapshot: library([fetching, failed]) });
+  await page.goto("/");
+
+  // Hold every command until the test lets Rust answer.
+  await page.evaluate(() => {
+    const internals = window.__TAURI_INTERNALS__;
+    const { invoke } = internals;
+    // oxlint-disable-next-line promise/avoid-new -- the test resolves this hold itself.
+    const held = new Promise<void>((resolve) => {
+      window.testHeldCommands = { count: 0, release: resolve };
+    });
+
+    internals.invoke = async (name, args) => {
+      if (name === "execute") {
+        window.testHeldCommands.count += 1;
+        await held;
+      }
+
+      return invoke(name, args);
+    };
+  });
+
+  const pause = page.getByRole("button", { name: `Pause ${fetching.name}` });
+  const retry = page.getByRole("button", { name: `Retry ${failed.name}` });
+  await pause.click();
+  await pause.click();
+
+  await expect(pause).toBeEnabled();
+  await expect(retry).toBeEnabled();
+  const sent = await page.evaluate(() => window.testHeldCommands.count);
+  expect(sent).toBe(1);
+  await page.evaluate(() => window.testHeldCommands.release());
 });
 
 test("a download that finishes while visible shows a check, then nothing", async ({
@@ -206,15 +447,15 @@ test("a download that finishes while visible shows a check, then nothing", async
   await mockDesktop(page, { snapshot: start });
   await page.goto("/");
 
-  const active = rows(page).filter({ hasText: fetching.name });
-  const done = rows(page).filter({ hasText: finished.name });
+  const active = rowFor(page, fetching);
+  const done = rowFor(page, finished);
 
   // Already finished at launch: no check, and the status slot is collapsed.
   await expect(done).toHaveAttribute("data-status", "empty");
   await expect(done.getByText("Download complete")).toBeHidden();
   await expect(active).toHaveAttribute("data-status", "progress");
 
-  const next = library([
+  await advance(page, start, [
     {
       ...fetching,
       bytes_downloaded: fetching.total_size,
@@ -225,10 +466,6 @@ test("a download that finishes while visible shows a check, then nothing", async
     },
     finished,
   ]);
-
-  next.sequence = start.sequence + 1;
-  next.revision = start.revision + 1;
-  await replaceSnapshot(page, next);
 
   await expect(active).toHaveAttribute("data-status", "check");
   await expect(active.getByText("Download complete")).toBeVisible();
