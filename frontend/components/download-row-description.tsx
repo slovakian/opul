@@ -36,7 +36,7 @@ const narrowOnly = "hidden @max-[440px]:inline";
 
 /**
  * The status slot's text, for the narrowest lists: Queued, Cancelled, Failed,
- * the waiting labels and the torrent hints. Seeding shows only its upload
+ * the waiting labels and "Getting file info…". Seeding shows only its upload
  * speed, without the word.
  */
 const NarrowStatus = ({
@@ -84,7 +84,8 @@ const NarrowStatus = ({
 };
 
 /**
- * Amount first, then either speed and time left or a word like "Paused".
+ * Amount first, then either speed and time left or a note like "Paused" or
+ * "Looking for peers…".
  * Speed and time left appear only while they have a value. Speed drops first
  * as the list narrows, then the downloaded amount; time left stays longest.
  */
@@ -122,13 +123,8 @@ const LiveLine = ({
       )}
       {!note && eta.value !== null && (
         <Segment data-segment="eta" phase={eta.phase}>
-          <Tooltip>
-            <TooltipTrigger render={<span />}>
-              <span aria-hidden>{compactTimeRemaining(eta.value)}</span>
-              <span className="sr-only">{timeRemaining(eta.value)}</span>
-            </TooltipTrigger>
-            <TooltipContent>{timeRemaining(eta.value)}</TooltipContent>
-          </Tooltip>
+          <span aria-hidden>{compactTimeRemaining(eta.value)}</span>
+          <span className="sr-only">{timeRemaining(eta.value)}</span>
         </Segment>
       )}
       {note && <Segment data-segment="note">{note}</Segment>}

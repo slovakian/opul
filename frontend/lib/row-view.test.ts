@@ -228,24 +228,30 @@ test.each([
   }
 );
 
-test("a stalled torrent keeps its bar until the row says it's looking for peers", () => {
+test("a stalled torrent keeps its bar, greyed, while it looks for peers", () => {
   const stalled = torrent({ download_rate: 0, eta_seconds: null, peers: 0 });
-  expect(rowView(stalled).status).toBe("progress");
+  expect(rowView(stalled).bar?.motion).toBe("sheen");
+  expect(rowView(stalled).description.note).toBeNull();
 
   const looking = rowView(stalled, { lookingForPeers: true });
-  expect(looking.status).toBe("text");
-  expect(looking.statusText).toEqual({
-    kind: "label",
-    text: "Looking for peers…",
-    tone: "plain",
+  expect(looking.status).toBe("progress");
+  expect(looking.statusText).toBeNull();
+  expect(looking.ring).toBe(false);
+  expect(looking.bar).toMatchObject({
+    label: expect.stringContaining("Looking for peers…"),
+    motion: "searching",
   });
-  expect(looking.ring).toBe(true);
-  expect(looking.description.line).toBe("live");
+  expect(looking.bar?.value).toBe(rowView(stalled).bar?.value);
+  expect(looking.description).toMatchObject({
+    line: "live",
+    note: "Looking for peers…",
+    status: null,
+  });
 
   // Peers or data mean it isn't stalled, whatever the row last decided.
-  expect(
-    rowView({ ...stalled, peers: 2 }, { lookingForPeers: true }).status
-  ).toBe("progress");
+  const found = rowView({ ...stalled, peers: 2 }, { lookingForPeers: true });
+  expect(found.bar?.motion).toBe("sheen");
+  expect(found.description.note).toBeNull();
 });
 
 test("other states keep their status text in the narrow line too", () => {

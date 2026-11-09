@@ -201,9 +201,9 @@ export const Segment = ({
 );
 
 /**
- * A torrent stalled at 0 B/s with nobody connected says "Looking for peers…"
- * in place of its bar once that has lasted as long as speed lingers, and goes
- * back to the bar as soon as data or a peer arrives. It's the speed's grace
+ * A torrent stalled at 0 B/s with nobody connected greys its bar and says
+ * "Looking for peers…" under its name once that has lasted as long as speed
+ * lingers, and goes back to normal as soon as data or a peer arrives. It's the speed's grace
  * and linger, run on "something is happening".
  */
 export const useLookingForPeers = (download: Download) => {

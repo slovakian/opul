@@ -211,7 +211,7 @@ export const DownloadRowStatus = ({
       : download;
 
   const view = rowView(download, { lookingForPeers });
-  const bar = useRetainedBar(rowView(source).bar);
+  const bar = useRetainedBar(rowView(source, { lookingForPeers }).bar);
   const value = filling ? FULL : (bar?.value ?? null);
   const motion = bar?.motion ?? "still";
   const label = bar?.label ?? "";

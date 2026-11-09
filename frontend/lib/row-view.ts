@@ -7,8 +7,10 @@ import { liveBytes, stateNames } from "@/lib/model";
  * - `muted`: held (pausing or paused), so the fill greys out and stays still.
  * - `pulse`: resuming, so the fill keeps its value and gently pulses.
  * - `still`: full and waiting on a last step (processing).
+ * - `searching`: a stalled torrent looking for peers, so the fill greys out
+ *   and breathes slowly.
  */
-export type BarMotion = "sheen" | "muted" | "pulse" | "still";
+export type BarMotion = "sheen" | "muted" | "pulse" | "still" | "searching";
 
 export interface BarView {
   /** Percent done, or null for the no-progress look. */
@@ -61,7 +63,8 @@ export interface RowView {
 export interface RowOptions {
   /**
    * A stalled torrent has gone a few seconds without data or peers (see
-   * `useLookingForPeers`), so "Looking for peers…" replaces its bar.
+   * `useLookingForPeers`). Its bar stays with the `searching` look, and
+   * "Looking for peers…" joins the line under the name.
    */
   lookingForPeers?: boolean;
 }
@@ -130,7 +133,20 @@ const barValue = (download: Download) => {
   return download.total_size > 0 ? percent(download) : null;
 };
 
-const barMotion = (download: Download, value: number | null): BarMotion => {
+const isLookingForPeers = (
+  download: Download,
+  { lookingForPeers = false }: RowOptions
+) => lookingForPeers && isStalled(download);
+
+const barMotion = (
+  download: Download,
+  value: number | null,
+  options: RowOptions
+): BarMotion => {
+  if (isLookingForPeers(download, options)) {
+    return "searching";
+  }
+
   if (heldStates.has(download.state)) {
     return "muted";
   }
@@ -143,9 +159,19 @@ const barMotion = (download: Download, value: number | null): BarMotion => {
   return isResuming(download) && value !== null ? "pulse" : "sheen";
 };
 
-const barLabel = (download: Download, value: number | null) => {
+const barLabel = (
+  download: Download,
+  value: number | null,
+  options: RowOptions
+) => {
   if (download.state === "Processing") {
     return "Processing…";
+  }
+
+  if (isLookingForPeers(download, options)) {
+    return value === null
+      ? LOOKING_FOR_PEERS
+      : `${Math.round(value)}% · ${LOOKING_FOR_PEERS}`;
   }
 
   const held = heldStates.has(download.state);
@@ -172,7 +198,7 @@ const barLabel = (download: Download, value: number | null) => {
   return resuming ? `Resuming at ${shown}` : shown;
 };
 
-const barView = (download: Download): BarView | null => {
+const barView = (download: Download, options: RowOptions): BarView | null => {
   if (!progressStates.has(download.state)) {
     return null;
   }
@@ -180,22 +206,15 @@ const barView = (download: Download): BarView | null => {
   const value = barValue(download);
 
   return {
-    label: barLabel(download, value),
-    motion: barMotion(download, value),
+    label: barLabel(download, value, options),
+    motion: barMotion(download, value, options),
     value,
   };
 };
 
-const statusTextView = (
-  download: Download,
-  { lookingForPeers = false }: RowOptions
-): StatusText | null => {
+const statusTextView = (download: Download): StatusText | null => {
   if (isGettingFileInfo(download)) {
     return { kind: "label", text: GETTING_FILE_INFO, tone: "shimmer" };
-  }
-
-  if (lookingForPeers && isStalled(download)) {
-    return { kind: "label", text: LOOKING_FOR_PEERS, tone: "plain" };
   }
 
   switch (download.state) {
@@ -230,7 +249,11 @@ const statusTextView = (
   }
 };
 
-const noteFor = (download: Download) => {
+const noteFor = (download: Download, options: RowOptions) => {
+  if (isLookingForPeers(download, options)) {
+    return LOOKING_FOR_PEERS;
+  }
+
   switch (download.state) {
     case "Pausing": {
       return "Pausing…";
@@ -270,9 +293,10 @@ const messageFor = (download: Download): DescriptionMessage | null => {
 
 const descriptionView = (
   download: Download,
-  status: StatusText | null
+  status: StatusText | null,
+  options: RowOptions
 ): DescriptionView => {
-  const note = noteFor(download);
+  const note = noteFor(download, options);
   const message = messageFor(download);
   const gettingFileInfo = isGettingFileInfo(download);
 
@@ -312,10 +336,10 @@ export const rowView = (
   download: Download,
   options: RowOptions = {}
 ): RowView => {
-  const bar = barView(download);
-  const statusText = statusTextView(download, options);
+  const bar = barView(download, options);
+  const statusText = statusTextView(download);
 
-  // The two torrent hints take the bar's place; anything else with a bar shows it.
+  // "Getting file info…" takes the bar's place; anything else with a bar shows it.
   const hint = bar !== null && statusText !== null;
 
   let status: RowView["status"] = "empty";
@@ -328,7 +352,7 @@ export const rowView = (
 
   return {
     bar,
-    description: descriptionView(download, statusText),
+    description: descriptionView(download, statusText, options),
     ring: hint,
     status,
     statusText,

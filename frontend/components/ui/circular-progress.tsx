@@ -13,9 +13,10 @@ type CircularProgressProps = Omit<
    * Matches the bar's `motion`. Without it, an indeterminate ring spins a
    * quarter arc. With it, the ring never spins: `sheen` sweeps a soft band
    * across an empty ring until there's a value, `muted` greys the arc, and
-   * `pulse` gently pulses it. Once there's a value, `sheen` is a plain arc.
+   * `pulse` gently pulses it, and `searching` greys it and breathes slowly.
+   * Once there's a value, `sheen` is a plain arc.
    */
-  motion?: "sheen" | "muted" | "pulse" | "still";
+  motion?: "sheen" | "muted" | "pulse" | "still" | "searching";
   /** Diameter in pixels. */
   size?: number;
   style?: React.CSSProperties;
@@ -113,6 +114,7 @@ const CircularProgress = ({
           className={cn(
             "stroke-primary transition-[stroke-dashoffset,opacity,stroke] duration-500 ease-(--ease-out)",
             motion === "muted" && "stroke-muted-foreground/40",
+            motion === "searching" && "stroke-muted-foreground/60",
             fraction === 0 && "opacity-0"
           )}
         />

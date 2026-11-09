@@ -116,7 +116,7 @@ test("a magnet waiting for its file list says so in place of the bar", async ({
   await expectLine(activeLine(item), "Torrent");
 });
 
-test("a stalled torrent looks for peers after a few seconds, then shows its bar again", async ({
+test("a stalled torrent keeps its bar and says it's looking for peers under its name", async ({
   page,
 }) => {
   const stalled = byId("stalled");
@@ -126,16 +126,18 @@ test("a stalled torrent looks for peers after a few seconds, then shows its bar 
   await pinListWidth(page, tiers.wide);
 
   const item = rows(page).first();
-  // The bar stays through the same grace period speed gets.
-  await expect(item).toHaveAttribute("data-status", "progress");
-  await expect(item).toHaveAttribute("data-status", "text", {
+  // The bar keeps its normal look through the same grace period speed gets.
+  await expect(bar(item)).toHaveAttribute("data-motion", "sheen");
+  await expect(bar(item)).toHaveAttribute("data-motion", "searching", {
     timeout: 10_000,
   });
-  await expect(statusSlot(item)).toContainText("Looking for peers…");
-  await expectLine(activeLine(item), "22.5 MB of 50.0 MB");
+  await expect(item).toHaveAttribute("data-status", "progress");
+  await expect(bar(item)).toHaveAttribute("aria-valuenow", "45");
+  await expectLine(activeLine(item), "22.5 MB of 50.0 MB · Looking for peers…");
 
   await advance(page, start, [{ ...stalled, download_rate: MB, peers: 3 }]);
-  await expect(item).toHaveAttribute("data-status", "progress");
+  await expect(bar(item)).toHaveAttribute("data-motion", "sheen");
+  await expect(activeLine(item)).not.toContainText("Looking for peers");
 });
 
 test("below 440px status text moves under the name", async ({ page }) => {

@@ -295,6 +295,22 @@ a {
     opacity: 1;
   }
 }
+/* Looking for peers: the greyed fill breathes slowly, so it reads as waiting
+   on someone else rather than held (muted) or about to go (pulse). */
+[data-slot="progress"][data-motion="searching"]
+  [data-slot="progress-indicator"],
+[data-slot="circular-progress"][data-motion="searching"]
+  [data-slot="circular-progress-range"] {
+  animation: progress-searching 3.2s var(--ease-in-out) infinite alternate;
+}
+@keyframes progress-searching {
+  from {
+    opacity: 0.5;
+  }
+  to {
+    opacity: 1;
+  }
+}
 /* The ring with no value: an empty ring with a band (four times its width)
    sweeping straight across, masked to the stroke. It's tiny, so the band is
    a little brighter than the bar's. */

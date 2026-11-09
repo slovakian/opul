@@ -35,7 +35,7 @@ const ProgressTrack = ({
 );
 
 /** How a bar moves; the motion itself lives in styles.css. */
-type ProgressMotion = "sheen" | "muted" | "pulse" | "still";
+type ProgressMotion = "sheen" | "muted" | "pulse" | "still" | "searching";
 
 type ProgressProps = ProgressPrimitive.Root.Props & {
   /**
@@ -45,6 +45,8 @@ type ProgressProps = ProgressPrimitive.Root.Props & {
    * - `muted`: the fill greys out, for work that's held.
    * - `pulse`: the fill gently pulses, for work that's resuming.
    * - `still`: no motion.
+   * - `searching`: the fill greys out and breathes slowly, for work that's
+   *   waiting on someone else (a torrent looking for peers).
    */
   motion?: ProgressMotion;
 };
@@ -84,7 +86,7 @@ const Progress = ({
     >
       {children}
       <ProgressTrack>
-        <ProgressIndicator className="group-data-[motion=muted]/progress:bg-muted-foreground/40" />
+        <ProgressIndicator className="group-data-[motion=muted]/progress:bg-muted-foreground/40 group-data-[motion=searching]/progress:bg-muted-foreground/60" />
         {motion && (
           <>
             <span
