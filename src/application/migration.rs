@@ -211,6 +211,12 @@ fn parse_download(
             metadata: None,
             seed_ratio_limit: value.get("seedRatioLimit").and_then(Value::as_f64),
             files,
+            // A seeding or finished torrent has every file; finished ones load as not seeding.
+            complete: matches!(
+                string(value, "state").as_deref(),
+                Some("seeding" | "finished")
+            ),
+            reached_seed_ratio: false,
         })
     } else {
         let page_url = string(value, "pageURL");

@@ -511,6 +511,8 @@ fn duplicate_torrent_hash_is_rejected_globally() {
             metadata: None,
             seed_ratio_limit: Some(1.0),
             files: Vec::new(),
+            complete: false,
+            reached_seed_ratio: false,
         }),
         lifecycle: DownloadLifecycle::Queued,
         output: None,

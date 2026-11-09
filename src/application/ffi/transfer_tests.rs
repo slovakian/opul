@@ -153,10 +153,13 @@ fn check_output(layout: Layout) {
             }
             break;
         }
-        if layout != Layout::FlatCollection && download.state == MachineDownloadState::Finished {
+        // A zero ratio limit stops seeding at once: complete, but not seeding.
+        if layout != Layout::FlatCollection && download.state == MachineDownloadState::NotSeeding {
             let output = downloads.join(paths[0]);
             assert_eq!(download.output_path.as_deref(), output.to_str());
             assert_eq!(fs::read(&output).unwrap(), payload);
+            assert!(download.capabilities.can_start_seeding);
+            assert!(!download.capabilities.can_cancel);
             break;
         }
         assert!(

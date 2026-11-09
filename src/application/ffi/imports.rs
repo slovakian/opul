@@ -61,6 +61,8 @@ impl OpulStateMachine {
                         metadata: None,
                         seed_ratio_limit: request.seed_ratio_limit,
                         files: Vec::new(),
+                        complete: false,
+                        reached_seed_ratio: false,
                     }),
                     lifecycle: DownloadLifecycle::Queued,
                     output: None,

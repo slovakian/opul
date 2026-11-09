@@ -109,6 +109,10 @@ pub(super) fn decide_pause(
     ) {
         return Ok(Decision::none());
     }
+    // A complete torrent seeds or doesn't; Stop seeding and Start seeding control it.
+    if item.torrent_complete() {
+        return Err(invalid("pause", &item.lifecycle));
+    }
     let phase = match item.lifecycle {
         DownloadLifecycle::Queued | DownloadLifecycle::Starting => ActivePhase::Fetching,
         DownloadLifecycle::Active(phase) => phase,
@@ -149,6 +153,9 @@ pub(super) fn decide_resume(state: &AppState, id: DownloadId) -> Result<Decision
     let DownloadLifecycle::Paused { .. } = item.lifecycle else {
         return Err(invalid("resume", &item.lifecycle));
     };
+    if item.torrent_complete() {
+        return Err(invalid("resume", &item.lifecycle));
+    }
     if must_wait_for_tools(state, item) {
         let mut decision = Decision::none();
         push_waiting(item, &mut decision);
@@ -212,10 +219,13 @@ pub(super) fn decide_cancel(state: &AppState, id: DownloadId) -> Result<Decision
     if matches!(item.lifecycle, DownloadLifecycle::Cancelled) {
         return Ok(Decision::none());
     }
-    if matches!(
-        item.lifecycle,
-        DownloadLifecycle::Finished | DownloadLifecycle::Retiring { .. }
-    ) {
+    // Once a torrent is complete there is nothing left to cancel; removing it is the way out.
+    if item.torrent_complete()
+        || matches!(
+            item.lifecycle,
+            DownloadLifecycle::Finished | DownloadLifecycle::Retiring { .. }
+        )
+    {
         return Err(invalid("cancel", &item.lifecycle));
     }
     let generation = item.control_generation + 1;
@@ -240,7 +250,8 @@ pub(super) fn decide_stop_seeding(state: &AppState, id: DownloadId) -> Result<De
     if !matches!(
         item.lifecycle,
         DownloadLifecycle::Active(ActivePhase::Seeding)
-    ) {
+    ) && !item.checking_files()
+    {
         return Err(invalid("stop seeding", &item.lifecycle));
     }
     let generation = item.control_generation + 1;
@@ -251,6 +262,55 @@ pub(super) fn decide_stop_seeding(state: &AppState, id: DownloadId) -> Result<De
             control_generation: generation,
         }],
         effects: vec![control_effect(item, generation)],
+        created_downloads: Vec::new(),
+    })
+}
+
+/// Seeding is a switch: a torrent that stopped, by hand or at its ratio limit, can seed
+/// again. It rechecks its files where they are now, then seeds. Starting again after the
+/// ratio limit stopped it clears that limit, so it seeds until stopped or given a new one.
+pub(super) fn decide_start_seeding(
+    state: &AppState,
+    id: DownloadId,
+) -> Result<Decision, Rejection> {
+    let (_, item) = state
+        .locate_download(id)
+        .ok_or(Rejection::UnknownDownload(id))?;
+    let DownloadSource::Torrent(torrent) = &item.source else {
+        return Err(Rejection::WrongSource);
+    };
+    if !matches!(item.lifecycle, DownloadLifecycle::Finished) {
+        return Err(invalid("start seeding", &item.lifecycle));
+    }
+    let mut generation = item.control_generation;
+    let mut events = Vec::new();
+    if torrent.reached_seed_ratio {
+        generation += 1;
+        events.push(Event::SeedRatioChanged {
+            download: id,
+            limit: None,
+            control_generation: generation,
+        });
+    }
+    if !torrent.complete {
+        events.push(Event::TorrentCompletionChanged {
+            download: id,
+            complete: true,
+        });
+    }
+    generation += 1;
+    events.push(Event::DownloadLifecycleChanged {
+        download: id,
+        lifecycle: DownloadLifecycle::Starting,
+        control_generation: generation,
+    });
+    Ok(Decision {
+        events,
+        effects: vec![EffectPlan {
+            attempt: Some(item.attempt),
+            control_generation: Some(generation),
+            kind: EffectKind::EnsureTransfer { download: id },
+        }],
         created_downloads: Vec::new(),
     })
 }

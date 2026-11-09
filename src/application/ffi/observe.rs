@@ -12,7 +12,28 @@ pub(super) fn observe_adapters(
         let Ok(download) = download_id(download_id_value) else {
             continue;
         };
+        // Where a finished torrent's files are: its content folder, or its one file.
+        let output_path = || {
+            snapshot.content_folder.clone().or_else(|| {
+                let [file] = snapshot.files.as_slice() else {
+                    return None;
+                };
+                Some(
+                    Path::new(&snapshot.save_folder)
+                        .join(&file.path)
+                        .to_string_lossy()
+                        .into_owned(),
+                )
+            })
+        };
         let phase = match snapshot.state {
+            // A recheck, or a torrent still waiting for its file list, says nothing about
+            // whether the files are there.
+            TorrentState::Queued | TorrentState::Fetching
+                if snapshot.verifying || snapshot.total_size == 0 =>
+            {
+                ActivePhase::Verifying
+            }
             TorrentState::Queued | TorrentState::Fetching => ActivePhase::Fetching,
             TorrentState::Paused => {
                 if let Ok(Some(context)) = actor.execution_context(download) {
@@ -24,20 +45,18 @@ pub(super) fn observe_adapters(
                 }
                 ActivePhase::Fetching
             }
-            TorrentState::Seeding => ActivePhase::Seeding,
+            TorrentState::Seeding => {
+                if let Some(path) = output_path() {
+                    let _ = actor.observe(Fact::OutputFound {
+                        download,
+                        attempt: snapshot.attempt,
+                        output: output_artifact(path, snapshot.content_folder.clone()),
+                    });
+                }
+                ActivePhase::Seeding
+            }
             TorrentState::Finished => {
-                let path = snapshot.content_folder.clone().or_else(|| {
-                    let [file] = snapshot.files.as_slice() else {
-                        return None;
-                    };
-                    Some(
-                        Path::new(&snapshot.save_folder)
-                            .join(&file.path)
-                            .to_string_lossy()
-                            .into_owned(),
-                    )
-                });
-                if let Some(path) = path {
+                if let Some(path) = output_path() {
                     let _ = actor.observe(Fact::TransferFinished {
                         download,
                         attempt: snapshot.attempt,

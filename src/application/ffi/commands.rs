@@ -36,6 +36,13 @@ impl OpulStateMachine {
         self.download_command(request, |download| Command::StopSeeding { download })
     }
 
+    pub fn start_seeding(
+        &self,
+        request: MachineDownloadCommand,
+    ) -> Result<MachineCommandReceipt, StateMachineError> {
+        self.download_command(request, |download| Command::StartSeeding { download })
+    }
+
     pub fn remove_downloads(
         &self,
         request_id: String,

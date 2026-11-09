@@ -80,3 +80,4 @@ pub(super) fn partial(path: &str) -> OutputArtifact {
 
 mod commands_and_appearance;
 mod retirement;
+mod seeding;

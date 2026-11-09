@@ -67,6 +67,21 @@ impl Download {
         self.verified_output().is_some() || !self.uncovered_leftovers().is_empty()
     }
 
+    /// A torrent whose selected files are all on disk. It never shows progress or offers
+    /// pause and resume again until it has something new to download.
+    pub(crate) fn torrent_complete(&self) -> bool {
+        matches!(&self.source, DownloadSource::Torrent(torrent) if torrent.complete)
+    }
+
+    /// A complete torrent reattaching to its files before it seeds again.
+    pub(crate) fn checking_files(&self) -> bool {
+        self.torrent_complete()
+            && matches!(
+                self.lifecycle,
+                DownloadLifecycle::Queued | DownloadLifecycle::Starting
+            )
+    }
+
     pub(crate) fn source_kind(&self) -> SourceKind {
         match self.source {
             DownloadSource::Torrent(_) => SourceKind::Torrent,
@@ -103,9 +118,22 @@ pub(crate) struct TorrentDownload {
     pub(crate) metadata: Option<TorrentMetadata>,
     pub(crate) seed_ratio_limit: Option<f64>,
     pub(crate) files: Vec<TorrentFileSelection>,
+    /// Every selected file is on disk, whether or not the torrent is seeding now. Selecting
+    /// more files, or a recheck that finds some missing, makes it incomplete again.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub(crate) complete: bool,
+    /// Seeding stopped on its own because the share ratio reached `seed_ratio_limit`.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub(crate) reached_seed_ratio: bool,
 }
 
 impl Eq for TorrentDownload {}
+
+// Older checkpoints omit these fields; skipping `false` keeps their checksums valid.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn is_false(value: &bool) -> bool {
+    !*value
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum TorrentOrigin {
@@ -306,4 +334,47 @@ pub(crate) struct OutputIdentity {
 pub(crate) enum SourceKind {
     Torrent,
     Media,
+}
+
+impl AppState {
+    /// Checkpoints written before torrents tracked completion: a seeding or finished torrent
+    /// is complete, and a seeding torrent someone paused is simply not seeding any more.
+    pub(crate) fn migrate_torrent_completion(&mut self) -> bool {
+        let mut changed = false;
+        for download in self
+            .workspaces
+            .iter_mut()
+            .flat_map(|workspace| workspace.downloads.iter_mut())
+        {
+            let DownloadSource::Torrent(torrent) = &mut download.source else {
+                continue;
+            };
+            let seeded = match &download.lifecycle {
+                DownloadLifecycle::Active(ActivePhase::Seeding) | DownloadLifecycle::Finished => {
+                    true
+                }
+                DownloadLifecycle::Pausing { from, .. }
+                | DownloadLifecycle::Paused { resume: from, .. } => *from == ActivePhase::Seeding,
+                _ => false,
+            };
+            if seeded && !torrent.complete {
+                torrent.complete = true;
+                changed = true;
+            }
+            if matches!(
+                download.lifecycle,
+                DownloadLifecycle::Pausing {
+                    from: ActivePhase::Seeding,
+                    cause: HoldCause::Person | HoldCause::Recovery,
+                } | DownloadLifecycle::Paused {
+                    resume: ActivePhase::Seeding,
+                    cause: HoldCause::Person | HoldCause::Recovery,
+                }
+            ) {
+                download.lifecycle = DownloadLifecycle::Finished;
+                changed = true;
+            }
+        }
+        changed
+    }
 }

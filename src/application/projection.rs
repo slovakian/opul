@@ -74,6 +74,7 @@ pub(crate) struct DownloadCapabilities {
     pub(crate) can_retry: bool,
     pub(crate) can_cancel: bool,
     pub(crate) can_stop_seeding: bool,
+    pub(crate) can_start_seeding: bool,
     pub(crate) can_change_file_selection: bool,
     pub(crate) can_remove: bool,
     pub(crate) can_reveal_output: bool,
@@ -152,6 +153,9 @@ pub(crate) fn project(state: &AppState, overlay: &RuntimeOverlay) -> AppProjecti
 pub(crate) fn capabilities(state: &AppState, download: &Download) -> DownloadCapabilities {
     let mutable = matches!(state.session, SessionPhase::Running);
     let waiting = matches!(download.lifecycle, DownloadLifecycle::WaitingForVideoTools);
+    let torrent = matches!(download.source, DownloadSource::Torrent(_));
+    // A complete torrent has no progress to pause or cancel; only seeding is switched.
+    let complete = download.torrent_complete();
     DownloadCapabilities {
         can_update_video_tools: false,
         can_set_up_video_tools: mutable
@@ -164,13 +168,16 @@ pub(crate) fn capabilities(state: &AppState, download: &Download) -> DownloadCap
             && waiting
             && state.video_tools == VideoToolsAvailability::NotWorking,
         can_pause: mutable
+            && !complete
             && matches!(
                 download.lifecycle,
                 DownloadLifecycle::Queued
                     | DownloadLifecycle::Starting
                     | DownloadLifecycle::Active(_)
             ),
-        can_resume: mutable && matches!(download.lifecycle, DownloadLifecycle::Paused { .. }),
+        can_resume: mutable
+            && !complete
+            && matches!(download.lifecycle, DownloadLifecycle::Paused { .. }),
         can_retry: mutable
             && matches!(
                 download.lifecycle,
@@ -180,6 +187,7 @@ pub(crate) fn capabilities(state: &AppState, download: &Download) -> DownloadCap
                 }
             ),
         can_cancel: mutable
+            && !complete
             && matches!(
                 download.lifecycle,
                 DownloadLifecycle::WaitingForVideoTools
@@ -191,13 +199,16 @@ pub(crate) fn capabilities(state: &AppState, download: &Download) -> DownloadCap
                     | DownloadLifecycle::Failed { .. }
             ),
         can_stop_seeding: mutable
-            && matches!(download.source, DownloadSource::Torrent(_))
-            && matches!(
+            && torrent
+            && (matches!(
                 download.lifecycle,
                 DownloadLifecycle::Active(ActivePhase::Seeding)
-            ),
+            ) || download.checking_files()),
+        can_start_seeding: mutable
+            && torrent
+            && matches!(download.lifecycle, DownloadLifecycle::Finished),
         can_change_file_selection: mutable
-            && matches!(download.source, DownloadSource::Torrent(_))
+            && torrent
             && !matches!(
                 download.lifecycle,
                 DownloadLifecycle::Finished

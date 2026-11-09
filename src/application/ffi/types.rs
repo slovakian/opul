@@ -103,6 +103,10 @@ pub enum MachineDownloadState {
     Processing,
     Verifying,
     Seeding,
+    /// A complete torrent that isn't seeding: stopped by hand or at its ratio limit.
+    NotSeeding,
+    /// A complete torrent rechecking its files before it seeds again.
+    CheckingFiles,
     Pausing,
     Paused,
     Finished,
@@ -127,6 +131,7 @@ pub struct MachineCapabilities {
     pub can_retry: bool,
     pub can_cancel: bool,
     pub can_stop_seeding: bool,
+    pub can_start_seeding: bool,
     pub can_change_file_selection: bool,
     pub can_remove: bool,
     pub can_reveal_output: bool,

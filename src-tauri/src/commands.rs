@@ -94,6 +94,7 @@ pub enum DownloadAction {
     Retry,
     Cancel,
     StopSeeding,
+    StartSeeding,
 }
 
 fn request_id() -> String {
@@ -214,6 +215,7 @@ impl DesktopCommand {
                     DownloadAction::Retry => machine.retry_download(request),
                     DownloadAction::Cancel => machine.cancel_download(request),
                     DownloadAction::StopSeeding => machine.stop_seeding(request),
+                    DownloadAction::StartSeeding => machine.start_seeding(request),
                 }
             }
             Self::RemoveDownloads { download_ids } => {

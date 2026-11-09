@@ -90,7 +90,12 @@ pub(super) fn download_view(download: DownloadProjection) -> MachineDownload {
         files,
         total,
     ) = actor_source_fields(&download);
-    let (state, hold_cause, error_message) = lifecycle_view(&download.lifecycle);
+    let (state, hold_cause, error_message) = match &download.source_data {
+        DownloadSource::Torrent(torrent) if torrent.complete => {
+            complete_torrent_view(&download.lifecycle)
+        }
+        _ => lifecycle_view(&download.lifecycle),
+    };
     let (seed_ratio_limit, piece_length, piece_count, comment, trackers) =
         match &download.source_data {
             DownloadSource::Torrent(torrent) => (
@@ -169,6 +174,7 @@ pub(super) fn download_view(download: DownloadProjection) -> MachineDownload {
             can_retry: download.capabilities.can_retry,
             can_cancel: download.capabilities.can_cancel,
             can_stop_seeding: download.capabilities.can_stop_seeding,
+            can_start_seeding: download.capabilities.can_start_seeding,
             can_change_file_selection: download.capabilities.can_change_file_selection,
             can_remove: download.capabilities.can_remove,
             can_reveal_output: download.capabilities.can_reveal_output,
@@ -304,6 +310,27 @@ pub(super) fn lifecycle_view(
     }
 }
 
+/// A complete torrent never reads as downloading or paused: it seeds, it doesn't, or it is
+/// checking its files on the way to seeding again.
+pub(super) fn complete_torrent_view(
+    lifecycle: &DownloadLifecycle,
+) -> (
+    MachineDownloadState,
+    Option<MachineHoldCause>,
+    Option<String>,
+) {
+    match lifecycle {
+        DownloadLifecycle::Queued | DownloadLifecycle::Starting => {
+            (MachineDownloadState::CheckingFiles, None, None)
+        }
+        DownloadLifecycle::Active(_) => (MachineDownloadState::Seeding, None, None),
+        DownloadLifecycle::Finished
+        | DownloadLifecycle::Pausing { .. }
+        | DownloadLifecycle::Paused { .. } => (MachineDownloadState::NotSeeding, None, None),
+        lifecycle => lifecycle_view(lifecycle),
+    }
+}
+
 pub(super) fn phase_view(phase: ActivePhase) -> MachineDownloadState {
     match phase {
         ActivePhase::Fetching => MachineDownloadState::Fetching,
@@ -318,5 +345,38 @@ pub(super) fn hold_view(cause: HoldCause) -> MachineHoldCause {
         HoldCause::Person => MachineHoldCause::Person,
         HoldCause::Shutdown => MachineHoldCause::Shutdown,
         HoldCause::Recovery => MachineHoldCause::Recovery,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_complete_torrent_never_reads_as_downloading_or_paused() {
+        let state = |lifecycle| complete_torrent_view(&lifecycle).0;
+        assert_eq!(
+            state(DownloadLifecycle::Starting),
+            MachineDownloadState::CheckingFiles
+        );
+        assert_eq!(
+            state(DownloadLifecycle::Active(ActivePhase::Seeding)),
+            MachineDownloadState::Seeding
+        );
+        assert_eq!(
+            state(DownloadLifecycle::Finished),
+            MachineDownloadState::NotSeeding
+        );
+        assert_eq!(
+            state(DownloadLifecycle::Paused {
+                resume: ActivePhase::Seeding,
+                cause: HoldCause::Shutdown,
+            }),
+            MachineDownloadState::NotSeeding
+        );
+        assert_eq!(
+            state(DownloadLifecycle::Cancelled),
+            MachineDownloadState::Cancelled
+        );
     }
 }

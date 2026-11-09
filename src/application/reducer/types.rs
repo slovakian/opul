@@ -83,6 +83,9 @@ pub(crate) enum Command {
     StopSeeding {
         download: DownloadId,
     },
+    StartSeeding {
+        download: DownloadId,
+    },
     Remove {
         downloads: Vec<DownloadId>,
         move_files_to_trash: bool,
@@ -145,6 +148,12 @@ pub(crate) enum Fact {
         control_generation: u64,
     },
     TransferFinished {
+        download: DownloadId,
+        attempt: u32,
+        output: OutputArtifact,
+    },
+    /// A seeding torrent's files: it is complete but still running, so it is not Finished.
+    OutputFound {
         download: DownloadId,
         attempt: u32,
         output: OutputArtifact,
@@ -316,6 +325,13 @@ pub(crate) enum Event {
     DownloadOutputRecorded {
         download: DownloadId,
         output: OutputArtifact,
+    },
+    TorrentCompletionChanged {
+        download: DownloadId,
+        complete: bool,
+    },
+    SeedRatioReached {
+        download: DownloadId,
     },
     SessionChanged(SessionPhase),
     RecoveryAcknowledged,

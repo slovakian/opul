@@ -232,6 +232,7 @@ pub(crate) fn decide(state: &AppState, envelope: &CommandEnvelope) -> Result<Dec
         Command::Retry { download } => decide_retry(state, *download),
         Command::Cancel { download } => decide_cancel(state, *download),
         Command::StopSeeding { download } => decide_stop_seeding(state, *download),
+        Command::StartSeeding { download } => decide_start_seeding(state, *download),
         Command::Remove {
             downloads,
             move_files_to_trash,
