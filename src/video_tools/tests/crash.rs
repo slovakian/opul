@@ -37,7 +37,7 @@ fn crash_before_activation_preserves_committed_state_and_restart_cleans_candidat
         .execute(VideoToolsOperation::SetKeepUpToDate { enabled: false })
         .unwrap();
     let committed = std::fs::read(fixture.config.root.join("state.json")).unwrap();
-    drop(tools);
+    fixture.close(tools);
     let marker = fixture._temp.path().join("crash-marker");
     let mut child = Command::new(std::env::current_exe().unwrap())
         .args(["--exact", "video_tools::tests::crash::crash_before_activation_preserves_committed_state_and_restart_cleans_candidates", "--nocapture"])
@@ -132,7 +132,7 @@ fn update_crash_never_exposes_a_mixed_pair() {
     tools.execute(VideoToolsOperation::SetUp).unwrap();
     fixture.wait(&tools);
     let old = tools.invocation().unwrap();
-    drop(tools);
+    fixture.close(tools);
     let marker = fixture._temp.path().join("update-crash-marker");
     let mut child = Command::new(std::env::current_exe().unwrap())
         .args([

@@ -107,7 +107,7 @@ fn setup_verifies_activates_and_supplies_media_engine_without_restart() {
     assert!(arguments.contains("--dump-single-json"));
     assert!(fixture.config.root.join("state.json").is_file());
     drop(media);
-    drop(tools);
+    fixture.close(tools);
     let reopened = fixture.open();
     assert!(matches!(
         reopened.snapshot().state,
@@ -221,7 +221,7 @@ fn minimum_app_version_and_restart_validation_protect_the_selected_pair() {
         VideoToolsState::NotWorking { .. }
     ));
     assert_eq!(fixture.count("GET /runtime-1/runtime"), 0);
-    drop(tools);
+    fixture.close(tools);
     fixture.config.opul_version = "0.2.2".into();
     let tools = fixture.open();
     tools.execute(VideoToolsOperation::SetUp).unwrap();
@@ -230,7 +230,7 @@ fn minimum_app_version_and_restart_validation_protect_the_selected_pair() {
         VideoToolsState::Ready { .. }
     ));
     std::fs::remove_file(tools.invocation().unwrap().quickjs).unwrap();
-    drop(tools);
+    fixture.close(tools);
     let broken = fixture.open();
     assert!(matches!(
         broken.snapshot().state,

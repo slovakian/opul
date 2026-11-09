@@ -24,7 +24,7 @@ fn removal_revokes_selection_before_stopping_and_preserves_preferences_across_re
     assert!(!interpreter.exists());
     assert!(matches!(tools.snapshot().state, VideoToolsState::TurnedOff));
     tools.remove_with(false, || Ok(())).unwrap();
-    drop(tools);
+    fixture.close(tools);
     let tools = fixture.open();
     assert!(matches!(tools.snapshot().state, VideoToolsState::TurnedOff));
     assert!(!tools.snapshot().keep_up_to_date);

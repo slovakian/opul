@@ -86,7 +86,7 @@ fn switch_preference_persists_without_setup() {
         .execute(VideoToolsOperation::SetKeepUpToDate { enabled: false })
         .unwrap();
     assert!(fixture.hits.lock().unwrap().is_empty());
-    drop(tools);
+    fixture.close(tools);
     let tools = fixture.open();
     assert!(tools.snapshot().use_nightly);
     assert!(!tools.snapshot().keep_up_to_date);
