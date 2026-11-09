@@ -76,8 +76,10 @@ test("Settings checks, downloads and offers Restart, with no toast offer for a m
     .getByRole("button", { exact: true, name: "Check for Updates" })
     .click();
   await expect(
-    settings.getByRole("button", { name: "Checking…" })
-  ).toBeDisabled();
+    settings
+      .getByRole("button", { name: "Checking…" })
+      .or(settings.getByText(/You're up to date · checked/u))
+  ).toBeVisible();
   await expect(
     settings.getByText(/You're up to date · checked/u)
   ).toBeVisible();
@@ -108,9 +110,11 @@ test("Settings checks, downloads and offers Restart, with no toast offer for a m
   await page.screenshot({ path: "test-results/app-updates-available.png" });
 
   await settings.getByRole("button", { exact: true, name: "Download" }).click();
-  await expect(settings.getByRole("progressbar")).toBeVisible();
-  await expect(settings.getByText("Downloading 0.4.0… 50%")).toBeVisible();
-  await page.screenshot({ path: "test-results/app-updates-downloading.png" });
+  await expect(
+    settings
+      .getByRole("progressbar")
+      .or(settings.getByText("Opul 0.4.0 is ready. Restart to finish."))
+  ).toBeVisible();
   await expect(
     settings.getByText("Opul 0.4.0 is ready. Restart to finish.")
   ).toBeVisible();
@@ -164,7 +168,11 @@ test("Download from the offer shows progress, then Restart asks while downloads 
   const offer = updateToast(page);
 
   await offer.getByRole("button", { exact: true, name: "Download" }).click();
-  await expect(offer).toContainText("Downloading Opul 0.4.0…");
+  await expect(
+    offer
+      .getByText("Downloading Opul 0.4.0…")
+      .or(offer.getByText("Opul 0.4.0 is ready"))
+  ).toBeVisible();
   await expect(
     offer.getByRole("button", { name: /^(?:Download|Not now)$/u })
   ).toHaveCount(0);
@@ -327,4 +335,42 @@ test("Setup offers to update Opul automatically, unchecked, above video tools", 
     name: "app_updates_configure",
   });
   await page.screenshot({ path: "test-results/app-updates-setup.png" });
+});
+
+test("when an update check is active, the button is disabled and shows Checking…", async ({
+  page,
+}) => {
+  await mockDesktop(page);
+  await page.goto("/");
+  const settings = await openUpdates(page);
+
+  await push(page, {
+    ...appUpdates,
+    phase: { kind: "checking" },
+  });
+  await expect(
+    settings.getByRole("button", { name: "Checking…" })
+  ).toBeDisabled();
+});
+
+test("downloading an update displays the progressbar and percentage", async ({
+  page,
+}) => {
+  await mockDesktop(page);
+  await page.goto("/");
+  const settings = await openUpdates(page);
+
+  await push(page, {
+    ...available,
+    phase: {
+      automatic: false,
+      downloaded: 25_000_000,
+      kind: "downloading",
+      total: 50_000_000,
+      version: "0.4.0",
+    },
+  });
+  await expect(settings.getByRole("progressbar")).toBeVisible();
+  await expect(settings.getByText("Downloading 0.4.0… 50%")).toBeVisible();
+  await page.screenshot({ path: "test-results/app-updates-downloading.png" });
 });

@@ -31,6 +31,7 @@ export interface DesktopInvokeArgs {
 
 export interface DesktopOptions {
   appUpdates?: AppUpdates;
+  appUpdateStepMs?: number;
   failAppUpdateDownload?: boolean;
   videoTools?: VideoToolsSnapshot;
   failVideoToolsPreference?: boolean;

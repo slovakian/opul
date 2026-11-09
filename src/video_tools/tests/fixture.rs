@@ -385,7 +385,19 @@ impl Fixture {
             Some(format!("{base}/yt/releases/tag/{version}"));
     }
     pub(super) fn open(&self) -> Arc<VideoTools> {
-        VideoTools::open_with_sources(self.config.clone(), self.sources.clone()).unwrap()
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            match VideoTools::open_with_sources(self.config.clone(), self.sources.clone()) {
+                Ok(tools) => return tools,
+                Err(err)
+                    if err == "The video tools directory is already in use."
+                        && Instant::now() < deadline =>
+                {
+                    thread::sleep(Duration::from_millis(5));
+                }
+                Err(err) => panic!("{err}"),
+            }
+        }
     }
     pub(super) fn close(&self, tools: Arc<VideoTools>) {
         let deadline = Instant::now() + Duration::from_secs(10);

@@ -27,7 +27,7 @@ export const appUpdates: AppUpdates = {
 };
 
 /** Each simulated network step takes this long, so tests can see the states between. */
-const STEP_MS = 250;
+const STEP_MS = 600;
 
 /**
  * Mirrors `AppUpdates` in Rust: single-flight checks, a per-version notice claim that
@@ -194,7 +194,7 @@ export const mockAppUpdates = async (page: Page, options: DesktopOptions) => {
     {
       initial: options.appUpdates ?? appUpdates,
       mockOpts: options,
-      step: STEP_MS,
+      step: options.appUpdateStepMs ?? STEP_MS,
     }
   );
 };

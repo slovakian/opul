@@ -177,7 +177,7 @@ fn twice_rejected_runtime_is_skipped_across_restart_until_a_newer_runtime() {
         }
     ));
     assert_eq!(fixture.count("GET /runtime-2/runtime"), 2);
-    drop(tools);
+    fixture.close(tools);
     let tools = fixture.open();
     command(&tools, "update");
     fixture.wait(&tools);

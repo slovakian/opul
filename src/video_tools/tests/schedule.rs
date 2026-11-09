@@ -67,7 +67,7 @@ fn consent_checks_never_install_and_notices_survive_restart() {
     command(&tools, "check_for_updates");
     fixture.wait(&tools);
     assert!(tools.take_update_notice().unwrap().is_none());
-    drop(tools);
+    fixture.close(tools);
     let tools = fixture.open();
     assert!(!tools.snapshot().keep_up_to_date);
     assert!(matches!(
