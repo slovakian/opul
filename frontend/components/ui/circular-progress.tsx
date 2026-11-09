@@ -9,8 +9,13 @@ type CircularProgressProps = Omit<
   "className" | "style"
 > & {
   className?: string;
-  /** Mutes the arc, for work that's held rather than moving. */
-  muted?: boolean;
+  /**
+   * Matches the bar's `motion`. Without it, an indeterminate ring spins a
+   * quarter arc. With it, the ring never spins: `sheen` sweeps a soft band
+   * across an empty ring until there's a value, `muted` greys the arc, and
+   * `pulse` gently pulses it. Once there's a value, `sheen` is a plain arc.
+   */
+  motion?: "sheen" | "muted" | "pulse" | "still";
   /** Diameter in pixels. */
   size?: number;
   style?: React.CSSProperties;
@@ -22,14 +27,14 @@ type CircularProgressProps = Omit<
  * A ring-shaped progress indicator built on Base UI's Progress root, so it
  * keeps `role="progressbar"`, `aria-valuenow` and the `data-indeterminate`,
  * `data-progressing` and `data-complete` state attributes. Pass `value={null}`
- * for an indeterminate spinner.
+ * for an indeterminate ring.
  */
 const CircularProgress = ({
   className,
   children,
   max = 100,
   min = 0,
-  muted = false,
+  motion,
   size = 32,
   style,
   thickness = 4,
@@ -41,14 +46,30 @@ const CircularProgress = ({
   const circumference = 2 * Math.PI * radius;
   const indeterminate = value === null || value === undefined;
 
-  const fraction = indeterminate
-    ? INDETERMINATE_ARC
-    : Math.min(1, Math.max(0, (value - min) / (max - min || 1)));
+  const spins = indeterminate && motion === undefined;
+  const sweeps = indeterminate && motion === "sheen";
+
+  let fraction = 0;
+
+  if (spins) {
+    fraction = INDETERMINATE_ARC;
+  } else if (!indeterminate) {
+    fraction = Math.min(1, Math.max(0, (value - min) / (max - min || 1)));
+  }
+
+  // SAFETY: A CSS custom property is a valid key in React.CSSProperties.
+  // The sweep's mask reads the stroke width.
+  const ringStyle = {
+    "--circular-progress-thickness": `${thickness}px`,
+    height: size,
+    width: size,
+    ...style,
+  } as React.CSSProperties;
 
   return (
     <ProgressPrimitive.Root
       data-slot="circular-progress"
-      data-muted={muted || undefined}
+      data-motion={motion}
       value={value ?? null}
       min={min}
       max={max}
@@ -56,7 +77,7 @@ const CircularProgress = ({
         "group/circular-progress relative inline-flex shrink-0 items-center justify-center",
         className
       )}
-      style={{ height: size, width: size, ...style }}
+      style={ringStyle}
       {...props}
     >
       <svg
@@ -65,7 +86,10 @@ const CircularProgress = ({
         viewBox={`0 0 ${size} ${size}`}
         width={size}
         height={size}
-        className="-rotate-90 overflow-visible group-data-indeterminate/circular-progress:animate-[circular-progress-spin_0.8s_linear_infinite]"
+        className={cn(
+          "-rotate-90 overflow-visible",
+          spins && "animate-[circular-progress-spin_0.8s_linear_infinite]"
+        )}
       >
         <circle
           data-slot="circular-progress-track"
@@ -88,11 +112,12 @@ const CircularProgress = ({
           strokeDashoffset={circumference * (1 - fraction)}
           className={cn(
             "stroke-primary transition-[stroke-dashoffset,opacity,stroke] duration-500 ease-(--ease-out)",
-            muted && "stroke-muted-foreground/40",
+            motion === "muted" && "stroke-muted-foreground/40",
             fraction === 0 && "opacity-0"
           )}
         />
       </svg>
+      {sweeps && <span aria-hidden data-slot="circular-progress-sheen" />}
       {children}
     </ProgressPrimitive.Root>
   );

@@ -58,6 +58,7 @@ import {
 } from "@/components/ui/table";
 import type { Download, ListStyle, Workspace } from "@/lib/model";
 import { bytes, sourceHost, stateNames } from "@/lib/model";
+import { rowView } from "@/lib/row-view";
 import { cn } from "@/lib/utils";
 
 export const fileIcon = (download: Download) => {
@@ -330,7 +331,7 @@ const DownloadListItem = ({
 
   const styles = listItemStyles[listStyle];
   const completion = useCompletion(download.state);
-  const kind = statusKind(download.state, completion.phase);
+  const kind = statusKind(rowView(download).status, completion.phase);
 
   return (
     <ContextMenu onOpenChangeComplete={handleContextMenuClosed}>

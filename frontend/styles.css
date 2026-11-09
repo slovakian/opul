@@ -116,40 +116,54 @@ a {
   container-type: inline-size;
 }
 .download-row {
-  /* Narrow: the ring or the check in an icon-button box. */
-  --download-status-width: 2rem;
-  --download-status-text-width: 5.5rem;
-  --download-status-column: calc(var(--download-status-width) + 0.875rem);
+  /* Narrow: the ring in an icon-button box. */
+  --download-bar-width: 2rem;
+  --download-status-text-max: 5.5rem;
   display: grid;
-  grid-template-columns: 2.25rem minmax(0, 1fr) var(
-      --download-status-column
-    ) auto;
+  grid-template-columns: 2.25rem minmax(0, 1fr) auto auto;
   align-items: center;
   column-gap: 0;
-  transition-property:
-    color, background-color, border-color, box-shadow, grid-template-columns;
-  transition-duration: 100ms, 100ms, 100ms, 100ms, 200ms;
+  transition-property: color, background-color, border-color, box-shadow;
+  transition-duration: 100ms;
   transition-timing-function: var(--ease-out);
 }
-.download-row[data-status="text"] {
-  --download-status-column: calc(var(--download-status-text-width) + 0.875rem);
-}
-/* Finished rows hand the name the whole width, once the check has faded. */
-.download-row[data-status="empty"] {
-  --download-status-column: 0rem;
-  transition-delay: 0s, 0s, 0s, 0s, 200ms;
-}
-@container (width >= 440px) {
+@container (width >= 520px) {
   .download-row {
-    --download-status-width: 7rem;
-    --download-status-text-width: 7rem;
+    --download-bar-width: 7rem;
+    --download-status-text-max: 7rem;
   }
 }
 @container (width >= 640px) {
   .download-row {
-    --download-status-width: 12rem;
-    --download-status-text-width: 12rem;
+    --download-bar-width: 12rem;
+    --download-status-text-max: 12rem;
   }
+}
+/* The status slot: a fixed-width bar, a check, or a label sized to its text
+   (measured into --download-status-label). Changing between them animates
+   the slot's width; the gap before it is part of that width. */
+.download-row [data-slot="download-status"] {
+  --download-status-width: var(--download-bar-width);
+  width: calc(var(--download-status-width) + 0.875rem);
+  transition: width 200ms var(--ease-out);
+}
+.download-row[data-status="check"] [data-slot="download-status"] {
+  --download-status-width: 2rem;
+}
+.download-row[data-status="text"] [data-slot="download-status"] {
+  --download-status-width: min(
+    var(--download-status-label, var(--download-status-text-max)),
+    var(--download-status-text-max)
+  );
+}
+/* Finished rows hand the name the whole width, once the check has faded. */
+.download-row[data-status="empty"] [data-slot="download-status"] {
+  width: 0;
+  transition-delay: 200ms;
+}
+/* Rows appear at their width; only later changes animate. */
+.download-row [data-slot="download-status"]:not([data-ready]) {
+  transition: none;
 }
 /* Stacked layers that crossfade in place: the bar, the check, status text and
    each description line. Inactive layers keep their space, so swapping one
@@ -168,41 +182,178 @@ a {
 .download-row-layer[data-pop][data-active="false"] {
   scale: 0.85;
 }
+/* Speed, time left and seeding numbers fade in when they appear and fade out
+   once they've been empty for a few seconds. */
+.download-segment {
+  transition: opacity 200ms var(--ease-out);
+  @starting-style {
+    opacity: 0;
+  }
+}
+.download-segment[data-phase="fading"] {
+  opacity: 0;
+}
 
-/* A soft highlight sweeping across the fill, or across the whole track while
-   there's no value yet. It moves by transform alone. */
-[data-slot="progress-indicator"] {
-  --progress-shimmer: color-mix(in oklch, var(--background) 50%, transparent);
+/* Progress motion. A soft band like shadcn's text shimmer (bright center,
+   two-step falloff) sweeps only the empty part of the track; the fill never
+   shimmers. The band is twice the bar's width (spread 48 on a 12rem bar). */
+:root {
+  --sheen: color-mix(in oklch, var(--foreground) 10%, transparent);
+  --sheen-band: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in oklch, var(--sheen) 50%, transparent) 25%,
+    var(--sheen) 50%,
+    color-mix(in oklch, var(--sheen) 50%, transparent) 75%,
+    transparent 100%
+  );
 }
-[data-slot="progress-track"] {
-  --progress-shimmer: color-mix(in oklch, var(--foreground) 12%, transparent);
+.dark {
+  --sheen: color-mix(in oklch, var(--foreground) 14%, transparent);
 }
-[data-slot="progress"][data-shimmer]:not([data-muted])
-  [data-slot="progress-indicator"]::after,
-[data-slot="progress"][data-shimmer][data-indeterminate]
-  [data-slot="progress-track"]::after {
+[data-slot="progress-sheen"] {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+  transition:
+    opacity 400ms var(--ease-out),
+    visibility 0s 400ms,
+    clip-path 300ms var(--ease-out);
+}
+[data-slot="progress-sheen"]::after {
   position: absolute;
   inset-block: 0;
   inset-inline-start: 0;
-  width: 60%;
+  width: 200%;
   content: "";
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--progress-shimmer),
-    transparent
-  );
+  background: var(--sheen-band);
   translate: -100% 0;
-  animation: progress-shimmer 1.8s var(--ease-in-out) infinite;
+  /* No value yet: left to right. */
+  animation: progress-sweep 2.6s cubic-bezier(0.45, 0, 0.25, 1) infinite;
 }
-@keyframes progress-shimmer {
+/* With a value: only the empty part, right to left toward the fill. */
+[data-slot="progress-sheen"][data-kind="determinate"] {
+  clip-path: inset(0 0 0 var(--progress-value));
+}
+[data-slot="progress-sheen"][data-kind="determinate"]::after {
+  animation-duration: 6s;
+  animation-direction: reverse;
+}
+[data-slot="progress"][data-motion="sheen"][data-indeterminate]
+  [data-kind="indeterminate"],
+[data-slot="progress"][data-motion="sheen"]:not([data-indeterminate])
+  [data-kind="determinate"] {
+  visibility: visible;
+  opacity: 1;
+  transition-delay: 0s;
+}
+@keyframes progress-sweep {
   0% {
     translate: -100% 0;
   }
-  /* 100% / 60%: the band's left edge reaches the far end, then rests. */
-  70%,
+  /* The band's left edge reaches the far end, then rests. */
+  75%,
   100% {
-    translate: 167% 0;
+    translate: 50% 0;
+  }
+}
+/* Resuming: the fill keeps its value and gently pulses. */
+[data-slot="progress"][data-motion="pulse"] [data-slot="progress-indicator"],
+[data-slot="circular-progress"][data-motion="pulse"]
+  [data-slot="circular-progress-range"] {
+  animation: progress-pulse 2.4s var(--ease-in-out) infinite alternate;
+}
+@keyframes progress-pulse {
+  from {
+    opacity: 0.45;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* The ring with no value: an empty ring with a band (four times its width)
+   sweeping straight across, masked to the stroke. It's tiny, so the band is
+   a little brighter than the bar's. */
+[data-slot="circular-progress-sheen"] {
+  --sheen: color-mix(in oklch, var(--foreground) 22%, transparent);
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 9999px;
+  pointer-events: none;
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - var(--circular-progress-thickness)),
+    #000 calc(100% - var(--circular-progress-thickness) + 0.5px)
+  );
+}
+.dark [data-slot="circular-progress-sheen"] {
+  --sheen: color-mix(in oklch, var(--foreground) 30%, transparent);
+}
+[data-slot="circular-progress-sheen"]::after {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 400%;
+  content: "";
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in oklch, var(--sheen) 50%, transparent) 25%,
+    var(--sheen) 50%,
+    color-mix(in oklch, var(--sheen) 50%, transparent) 75%,
+    transparent 100%
+  );
+  translate: -100% 0;
+  animation: ring-sweep 2.6s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+}
+@keyframes ring-sweep {
+  0% {
+    translate: -100% 0;
+  }
+  /* The band's left edge reaches the ring's far side (1/4 of the band). */
+  75%,
+  100% {
+    translate: 25% 0;
+  }
+}
+
+/* Seeding: shadcn's text shimmer turned to run bottom to top (upload = up),
+   spread 8, every 4s. */
+.shimmer-up {
+  --_spread: 2rem;
+  --_base: currentColor;
+  --_hl: oklch(from currentColor l c h / calc(alpha * 0.2));
+  display: inline-block;
+  background-image: linear-gradient(
+    0deg,
+    var(--_base) calc(50% - var(--_spread)),
+    color-mix(in oklch, var(--_hl), var(--_base) 50%)
+      calc(50% - var(--_spread) * 0.5),
+    var(--_hl) 50%,
+    color-mix(in oklch, var(--_hl), var(--_base) 50%)
+      calc(50% + var(--_spread) * 0.5),
+    var(--_base) calc(50% + var(--_spread))
+  );
+  background-repeat: no-repeat;
+  background-size: 100% calc(200% + var(--_spread) * 2);
+  background-position: 0 0;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer-up 4s linear infinite;
+}
+.dark .shimmer-up {
+  --_hl: oklch(
+    from currentColor max(0.8, calc(l + 0.4)) c h / calc(alpha + 0.4)
+  );
+}
+@keyframes shimmer-up {
+  to {
+    background-position: 0 100%;
   }
 }
 
@@ -240,9 +391,22 @@ a {
     transition-property: opacity, visibility;
     transition-duration: 150ms !important;
   }
-  [data-slot="progress-indicator"]::after,
-  [data-slot="progress-track"]::after {
+  /* No shimmer or pulse at all. */
+  [data-slot="progress-sheen"],
+  [data-slot="circular-progress-sheen"] {
     display: none;
+  }
+  [data-slot="progress-indicator"],
+  [data-slot="circular-progress-range"] {
+    animation: none !important;
+  }
+  .shimmer-up {
+    animation: none;
+    background-image: none;
+    -webkit-text-fill-color: currentColor;
+  }
+  .download-segment {
+    transition-duration: 150ms !important;
   }
 }
 

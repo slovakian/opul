@@ -1,13 +1,13 @@
 import { cn } from "cn";
 import { Check } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import {
-  LiveValue,
   RowLayer,
-  Separator,
+  Segment,
   rowLine,
+  useLinger,
   useRetained,
-  workingStates,
 } from "@/components/download-row-parts";
 import type { Completion, StatusKind } from "@/components/download-row-parts";
 import { CircularProgress } from "@/components/ui/circular-progress";
@@ -20,86 +20,152 @@ import {
 } from "@/components/ui/tooltip";
 import { useVideoTools } from "@/hooks/use-video-tools";
 import type { Download } from "@/lib/model";
-import { liveBytes, stateNames } from "@/lib/model";
-
-const progress = (download: Download) =>
-  Math.min(100, Math.max(0, download.progress_millionths / 10_000));
+import { liveBytes } from "@/lib/model";
+import { rowView } from "@/lib/row-view";
+import type { BarView, StatusText } from "@/lib/row-view";
 
 /** Shimmers only while Opul is setting video tools up; waiting on you stays still. */
-const WaitingLabel = ({ download }: { download: Download }) => {
+const WaitingLabel = ({ label }: { label: string }) => {
   const { tools } = useVideoTools();
   const settingUp = tools?.video.state.kind === "setting_up";
 
   return (
-    <span className={cn(settingUp && "shimmer motion-reduce:shimmer-none")}>
-      {download.waiting_label ?? stateNames.WaitingForVideoTools}
+    <span className={cn(settingUp && "shimmer shimmer-spread-32")}>
+      {label}
     </span>
   );
 };
 
-const StatusText = ({
-  download,
-  state,
+/** `↑ speed · N peers`, each only while it has a value, or just "Seeding". */
+const SeedingLabel = ({
+  text,
 }: {
-  download: Download;
-  state: Download["state"] | null;
+  text: Extract<StatusText, { kind: "seeding" }>;
 }) => {
-  switch (state) {
-    case "Seeding": {
-      return (
-        <>
+  const upload = useLinger(text.upload);
+  const peers = useLinger(text.peers);
+  const idle = upload.value === null && peers.value === null;
+
+  return (
+    <span className="shimmer-up">
+      {idle && "Seeding"}
+      {upload.value !== null && (
+        <Segment first phase={upload.phase}>
           <span className="sr-only">Uploading at </span>
-          <LiveValue className="min-w-[9.5ch] text-right">
-            <span aria-hidden>↑ </span>
-            {liveBytes(download.upload_rate)}/s
-          </LiveValue>
-          <span className="@max-[640px]:hidden">
-            <Separator />
-            <LiveValue className="min-w-[3ch] text-right">
-              {download.peers}
-            </LiveValue>{" "}
-            {download.peers === 1 ? "peer" : "peers"}
-          </span>
-        </>
-      );
+          <span aria-hidden>↑ </span>
+          {liveBytes(upload.value)}/s
+        </Segment>
+      )}
+      {peers.value !== null && (
+        <Segment
+          first={upload.value === null}
+          phase={peers.phase}
+          // Narrow lists keep the speed; peers show alone when there's no speed.
+          className={cn(upload.value !== null && "@max-[640px]:hidden")}
+        >
+          {peers.value} {peers.value === 1 ? "peer" : "peers"}
+        </Segment>
+      )}
+    </span>
+  );
+};
+
+const StatusLabel = ({ text }: { text: StatusText | null }) => {
+  switch (text?.kind) {
+    case "seeding": {
+      return <SeedingLabel text={text} />;
     }
 
-    case "WaitingForVideoTools": {
-      return <WaitingLabel download={download} />;
+    case "waiting": {
+      return <WaitingLabel label={text.label} />;
     }
 
-    case "Failed": {
+    case "failed": {
       return <span className="text-destructive">Failed</span>;
     }
 
-    case null: {
-      return null;
+    case "label": {
+      return text.text;
     }
 
     default: {
-      return stateNames[state];
+      return null;
     }
   }
 };
 
-const progressValue = (download: Download) => {
-  if (download.state === "Starting" || !download.total_size) {
-    return null;
+const FULL = 100;
+
+const sameBar = (a: BarView | null, b: BarView | null) =>
+  a?.value === b?.value && a?.motion === b?.motion && a?.label === b?.label;
+
+/** Keeps the last bar while its layer fades out, so it doesn't flip to empty. */
+const useRetainedBar = (bar: BarView | null) => {
+  const [retained, setRetained] = useState(bar);
+
+  if (bar && !sameBar(bar, retained)) {
+    setRetained(bar);
   }
 
-  return progress(download);
+  return bar ?? retained;
 };
 
-const progressText = (download: Download, value: number | null) => {
-  if (value === null) {
-    return `${stateNames[download.state]}…`;
+/**
+ * Labels are sized to their text, so the slot reads the label's natural width
+ * into a CSS variable that the slot's width transitions to (see styles.css).
+ * Only changes are written, and transitions start after the first measure,
+ * so rows don't animate in.
+ */
+const measureLabel = (slot: HTMLElement | null, label: HTMLElement | null) => {
+  if (!slot || !label) {
+    return;
   }
 
-  const percent = `${Math.round(value)}%`;
+  // scrollWidth rounds, so one spare pixel keeps a fitting label from truncating.
+  const width = `${label.scrollWidth + 1}px`;
 
-  return download.state === "Paused" || download.state === "Pausing"
-    ? `Paused at ${percent}`
-    : percent;
+  if (slot.style.getPropertyValue("--download-status-label") !== width) {
+    slot.style.setProperty("--download-status-label", width);
+  }
+};
+
+const useLabelWidth = () => {
+  const slot = useRef<HTMLDivElement>(null);
+  const label = useRef<HTMLParagraphElement>(null);
+
+  const measure = () => measureLabel(slot.current, label.current);
+
+  // Labels change only when the row renders, so each render measures again.
+  useLayoutEffect(measure);
+
+  // The first measure can run before the app's font loads.
+  useEffect(() => {
+    let current = true;
+    const slotElement = slot.current;
+
+    const ready = async () => {
+      await document.fonts.ready;
+
+      if (!current) {
+        return;
+      }
+
+      measureLabel(slotElement, label.current);
+      requestAnimationFrame(() => {
+        if (current && slotElement) {
+          slotElement.dataset.ready = "true";
+        }
+      });
+    };
+
+    ready().catch(() => null);
+
+    return () => {
+      current = false;
+    };
+  }, []);
+
+  return { label, slot };
 };
 
 /**
@@ -117,41 +183,49 @@ export const DownloadRowStatus = ({
 }) => {
   const filling = completion.phase === "filling";
 
-  const progressState =
-    filling && completion.from ? completion.from : download.state;
+  const source =
+    filling && completion.from
+      ? { ...download, state: completion.from }
+      : download;
 
-  const value = filling ? 100 : progressValue(download);
-  const label = progressText({ ...download, state: progressState }, value);
-  const shimmer = workingStates.has(progressState);
-  const muted = !shimmer;
+  const bar = useRetainedBar(rowView(source).bar);
+  const value = filling ? FULL : (bar?.value ?? null);
+  const motion = bar?.motion ?? "still";
+  const label = bar?.label ?? "";
   const textState = useRetained(kind === "text" ? download.state : null);
+
+  const text = textState
+    ? rowView({ ...download, state: textState }).statusText
+    : null;
+
+  const { label: labelRef, slot } = useLabelWidth();
 
   return (
     <div
+      ref={slot}
       data-slot="download-status"
-      className="grid min-w-0 grid-cols-[minmax(0,1fr)] items-center justify-items-end overflow-hidden ps-3.5"
+      className="grid min-w-0 grid-cols-[minmax(0,1fr)] items-center justify-items-end overflow-hidden"
     >
       <RowLayer active={kind === "progress"} className="flex">
         <Tooltip>
           <TooltipTrigger
             render={
-              <span className="flex h-8 w-8 items-center justify-end @min-[440px]:w-28 @min-[640px]:w-48" />
+              <span className="flex h-8 w-8 items-center justify-end @min-[520px]:w-28 @min-[640px]:w-48" />
             }
           >
             <Progress
-              className="w-full @max-[440px]:hidden"
+              className="w-full @max-[520px]:hidden"
               value={value}
-              shimmer={shimmer}
-              muted={muted}
+              motion={motion}
               aria-label={`${download.name} progress`}
               getAriaValueText={() => label}
             />
-            <span className="flex size-8 items-center justify-center @min-[440px]:hidden">
+            <span className="flex size-8 items-center justify-center @min-[520px]:hidden">
               <CircularProgress
                 value={value}
                 size={20}
                 thickness={3}
-                muted={muted}
+                motion={motion}
                 aria-label={`${download.name} progress`}
                 getAriaValueText={() => label}
               />
@@ -168,9 +242,12 @@ export const DownloadRowStatus = ({
         <Check className="size-4" aria-hidden />
         <span className="sr-only">Download complete</span>
       </RowLayer>
-      <RowLayer active={kind === "text"} className="max-w-full">
-        <ItemDescription className={cn(rowLine, "text-right")}>
-          <StatusText download={download} state={textState} />
+      <RowLayer
+        active={kind === "text"}
+        className="max-w-(--download-status-text-max)"
+      >
+        <ItemDescription ref={labelRef} className={cn(rowLine, "text-right")}>
+          <StatusLabel text={text} />
         </ItemDescription>
       </RowLayer>
     </div>

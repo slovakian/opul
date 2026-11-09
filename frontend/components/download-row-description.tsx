@@ -1,12 +1,11 @@
 import { cn } from "cn";
-import { Fragment } from "react";
 
 import {
-  LiveValue,
   RowLayer,
-  Separator,
+  Segment,
   rowLine,
   sizeLabel,
+  useLinger,
   useRetained,
 } from "@/components/download-row-parts";
 import type { Completion } from "@/components/download-row-parts";
@@ -21,93 +20,61 @@ import {
   compactTimeRemaining,
   liveBytes,
   sourceHost,
-  stateNames,
   timeRemaining,
 } from "@/lib/model";
+import { rowView } from "@/lib/row-view";
+import type { DescriptionView } from "@/lib/row-view";
 
 /**
- * Downloaded of total · speed · time left. Speed drops first as the list
- * narrows, then the downloaded amount; time left stays the longest.
+ * Amount first, then either speed and time left or a word like "Paused".
+ * Speed and time left appear only while they have a value. Speed drops first
+ * as the list narrows, then the downloaded amount; time left stays longest.
  */
-const LiveLine = ({ download }: { download: Download }) => {
-  const total = download.total_size;
-  const eta = timeRemaining(download.eta_seconds);
+const LiveLine = ({ view }: { view: DescriptionView }) => {
+  const { amount, note } = view;
+  const speed = useLinger(note ? null : view.speed);
+  const eta = useLinger(note ? null : view.eta);
 
   return (
     <>
-      <span className={cn(total > 0 && "@max-[440px]:hidden")}>
-        <LiveValue className="min-w-[6.6ch]">
-          {liveBytes(download.bytes_downloaded)}
-        </LiveValue>
-        {total > 0 && " of "}
-      </span>
-      {total > 0 && liveBytes(total)}
-      <span className="@max-[640px]:hidden">
-        <Separator />
-        <LiveValue className="min-w-[8ch] text-right">
-          {liveBytes(download.download_rate)}/s
-        </LiveValue>
-      </span>
-      <Separator />
-      <Tooltip>
-        <TooltipTrigger render={<LiveValue className="min-w-[7ch]" />}>
-          <span aria-hidden>{compactTimeRemaining(download.eta_seconds)}</span>
-          <span className="sr-only">{eta}</span>
-        </TooltipTrigger>
-        <TooltipContent>{eta}</TooltipContent>
-      </Tooltip>
+      <Segment first>
+        {amount.total ? (
+          <>
+            <span className="@max-[440px]:hidden">{amount.done} of </span>
+            {amount.total}
+          </>
+        ) : (
+          amount.done
+        )}
+      </Segment>
+      {!note && speed.value !== null && (
+        <Segment
+          data-segment="speed"
+          phase={speed.phase}
+          className="@max-[640px]:hidden"
+        >
+          {liveBytes(speed.value)}/s
+        </Segment>
+      )}
+      {!note && eta.value !== null && (
+        <Segment data-segment="eta" phase={eta.phase}>
+          <Tooltip>
+            <TooltipTrigger render={<span />}>
+              <span aria-hidden>{compactTimeRemaining(eta.value)}</span>
+              <span className="sr-only">{timeRemaining(eta.value)}</span>
+            </TooltipTrigger>
+            <TooltipContent>{timeRemaining(eta.value)}</TooltipContent>
+          </Tooltip>
+        </Segment>
+      )}
+      {note && <Segment data-segment="note">{note}</Segment>}
     </>
   );
 };
 
-const SEGMENT_BREAK = " · ";
-
-/** Spaces a message's segments like every other row line. */
-const withSeparators = (text: string | null) =>
-  text?.split(SEGMENT_BREAK).map((segment, index) => (
-    // Segments repeat ("50.0 MB of 50.0 MB"), so their position is the key.
-    // oxlint-disable-next-line react/no-array-index-key
-    <Fragment key={index}>
-      {index > 0 && <Separator />}
-      {segment}
-    </Fragment>
-  ));
-
-/** A sentence in place of the live numbers, or null when the summary fits. */
-const descriptionMessage = (download: Download) => {
-  switch (download.state) {
-    case "Processing": {
-      return "Processing…";
-    }
-
-    case "Verifying": {
-      return "Verifying…";
-    }
-
-    case "Pausing":
-    case "Paused": {
-      const done = liveBytes(download.bytes_downloaded);
-
-      const amount = download.total_size
-        ? `${done} of ${liveBytes(download.total_size)}`
-        : done;
-
-      return `${stateNames[download.state]}${SEGMENT_BREAK}${amount}`;
-    }
-
-    case "Failed": {
-      return download.error_message;
-    }
-
-    default: {
-      return null;
-    }
-  }
-};
-
 /**
- * The second line: live numbers while fetching, a short message while
- * processing, paused or failed, and otherwise where it came from and its size.
+ * The second line: the amount while transferring or held, a short message
+ * while processing or failed, and otherwise where it came from and its size.
  */
 export const DownloadRowDescription = ({
   download,
@@ -122,36 +89,43 @@ export const DownloadRowDescription = ({
     : download;
 
   const finishing = completion.phase === "check";
-  const live = !finishing && shown.state === "Fetching";
-  const currentMessage = finishing ? null : descriptionMessage(shown);
-  const message = useRetained(currentMessage);
-  const failed = useRetained(currentMessage ? shown.state === "Failed" : null);
+  const view = rowView(shown).description;
+  const line = finishing ? "origin" : view.line;
+  const current = line === "message" ? view.message : null;
+  const text = useRetained(current?.text ?? null);
+  const tone = useRetained(current?.tone ?? null);
 
   const messageText = (
-    <span className={cn("block truncate", failed && "text-destructive")}>
-      {failed ? message : withSeparators(message)}
+    <span
+      className={cn("block truncate", tone === "error" && "text-destructive")}
+    >
+      <span className={cn(tone === "shimmer" && "shimmer shimmer-spread-32")}>
+        {text}
+      </span>
     </span>
   );
 
   return (
-    <ItemDescription className={cn(rowLine, "grid grid-cols-[minmax(0,1fr)]")}>
-      <RowLayer active={live} className="truncate">
-        <LiveLine download={shown} />
+    <ItemDescription
+      data-line={line}
+      className={cn(rowLine, "grid grid-cols-[minmax(0,1fr)]")}
+    >
+      <RowLayer active={line === "live"} className="truncate">
+        <LiveLine view={view} />
       </RowLayer>
-      <RowLayer active={currentMessage !== null}>
-        {failed && message ? (
+      <RowLayer active={line === "message"}>
+        {tone === "error" && text ? (
           <Tooltip>
             <TooltipTrigger render={messageText} />
-            <TooltipContent className="max-w-sm">{message}</TooltipContent>
+            <TooltipContent className="max-w-sm">{text}</TooltipContent>
           </Tooltip>
         ) : (
           messageText
         )}
       </RowLayer>
-      <RowLayer active={!live && currentMessage === null} className="truncate">
-        {sourceHost(download)}
-        <Separator />
-        <span className="tabular-nums">{sizeLabel(download)}</span>
+      <RowLayer active={line === "origin"} className="truncate">
+        <Segment first>{sourceHost(download)}</Segment>
+        <Segment>{sizeLabel(download)}</Segment>
       </RowLayer>
     </ItemDescription>
   );

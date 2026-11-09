@@ -4,24 +4,8 @@ import type { ComponentProps } from "react";
 
 import type { Download } from "@/lib/model";
 import { liveBytes } from "@/lib/model";
-
-/** States where the bar (or, when narrow, the ring) stands for the transfer. */
-export const progressStates = new Set<Download["state"]>([
-  "Starting",
-  "Fetching",
-  "Processing",
-  "Verifying",
-  "Pausing",
-  "Paused",
-]);
-
-/** Opul is actively working for you, so the bar shimmers. */
-export const workingStates = new Set<Download["state"]>([
-  "Starting",
-  "Fetching",
-  "Processing",
-  "Verifying",
-]);
+import { workingStates } from "@/lib/row-view";
+import type { RowView } from "@/lib/row-view";
 
 /** The transfer is done: Finished, or a torrent that went on to seed. */
 const completedStates = new Set<Download["state"]>(["Finished", "Seeding"]);
@@ -82,7 +66,7 @@ export const useCompletion = (state: Download["state"]) => {
 export type StatusKind = "progress" | "check" | "text" | "empty";
 
 export const statusKind = (
-  state: Download["state"],
+  status: RowView["status"],
   phase: CompletionPhase
 ): StatusKind => {
   if (phase === "check") {
@@ -90,15 +74,7 @@ export const statusKind = (
   }
 
   // The bar stays to fill up to 100% before the check replaces it.
-  if (phase === "filling") {
-    return "progress";
-  }
-
-  if (progressStates.has(state)) {
-    return "progress";
-  }
-
-  return state === "Finished" ? "empty" : "text";
+  return phase === "filling" ? "progress" : status;
 };
 
 /** Keeps the last value a layer showed, so it fades out with it instead of going blank. */
@@ -137,18 +113,6 @@ export const RowLayer = ({
   />
 );
 
-/**
- * A value that changes while you watch gets a box wide enough for its widest
- * form, so the separators after it never move.
- */
-export const LiveValue = ({ className, ...props }: ComponentProps<"span">) => (
-  <span
-    data-slot="download-live-value"
-    className={cn("inline-block tabular-nums", className)}
-    {...props}
-  />
-);
-
 export const Separator = () => (
   <span data-slot="download-separator" aria-hidden className="px-1.5">
     ·
@@ -157,3 +121,69 @@ export const Separator = () => (
 
 export const sizeLabel = (download: Download) =>
   download.total_size ? liveBytes(download.total_size) : "Size unknown";
+
+/** How long a live value stays after it drops to nothing, so a brief stall doesn't flicker. */
+const LINGER_MS = 3000;
+
+/** Matches the segment fade in styles.css. */
+const FADE_MS = 200;
+
+export type LingerPhase = "shown" | "fading" | "gone";
+
+/**
+ * Shows a value as soon as it's there and keeps its last real value for about
+ * 3s after it goes away, then fades it out before it's removed.
+ */
+export const useLinger = (value: number | null) => {
+  const [last, setLast] = useState(value);
+
+  const [phase, setPhase] = useState<LingerPhase>(
+    value === null ? "gone" : "shown"
+  );
+
+  if (value !== null && (value !== last || phase !== "shown")) {
+    setLast(value);
+    setPhase("shown");
+  }
+
+  const absent = value === null;
+
+  useEffect(() => {
+    if (!absent || phase === "gone") {
+      return;
+    }
+
+    const lingering = phase === "shown";
+
+    const timer = setTimeout(
+      () => setPhase(lingering ? "fading" : "gone"),
+      lingering ? LINGER_MS : FADE_MS
+    );
+
+    return () => clearTimeout(timer);
+  }, [absent, phase]);
+
+  return { phase, value: phase === "gone" ? null : last };
+};
+
+/**
+ * One piece of a row line with the separator before it, so hiding the piece
+ * hides its separator too. A lingering piece fades out before it's removed.
+ */
+export const Segment = ({
+  first = false,
+  phase = "shown",
+  className,
+  children,
+  ...props
+}: ComponentProps<"span"> & { first?: boolean; phase?: LingerPhase }) => (
+  <span
+    data-slot="download-segment"
+    data-phase={phase}
+    className={cn("download-segment", className)}
+    {...props}
+  >
+    {!first && <Separator />}
+    {children}
+  </span>
+);

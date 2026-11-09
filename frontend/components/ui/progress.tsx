@@ -2,6 +2,7 @@
 
 import { Progress as ProgressPrimitive } from "@base-ui/react/progress";
 import { cn } from "cn";
+import type * as React from "react";
 
 const ProgressIndicator = ({
   className,
@@ -12,7 +13,7 @@ const ProgressIndicator = ({
     // An indeterminate bar has no inline width, so `w-0` lets the fill grow in
     // from nothing once a value arrives.
     className={cn(
-      "bg-primary relative h-full w-0 overflow-hidden rounded-full transition-all",
+      "bg-primary relative h-full w-0 overflow-hidden rounded-full transition-[width,background-color] duration-300 ease-(--ease-out)",
       className
     )}
     {...props}
@@ -33,38 +34,75 @@ const ProgressTrack = ({
   />
 );
 
+/** How a bar moves; the motion itself lives in styles.css. */
+type ProgressMotion = "sheen" | "muted" | "pulse" | "still";
+
 type ProgressProps = ProgressPrimitive.Root.Props & {
   /**
-   * Sweeps a soft highlight across the fill, or across the whole track while
-   * indeterminate, to say the work is moving. See `.progress-shimmer` in styles.css.
+   * - `sheen`: a soft highlight sweeps the empty track (never the fill): left
+   *   to right with no value yet, right to left toward the fill once there is
+   *   one. Switching between the two crossfades.
+   * - `muted`: the fill greys out, for work that's held.
+   * - `pulse`: the fill gently pulses, for work that's resuming.
+   * - `still`: no motion.
    */
-  shimmer?: boolean;
-  /** Mutes the fill, for work that's held rather than moving. */
-  muted?: boolean;
+  motion?: ProgressMotion;
 };
+
+const PERCENT = 100;
 
 const Progress = ({
   className,
   children,
   value,
-  shimmer = false,
-  muted = false,
+  min = 0,
+  max = 100,
+  motion,
   ...props
-}: ProgressProps) => (
-  <ProgressPrimitive.Root
-    value={value}
-    data-slot="progress"
-    data-shimmer={shimmer || undefined}
-    data-muted={muted || undefined}
-    className={cn("group/progress flex flex-wrap gap-3", className)}
-    {...props}
-  >
-    {children}
-    <ProgressTrack>
-      <ProgressIndicator className="group-data-muted/progress:bg-muted-foreground/40" />
-    </ProgressTrack>
-  </ProgressPrimitive.Root>
-);
+}: ProgressProps) => {
+  const fraction =
+    value === null || value === undefined
+      ? 0
+      : Math.min(1, Math.max(0, (value - min) / (max - min || 1)));
+
+  // SAFETY: A CSS custom property is a valid key in React.CSSProperties.
+  // The sheen with a value is clipped to the empty part of the track.
+  const valueStyle = {
+    "--progress-value": `${fraction * PERCENT}%`,
+  } as React.CSSProperties;
+
+  return (
+    <ProgressPrimitive.Root
+      value={value}
+      min={min}
+      max={max}
+      data-slot="progress"
+      data-motion={motion}
+      className={cn("group/progress flex flex-wrap gap-3", className)}
+      style={valueStyle}
+      {...props}
+    >
+      {children}
+      <ProgressTrack>
+        <ProgressIndicator className="group-data-[motion=muted]/progress:bg-muted-foreground/40" />
+        {motion && (
+          <>
+            <span
+              aria-hidden
+              data-slot="progress-sheen"
+              data-kind="indeterminate"
+            />
+            <span
+              aria-hidden
+              data-slot="progress-sheen"
+              data-kind="determinate"
+            />
+          </>
+        )}
+      </ProgressTrack>
+    </ProgressPrimitive.Root>
+  );
+};
 
 const ProgressLabel = ({
   className,
