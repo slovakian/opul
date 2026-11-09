@@ -13,7 +13,7 @@ CACHE="$ROOT/.build/ffmpeg-cache"
 NAME="$FFMPEG_RELEASE-$ARCH.tar.gz"
 mkdir -p "$CACHE" "$ROOT/src-tauri/resources"
 if ! shasum -a 256 -c <<<"$DIGEST  $CACHE/$NAME" >/dev/null 2>&1; then
-  curl -fsSL --retry 5 --retry-all-errors \
+  curl -fsSL --retry 10 --retry-delay 2 --retry-max-time 180 --retry-connrefused --retry-all-errors \
     "https://github.com/slovakian/opul/releases/download/$FFMPEG_RELEASE/$NAME" -o "$CACHE/$NAME.part"
   shasum -a 256 -c <<<"$DIGEST  $CACHE/$NAME.part"
   mv "$CACHE/$NAME.part" "$CACHE/$NAME"
