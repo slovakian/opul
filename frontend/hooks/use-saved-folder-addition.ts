@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 
 import { toast } from "@/components/ui/toast";
 import { bridge, errorMessage } from "@/lib/bridge";
-import { useLibrary } from "@/lib/library";
+import { useLibrary, useLibrarySelector } from "@/lib/library";
+import { selectWorkspaces } from "@/lib/library-store";
 
 export type AddSavedFolder = (
   workspaceId: string,
@@ -20,19 +21,21 @@ interface PendingAddition {
 export const useSavedFolderAddition = (
   onExpansionChange: (workspaceId: string, expanded: boolean) => void
 ): AddSavedFolder => {
-  const { run, state } = useLibrary();
+  const { run } = useLibrary();
+  const ready = useLibrarySelector((state) => state.kind === "ready");
+  const workspaces = useLibrarySelector(selectWorkspaces);
   const [pending, setPending] = useState<PendingAddition[]>([]);
   const previousFolderCounts = useRef(new Map<string, number>());
   const awaitingExpansion = useRef(new Set<string>());
 
   useEffect(() => {
-    if (state.kind !== "ready") {
+    if (!ready) {
       return;
     }
 
     const counts = new Map<string, number>();
 
-    for (const workspace of state.snapshot.workspaces) {
+    for (const workspace of workspaces) {
       counts.set(workspace.id, workspace.folders.length);
 
       if (
@@ -59,7 +62,7 @@ export const useSavedFolderAddition = (
     const confirmed = pending.filter(
       (addition) =>
         addition.accepted &&
-        state.snapshot.workspaces.some(
+        workspaces.some(
           (workspace) =>
             workspace.id === addition.workspaceId &&
             workspace.folders.some((folder) => folder.id === addition.folderId)
@@ -83,7 +86,7 @@ export const useSavedFolderAddition = (
 
       addition.onConfirmed(addition.folderId);
     }
-  }, [onExpansionChange, pending, state]);
+  }, [onExpansionChange, pending, ready, workspaces]);
 
   return async (workspaceId, onConfirmed, errorTitle) => {
     try {

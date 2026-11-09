@@ -33,7 +33,8 @@ import { WorkspaceIcon } from "@/components/workspace-icon";
 import { WorkspaceIconPicker } from "@/components/workspace-icon-picker";
 import { bridge, errorMessage } from "@/lib/bridge";
 import { folderName } from "@/lib/destination";
-import { useLibrary } from "@/lib/library";
+import { useLibrary, useLibrarySelector } from "@/lib/library";
+import { selectWorkspaces } from "@/lib/library-store";
 import { workspaceEmoji } from "@/lib/model";
 import type { Workspace, WorkspaceDraft, WorkspaceRequest } from "@/lib/model";
 
@@ -289,7 +290,12 @@ export const WorkspaceDialog = ({
   onClose: () => void;
   onCreated: (id: string) => void;
 }) => {
-  const { state, run, busy } = useLibrary();
+  const { run, busy } = useLibrary();
+
+  const firstFolderPath = useLibrarySelector(
+    (state) => selectWorkspaces(state)[0]?.folders[0]?.path ?? ""
+  );
+
   const nameInput = useRef<HTMLInputElement>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [saveError, setSaveError] = useState<string>();
@@ -341,9 +347,7 @@ export const WorkspaceDialog = ({
 
   const [path, setPath] = useState(
     workspace?.folders.find((folder) => folder.is_default)?.path ??
-      (state.kind === "ready"
-        ? (state.snapshot.workspaces[0]?.folders[0]?.path ?? "")
-        : "")
+      firstFolderPath
   );
 
   const chooseFolder = async () => {

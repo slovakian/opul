@@ -6,6 +6,7 @@ pub mod tools;
 pub mod updates;
 
 use crate::Desktop;
+use crate::library_feed::LibraryFeeds;
 use opul_core::{
     MachineCommandReceipt, MachineDownloadCommand, MachineFolderRequest, MachineFormat,
     MachineGrouping, MachineLayout, MachineMediaItem, MachineMediaPolicy, MachineMediaRequest,
@@ -13,7 +14,7 @@ use opul_core::{
     MachineWorkspaceIcon, MachineWorkspaceIconKind, MachineWorkspaceRequest, OpulStateMachine,
 };
 use serde::Deserialize;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, State, ipc::Channel};
 use tauri_plugin_opener::OpenerExt;
 use uuid::Uuid;
 
@@ -102,7 +103,10 @@ fn request_id() -> String {
 }
 
 impl DesktopCommand {
-    fn execute(self, machine: &OpulStateMachine) -> Result<MachineCommandReceipt, String> {
+    pub(crate) fn execute(
+        self,
+        machine: &OpulStateMachine,
+    ) -> Result<MachineCommandReceipt, String> {
         let result = match self {
             Self::SetWorkspaceAppearance { request } => machine.set_workspace_appearance(request),
             Self::CreateWorkspace { mut request } => {
@@ -309,6 +313,17 @@ pub(super) fn media_request(
 #[tauri::command]
 pub fn snapshot(state: State<'_, Desktop>) -> Result<MachineSnapshot, String> {
     Ok(state.machine()?.snapshot())
+}
+
+/// Streams the library over `feed`: the whole library first, then each change as it happens.
+#[tauri::command]
+pub fn subscribe_library(
+    webview: tauri::Webview,
+    state: State<'_, Desktop>,
+    feeds: State<'_, LibraryFeeds>,
+    feed: Channel,
+) -> Result<(), String> {
+    feeds.start(webview.label().to_string(), state.machine()?, feed)
 }
 
 #[tauri::command]

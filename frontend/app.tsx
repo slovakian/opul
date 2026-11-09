@@ -20,28 +20,34 @@ import { useSavedFolderAddition } from "@/hooks/use-saved-folder-addition";
 import { useVideoSetup } from "@/hooks/use-video-setup";
 import { useWorkspaceExpansion } from "@/hooks/use-workspace-expansion";
 import {
-  filterAndSortDownloads,
-  groupDownloads,
   normalizeWorkspaceLocation,
   useWorkspaceView,
 } from "@/hooks/use-workspace-view";
 import { isActiveDownload } from "@/lib/download-activity";
-import { useLibrary } from "@/lib/library";
-import type { DisplayPreferences } from "@/lib/model";
+import { useLibrary, useLibrarySelector } from "@/lib/library";
+import {
+  countDownloads,
+  selectSession,
+  selectWorkspaces,
+} from "@/lib/library-store";
+import type { DisplayPreferences, Download } from "@/lib/model";
 import { cn } from "@/lib/utils";
 
-interface EngineAlertProps {
-  busy: boolean;
-  run: ReturnType<typeof useLibrary>["run"];
-  state: ReturnType<typeof useLibrary>["state"];
-}
+const noNotices: readonly string[] = [];
 
-const EngineAlert = ({ busy, run, state }: EngineAlertProps) => {
-  if (state.kind !== "ready" || state.snapshot.session === "Running") {
+const EngineAlert = () => {
+  const { busy, run } = useLibrary();
+  const session = useLibrarySelector(selectSession);
+
+  const notices = useLibrarySelector((state) =>
+    state.kind === "ready" ? state.library.recovery_notices : noNotices
+  );
+
+  if (session === null || session === "Running") {
     return null;
   }
 
-  const isRecovery = state.snapshot.session === "RecoveryRequired";
+  const isRecovery = session === "RecoveryRequired";
 
   return (
     <Alert>
@@ -52,10 +58,7 @@ const EngineAlert = ({ busy, run, state }: EngineAlertProps) => {
           : "Download engine is unavailable"}
       </AlertTitle>
       <AlertDescription>
-        <p>
-          {state.snapshot.recovery_notices.join(" ") ||
-            `Engine status: ${state.snapshot.session}`}
-        </p>
+        <p>{notices.join(" ") || `Engine status: ${session}`}</p>
         {isRecovery && (
           <Button
             variant="outline"
@@ -78,18 +81,25 @@ const App = () => {
     busy,
     preferences,
     preferenceStatus,
-    refresh,
     retryPreferences,
     run,
     saveAggregateView,
-    state,
   } = useLibrary();
 
+  // App reads only what changes the layout; download changes reach the rows directly.
+  const status = useLibrarySelector((state) => state.kind);
+  const session = useLibrarySelector(selectSession);
+  const workspaces = useLibrarySelector(selectWorkspaces);
+
+  const activeDownloads = useLibrarySelector((state) =>
+    countDownloads(state, isActiveDownload)
+  );
+
   useEffect(() => {
-    if (state.kind !== "loading" && isTauri()) {
+    if (status !== "loading" && isTauri()) {
       invoke("frontend_ready").catch(() => null);
     }
-  }, [state.kind]);
+  }, [status]);
 
   const videoSetup = useVideoSetup();
 
@@ -97,7 +107,7 @@ const App = () => {
 
   const workspaceExpansion = useWorkspaceExpansion(
     preferences,
-    state.kind === "ready" ? state.snapshot : null
+    status === "ready" ? workspaces : null
   );
 
   const [navigation, setNavigation] = useState(0);
@@ -114,56 +124,34 @@ const App = () => {
     workspaceExpansion.handleExpansionChange
   );
 
-  const workspaces = state.kind === "ready" ? state.snapshot.workspaces : [];
-
-  const activeDownloads = workspaces
-    .flatMap((item) => item.downloads)
-    .filter(isActiveDownload).length;
-
   useAppUpdateNotices(activeDownloads);
 
-  const {
-    display,
-    effectiveFilter,
-    folder,
-    folderId,
-    rawDownloads,
-    title,
-    workspace,
-  } = useWorkspaceView({
-    filter,
-    location,
-    preferences,
-    workspaces,
-  });
+  const { display, effectiveFilter, folder, folderId, title, workspace } =
+    useWorkspaceView({
+      filter,
+      location,
+      preferences,
+      workspaces,
+    });
 
-  const selectedWorkspace = workspaces.find((item) =>
-    item.downloads.some((download) => download.id === selectedId)
-  );
+  const canEdit = session === "Running";
 
-  const selected = selectedWorkspace?.downloads.find(
-    (download) => download.id === selectedId
-  );
-
-  const canEdit =
-    state.kind === "ready" && state.snapshot.session === "Running";
-
-  const downloads = filterAndSortDownloads({
-    downloads: rawDownloads,
-    effectiveFilter,
-    folderId,
-    query,
-    sort: display.sort,
-  });
-
-  const groups = groupDownloads(downloads, display.grouping, workspaces);
-
-  const navigate = (next: Location) => {
+  const navigate = useCallback((next: Location) => {
     setLocation(next);
     setNavigation((count) => count + 1);
     setFilter("all");
     setSelectedId(undefined);
-  };
+  }, []);
+
+  const inspect = useCallback(
+    (download: Download) => setSelectedId(download.id),
+    []
+  );
+
+  const remove = useCallback(
+    (download: Download) => setModal({ download, kind: "remove" }),
+    []
+  );
 
   const canonicalLocation = normalizeWorkspaceLocation(location, workspaces);
 
@@ -275,7 +263,7 @@ const App = () => {
           )}
         >
           <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6 lg:px-10">
-            <EngineAlert busy={busy} run={run} state={state} />
+            <EngineAlert />
             {preferenceStatus.kind === "failed" && (
               <Alert variant="destructive">
                 <CircleAlert />
@@ -315,21 +303,16 @@ const App = () => {
             <AppContent
               display={display}
               effectiveFilter={effectiveFilter}
-              groups={groups}
-              onInspect={(download) => setSelectedId(download.id)}
-              onRemove={(download) => setModal({ download, kind: "remove" })}
+              folderId={folderId}
+              onInspect={inspect}
+              onRemove={remove}
               onNew={newDownload}
               query={query}
-              refresh={refresh}
               selectedId={selectedId}
-              state={state}
+              workspaceId={
+                location.kind === "workspace" ? workspace?.id : undefined
+              }
             />
-            {downloads.length > 0 && (
-              <p className="text-muted-foreground px-3 text-xs">
-                {downloads.length}{" "}
-                {downloads.length === 1 ? "download" : "downloads"}
-              </p>
-            )}
           </div>
         </div>
       </SidebarInset>
@@ -344,14 +327,9 @@ const App = () => {
         modal={modal}
         navigate={navigate}
         onClose={() => setModal(null)}
-        onRemoveSelected={() => {
-          if (selected) {
-            setModal({ download: selected, kind: "remove" });
-          }
-        }}
+        onRemove={remove}
         run={run}
-        selected={selected}
-        selectedWorkspace={selectedWorkspace}
+        selectedId={selectedId}
         setSelectedId={setSelectedId}
       />
     </>

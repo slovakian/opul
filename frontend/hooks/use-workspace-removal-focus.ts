@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import type { Workspace } from "@/lib/model";
 
 export const useWorkspaceRemovalFocus = (
-  workspaces: Workspace[],
+  workspaces: readonly Workspace[],
   visible: boolean
 ) => {
   const focused = useRef<{

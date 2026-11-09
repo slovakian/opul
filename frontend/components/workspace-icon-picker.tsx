@@ -21,7 +21,7 @@ import { WorkspaceCustomTreatment } from "@/components/workspace-custom-treatmen
 import { WorkspaceIcon } from "@/components/workspace-icon";
 import { bridge, errorMessage } from "@/lib/bridge";
 import { emojiDataWithRecents, skinToneChoices } from "@/lib/emoji-data";
-import { useLibrary } from "@/lib/library";
+import { useLibrary, useLibrarySelector } from "@/lib/library";
 import { workspaceEmoji } from "@/lib/model";
 import type { Workspace } from "@/lib/model";
 import { cn } from "@/lib/utils";
@@ -41,6 +41,8 @@ type BrowsingEffect =
   | { type: "customize" }
   | { type: "focusCustom" }
   | { type: "change"; update: SetStateAction<IconDraft> };
+
+const noRecentEmoji: readonly string[] = [];
 
 const browsingReducer: EffectReducer<boolean, BrowsingEvent, BrowsingEffect> = (
   state,
@@ -83,14 +85,14 @@ export const WorkspaceIconPicker = ({
   onChange: Dispatch<SetStateAction<IconDraft>>;
 }) => {
   const { emoji, appearance } = draft;
-  const { state } = useLibrary();
+
+  const recentEmoji = useLibrarySelector((state) =>
+    state.kind === "ready" ? state.library.recent_emoji : noRecentEmoji
+  );
 
   const resolveEmojiData = useMemo(
-    () =>
-      emojiDataWithRecents(
-        state.kind === "ready" ? state.snapshot.recent_emoji : []
-      ),
-    [state]
+    () => emojiDataWithRecents(recentEmoji),
+    [recentEmoji]
   );
 
   const tones = useMemo(() => skinToneChoices(emoji), [emoji]);

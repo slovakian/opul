@@ -19,13 +19,18 @@ impl ActorCore {
                         self.publish();
                     }
                 }
-                Message::Telemetry(download, telemetry) => {
-                    if self.state.locate_download(download).is_some() {
-                        let changed = self.overlay.telemetry.get(&download) != Some(&telemetry);
-                        self.overlay.telemetry.insert(download, telemetry);
-                        if changed {
-                            self.publish();
+                Message::Telemetry(batch) => {
+                    let mut changed = false;
+                    for (download, telemetry) in batch {
+                        if self.state.locate_download(download).is_some()
+                            && self.overlay.telemetry.get(&download) != Some(&telemetry)
+                        {
+                            self.overlay.telemetry.insert(download, telemetry);
+                            changed = true;
                         }
+                    }
+                    if changed {
+                        self.publish();
                     }
                 }
                 Message::ClaimEffect(response) => {

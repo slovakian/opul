@@ -20,12 +20,7 @@ const openPicker = async (page: Page, workspace = "Downloads") => {
 
 const savedSnapshot = async (page: Page) =>
   snapshotSchema.parse(
-    await page.evaluate(async () => {
-      const path = "/frontend/lib/bridge.ts";
-      const { bridge } = await import(path);
-
-      return bridge.snapshot();
-    })
+    await page.evaluate(async () => await window.testReadSnapshot())
   );
 
 const choose = async (page: Page, search: string, label: string) => {

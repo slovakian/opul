@@ -15,7 +15,7 @@ export const DestinationPicker = ({
   onSelect,
   onAdd,
 }: {
-  workspaces: Workspace[];
+  workspaces: readonly Workspace[];
   destination?: Destination;
   viewedWorkspaceId?: string;
   disabled: boolean;

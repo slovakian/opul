@@ -12,6 +12,7 @@ import {
   HardDriveDownload,
   Pause,
 } from "lucide-react";
+import { createElement, memo } from "react";
 
 import { DownloadActions } from "@/components/download-actions";
 import { Button } from "@/components/ui/button";
@@ -120,6 +121,160 @@ export const DownloadStatus = ({ download }: { download: Download }) => (
 const progress = (download: Download) =>
   Math.min(100, Math.max(0, download.progress_millionths / 10_000));
 
+interface RowProps {
+  download: Download;
+  selected: boolean;
+  onInspect: (download: Download) => void;
+  onRemove: (download: Download) => void;
+}
+
+const DownloadTableRow = ({
+  download,
+  selected,
+  onInspect,
+  onRemove,
+}: RowProps) => (
+  <TableRow data-state={selected ? "selected" : undefined}>
+    <TableCell className="max-w-60">
+      <button
+        type="button"
+        className="flex max-w-full items-center gap-3 py-2 text-left outline-none hover:underline focus-visible:underline"
+        onClick={(event) => {
+          event.currentTarget.focus();
+          onInspect(download);
+        }}
+      >
+        {createElement(fileIcon(download), {
+          className: "text-muted-foreground size-4 shrink-0",
+        })}
+        <span className="truncate">{download.name}</span>
+      </button>
+    </TableCell>
+    <TableCell>
+      <DownloadStatus download={download} />
+      {download.error_message && (
+        <p
+          className="text-destructive truncate text-xs"
+          title={download.error_message}
+        >
+          {download.error_message}
+        </p>
+      )}
+      <VideoToolsUpdateAdvice download={download} />
+    </TableCell>
+    <TableCell className="text-muted-foreground hidden lg:table-cell">
+      {sourceHost(download)}
+    </TableCell>
+    <TableCell className="text-muted-foreground text-right tabular-nums">
+      {download.total_size ? bytes(download.total_size) : "—"}
+    </TableCell>
+    <TableCell className="text-muted-foreground text-right tabular-nums">
+      {download.download_rate ? `${bytes(download.download_rate)}/s` : "—"}
+    </TableCell>
+    <TableCell>
+      <DownloadActions
+        download={download}
+        onInspect={() => onInspect(download)}
+        onRemove={() => onRemove(download)}
+      />
+    </TableCell>
+  </TableRow>
+);
+
+const DownloadListItem = ({
+  download,
+  selected,
+  onInspect,
+  onRemove,
+}: RowProps) => {
+  const transferring = [
+    "Fetching",
+    "Starting",
+    "Verifying",
+    "Downloading",
+    "Seeding",
+  ].includes(download.state);
+
+  let rateOrProgress = "";
+
+  if (download.download_rate) {
+    rateOrProgress = `${bytes(download.download_rate)}/s · ${timeRemaining(download.eta_seconds)}`;
+  } else if (transferring) {
+    rateOrProgress = `${Math.round(progress(download))}%`;
+  }
+
+  return (
+    <Item
+      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role
+      role="listitem"
+      data-selected={selected}
+      className="data-[selected=true]:bg-muted/70 hover:bg-muted/40 transition-colors"
+    >
+      <ItemMedia
+        variant="icon"
+        className="text-muted-foreground size-9 rounded-lg"
+      >
+        {createElement(fileIcon(download))}
+      </ItemMedia>
+      <ItemContent className="min-w-0">
+        <ItemTitle className="max-w-full">
+          <button
+            type="button"
+            className="truncate text-left outline-none hover:underline focus-visible:underline"
+            onClick={(event) => {
+              event.currentTarget.focus();
+              onInspect(download);
+            }}
+          >
+            {download.name}
+          </button>
+        </ItemTitle>
+        <ItemDescription className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+          <span>{sourceHost(download)}</span>
+          <span aria-hidden>·</span>
+          <span className="tabular-nums">
+            {download.total_size ? bytes(download.total_size) : "Size unknown"}
+          </span>
+          {download.error_message && (
+            <span
+              className="text-destructive truncate"
+              title={download.error_message}
+            >
+              {download.error_message}
+            </span>
+          )}
+        </ItemDescription>
+        <VideoToolsUpdateAdvice download={download} />
+        {transferring && (
+          <Progress
+            className="mt-1 max-w-96"
+            value={progress(download)}
+            aria-label={`${download.name} progress`}
+          />
+        )}
+      </ItemContent>
+      <ItemActions className="gap-4">
+        <div className="hidden min-w-28 flex-col items-end gap-1 sm:flex">
+          <DownloadStatus download={download} />
+          <span className="text-muted-foreground text-xs tabular-nums">
+            {rateOrProgress}
+          </span>
+        </div>
+        <DownloadActions
+          download={download}
+          onInspect={() => onInspect(download)}
+          onRemove={() => onRemove(download)}
+        />
+      </ItemActions>
+    </Item>
+  );
+};
+
+// The library keeps an unchanged download's object, so a row renders again
+// only when its own download or its selection changes.
+const StableTableRow = memo(DownloadTableRow);
+const StableListItem = memo(DownloadListItem);
+
 export const Downloads = ({
   downloads,
   layout,
@@ -179,60 +334,15 @@ export const Downloads = ({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {downloads.map((download) => {
-            const Icon = fileIcon(download);
-
-            return (
-              <TableRow
-                key={download.id}
-                data-state={selectedId === download.id ? "selected" : undefined}
-              >
-                <TableCell className="max-w-60">
-                  <button
-                    type="button"
-                    className="flex max-w-full items-center gap-3 py-2 text-left outline-none hover:underline focus-visible:underline"
-                    onClick={(event) => {
-                      event.currentTarget.focus();
-                      onInspect(download);
-                    }}
-                  >
-                    <Icon className="text-muted-foreground size-4 shrink-0" />
-                    <span className="truncate">{download.name}</span>
-                  </button>
-                </TableCell>
-                <TableCell>
-                  <DownloadStatus download={download} />
-                  {download.error_message && (
-                    <p
-                      className="text-destructive truncate text-xs"
-                      title={download.error_message}
-                    >
-                      {download.error_message}
-                    </p>
-                  )}
-                  <VideoToolsUpdateAdvice download={download} />
-                </TableCell>
-                <TableCell className="text-muted-foreground hidden lg:table-cell">
-                  {sourceHost(download)}
-                </TableCell>
-                <TableCell className="text-muted-foreground text-right tabular-nums">
-                  {download.total_size ? bytes(download.total_size) : "—"}
-                </TableCell>
-                <TableCell className="text-muted-foreground text-right tabular-nums">
-                  {download.download_rate
-                    ? `${bytes(download.download_rate)}/s`
-                    : "—"}
-                </TableCell>
-                <TableCell>
-                  <DownloadActions
-                    download={download}
-                    onInspect={() => onInspect(download)}
-                    onRemove={() => onRemove(download)}
-                  />
-                </TableCell>
-              </TableRow>
-            );
-          })}
+          {downloads.map((download) => (
+            <StableTableRow
+              key={download.id}
+              download={download}
+              selected={selectedId === download.id}
+              onInspect={onInspect}
+              onRemove={onRemove}
+            />
+          ))}
         </TableBody>
       </Table>
     );
@@ -240,94 +350,15 @@ export const Downloads = ({
 
   return (
     <ItemGroup className="gap-1">
-      {downloads.map((download) => {
-        const Icon = fileIcon(download);
-
-        const transferring = [
-          "Fetching",
-          "Starting",
-          "Verifying",
-          "Downloading",
-          "Seeding",
-        ].includes(download.state);
-
-        let rateOrProgress = "";
-
-        if (download.download_rate) {
-          rateOrProgress = `${bytes(download.download_rate)}/s · ${timeRemaining(download.eta_seconds)}`;
-        } else if (transferring) {
-          rateOrProgress = `${Math.round(progress(download))}%`;
-        }
-
-        return (
-          <Item
-            key={download.id}
-            // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role
-            role="listitem"
-            data-selected={selectedId === download.id}
-            className="data-[selected=true]:bg-muted/70 hover:bg-muted/40 transition-colors"
-          >
-            <ItemMedia
-              variant="icon"
-              className="text-muted-foreground size-9 rounded-lg"
-            >
-              <Icon />
-            </ItemMedia>
-            <ItemContent className="min-w-0">
-              <ItemTitle className="max-w-full">
-                <button
-                  type="button"
-                  className="truncate text-left outline-none hover:underline focus-visible:underline"
-                  onClick={(event) => {
-                    event.currentTarget.focus();
-                    onInspect(download);
-                  }}
-                >
-                  {download.name}
-                </button>
-              </ItemTitle>
-              <ItemDescription className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-                <span>{sourceHost(download)}</span>
-                <span aria-hidden>·</span>
-                <span className="tabular-nums">
-                  {download.total_size
-                    ? bytes(download.total_size)
-                    : "Size unknown"}
-                </span>
-                {download.error_message && (
-                  <span
-                    className="text-destructive truncate"
-                    title={download.error_message}
-                  >
-                    {download.error_message}
-                  </span>
-                )}
-              </ItemDescription>
-              <VideoToolsUpdateAdvice download={download} />
-              {transferring && (
-                <Progress
-                  className="mt-1 max-w-96"
-                  value={progress(download)}
-                  aria-label={`${download.name} progress`}
-                />
-              )}
-            </ItemContent>
-            <ItemActions className="gap-4">
-              <div className="hidden min-w-28 flex-col items-end gap-1 sm:flex">
-                <DownloadStatus download={download} />
-                <span className="text-muted-foreground text-xs tabular-nums">
-                  {rateOrProgress}
-                </span>
-              </div>
-              <DownloadActions
-                download={download}
-                onInspect={() => onInspect(download)}
-                onRemove={() => onRemove(download)}
-              />
-            </ItemActions>
-          </Item>
-        );
-      })}
+      {downloads.map((download) => (
+        <StableListItem
+          key={download.id}
+          download={download}
+          selected={selectedId === download.id}
+          onInspect={onInspect}
+          onRemove={onRemove}
+        />
+      ))}
     </ItemGroup>
   );
 };

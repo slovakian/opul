@@ -2,59 +2,71 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { toast } from "@/components/ui/toast";
 import { WorkspaceIcon } from "@/components/workspace-icon";
-import { useLibrary } from "@/lib/library";
+import { useLibraryStore } from "@/lib/library";
 
 export const useDownloadNotifications = (onInspect: (id: string) => void) => {
-  const { state } = useLibrary();
+  const store = useLibraryStore();
   const pending = useRef(new Set<string>());
   const [submission, setSubmission] = useState(0);
 
   useEffect(() => {
-    if (
-      submission === 0 ||
-      state.kind !== "ready" ||
-      pending.current.size === 0
-    ) {
+    if (submission === 0) {
       return;
     }
 
-    for (const id of pending.current) {
-      const workspace = state.snapshot.workspaces.find((item) =>
-        item.downloads.some((download) => download.id === id)
-      );
+    // Announce each new download once the library shows it. Watching the store
+    // directly keeps this from rendering the app on every library change.
+    const announce = () => {
+      const state = store.getState();
 
-      const download = workspace?.downloads.find((item) => item.id === id);
-
-      if (!workspace || !download) {
-        continue;
+      if (state.kind !== "ready" || pending.current.size === 0) {
+        return;
       }
 
-      const folder = workspace.folders.find(
-        (item) => item.id === download.folder_id
-      );
+      const { library } = state;
 
-      const toastId = `download-added-${id}`;
+      for (const id of pending.current) {
+        const download = library.downloadById.get(id);
 
-      toast.add({
-        actionProps: {
-          children: "View",
-          onClick: () => {
-            onInspect(id);
-            toast.close(toastId);
+        const workspace = library.workspaces.find(
+          (item) => item.id === download?.workspace_id
+        );
+
+        if (!workspace || !download) {
+          continue;
+        }
+
+        const folder = workspace.folders.find(
+          (item) => item.id === download.folder_id
+        );
+
+        const toastId = `download-added-${id}`;
+
+        toast.add({
+          actionProps: {
+            children: "View",
+            onClick: () => {
+              onInspect(id);
+              toast.close(toastId);
+            },
           },
-        },
-        description: `Added to ${workspace.name} › ${folder?.name ?? "Downloads"}`,
-        id: toastId,
-        title: (
-          <span className="flex min-w-0 items-center gap-2">
-            <WorkspaceIcon workspace={workspace} />
-            <span className="truncate">{download.name}</span>
-          </span>
-        ),
-      });
-      pending.current.delete(id);
-    }
-  }, [onInspect, state, submission]);
+          description: `Added to ${workspace.name} › ${folder?.name ?? "Downloads"}`,
+          id: toastId,
+          title: (
+            <span className="flex min-w-0 items-center gap-2">
+              <WorkspaceIcon workspace={workspace} />
+              <span className="truncate">{download.name}</span>
+            </span>
+          ),
+        });
+        pending.current.delete(id);
+      }
+    };
+
+    announce();
+
+    return store.subscribe(announce);
+  }, [onInspect, store, submission]);
 
   return useCallback((ids: string[]) => {
     for (const id of ids) {

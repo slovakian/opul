@@ -1,5 +1,10 @@
+import { useMemo } from "react";
+
 import type { Location, StatusFilter } from "@/components/workspace-sidebar";
 import type { useLibrary } from "@/lib/library";
+import { useLibrarySelector } from "@/lib/library";
+import { selectDownloads, selectWorkspaces } from "@/lib/library-store";
+import type { LibraryDownload } from "@/lib/library-store";
 import {
   aggregateNames,
   defaultDisplay,
@@ -8,21 +13,21 @@ import {
 } from "@/lib/model";
 import type { DisplayPreferences, Download, Workspace } from "@/lib/model";
 
-interface FilterAndSortOptions {
-  downloads: Download[];
+interface FilterAndSortOptions<T extends Download> {
+  downloads: readonly T[];
   effectiveFilter: StatusFilter;
   folderId?: string;
   query: string;
   sort: DisplayPreferences["sort"];
 }
 
-export const filterAndSortDownloads = ({
+export const filterAndSortDownloads = <T extends Download>({
   downloads,
   effectiveFilter,
   folderId,
   query,
   sort,
-}: FilterAndSortOptions): Download[] => {
+}: FilterAndSortOptions<T>): T[] => {
   const result = downloads.filter((download) => {
     if (folderId && download.folder_id !== folderId) {
       return false;
@@ -70,12 +75,12 @@ export const filterAndSortDownloads = ({
   return result;
 };
 
-export const groupDownloads = (
-  downloads: Download[],
+export const groupDownloads = <T extends Download>(
+  downloads: readonly T[],
   grouping: DisplayPreferences["grouping"],
-  workspaces: Workspace[]
-): Map<string, Download[]> => {
-  const groups = new Map<string, Download[]>();
+  workspaces: readonly Workspace[]
+): Map<string, T[]> => {
+  const groups = new Map<string, T[]>();
 
   for (const download of downloads) {
     let group = "";
@@ -111,14 +116,13 @@ export interface WorkspaceViewState {
   effectiveFilter: StatusFilter;
   folder: Workspace["folders"][number] | undefined;
   folderId?: string;
-  rawDownloads: Download[];
   title: string;
   workspace: Workspace | undefined;
 }
 
 export const normalizeWorkspaceLocation = (
   location: Location,
-  workspaces: Workspace[]
+  workspaces: readonly Workspace[]
 ): Location => {
   if (location.kind !== "workspace" || !location.folderId) {
     return location;
@@ -146,7 +150,7 @@ export const useWorkspaceView = ({
   filter: StatusFilter;
   location: Location;
   preferences: ReturnType<typeof useLibrary>["preferences"];
-  workspaces: Workspace[];
+  workspaces: readonly Workspace[];
 }): WorkspaceViewState => {
   const location = normalizeWorkspaceLocation(selectedLocation, workspaces);
 
@@ -175,18 +179,63 @@ export const useWorkspaceView = ({
       ? (folder?.name ?? workspace?.name ?? "Downloads")
       : aggregateNames[location.kind];
 
-  const rawDownloads =
-    location.kind === "workspace"
-      ? (workspace?.downloads ?? [])
-      : workspaces.flatMap((item) => item.downloads);
-
   return {
     display,
     effectiveFilter,
     folder,
     folderId,
-    rawDownloads,
     title,
     workspace,
   };
+};
+
+export interface VisibleDownloadsOptions {
+  display: DisplayPreferences;
+  effectiveFilter: StatusFilter;
+  folderId?: string;
+  query: string;
+  /** The workspace being viewed, or undefined for every workspace. */
+  workspaceId?: string;
+}
+
+/** The downloads a view shows, grouped as its display preferences ask. */
+export const useVisibleDownloads = ({
+  display,
+  effectiveFilter,
+  folderId,
+  query,
+  workspaceId,
+}: VisibleDownloadsOptions) => {
+  const downloads = useLibrarySelector(selectDownloads);
+  const workspaces = useLibrarySelector(selectWorkspaces);
+
+  return useMemo(() => {
+    const visible = filterAndSortDownloads({
+      downloads: workspaceId
+        ? downloads.filter((download) => download.workspace_id === workspaceId)
+        : downloads,
+      effectiveFilter,
+      folderId,
+      query,
+      sort: display.sort,
+    });
+
+    return {
+      count: visible.length,
+      groups: groupDownloads<LibraryDownload>(
+        visible,
+        display.grouping,
+        workspaces
+      ),
+    };
+  }, [
+    display.grouping,
+    display.sort,
+    downloads,
+    effectiveFilter,
+    folderId,
+    query,
+    workspaceId,
+    workspaces,
+  ]);
 };

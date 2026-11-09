@@ -4,6 +4,7 @@ mod app_updates;
 mod channel;
 mod commands;
 mod desktop;
+mod library_feed;
 mod preferences;
 mod video_tools_journey;
 mod video_tools_smoke;
@@ -203,6 +204,7 @@ fn main() {
         // The public key comes only from the bundled configuration, never from the environment.
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
+            app.manage(library_feed::LibraryFeeds::default());
             app.manage(Desktop::open(data_directory(app.handle()), |preferences| {
                 open_machine(app.handle(), preferences)
             }));
@@ -217,6 +219,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::snapshot,
+            commands::subscribe_library,
             commands::workspace_draft,
             commands::workspace_appearance_draft,
             commands::frontend_ready,
