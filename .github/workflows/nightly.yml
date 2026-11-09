@@ -71,6 +71,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
+      - name: Cache built-in FFmpeg archive
+        uses: actions/cache@v4
+        with:
+          path: .build/ffmpeg-cache
+          key: ffmpeg-${{ matrix.arch }}-${{ hashFiles('tools/ffmpeg/*.env') }}
       - uses: voidzero-dev/setup-vp@v1.22.0
         with:
           node-version: 24
@@ -215,7 +220,7 @@ jobs:
             --prerelease
       - name: Verify public assets
         run: |
-          curl -fsSL --retry 5 --retry-all-errors \
+          curl -fsSL --retry 10 --retry-delay 2 --retry-max-time 120 --retry-connrefused --retry-all-errors \
             "https://github.com/$GITHUB_REPOSITORY/releases/download/nightly/nightly.json" \
             -o "$RUNNER_TEMP/downloaded-nightly.json"
           node Scripts/generate-updater-manifest.mjs --validate "$RUNNER_TEMP/downloaded-nightly.json"
