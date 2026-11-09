@@ -285,6 +285,7 @@ pub(crate) fn apply(state: &mut AppState, event: &Event) {
                 item.control_generation = *control_generation;
                 if let DownloadSource::Torrent(torrent) = &mut item.source {
                     torrent.seed_ratio_limit = *limit;
+                    torrent.reached_seed_ratio = false;
                 }
             }
         }
@@ -317,6 +318,20 @@ pub(crate) fn apply(state: &mut AppState, event: &Event) {
         Event::DownloadOutputRecorded { download, output } => {
             if let Some((_, item)) = state.locate_download_mut(*download) {
                 item.output = Some(output.clone());
+            }
+        }
+        Event::TorrentCompletionChanged { download, complete } => {
+            if let Some((_, item)) = state.locate_download_mut(*download)
+                && let DownloadSource::Torrent(torrent) = &mut item.source
+            {
+                torrent.complete = *complete;
+            }
+        }
+        Event::SeedRatioReached { download } => {
+            if let Some((_, item)) = state.locate_download_mut(*download)
+                && let DownloadSource::Torrent(torrent) = &mut item.source
+            {
+                torrent.reached_seed_ratio = true;
             }
         }
         Event::SessionChanged(session) => state.session = session.clone(),

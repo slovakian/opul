@@ -34,6 +34,10 @@ pub(crate) fn decide_fact(state: &AppState, fact: &Fact) -> Result<Decision, Rej
             if item.attempt != *attempt || item.control_generation != *control_generation {
                 return Ok(Decision::none());
             }
+            // A complete torrent keeps checking its files until the engine says it seeds.
+            if item.checking_files() {
+                return Ok(Decision::none());
+            }
             let lifecycle = match &item.lifecycle {
                 DownloadLifecycle::Queued | DownloadLifecycle::Starting => {
                     DownloadLifecycle::Active(*phase)
@@ -64,6 +68,9 @@ pub(crate) fn decide_fact(state: &AppState, fact: &Fact) -> Result<Decision, Rej
             }
             if !phase_allowed(item.source_kind(), *phase) {
                 return Ok(Decision::none());
+            }
+            if let DownloadSource::Torrent(torrent) = &item.source {
+                return Ok(torrent_advanced(item, torrent, *phase));
             }
             if matches!(item.lifecycle, DownloadLifecycle::Active(current) if current == *phase) {
                 return Ok(Decision::none());
@@ -115,21 +122,64 @@ pub(crate) fn decide_fact(state: &AppState, fact: &Fact) -> Result<Decision, Rej
             {
                 return Ok(Decision::none());
             }
+            // Start seeding asked the engine to run again; its last "stopped" report is stale.
+            if item.checking_files() {
+                return Ok(Decision::none());
+            }
+            let mut events = vec![
+                Event::DownloadOutputRecorded {
+                    download: *download,
+                    output: output.clone(),
+                },
+                Event::DownloadLifecycleChanged {
+                    download: *download,
+                    lifecycle: DownloadLifecycle::Finished,
+                    control_generation: item.control_generation,
+                },
+            ];
+            if let DownloadSource::Torrent(torrent) = &item.source {
+                if !torrent.complete {
+                    events.push(Event::TorrentCompletionChanged {
+                        download: *download,
+                        complete: true,
+                    });
+                }
+                // Only the engine stops a seeding torrent on its own: the ratio was reached.
+                if matches!(
+                    item.lifecycle,
+                    DownloadLifecycle::Active(ActivePhase::Seeding)
+                ) && torrent.seed_ratio_limit.is_some()
+                {
+                    events.push(Event::SeedRatioReached {
+                        download: *download,
+                    });
+                }
+            }
             Ok(Decision {
-                events: vec![
-                    Event::DownloadOutputRecorded {
-                        download: *download,
-                        output: output.clone(),
-                    },
-                    Event::DownloadLifecycleChanged {
-                        download: *download,
-                        lifecycle: DownloadLifecycle::Finished,
-                        control_generation: item.control_generation,
-                    },
-                ],
+                events,
                 effects: Vec::new(),
                 created_downloads: Vec::new(),
             })
+        }
+        Fact::OutputFound {
+            download,
+            attempt,
+            output,
+        } => {
+            let (_, item) = match state.locate_download(*download) {
+                Some(found) => found,
+                None => return Ok(Decision::none()),
+            };
+            if item.attempt != *attempt
+                || item.lifecycle.is_retired()
+                || item.output.as_ref() == Some(output)
+            {
+                return Ok(Decision::none());
+            }
+            Ok(simple(Event::DownloadOutputRecorded {
+                download: *download,
+                output: output.clone(),
+            }))
         }
         Fact::TransferFailed {
             download,
@@ -297,5 +347,42 @@ pub(crate) fn decide_fact(state: &AppState, fact: &Fact) -> Result<Decision, Rej
                 download: *download,
             }))
         }
+    }
+}
+
+/// What a torrent engine report means for the Download. Completion comes only from the
+/// engine: seeding proves every selected file is there, and fetching outside a recheck
+/// proves something is missing (more files were selected, or a recheck found a gap).
+fn torrent_advanced(item: &Download, torrent: &TorrentDownload, phase: ActivePhase) -> Decision {
+    // Not seeding until the person starts it again; a late "seeding" report is stale.
+    if matches!(item.lifecycle, DownloadLifecycle::Finished) {
+        return Decision::none();
+    }
+    let phase = match phase {
+        // Rechecking proves nothing either way. A complete torrent keeps what it shows;
+        // an incomplete one reads as downloading, as it always has.
+        ActivePhase::Verifying if torrent.complete => return Decision::none(),
+        ActivePhase::Verifying => ActivePhase::Fetching,
+        phase => phase,
+    };
+    let complete = phase == ActivePhase::Seeding;
+    let mut events = Vec::new();
+    if torrent.complete != complete {
+        events.push(Event::TorrentCompletionChanged {
+            download: item.id,
+            complete,
+        });
+    }
+    if !matches!(item.lifecycle, DownloadLifecycle::Active(current) if current == phase) {
+        events.push(Event::DownloadLifecycleChanged {
+            download: item.id,
+            lifecycle: DownloadLifecycle::Active(phase),
+            control_generation: item.control_generation,
+        });
+    }
+    Decision {
+        events,
+        effects: Vec::new(),
+        created_downloads: Vec::new(),
     }
 }

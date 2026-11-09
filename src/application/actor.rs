@@ -150,6 +150,7 @@ impl ApplicationActor {
         };
 
         let appearance_migrated = state.migrate_workspace_appearances();
+        let completion_migrated = state.migrate_torrent_completion();
         let reconcile = !matches!(state.session, SessionPhase::RecoveryRequired);
         if writable && reconcile {
             // Opening never resumes blindly. Adapters open quiescent, then explicit
@@ -162,7 +163,7 @@ impl ApplicationActor {
                 effect.status = EffectStatus::Pending;
             }
         }
-        if writable && (reconcile || appearance_migrated) {
+        if writable && (reconcile || appearance_migrated || completion_migrated) {
             store
                 .commit(&state)
                 .map_err(|error| ActorError::Open(error.to_string()))?;

@@ -51,6 +51,14 @@ interface LibraryActions {
   ) => Promise<void>;
 }
 
+/**
+ * Pause and resume guard only their own button while Rust answers (see
+ * `DownloadActions`), so they don't grey out the header or other rows.
+ */
+const isRowToggle = (command: Command) =>
+  command.kind === "download" &&
+  (command.action === "Pause" || command.action === "Resume");
+
 /** How long to wait before trying again when the feed can't open. */
 const reconnectDelay = 1000;
 
@@ -201,7 +209,7 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
 
   const run = useCallback(
     async (command: Command, onAccepted?: (receipt: Receipt) => void) => {
-      const affectsBusy = command.kind !== "view";
+      const affectsBusy = command.kind !== "view" && !isRowToggle(command);
 
       if (affectsBusy) {
         setPending((count) => count + 1);

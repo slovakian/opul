@@ -99,7 +99,7 @@ fn runtime_only_then_both_parts_update_runtime_first_and_retain_until_success() 
     tools.acquire().unwrap().finish_download(false).unwrap();
     assert_eq!(selected(&tools).runtime, 2);
     assert_eq!(selected(&tools).yt_dlp, "2026.10.26");
-    drop(tools);
+    fixture.close(tools);
     let reopened = fixture.open();
     assert_eq!(selected(&reopened).runtime, 2);
 }
@@ -176,7 +176,7 @@ fn incompatible_script_holds_across_restart_until_a_new_runtime_appears() {
             "{snapshot:?}"
         );
         let old = tools.invocation().unwrap();
-        drop(tools);
+        fixture.close(tools);
         let tools = fixture.open();
         assert!(matches!(
             tools.snapshot().state,
@@ -230,7 +230,7 @@ fn second_integrity_failure_persists_skip_and_logs_until_a_newer_version() {
                 .unwrap()
                 .contains("checksum")
         );
-        drop(tools);
+        fixture.close(tools);
         let tools = fixture.open();
         command(&tools, "update");
         fixture.wait(&tools);
@@ -291,7 +291,7 @@ fn cancellation_and_activation_failure_leave_committed_pair_usable() {
         "{snapshot:?}"
     );
     assert_eq!(tools.invocation().unwrap(), old);
-    drop(tools);
+    fixture.close(tools);
     let tools = fixture.open();
     assert_eq!(tools.invocation().unwrap(), old);
     assert!(!fixture.config.root.join("python-runtime/2").exists());
@@ -309,7 +309,7 @@ fn restart_rolls_back_an_unusable_runtime_before_its_first_success() {
     fixture.wait(&tools);
     assert_eq!(selected(&tools).runtime, 2);
     std::fs::remove_file(tools.invocation().unwrap().interpreter).unwrap();
-    drop(tools);
+    fixture.close(tools);
     let tools = fixture.open();
     assert_eq!(tools.invocation(), Some(old));
 }

@@ -158,41 +158,19 @@ pub(super) fn ensure_transfer(
     let id = context.download.id.to_string();
     let layout = content_layout(context.organization);
     match &context.download.source {
-        DownloadSource::Torrent(download) => match &download.origin {
-            TorrentOrigin::Magnet { uri } => {
-                torrent.ensure_magnet(
-                    &id,
-                    context.download.attempt,
-                    uri.clone(),
-                    context.output_folder.clone(),
-                    layout,
-                    download.seed_ratio_limit,
-                )?;
+        DownloadSource::Torrent(download) => {
+            ensure_torrent(torrent, context, download, &id, layout)?;
+            // A complete torrent starting again (Start seeding, or a relaunch while seeding)
+            // seeds with its current limit; the engine rechecks its files first.
+            if context.download.checking_files()
+                && let Some(binding) = torrent
+                    .binding_for(&id, context.download.attempt)
+                    .or_else(|| download.info_hash.clone())
+            {
+                torrent.set_seed_ratio_limit(binding.clone(), download.seed_ratio_limit);
+                torrent.resume(binding);
             }
-            TorrentOrigin::Metainfo { blob, .. } => {
-                let path = blob.strip_prefix("legacy-path:").unwrap_or(blob);
-                let bytes = fs::read(path).map_err(|error| crate::CoreError::Engine {
-                    reason: format!("could not read torrent source {path}: {error}"),
-                })?;
-                torrent.ensure_torrent_file(TorrentFileInput {
-                    download_id: id,
-                    attempt: context.download.attempt,
-                    bytes,
-                    source: path.to_string(),
-                    save_folder: context.output_folder.clone(),
-                    content_layout: layout,
-                    seed_ratio_limit: download.seed_ratio_limit,
-                })?;
-            }
-            TorrentOrigin::RemoteMetainfo { url } => torrent.ensure_remote_torrent(
-                &id,
-                context.download.attempt,
-                url.clone(),
-                context.output_folder.clone(),
-                layout,
-                download.seed_ratio_limit,
-            )?,
-        },
+        }
         DownloadSource::Media(download) => {
             let options = media_options(download, layout);
             if matches!(download.origin, MediaOrigin::Guided { .. }) {
@@ -249,6 +227,51 @@ pub(super) fn ensure_transfer(
             }
             media.resume_download(&id, context.download.attempt);
         }
+    }
+    Ok(())
+}
+
+fn ensure_torrent(
+    torrent: &TorrentEngine,
+    context: &ExecutionContext,
+    download: &TorrentDownload,
+    id: &str,
+    layout: DownloadContentLayout,
+) -> Result<(), crate::CoreError> {
+    match &download.origin {
+        TorrentOrigin::Magnet { uri } => {
+            torrent.ensure_magnet(
+                id,
+                context.download.attempt,
+                uri.clone(),
+                context.output_folder.clone(),
+                layout,
+                download.seed_ratio_limit,
+            )?;
+        }
+        TorrentOrigin::Metainfo { blob, .. } => {
+            let path = blob.strip_prefix("legacy-path:").unwrap_or(blob);
+            let bytes = fs::read(path).map_err(|error| crate::CoreError::Engine {
+                reason: format!("could not read torrent source {path}: {error}"),
+            })?;
+            torrent.ensure_torrent_file(TorrentFileInput {
+                download_id: id.to_string(),
+                attempt: context.download.attempt,
+                bytes,
+                source: path.to_string(),
+                save_folder: context.output_folder.clone(),
+                content_layout: layout,
+                seed_ratio_limit: download.seed_ratio_limit,
+            })?;
+        }
+        TorrentOrigin::RemoteMetainfo { url } => torrent.ensure_remote_torrent(
+            id,
+            context.download.attempt,
+            url.clone(),
+            context.output_folder.clone(),
+            layout,
+            download.seed_ratio_limit,
+        )?,
     }
     Ok(())
 }

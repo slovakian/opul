@@ -75,6 +75,7 @@ export const downloadSchema = z.object({
     can_retry_video_tools: z.boolean().default(false),
     can_reveal_output: z.boolean(),
     can_set_up_video_tools: z.boolean().default(false),
+    can_start_seeding: z.boolean().default(false),
     can_stop_seeding: z.boolean(),
     can_update_video_tools: z.boolean().default(false),
   }),
@@ -113,6 +114,8 @@ export const downloadSchema = z.object({
     "Processing",
     "Verifying",
     "Seeding",
+    "NotSeeding",
+    "CheckingFiles",
     "Pausing",
     "Paused",
     "Finished",
@@ -229,6 +232,10 @@ export type WorkspaceExpansion = z.infer<typeof workspaceExpansionSchema>;
 
 export type WorkspaceExpansionChanges = Record<string, boolean | null>;
 
+export const listStyleSchema = z.enum(["cards", "minimal"]);
+
+export type ListStyle = z.infer<typeof listStyleSchema>;
+
 export const preferencesSchema = z.object({
   aggregate_destination: z
     .discriminatedUnion("kind", [
@@ -239,6 +246,7 @@ export const preferencesSchema = z.object({
   aggregate_views: aggregateViewsSchema.prefault({}),
   concurrent_downloads: z.number(),
   enable_dht: z.boolean(),
+  list_style: listStyleSchema.default("cards"),
   listen_port: z.number(),
   max_connections: z.number(),
   max_download_kbps: z.number(),
@@ -308,7 +316,8 @@ export type DownloadAction =
   | "Resume"
   | "Retry"
   | "Cancel"
-  | "StopSeeding";
+  | "StopSeeding"
+  | "StartSeeding";
 
 export interface WorkspaceAppearanceRequest {
   request_id: string;
@@ -365,9 +374,11 @@ export const formatNames: Record<Format, string> = {
 
 export const stateNames: Record<Download["state"], string> = {
   Cancelled: "Cancelled",
+  CheckingFiles: "Checking files",
   Failed: "Failed",
   Fetching: "Downloading",
   Finished: "Complete",
+  NotSeeding: "Not seeding",
   Paused: "Paused",
   Pausing: "Pausing",
   Processing: "Processing",
@@ -381,9 +392,20 @@ export const stateNames: Record<Download["state"], string> = {
 export const sourceNames: Record<Download["source"], string> = {
   Direct: "Direct link",
   Guided: "Guided",
-  Torrent: "BitTorrent",
+  Torrent: "Torrent",
   VideoPage: "Video",
 };
+
+/**
+ * Done downloading: finished, or a complete torrent whether it's seeding,
+ * not seeding, or checking its files before it seeds again.
+ */
+export const completeStates = new Set<Download["state"]>([
+  "Finished",
+  "Seeding",
+  "NotSeeding",
+  "CheckingFiles",
+]);
 
 export const workspaceEmoji = (workspace: Pick<Workspace, "icon">) =>
   workspace.icon.kind === "Emoji" && workspace.icon.value.trim()
@@ -398,6 +420,94 @@ export const bytes = (value: number) => {
   const unit = Math.min(Math.floor(Math.log(value) / Math.log(1024)), 4);
 
   return `${(value / 1024 ** unit).toLocaleString(undefined, { maximumFractionDigits: 1 })} ${["B", "KB", "MB", "GB", "TB"][unit]}`;
+};
+
+const BYTE_UNITS = ["B", "KB", "MB", "GB", "TB"] as const;
+const BYTES_PER_UNIT = 1024;
+
+/** GB and TB keep two decimals below 10 so a large file still visibly moves. */
+const FINE_UNIT = 3;
+
+const liveDecimals = (scaled: number, unit: number) => {
+  if (unit === 0 || scaled >= 99.95) {
+    return 0;
+  }
+
+  if (unit >= FINE_UNIT && scaled < 9.995) {
+    return 2;
+  }
+
+  return 1;
+};
+
+/**
+ * Byte counts for values that change while you watch: at most three digits
+ * and a steady number of decimals per range (`4.2 MB`, `42.0 MB`, `412 MB`,
+ * `1.20 GB`), so the text keeps nearly the same width from tick to tick.
+ * `bytes()` stays the precise formatter for the details panel and the table.
+ */
+export const liveBytes = (value: number) => {
+  const safe = Math.max(0, value);
+
+  let unit =
+    safe < 1 ? 0 : Math.floor(Math.log(safe) / Math.log(BYTES_PER_UNIT));
+
+  unit = Math.min(unit, BYTE_UNITS.length - 1);
+  let scaled = safe / BYTES_PER_UNIT ** unit;
+
+  // 1023.6 KB would print as four digits, so it moves up to the next unit.
+  if (scaled >= 999.5 && unit < BYTE_UNITS.length - 1) {
+    unit += 1;
+    scaled /= BYTES_PER_UNIT;
+  }
+
+  const decimals = liveDecimals(scaled, unit);
+
+  return `${scaled.toLocaleString(undefined, {
+    maximumFractionDigits: decimals,
+    minimumFractionDigits: decimals,
+  })} ${BYTE_UNITS[unit]}`;
+};
+
+const SECONDS_PER_MINUTE = 60;
+const MINUTES_PER_HOUR = 60;
+const HOURS_PER_DAY = 24;
+const MAX_DAYS = 99;
+
+/**
+ * Time left in at most about seven characters (`45s`, `12m`, `1h 12m`,
+ * `2d 4h`), or `—` while it's unknown. `timeRemaining()` gives the full wording.
+ */
+export const compactTimeRemaining = (seconds: number | null) => {
+  if (seconds === null) {
+    return "—";
+  }
+
+  const safe = Math.max(0, Math.ceil(seconds));
+
+  if (safe < SECONDS_PER_MINUTE) {
+    return `${safe}s`;
+  }
+
+  const minutes = Math.ceil(safe / SECONDS_PER_MINUTE);
+
+  if (minutes < MINUTES_PER_HOUR) {
+    return `${minutes}m`;
+  }
+
+  const hours = Math.floor(minutes / MINUTES_PER_HOUR);
+
+  if (hours < HOURS_PER_DAY) {
+    return `${hours}h ${minutes % MINUTES_PER_HOUR}m`;
+  }
+
+  const days = Math.floor(hours / HOURS_PER_DAY);
+
+  if (days > MAX_DAYS) {
+    return `${MAX_DAYS}d+`;
+  }
+
+  return `${days}d ${hours % HOURS_PER_DAY}h`;
 };
 
 export const timeRemaining = (seconds: number | null) => {
@@ -418,7 +528,7 @@ export const timeRemaining = (seconds: number | null) => {
 
 export const sourceHost = (download: Download) => {
   if (download.source === "Torrent") {
-    return "BitTorrent";
+    return sourceNames.Torrent;
   }
 
   try {

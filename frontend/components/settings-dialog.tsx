@@ -52,7 +52,7 @@ import type { Preferences } from "@/lib/model";
 const sections = [
   { icon: Monitor, label: "Appearance" },
   { icon: Download, label: "Downloads" },
-  { icon: Network, label: "BitTorrent" },
+  { icon: Network, label: "Torrents" },
   { icon: Settings2, label: "Workspaces" },
   { icon: Wrench, label: "Tools" },
   { icon: RefreshCw, label: "Updates" },
@@ -240,6 +240,27 @@ const SettingsContent = ({
                       <ToggleGroupItem value="dark">Dark</ToggleGroupItem>
                     </ToggleGroup>
                   </Field>
+                  <Field>
+                    <FieldLabel>Download list style</FieldLabel>
+                    <ToggleGroup
+                      aria-label="Download list style"
+                      value={[draft.list_style]}
+                      onValueChange={(values) => {
+                        const [listStyle] = values;
+
+                        if (listStyle === "cards" || listStyle === "minimal") {
+                          setDraft({ ...draft, list_style: listStyle });
+                        }
+                      }}
+                    >
+                      <ToggleGroupItem value="cards">Cards</ToggleGroupItem>
+                      <ToggleGroupItem value="minimal">Minimal</ToggleGroupItem>
+                    </ToggleGroup>
+                    <FieldDescription>
+                      Cards give each download its own outlined row. Minimal
+                      keeps rows flat until you hover or select them.
+                    </FieldDescription>
+                  </Field>
                 </FieldGroup>
               </>
             )}
@@ -347,7 +368,7 @@ const SettingsContent = ({
                 </FieldGroup>
               </>
             )}
-            {section === "BitTorrent" && (
+            {section === "Torrents" && (
               <>
                 <p className="text-muted-foreground text-sm">
                   Connection changes take effect when you restart Opul.

@@ -223,7 +223,9 @@ test("inspector and navigation become modal overlays with focus restoration", as
   });
 
   await actions.click();
-  await page.getByRole("button", { exact: true, name: "Show details" }).focus();
+  await page
+    .getByRole("menuitem", { exact: true, name: "Show details" })
+    .focus();
   await page.keyboard.press("Enter");
   await expect(inspector).toBeVisible();
   await page.keyboard.press("Escape");

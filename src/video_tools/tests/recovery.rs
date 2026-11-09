@@ -32,7 +32,7 @@ fn startup_prunes_unreferenced_versions_and_abandoned_state_writes() {
         fixture.wait(&tools).state,
         VideoToolsState::Ready { .. }
     ));
-    drop(tools);
+    fixture.close(tools);
     for path in ["python-runtime/999", "yt-dlp/orphan", ".install-crash"] {
         std::fs::create_dir_all(fixture.config.root.join(path)).unwrap();
     }
@@ -329,7 +329,7 @@ fn startup_keeps_only_selected_and_explicitly_retained_versions() {
         serde_json::to_vec(&state).unwrap(),
     )
     .unwrap();
-    drop(tools);
+    fixture.close(tools);
     let reopened = fixture.open();
     assert_eq!(reopened.invocation(), Some(selected));
     for path in [
@@ -371,7 +371,7 @@ fn startup_rejects_missing_unexecutable_and_os_rejected_tools() {
             )
             .unwrap(),
         }
-        drop(tools);
+        fixture.close(tools);
         let reopened = fixture.open();
         assert!(
             matches!(

@@ -9,10 +9,12 @@ import {
   Magnet,
   X,
 } from "lucide-react";
-import { createElement, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { DownloadActions, reveal } from "@/components/download-actions";
-import { DownloadStatus, fileIcon } from "@/components/downloads";
+import { DownloadActions } from "@/components/download-actions";
+import { DownloadFolderIcon } from "@/components/download-folder-icon";
+import { reveal } from "@/components/download-menu";
+import { DownloadStatus } from "@/components/downloads";
 import { InspectorPanel } from "@/components/inspector-panel";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -113,6 +115,63 @@ export const DownloadSourceLink = ({ download }: { download: Download }) => {
   );
 };
 
+/** "Stop seeding at ratio": empty seeds until stopped by hand. */
+const SeedRatioField = ({ download }: { download: Download }) => {
+  const { run, busy } = useLibrary();
+  const caps = download.capabilities;
+  const saved = download.seed_ratio_limit?.toString() ?? "";
+  const [ratio, setRatio] = useState(saved);
+  const [seen, setSeen] = useState(saved);
+
+  // Rust can change the limit too: Start seeding after the limit was reached clears it.
+  if (seen !== saved) {
+    setSeen(saved);
+    setRatio(saved);
+  }
+
+  const editable =
+    caps.can_stop_seeding ||
+    caps.can_start_seeding ||
+    caps.can_pause ||
+    caps.can_resume;
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+
+        run({
+          download_id: download.id,
+          kind: "seed_ratio",
+          limit: ratio.trim() ? Number(ratio) : null,
+        }).catch(() => null);
+      }}
+    >
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="seed-ratio">Stop seeding at ratio</FieldLabel>
+          <div className="flex gap-2">
+            <Input
+              id="seed-ratio"
+              type="number"
+              min="0"
+              step="0.1"
+              placeholder="Unlimited"
+              value={ratio}
+              onChange={(event) => setRatio(event.target.value)}
+              disabled={busy || !editable}
+            />
+            <Button type="submit" variant="outline" disabled={busy}>
+              Save
+            </Button>
+          </div>
+          <FieldDescription>Leave empty to keep seeding.</FieldDescription>
+        </Field>
+      </FieldGroup>
+    </form>
+  );
+};
+
 export const DownloadInspector = ({
   download,
   workspace,
@@ -124,12 +183,6 @@ export const DownloadInspector = ({
   onClose: () => void;
   onRemove: () => void;
 }) => {
-  const { run, busy } = useLibrary();
-
-  const [ratio, setRatio] = useState(
-    download.seed_ratio_limit?.toString() ?? ""
-  );
-
   const percent = Math.min(100, download.progress_millionths / 10_000);
 
   const folder = workspace.folders.find(
@@ -151,11 +204,7 @@ export const DownloadInspector = ({
       </SidebarHeader>
       <SidebarContent className="scroll-fade gap-6 px-5 pb-6">
         <div className="flex flex-col items-start gap-4 pt-4">
-          <div className="bg-muted flex size-14 items-center justify-center rounded-xl">
-            {createElement(fileIcon(download), {
-              className: "text-muted-foreground size-6",
-            })}
-          </div>
+          <DownloadFolderIcon download={download} className="size-12" />
           <h3 className="max-w-full text-base font-medium break-words">
             {download.name}
           </h3>
@@ -236,48 +285,7 @@ export const DownloadInspector = ({
         {download.source === "Torrent" && (
           <>
             <Separator />
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-
-                run({
-                  download_id: download.id,
-                  kind: "seed_ratio",
-                  limit: ratio.trim() ? Number(ratio) : null,
-                }).catch(() => null);
-              }}
-            >
-              <FieldGroup>
-                <Field>
-                  <FieldLabel htmlFor="seed-ratio">
-                    Stop seeding at ratio
-                  </FieldLabel>
-                  <div className="flex gap-2">
-                    <Input
-                      id="seed-ratio"
-                      type="number"
-                      min="0"
-                      step="0.1"
-                      placeholder="Unlimited"
-                      value={ratio}
-                      onChange={(event) => setRatio(event.target.value)}
-                      disabled={
-                        busy ||
-                        (!download.capabilities.can_stop_seeding &&
-                          !download.capabilities.can_pause &&
-                          !download.capabilities.can_resume)
-                      }
-                    />
-                    <Button type="submit" variant="outline" disabled={busy}>
-                      Save
-                    </Button>
-                  </div>
-                  <FieldDescription>
-                    Leave empty to keep seeding.
-                  </FieldDescription>
-                </Field>
-              </FieldGroup>
-            </form>
+            <SeedRatioField download={download} />
           </>
         )}
         {download.files.length > 0 && (

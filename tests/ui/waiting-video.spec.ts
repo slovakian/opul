@@ -111,7 +111,9 @@ test("Download creates one waiting playlist and keeps its folder and format acro
     .click();
   await expect(consent(page)).toHaveCount(0);
   await expect(
-    page.getByText("Waiting for video tools…", { exact: true })
+    page
+      .getByText("Waiting for video tools…", { exact: true })
+      .filter({ visible: true })
   ).toBeVisible();
   expect(
     await page.evaluate(() =>
@@ -126,7 +128,9 @@ test("Download creates one waiting playlist and keeps its folder and format acro
   await page.reload();
   await expect(page.getByText("Waiting video", { exact: true })).toHaveCount(1);
   await expect(
-    page.getByText("Waiting for video tools…", { exact: true })
+    page
+      .getByText("Waiting for video tools…", { exact: true })
+      .filter({ visible: true })
   ).toBeVisible();
   await page.screenshot({ path: "test-results/waiting-video.png" });
 
@@ -146,7 +150,9 @@ test("Download creates one waiting playlist and keeps its folder and format acro
     },
   });
   await expect(
-    page.getByText("Waiting for video tools…", { exact: true })
+    page
+      .getByText("Waiting for video tools…", { exact: true })
+      .filter({ visible: true })
   ).toHaveCount(0);
   await expect(page.getByText("Waiting video", { exact: true })).toHaveCount(1);
 });
@@ -160,7 +166,9 @@ test("Setting up accepts without another consent dialog and Not working offers p
   await expect(input(page)).toHaveValue("");
   await expect(consent(page)).toHaveCount(0);
   await expect(
-    page.getByText("Waiting for video tools…", { exact: true })
+    page
+      .getByText("Waiting for video tools…", { exact: true })
+      .filter({ visible: true })
   ).toBeVisible();
 
   const inProgress = page
@@ -170,7 +178,9 @@ test("Setting up accepts without another consent dialog and Not working offers p
   await expect(inProgress.locator("..")).toContainText("2");
   await inProgress.click();
   await expect(
-    page.getByText("Waiting for video tools…", { exact: true })
+    page
+      .getByText("Waiting for video tools…", { exact: true })
+      .filter({ visible: true })
   ).toBeVisible();
   await push(page, {
     ...initial,
@@ -182,7 +192,9 @@ test("Setting up accepts without another consent dialog and Not working offers p
     },
   });
   await expect(
-    page.getByText("Video tools aren't working", { exact: true })
+    page
+      .getByText("Video tools aren't working", { exact: true })
+      .filter({ visible: true })
   ).toBeVisible();
 
   const audit = await new AxeBuilder({ page })
@@ -190,9 +202,16 @@ test("Setting up accepts without another consent dialog and Not working offers p
     .analyze();
 
   expect(audit.violations).toEqual([]);
-  await page.getByRole("button", { exact: true, name: "Try again" }).click();
+  await page
+    .getByRole("button", {
+      exact: true,
+      name: "Try setting up video tools again",
+    })
+    .click();
   await expect(
-    page.getByText("Waiting for video tools…", { exact: true })
+    page
+      .getByText("Waiting for video tools…", { exact: true })
+      .filter({ visible: true })
   ).toBeVisible();
   expect(
     await page.evaluate(() =>
@@ -261,7 +280,9 @@ test("a retried video in Turned off waits and offers projected Set up", async ({
     .getByRole("button", { exact: true, name: `Retry ${download.name}` })
     .click();
   await expect(
-    page.getByText("Needs video tools", { exact: true })
+    page
+      .getByText("Needs video tools", { exact: true })
+      .filter({ visible: true })
   ).toBeVisible();
   await expect(consent(page)).toHaveCount(0);
 
@@ -270,9 +291,13 @@ test("a retried video in Turned off waits and offers projected Set up", async ({
     .analyze();
 
   expect(audit.violations).toEqual([]);
-  await page.getByRole("button", { exact: true, name: "Set up" }).click();
+  await page
+    .getByRole("button", { exact: true, name: "Set up video tools" })
+    .click();
   await expect(
-    page.getByText("Waiting for video tools…", { exact: true })
+    page
+      .getByText("Waiting for video tools…", { exact: true })
+      .filter({ visible: true })
   ).toBeVisible();
 });
 

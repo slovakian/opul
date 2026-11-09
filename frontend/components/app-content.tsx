@@ -7,11 +7,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useVisibleDownloads } from "@/hooks/use-workspace-view";
 import type { VisibleDownloadsOptions } from "@/hooks/use-workspace-view";
 import { useLibrary, useLibrarySelector } from "@/lib/library";
-import type { Download } from "@/lib/model";
+import type { Download, ListStyle } from "@/lib/model";
 
 const noop = () => null;
 
 export interface AppContentProps extends VisibleDownloadsOptions {
+  listStyle: ListStyle;
   onInspect: (download: Download) => void;
   onNew: () => void;
   onRemove: (download: Download) => void;
@@ -19,6 +20,7 @@ export interface AppContentProps extends VisibleDownloadsOptions {
 }
 
 export const AppContent = ({
+  listStyle,
   onInspect,
   onNew,
   onRemove,
@@ -74,6 +76,7 @@ export const AppContent = ({
               <Downloads
                 downloads={items}
                 layout={display.layout}
+                listStyle={listStyle}
                 selectedId={selectedId}
                 onInspect={onInspect}
                 onRemove={onRemove}
@@ -94,6 +97,7 @@ export const AppContent = ({
     <Downloads
       downloads={[]}
       layout="List"
+      listStyle={listStyle}
       onInspect={noop}
       onRemove={noop}
       onNew={onNew}

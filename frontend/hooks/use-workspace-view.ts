@@ -10,6 +10,7 @@ import {
   defaultDisplay,
   sourceNames,
   stateNames,
+  completeStates,
 } from "@/lib/model";
 import type { DisplayPreferences, Download, Workspace } from "@/lib/model";
 
@@ -50,7 +51,7 @@ export const filterAndSortDownloads = <T extends Download>({
     }
 
     if (effectiveFilter === "finished") {
-      return download.state === "Finished";
+      return completeStates.has(download.state);
     }
 
     if (effectiveFilter === "paused") {

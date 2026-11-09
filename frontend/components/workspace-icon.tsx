@@ -1,3 +1,4 @@
+import { colorTreatmentFilter } from "@/lib/color-treatment";
 import type { TreatmentParameters, Workspace } from "@/lib/model";
 import { workspaceEmoji } from "@/lib/model";
 import { canTreatEmoji, emojiTreatment } from "@/lib/workspace-appearance";
@@ -21,13 +22,7 @@ export const EmojiArtwork = ({
       data-slot="emoji-artwork"
       data-preset={applied?.preset_id}
       className="inline-block shrink-0 leading-none"
-      style={
-        applied
-          ? {
-              filter: `hue-rotate(${applied.hue}deg) saturate(${applied.saturation}%) brightness(${applied.brightness}%)`,
-            }
-          : undefined
-      }
+      style={applied ? { filter: colorTreatmentFilter(applied) } : undefined}
     >
       {emoji}
     </span>

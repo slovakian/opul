@@ -177,14 +177,19 @@ test("failed video keeps the original error and offers Update in its list and de
   await expect(
     item.getByText("ERROR: original yt-dlp error text", { exact: true })
   ).toBeVisible();
-  await expect(
-    item.getByText("An update may fix this", { exact: true })
-  ).toBeVisible();
+
+  // The row offers the update as its main action instead of an extra line.
+  const update = item.getByRole("button", {
+    exact: true,
+    name: "Update video tools",
+  });
+
+  await expect(update).toBeVisible();
   await expect(
     page
       .getByRole("listitem")
       .filter({ hasText: "Direct file" })
-      .getByText("An update may fix this")
+      .getByRole("button", { name: "Update video tools" })
   ).toHaveCount(0);
   await item
     .getByRole("button", { exact: true, name: "Fixture video" })
@@ -202,10 +207,14 @@ test("failed video keeps the original error and offers Update in its list and de
 
   expect(audit.violations).toEqual([]);
   await page.screenshot({ path: "test-results/video-update-advice.png" });
-  await item.getByRole("button", { exact: true, name: "Update" }).click();
+  await expect(
+    page.getByText("An update may fix this", { exact: true })
+  ).toBeVisible();
+  await update.click();
   await expect(
     page.getByText("An update may fix this", { exact: true })
   ).toHaveCount(0);
+  await expect(update).toHaveCount(0);
   await expect(
     item.getByText("ERROR: original yt-dlp error text", { exact: true })
   ).toBeVisible();

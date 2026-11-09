@@ -304,6 +304,7 @@ const App = () => {
               display={display}
               effectiveFilter={effectiveFilter}
               folderId={folderId}
+              listStyle={preferences?.list_style ?? "cards"}
               onInspect={inspect}
               onRemove={remove}
               onNew={newDownload}

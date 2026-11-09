@@ -48,7 +48,7 @@ import { isActiveDownload } from "@/lib/download-activity";
 import { useLibrary, useLibrarySelector } from "@/lib/library";
 import { selectDownloads, selectSession } from "@/lib/library-store";
 import type { LibraryState } from "@/lib/library-store";
-import { aggregateNames, bytes } from "@/lib/model";
+import { aggregateNames, bytes, completeStates } from "@/lib/model";
 import type { AggregateView, Folder, Workspace } from "@/lib/model";
 import { cn } from "@/lib/utils";
 import type { VideoToolsSnapshot } from "@/lib/video-tools";
@@ -84,7 +84,7 @@ const selectDownloadCounts = (state: LibraryState): DownloadCounts => {
     active: downloads.filter(isActiveDownload).length,
     all: downloads.length,
     downloading: downloads.some((download) => download.download_rate > 0),
-    finished: downloads.filter((download) => download.state === "Finished")
+    finished: downloads.filter((download) => completeStates.has(download.state))
       .length,
   };
 };
