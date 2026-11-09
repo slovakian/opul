@@ -92,10 +92,25 @@ export const DownloadActions = ({
   const { handleOpenChangeComplete, handleSelect } =
     useActionAfterClose(triggerRef);
 
+  // Pause and resume don't lock the app while Rust answers. Instead the
+  // clicked button ignores further clicks until then, without greying out.
+  const toggling = useRef(false);
+
   const act = (action: DownloadAction) => {
     run({ action, download_id: download.id, kind: "download" }).catch(
       () => null
     );
+  };
+
+  const toggle = async (action: "Pause" | "Resume") => {
+    if (toggling.current) {
+      return;
+    }
+
+    // `run` reports its own errors and never throws.
+    toggling.current = true;
+    await run({ action, download_id: download.id, kind: "download" });
+    toggling.current = false;
   };
 
   const recoverVideoTools = async () => {
@@ -146,8 +161,7 @@ export const DownloadActions = ({
         <PrimaryAction
           label={`Pause ${download.name}`}
           hint="Pause download"
-          disabled={busy}
-          onClick={() => act("Pause")}
+          onClick={() => toggle("Pause")}
         >
           <Pause />
         </PrimaryAction>
@@ -159,8 +173,7 @@ export const DownloadActions = ({
         <PrimaryAction
           label={`Resume ${download.name}`}
           hint="Resume download"
-          disabled={busy}
-          onClick={() => act("Resume")}
+          onClick={() => toggle("Resume")}
         >
           <Play />
         </PrimaryAction>

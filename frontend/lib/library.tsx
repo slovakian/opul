@@ -53,6 +53,14 @@ interface Library {
   ) => Promise<void>;
 }
 
+/**
+ * Pause and resume guard only their own button while Rust answers (see
+ * `DownloadActions`), so they don't grey out the header or other rows.
+ */
+const isRowToggle = (command: Command) =>
+  command.kind === "download" &&
+  (command.action === "Pause" || command.action === "Resume");
+
 const LibraryContext = createContext<Library | null>(null);
 
 export const LibraryProvider = ({ children }: { children: ReactNode }) => {
@@ -176,7 +184,7 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
 
   const run = useCallback(
     async (command: Command, onAccepted?: (receipt: Receipt) => void) => {
-      const affectsBusy = command.kind !== "view";
+      const affectsBusy = command.kind !== "view" && !isRowToggle(command);
 
       if (affectsBusy) {
         setPending((count) => count + 1);
