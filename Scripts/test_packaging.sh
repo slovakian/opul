@@ -58,11 +58,22 @@ const conf = JSON.parse(require("fs").readFileSync("./src-tauri/tauri.nightly.co
 const window = (conf.app?.windows ?? []).find((entry) => entry.label === "main") ?? {};
 console.log([window.titleBarStyle, window.hiddenTitle, window.trafficLightPosition?.x, window.trafficLightPosition?.y].join("|"));
 ')
-if [[ "$NIGHTLY_TITLEBAR" != "Overlay|true|16|19" ]]; then
+if [[ "$NIGHTLY_TITLEBAR" != "Overlay|true|16|30" ]]; then
   echo "FAIL: Nightly main window must keep Overlay titlebar chrome, got '$NIGHTLY_TITLEBAR'" >&2
   exit 1
 fi
 echo "PASS: Nightly main window keeps Overlay titlebar, hidden title, and traffic-light position"
+
+STABLE_LIGHTS=$(node -e '
+const conf = JSON.parse(require("fs").readFileSync("./src-tauri/tauri.conf.json", "utf8"));
+const window = (conf.app?.windows ?? []).find((entry) => entry.label === "main") ?? {};
+console.log([window.titleBarStyle, window.hiddenTitle, window.trafficLightPosition?.x, window.trafficLightPosition?.y].join("|"));
+')
+if [[ "$STABLE_LIGHTS" != "Overlay|true|16|30" ]]; then
+  echo "FAIL: Stable main window must keep Overlay titlebar chrome, got '$STABLE_LIGHTS'" >&2
+  exit 1
+fi
+echo "PASS: Stable main window keeps Overlay titlebar and centered traffic-light position"
 
 # 3. Verify --help output and target/channel parameters support
 Scripts/package_app.sh --help | grep -q "aarch64-apple-darwin"

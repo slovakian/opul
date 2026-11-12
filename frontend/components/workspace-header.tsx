@@ -28,13 +28,15 @@ export const WorkspaceHeader = ({
 }) => {
   const { open, isMobile } = useSidebar();
 
-  const reserveTrafficLights =
+  // Overlay lights sit in the header row when the sidebar column is gone.
+  // Clear that leading column so controls are not under the lights.
+  const clearTrafficLights =
     isTauri() && /Mac/u.test(navigator.userAgent) && (!open || isMobile);
 
   return (
     <header
       className="workspace-header shrink-0"
-      data-traffic-lights={reserveTrafficLights}
+      data-traffic-lights={clearTrafficLights}
     >
       <div
         data-tauri-drag-region
