@@ -19,6 +19,14 @@ import { InspectorPanel } from "@/components/inspector-panel";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
+  CodeBlock,
+  CodeBlockActions,
+  CodeBlockContent,
+  CodeBlockCopyButton,
+  CodeBlockHeader,
+  CodeBlockTitle,
+} from "@/components/ui/code-block";
+import {
   Field,
   FieldDescription,
   FieldGroup,
@@ -47,52 +55,6 @@ import type { Download, Workspace } from "@/lib/model";
 import { truncateError, truncateFilename, truncateUrl } from "@/lib/truncate";
 
 const noop = () => null;
-
-const CopyError = ({ text }: { text: string }) => {
-  const [copied, setCopied] = useState(false);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(
-    () => () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    },
-    []
-  );
-
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-sm"
-      className="shrink-0"
-      aria-label={copied ? "Copied error" : "Copy error"}
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(text);
-          setCopied(true);
-
-          if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-          }
-
-          timeoutRef.current = setTimeout(() => {
-            setCopied(false);
-          }, 2000);
-        } catch (error) {
-          toast.add({
-            description: shortError(error),
-            title: "Couldn't copy error",
-            type: "error",
-          });
-        }
-      }}
-    >
-      {copied ? <Check /> : <Copy />}
-    </Button>
-  );
-};
 
 export const DownloadSourceLink = ({ download }: { download: Download }) => {
   const [copied, setCopied] = useState(false);
@@ -283,12 +245,15 @@ export const DownloadInspector = ({
             <Alert variant="destructive" title={download.error_message}>
               {truncateError(download.error_message)}
             </Alert>
-            <div className="bg-muted/40 flex items-start gap-2 rounded-lg border px-3 py-2">
-              <pre className="text-muted-foreground scroll-fade max-h-32 min-w-0 flex-1 overflow-auto font-mono text-xs whitespace-pre-wrap select-text">
-                {download.error_message}
-              </pre>
-              <CopyError text={download.error_message} />
-            </div>
+            <CodeBlock variant="destructive">
+              <CodeBlockHeader>
+                <CodeBlockTitle>Error</CodeBlockTitle>
+                <CodeBlockActions>
+                  <CodeBlockCopyButton value={download.error_message} />
+                </CodeBlockActions>
+              </CodeBlockHeader>
+              <CodeBlockContent wrap>{download.error_message}</CodeBlockContent>
+            </CodeBlock>
           </div>
         )}
         <VideoToolsUpdateAdvice download={download} />
