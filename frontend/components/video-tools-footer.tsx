@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/tooltip";
 import type { useVideoTools } from "@/hooks/use-video-tools";
 import { bridge, errorMessage } from "@/lib/bridge";
+import { truncateError } from "@/lib/truncate";
 import type {
   NotWorkingState,
   SetupStep,
@@ -281,8 +282,12 @@ const CopyDetails = () => {
         {copied ? "Copied" : "Copy details"}
       </IconAction>
       {copyError && (
-        <p role="alert" className="text-destructive text-xs">
-          {copyError}
+        <p
+          role="alert"
+          className="text-destructive text-xs wrap-break-word"
+          title={copyError}
+        >
+          {truncateError(copyError)}
         </p>
       )}
     </>

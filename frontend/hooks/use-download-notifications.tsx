@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import { WorkspaceIcon } from "@/components/workspace-icon";
 import { useLibraryStore } from "@/lib/library";
+import { truncateFilename } from "@/lib/truncate";
 
 export const useDownloadNotifications = (onInspect: (id: string) => void) => {
   const store = useLibraryStore();
@@ -50,12 +51,14 @@ export const useDownloadNotifications = (onInspect: (id: string) => void) => {
               toast.close(toastId);
             },
           },
-          description: `Added to ${workspace.name} › ${folder?.name ?? "Downloads"}`,
+          description: `Added to ${truncateFilename(workspace.name, 32)} › ${truncateFilename(folder?.name ?? "Downloads", 32)}`,
           id: toastId,
           title: (
             <span className="flex min-w-0 items-center gap-2">
               <WorkspaceIcon workspace={workspace} />
-              <span className="truncate">{download.name}</span>
+              <span className="truncate" title={download.name}>
+                {truncateFilename(download.name)}
+              </span>
             </span>
           ),
         });

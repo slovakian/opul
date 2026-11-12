@@ -27,6 +27,7 @@ import {
 } from "@/hooks/use-app-updates";
 import { appName, blockerText, downloadPercent } from "@/lib/app-updates";
 import type { AppUpdates } from "@/lib/app-updates";
+import { truncateError } from "@/lib/truncate";
 import { checkedAgo } from "@/lib/video-tools";
 
 const STAGGER_MS = 40;
@@ -275,8 +276,12 @@ const Preferences = ({ updates }: { updates: AppUpdates }) => {
 const UpdatesSkeleton = ({ error }: { error: string }) => (
   <div className="flex flex-col gap-3">
     {error ? (
-      <p role="alert" className="text-destructive text-sm">
-        {error}
+      <p
+        role="alert"
+        className="text-destructive text-sm wrap-break-word"
+        title={error}
+      >
+        {truncateError(error)}
       </p>
     ) : (
       <output className="sr-only">Loading updates…</output>
@@ -310,9 +315,10 @@ export const UpdatesSettings = ({
       {error && (
         <p
           role="alert"
-          className="text-destructive animate-settle px-1 text-xs"
+          className="text-destructive animate-settle px-1 text-xs wrap-break-word"
+          title={error}
         >
-          {error}
+          {truncateError(error)}
         </p>
       )}
       <Preferences updates={updates} />

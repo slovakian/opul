@@ -3,7 +3,7 @@ import type { Dispatch, SetStateAction } from "react";
 
 import { toast } from "@/components/ui/toast";
 import { sendVideoTools, useVideoTools } from "@/hooks/use-video-tools";
-import { bridge, errorMessage } from "@/lib/bridge";
+import { bridge, errorMessage, shortError } from "@/lib/bridge";
 import type { Destination } from "@/lib/destination";
 import { downloadMode } from "@/lib/download-options";
 import type { DownloadMode, DownloadType } from "@/lib/download-options";
@@ -161,7 +161,7 @@ export const useDownloadSubmission = ({
           await sendVideoTools({ kind: "set_up" });
         } catch (error) {
           toast.add({
-            description: errorMessage(error),
+            description: shortError(error),
             title: "Couldn't set up video tools",
             type: "error",
           });
@@ -187,7 +187,7 @@ export const useDownloadSubmission = ({
       await performDownload(next, submission, automatic, consented);
     } catch (error) {
       toast.add({
-        description: errorMessage(error),
+        description: shortError(error),
         title: "Couldn't add download",
         type: "error",
       });
@@ -247,7 +247,7 @@ export const useDownloadSubmission = ({
       path = await bridge.chooseTorrent();
     } catch (error) {
       toast.add({
-        description: errorMessage(error),
+        description: shortError(error),
         title: "Couldn't open torrent",
         type: "error",
       });

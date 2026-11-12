@@ -30,6 +30,7 @@ import {
 } from "@/lib/model";
 import { rowView } from "@/lib/row-view";
 import type { DescriptionView, StatusText } from "@/lib/row-view";
+import { truncateError } from "@/lib/truncate";
 
 /** Only below 440px, where the status slot hands its text to this line. */
 const narrowOnly = "hidden @max-[440px]:inline";
@@ -145,11 +146,16 @@ const MessageLine = ({
   const tone = useRetained(message?.tone ?? null);
   const error = tone === "error";
 
+  const visible = error && text ? truncateError(text) : text;
+
   const messageText = (
-    <span className={cn("block truncate", error && "text-destructive")}>
+    <span
+      className={cn("block truncate", error && "text-destructive")}
+      title={error ? (text ?? undefined) : undefined}
+    >
       {error && failed && <span className={narrowOnly}>Failed · </span>}
       <span className={cn(tone === "shimmer" && "shimmer shimmer-spread-32")}>
-        {text}
+        {visible}
       </span>
     </span>
   );
@@ -161,7 +167,9 @@ const MessageLine = ({
   return (
     <Tooltip>
       <TooltipTrigger render={messageText} />
-      <TooltipContent className="max-w-sm">{text}</TooltipContent>
+      <TooltipContent className="max-w-sm wrap-break-word">
+        {text}
+      </TooltipContent>
     </Tooltip>
   );
 };

@@ -91,7 +91,7 @@ const ToastDescription = ({
 }: ToastPrimitive.Description.Props) => (
   <ToastPrimitive.Description
     data-slot="toast-description"
-    className={cn("text-muted-foreground text-sm", className)}
+    className={cn("text-muted-foreground text-sm wrap-break-word", className)}
     {...props}
   />
 );

@@ -360,7 +360,8 @@ test("source link renders as trace line with hover copy and feedback without lay
   const linkButton = linkTrace.locator("button");
 
   await expect(linkButton).toBeVisible();
-  await expect(linkButton).toContainText(magnetUrl);
+  await expect(linkButton).toContainText("magnet:?xt=urn:btih:deadbeef");
+  await expect(linkButton).toContainText("…");
 
   const title = linkButton.locator('[data-slot="trace-title"]');
 

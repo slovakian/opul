@@ -19,6 +19,7 @@ import {
   isEmojiNavigationKey,
 } from "@/lib/emoji-picker";
 import type { EmojiPosition } from "@/lib/emoji-picker";
+import { truncateError } from "@/lib/truncate";
 import { cn } from "@/lib/utils";
 
 export const EmojiPicker = ({
@@ -119,8 +120,12 @@ export const EmojiPicker = ({
           Selected icon
         </span>
         {state.error ? (
-          <div role="alert" className="text-muted-foreground p-4 text-sm">
-            {state.error}
+          <div
+            role="alert"
+            className="text-muted-foreground p-4 text-sm wrap-break-word"
+            title={state.error}
+          >
+            {truncateError(state.error)}
             <Button variant="ghost" onClick={() => dispatch("retry")}>
               Try again
             </Button>

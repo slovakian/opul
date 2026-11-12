@@ -64,6 +64,7 @@ import {
 import type { Download, ListStyle, Workspace } from "@/lib/model";
 import { bytes, sourceHost, stateNames } from "@/lib/model";
 import { rowView } from "@/lib/row-view";
+import { truncateError, truncateFilename } from "@/lib/truncate";
 import { cn } from "@/lib/utils";
 
 export const fileIcon = (download: Download) => {
@@ -315,7 +316,9 @@ const DownloadTableRow = (props: RowProps) => {
             {createElement(fileIcon(download), {
               className: "text-muted-foreground size-4 shrink-0",
             })}
-            <span className="truncate">{download.name}</span>
+            <span className="truncate" title={download.name}>
+              {truncateFilename(download.name)}
+            </span>
           </button>
         </TableCell>
         <TableCell>
@@ -325,7 +328,7 @@ const DownloadTableRow = (props: RowProps) => {
               className="text-destructive truncate text-xs"
               title={download.error_message}
             >
-              {download.error_message}
+              {truncateError(download.error_message)}
             </p>
           )}
         </TableCell>
@@ -400,9 +403,10 @@ const DownloadListItem = ({
               ref={nameRef}
               type="button"
               className="truncate text-left outline-none hover:underline focus-visible:underline"
+              title={download.name}
               onClick={handleInspect}
             >
-              {download.name}
+              {truncateFilename(download.name)}
             </button>
           </ItemTitle>
           <DownloadRowDescription

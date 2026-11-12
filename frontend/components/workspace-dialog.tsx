@@ -31,12 +31,13 @@ import {
 import { toast } from "@/components/ui/toast";
 import { WorkspaceIcon } from "@/components/workspace-icon";
 import { WorkspaceIconPicker } from "@/components/workspace-icon-picker";
-import { bridge, errorMessage } from "@/lib/bridge";
+import { bridge, errorMessage, shortError } from "@/lib/bridge";
 import { folderName } from "@/lib/destination";
 import { useLibrary, useLibrarySelector } from "@/lib/library";
 import { selectWorkspaces } from "@/lib/library-store";
 import { workspaceEmoji } from "@/lib/model";
 import type { Workspace, WorkspaceDraft, WorkspaceRequest } from "@/lib/model";
+import { truncateError } from "@/lib/truncate";
 
 const emojis = [
   "📁",
@@ -266,7 +267,7 @@ const WorkspaceDialogAlerts = ({
     {draftError && (
       <Alert>
         <AlertDescription>
-          <p>{draftError}</p>
+          <p title={draftError}>{truncateError(draftError)}</p>
           <Button type="button" variant="outline" size="sm" onClick={onRetry}>
             Try again
           </Button>
@@ -275,7 +276,9 @@ const WorkspaceDialogAlerts = ({
     )}
     {saveError && (
       <Alert role="alert">
-        <AlertDescription>{saveError}</AlertDescription>
+        <AlertDescription title={saveError}>
+          {truncateError(saveError)}
+        </AlertDescription>
       </Alert>
     )}
   </>
@@ -359,7 +362,7 @@ export const WorkspaceDialog = ({
       }
     } catch (error) {
       toast.add({
-        description: errorMessage(error),
+        description: shortError(error),
         title: "Couldn't open folder picker",
         type: "error",
       });

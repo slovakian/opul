@@ -40,12 +40,59 @@ import {
   TraceTitle,
 } from "@/components/ui/trace";
 import { VideoToolsUpdateAdvice } from "@/components/video-tools-update-advice";
-import { errorMessage } from "@/lib/bridge";
+import { shortError } from "@/lib/bridge";
 import { useLibrary } from "@/lib/library";
 import { bytes, formatNames, sourceNames, timeRemaining } from "@/lib/model";
 import type { Download, Workspace } from "@/lib/model";
+import { truncateError, truncateFilename, truncateUrl } from "@/lib/truncate";
 
 const noop = () => null;
+
+const CopyError = ({ text }: { text: string }) => {
+  const [copied, setCopied] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    },
+    []
+  );
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-sm"
+      className="shrink-0"
+      aria-label={copied ? "Copied error" : "Copy error"}
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(text);
+          setCopied(true);
+
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+          }
+
+          timeoutRef.current = setTimeout(() => {
+            setCopied(false);
+          }, 2000);
+        } catch (error) {
+          toast.add({
+            description: shortError(error),
+            title: "Couldn't copy error",
+            type: "error",
+          });
+        }
+      }}
+    >
+      {copied ? <Check /> : <Copy />}
+    </Button>
+  );
+};
 
 export const DownloadSourceLink = ({ download }: { download: Download }) => {
   const [copied, setCopied] = useState(false);
@@ -74,7 +121,7 @@ export const DownloadSourceLink = ({ download }: { download: Download }) => {
       }, 2000);
     } catch (error) {
       toast.add({
-        description: errorMessage(error),
+        description: shortError(error),
         title: "Couldn't copy link",
         type: "error",
       });
@@ -86,6 +133,7 @@ export const DownloadSourceLink = ({ download }: { download: Download }) => {
   }
 
   const isTorrent = download.source === "Torrent";
+  const sourceLabel = truncateUrl(download.source_url);
 
   return (
     <Trace>
@@ -100,7 +148,7 @@ export const DownloadSourceLink = ({ download }: { download: Download }) => {
           <TraceTitle
             title={copied ? "Copied to clipboard" : download.source_url}
           >
-            {copied ? "Copied to clipboard" : download.source_url}
+            {copied ? "Copied to clipboard" : sourceLabel}
           </TraceTitle>
           <TraceIcon
             className={
@@ -205,8 +253,11 @@ export const DownloadInspector = ({
       <SidebarContent className="scroll-fade gap-6 px-5 pb-6">
         <div className="flex flex-col items-start gap-4 pt-4">
           <DownloadFolderIcon download={download} className="size-12" />
-          <h3 className="max-w-full text-base font-medium break-words">
-            {download.name}
+          <h3
+            className="max-w-full text-base font-medium wrap-break-word"
+            title={download.name}
+          >
+            {truncateFilename(download.name, 72)}
           </h3>
           <div className="flex w-full items-center justify-between">
             <DownloadStatus download={download} />
@@ -228,7 +279,17 @@ export const DownloadInspector = ({
           </p>
         </div>
         {download.error_message && (
-          <Alert variant="destructive">{download.error_message}</Alert>
+          <div className="flex flex-col gap-2">
+            <Alert variant="destructive" title={download.error_message}>
+              {truncateError(download.error_message)}
+            </Alert>
+            <div className="bg-muted/40 flex items-start gap-2 rounded-lg border px-3 py-2">
+              <pre className="text-muted-foreground scroll-fade max-h-32 min-w-0 flex-1 overflow-auto font-mono text-xs whitespace-pre-wrap select-text">
+                {download.error_message}
+              </pre>
+              <CopyError text={download.error_message} />
+            </div>
+          </div>
         )}
         <VideoToolsUpdateAdvice download={download} />
         <Separator />
@@ -298,7 +359,7 @@ export const DownloadInspector = ({
                     <FileIcon />
                   </TraceIcon>
                   <TraceTitle title={download.files[0].path}>
-                    {download.files[0].path}
+                    {truncateFilename(download.files[0].path)}
                   </TraceTitle>
                   <TraceDescription>
                     {bytes(download.files[0].size)}
@@ -319,7 +380,9 @@ export const DownloadInspector = ({
                   <Trace>
                     {download.files.map((file) => (
                       <TraceLine key={file.index}>
-                        <TraceTitle title={file.path}>{file.path}</TraceTitle>
+                        <TraceTitle title={file.path}>
+                          {truncateFilename(file.path)}
+                        </TraceTitle>
                         <TraceDescription>{bytes(file.size)}</TraceDescription>
                       </TraceLine>
                     ))}
@@ -343,7 +406,7 @@ export const DownloadInspector = ({
                     <GlobeIcon />
                   </TraceIcon>
                   <TraceTitle title={download.trackers[0]}>
-                    {download.trackers[0]}
+                    {truncateUrl(download.trackers[0])}
                     <span className="sr-only"> (opens in a new tab)</span>
                   </TraceTitle>
                   <TraceIcon>
@@ -374,7 +437,7 @@ export const DownloadInspector = ({
                     >
                       <TraceLine>
                         <TraceTitle title={tracker}>
-                          {tracker}
+                          {truncateUrl(tracker)}
                           <span className="sr-only"> (opens in a new tab)</span>
                         </TraceTitle>
                         <TraceIcon>

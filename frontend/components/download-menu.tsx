@@ -24,7 +24,7 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { toast } from "@/components/ui/toast";
-import { bridge, errorMessage } from "@/lib/bridge";
+import { bridge, shortError } from "@/lib/bridge";
 import { useLibrary } from "@/lib/library";
 import type { Download, DownloadAction } from "@/lib/model";
 
@@ -33,7 +33,7 @@ export const reveal = async (id: string) => {
     await bridge.reveal(id);
   } catch (error) {
     toast.add({
-      description: errorMessage(error),
+      description: shortError(error),
       title: "Couldn't reveal this download",
       type: "error",
     });

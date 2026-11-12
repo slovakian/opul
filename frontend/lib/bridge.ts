@@ -22,6 +22,7 @@ import type {
   Preferences,
   WorkspaceExpansionChanges,
 } from "@/lib/model";
+import { truncateError } from "@/lib/truncate";
 import {
   toolsSnapshotSchema,
   videoToolsSchema,
@@ -198,3 +199,7 @@ export const bridge = {
 
 export const errorMessage = (cause: unknown) =>
   cause instanceof Error ? cause.message : String(cause);
+
+/** Short error text for toasts and other primary UI surfaces. */
+export const shortError = (cause: unknown) =>
+  truncateError(errorMessage(cause));

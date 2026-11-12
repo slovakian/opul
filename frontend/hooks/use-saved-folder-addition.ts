@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { toast } from "@/components/ui/toast";
-import { bridge, errorMessage } from "@/lib/bridge";
+import { bridge, shortError } from "@/lib/bridge";
 import { useLibrary, useLibrarySelector } from "@/lib/library";
 import { selectWorkspaces } from "@/lib/library-store";
 
@@ -133,7 +133,7 @@ export const useSavedFolderAddition = (
       }
     } catch (error) {
       toast.add({
-        description: errorMessage(error),
+        description: shortError(error),
         title: errorTitle,
         type: "error",
       });

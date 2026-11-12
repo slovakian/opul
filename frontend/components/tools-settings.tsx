@@ -34,6 +34,7 @@ import { StatusBadge, VideoFooter } from "@/components/video-tools-footer";
 import type { Execute } from "@/components/video-tools-footer";
 import { VideoToolsRemoval } from "@/components/video-tools-removal";
 import { useVideoTools } from "@/hooks/use-video-tools";
+import { truncateError } from "@/lib/truncate";
 import type { SetupStep, VideoToolsSnapshot } from "@/lib/video-tools";
 import {
   byteProgress,
@@ -318,8 +319,12 @@ const VideoPreferences = ({
 const ToolsSkeleton = ({ error }: { error: string }) => (
   <div className="flex flex-col gap-6">
     {error ? (
-      <p role="alert" className="text-destructive text-sm">
-        {error}
+      <p
+        role="alert"
+        className="text-destructive text-sm wrap-break-word"
+        title={error}
+      >
+        {truncateError(error)}
       </p>
     ) : (
       <output className="sr-only">Loading tools…</output>
@@ -362,9 +367,10 @@ export const ToolsSettings = ({
         {error && (
           <p
             role="alert"
-            className="text-destructive animate-settle px-1 text-xs"
+            className="text-destructive animate-settle px-1 text-xs wrap-break-word"
+            title={error}
           >
-            {error}
+            {truncateError(error)}
           </p>
         )}
       </div>
