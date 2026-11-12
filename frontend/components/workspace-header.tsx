@@ -1,5 +1,5 @@
 import { isTauri } from "@tauri-apps/api/core";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import {
   Breadcrumb,
@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { WorkspaceIcon } from "@/components/workspace-icon";
 import type { Workspace } from "@/lib/model";
+import { TRAFFIC_LIGHT_CLEARANCE_PX } from "@/lib/titlebar";
 
 export const WorkspaceHeader = ({
   title,
@@ -33,10 +34,16 @@ export const WorkspaceHeader = ({
   const clearTrafficLights =
     isTauri() && /Mac/u.test(navigator.userAgent) && (!open || isMobile);
 
+  // SAFETY: Custom CSS property --traffic-light-inset is valid in CSSProperties.
+  const trafficLightStyle = {
+    "--traffic-light-inset": `${TRAFFIC_LIGHT_CLEARANCE_PX}px`,
+  } as CSSProperties;
+
   return (
     <header
       className="workspace-header shrink-0"
       data-traffic-lights={clearTrafficLights}
+      style={trafficLightStyle}
     >
       <div
         data-tauri-drag-region

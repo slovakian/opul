@@ -2,6 +2,7 @@
 /* oxlint-disable no-await-in-loop */
 import { expect, test } from "@playwright/test";
 
+import { TRAFFIC_LIGHT_CLEARANCE_PX } from "../../frontend/lib/titlebar";
 import { mockDesktop, snapshot } from "./fixture";
 
 test("workspace identity stays first when navigating into a saved folder", async ({
@@ -296,7 +297,7 @@ test("header stays in one row and reserves traffic light space only when navigat
       }
 
       expect(box.x).toBeGreaterThanOrEqual(
-        width === 720 || collapsed ? 80 : 256
+        width === 720 || collapsed ? TRAFFIC_LIGHT_CLEARANCE_PX : 256
       );
       expect(
         await page.evaluate(
