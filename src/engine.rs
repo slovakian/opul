@@ -1242,6 +1242,83 @@ mod tests {
     }
 
     #[test]
+    fn pause_then_resume_clears_user_paused_and_leaves_paused_stats() {
+        let dir = std::env::temp_dir().join(format!(
+            "opul-torrent-pause-resume-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        let engine = TorrentEngine::new(EngineConfig {
+            session_folder: dir.to_string_lossy().into_owned(),
+            listen_port: 0,
+            randomize_port: true,
+            enable_dht: false,
+            max_connections: 8,
+            max_download_bps: 0,
+            max_upload_bps: 0,
+        })
+        .expect("session");
+        let meta = engine
+            .add_torrent_file(
+                sample_bytes(),
+                "memory://pause-resume.torrent".to_string(),
+                dir.join("out").to_string_lossy().into_owned(),
+                DownloadContentLayout::Original,
+                None,
+            )
+            .expect("meta");
+        wait_for_snapshot(&engine, &meta.info_hash, |snap| {
+            snap.piece_count > 0 && snap.state != TorrentState::Failed
+        });
+
+        engine.pause(meta.info_hash.clone());
+        wait_for_snapshot(&engine, &meta.info_hash, |snap| {
+            snap.state == TorrentState::Paused
+        });
+        assert!(
+            extras_flag(&dir, &meta.info_hash, "user_paused"),
+            "pause must persist user_paused"
+        );
+
+        engine.resume(meta.info_hash.clone());
+        wait_for_snapshot(&engine, &meta.info_hash, |snap| {
+            snap.state != TorrentState::Paused && snap.state != TorrentState::Failed
+        });
+        assert!(
+            !extras_flag(&dir, &meta.info_hash, "user_paused"),
+            "resume must clear user_paused"
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    fn wait_for_snapshot(
+        engine: &TorrentEngine,
+        info_hash: &str,
+        ready: impl Fn(&TorrentTransferSnapshot) -> bool,
+    ) -> TorrentTransferSnapshot {
+        for _ in 0..50 {
+            if let Some(snapshot) = engine
+                .snapshots()
+                .into_iter()
+                .find(|snap| snap.info_hash == info_hash && ready(snap))
+            {
+                return snapshot;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        panic!("torrent {info_hash} never reached the expected state");
+    }
+
+    fn extras_flag(session_folder: &Path, info_hash: &str, field: &str) -> bool {
+        let raw = fs::read_to_string(session_folder.join("opul-torrent-extras.json")).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        value
+            .pointer(&format!("/items/{}", info_hash.to_ascii_lowercase()))
+            .and_then(|stored| stored.get(field))
+            == Some(&serde_json::Value::Bool(true))
+    }
+
+    #[test]
     fn load_extras_corrupt_file_preserves_bad_file_and_recovers_from_backup() {
         let dir =
             std::env::temp_dir().join(format!("opul-extras-test-corrupt-{}", std::process::id()));

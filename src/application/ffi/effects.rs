@@ -160,14 +160,20 @@ pub(super) fn ensure_transfer(
     match &context.download.source {
         DownloadSource::Torrent(download) => {
             ensure_torrent(torrent, context, download, &id, layout)?;
-            // A complete torrent starting again (Start seeding, or a relaunch while seeding)
-            // seeds with its current limit; the engine rechecks its files first.
-            if context.download.checking_files()
-                && let Some(binding) = torrent
-                    .binding_for(&id, context.download.attempt)
-                    .or_else(|| download.info_hash.clone())
+            // Resume must always unpause the engine binding. Pause sets
+            // `user_paused` and stops librqbit; EnsureTransfer (person resume,
+            // shutdown recovery, and Start seeding) is the only start path, so
+            // skipping resume leaves the UI in Fetching / "Looking for peers…"
+            // while the torrent stays paused.
+            if let Some(binding) = torrent
+                .binding_for(&id, context.download.attempt)
+                .or_else(|| download.info_hash.clone())
             {
-                torrent.set_seed_ratio_limit(binding.clone(), download.seed_ratio_limit);
+                // Complete torrents reattaching files may also refresh their
+                // seed ratio before they check and seed again.
+                if context.download.checking_files() {
+                    torrent.set_seed_ratio_limit(binding.clone(), download.seed_ratio_limit);
+                }
                 torrent.resume(binding);
             }
         }
