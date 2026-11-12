@@ -30,7 +30,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { sendVideoTools, updateVideoTools } from "@/hooks/use-video-tools";
-import { errorMessage } from "@/lib/bridge";
+import { shortError } from "@/lib/bridge";
 import { useLibrary } from "@/lib/library";
 import type { Download, DownloadAction } from "@/lib/model";
 
@@ -120,7 +120,7 @@ export const DownloadActions = ({
       });
     } catch (error) {
       toast.add({
-        description: errorMessage(error),
+        description: shortError(error),
         title: "Couldn't set up video tools",
         type: "error",
       });

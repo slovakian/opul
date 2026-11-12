@@ -24,6 +24,7 @@ import { emojiDataWithRecents, skinToneChoices } from "@/lib/emoji-data";
 import { useLibrary, useLibrarySelector } from "@/lib/library";
 import { workspaceEmoji } from "@/lib/model";
 import type { Workspace } from "@/lib/model";
+import { truncateError, truncateFilename } from "@/lib/truncate";
 import { cn } from "@/lib/utils";
 import { canTreatEmoji, emojiTreatment } from "@/lib/workspace-appearance";
 
@@ -387,7 +388,9 @@ export const WorkspaceIconEditor = ({
       >
         <div className="flex shrink-0 flex-col gap-1">
           <PopoverTitle>Change icon</PopoverTitle>
-          <PopoverDescription>{workspace.name}</PopoverDescription>
+          <PopoverDescription title={workspace.name}>
+            {truncateFilename(workspace.name, 40)}
+          </PopoverDescription>
         </div>
         {ready ? (
           <WorkspaceIconPicker
@@ -402,7 +405,9 @@ export const WorkspaceIconEditor = ({
         )}
         {error && (
           <Alert role="alert">
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription title={error}>
+              {truncateError(error)}
+            </AlertDescription>
           </Alert>
         )}
         <div className="flex shrink-0 justify-end gap-2">

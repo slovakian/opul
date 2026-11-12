@@ -28,6 +28,7 @@ import { Trace, TraceIcon, TraceLine, TraceTitle } from "@/components/ui/trace";
 import { VideoToolsProgress } from "@/components/video-tools-progress";
 import { configureAppUpdates, useAppUpdates } from "@/hooks/use-app-updates";
 import type { useVideoSetup } from "@/hooks/use-video-setup";
+import { truncateError } from "@/lib/truncate";
 import {
   PERCENT,
   downloadSize,
@@ -284,8 +285,8 @@ const UpdateOpulAutomatically = () => {
 const FailureAlert = ({ failure }: { failure: NotWorkingState }) => (
   <Alert variant="destructive">
     <AlertTitle>{failureText[failure.reason].summary}</AlertTitle>
-    <AlertDescription className="select-text">
-      {failure.details}
+    <AlertDescription className="select-text" title={failure.details}>
+      {truncateError(failure.details)}
     </AlertDescription>
   </Alert>
 );
@@ -564,9 +565,10 @@ export const VideoSetup = ({ setup }: { setup: Setup }) => {
                 {error && (
                   <p
                     role="alert"
-                    className="text-destructive animate-settle text-center text-xs"
+                    className="text-destructive animate-settle text-center text-xs wrap-break-word"
+                    title={error}
                   >
-                    {error}
+                    {truncateError(error)}
                   </p>
                 )}
               </div>

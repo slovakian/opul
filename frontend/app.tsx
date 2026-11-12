@@ -31,6 +31,7 @@ import {
   selectWorkspaces,
 } from "@/lib/library-store";
 import type { DisplayPreferences, Download } from "@/lib/model";
+import { truncateError } from "@/lib/truncate";
 import { cn } from "@/lib/utils";
 
 const noNotices: readonly string[] = [];
@@ -269,7 +270,9 @@ const App = () => {
                 <CircleAlert />
                 <AlertTitle>Couldn&apos;t load preferences</AlertTitle>
                 <AlertDescription>
-                  <p>{preferenceStatus.message}</p>
+                  <p title={preferenceStatus.message}>
+                    {truncateError(preferenceStatus.message)}
+                  </p>
                   <Button
                     variant="outline"
                     onClick={() => {
@@ -286,7 +289,9 @@ const App = () => {
                 <CircleAlert />
                 <AlertTitle>Couldn&apos;t save workspace expansion</AlertTitle>
                 <AlertDescription>
-                  <p>{workspaceExpansion.error}</p>
+                  <p title={workspaceExpansion.error}>
+                    {truncateError(workspaceExpansion.error)}
+                  </p>
                   <Button
                     variant="outline"
                     size="sm"

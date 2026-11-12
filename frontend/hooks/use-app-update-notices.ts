@@ -13,6 +13,7 @@ import {
 } from "@/lib/app-updates";
 import type { AppUpdatePhase, AppUpdates } from "@/lib/app-updates";
 import { bridge } from "@/lib/bridge";
+import { truncateError } from "@/lib/truncate";
 
 /** One toast follows an update from offer to progress to ready, changing in place. */
 const TOAST_ID = "opul-update";
@@ -25,7 +26,7 @@ const download = async () => {
   if (failure) {
     toast.add({
       data: {},
-      description: failure,
+      description: truncateError(failure),
       id: TOAST_ID,
       timeout: 0,
       title: "Couldn't download the update",
@@ -82,7 +83,7 @@ const followUp = (
           },
         },
         data: {},
-        description: phase.message,
+        description: truncateError(phase.message),
         timeout: 0,
         title: `Couldn't download ${name} ${phase.version}`,
         type: "error",

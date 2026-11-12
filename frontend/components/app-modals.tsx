@@ -17,6 +17,7 @@ import { useLibrarySelector } from "@/lib/library";
 import type { useLibrary } from "@/lib/library";
 import { selectWorkspaces } from "@/lib/library-store";
 import type { Download, Workspace } from "@/lib/model";
+import { truncateFilename } from "@/lib/truncate";
 
 export type Modal =
   | { kind: "icon"; workspace: Workspace; anchor: HTMLButtonElement | null }
@@ -65,9 +66,24 @@ const DeleteConfirmDialog = ({
             {isRemove ? "Remove this download?" : "Delete this workspace?"}
           </DialogTitle>
           <DialogDescription>
-            {isRemove
-              ? `Remove “${modal.download.name}” from your library? Any active transfer will stop. Your downloaded files stay on disk.`
-              : `Delete “${modal.workspace.name}” and its download history? Downloaded files stay on disk.`}
+            {isRemove ? (
+              <>
+                Remove “
+                <span title={modal.download.name}>
+                  {truncateFilename(modal.download.name, 72)}
+                </span>
+                ” from your library? Any active transfer will stop. Your
+                downloaded files stay on disk.
+              </>
+            ) : (
+              <>
+                Delete “
+                <span title={modal.workspace.name}>
+                  {truncateFilename(modal.workspace.name, 72)}
+                </span>
+                ” and its download history? Downloaded files stay on disk.
+              </>
+            )}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

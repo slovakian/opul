@@ -21,6 +21,7 @@ import type { DownloadType } from "@/lib/download-options";
 import { useLibrary } from "@/lib/library";
 import { formatNames, formatSchema } from "@/lib/model";
 import type { Folder, Format, Workspace } from "@/lib/model";
+import { truncateFilename } from "@/lib/truncate";
 
 export const DownloadOptions = ({
   workspace,
@@ -79,8 +80,12 @@ export const DownloadOptions = ({
       <PopoverContent align="end">
         <PopoverTitle>Download options</PopoverTitle>
         {workspace && folder && (
-          <p className="text-muted-foreground -mt-1 text-xs">
-            {workspace.name} › {folder.name}
+          <p
+            className="text-muted-foreground -mt-1 truncate text-xs"
+            title={`${workspace.name} › ${folder.name}`}
+          >
+            {truncateFilename(workspace.name, 28)} ›{" "}
+            {truncateFilename(folder.name, 28)}
           </p>
         )}
         <FieldGroup>

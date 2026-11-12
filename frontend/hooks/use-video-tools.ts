@@ -1,7 +1,7 @@
 import { useCallback, useState, useSyncExternalStore } from "react";
 
 import { toast } from "@/components/ui/toast";
-import { bridge, errorMessage } from "@/lib/bridge";
+import { bridge, errorMessage, shortError } from "@/lib/bridge";
 import type {
   ToolsSnapshot,
   VideoToolsOperation,
@@ -133,7 +133,7 @@ export const updateVideoTools = async () => {
     await sendVideoTools({ kind: "update" });
   } catch (error) {
     toast.add({
-      description: errorMessage(error),
+      description: shortError(error),
       title: "Couldn't update video tools",
       type: "error",
     });

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import { useVideoTools } from "@/hooks/use-video-tools";
 import { useVideoUpdateNotice } from "@/hooks/use-video-update-notice";
-import { bridge, errorMessage } from "@/lib/bridge";
+import { bridge, shortError } from "@/lib/bridge";
 import { useLibrary } from "@/lib/library";
 
 export const useVideoSetup = () => {
@@ -44,7 +44,7 @@ export const useVideoSetup = () => {
       } catch (error) {
         if (!stopped) {
           toast.add({
-            description: errorMessage(error),
+            description: shortError(error),
             title: "Couldn't remember Setup",
           });
         }

@@ -8,6 +8,7 @@ import { useVisibleDownloads } from "@/hooks/use-workspace-view";
 import type { VisibleDownloadsOptions } from "@/hooks/use-workspace-view";
 import { useLibrary, useLibrarySelector } from "@/lib/library";
 import type { Download, ListStyle } from "@/lib/model";
+import { truncateError } from "@/lib/truncate";
 
 const noop = () => null;
 
@@ -53,7 +54,7 @@ export const AppContent = ({
         <CircleAlert />
         <AlertTitle>Couldn&apos;t open your library</AlertTitle>
         <AlertDescription>
-          <p>{failure}</p>
+          <p title={failure}>{truncateError(failure)}</p>
           <Button variant="outline" size="sm" onClick={reconnect}>
             Try again
           </Button>

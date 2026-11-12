@@ -11,7 +11,7 @@ import {
 import type { ReactNode } from "react";
 
 import { toast } from "@/components/ui/toast";
-import { bridge, errorMessage } from "@/lib/bridge";
+import { bridge, errorMessage, shortError } from "@/lib/bridge";
 import { createLibraryStore } from "@/lib/library-store";
 import type { LibraryState, LibraryStore } from "@/lib/library-store";
 import type {
@@ -232,7 +232,7 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
         }
 
         toast.add({
-          description: errorMessage(error),
+          description: shortError(error),
           title: "Couldn't complete that action",
           type: "error",
         });
@@ -268,7 +268,7 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
         });
       } catch (error) {
         toast.add({
-          description: errorMessage(error),
+          description: shortError(error),
           title: "Couldn't save display preferences",
           type: "error",
         });
@@ -326,7 +326,7 @@ export const LibraryProvider = ({ children }: { children: ReactNode }) => {
       return true;
     } catch (error) {
       toast.add({
-        description: errorMessage(error),
+        description: shortError(error),
         title: "Couldn't save settings",
         type: "error",
       });

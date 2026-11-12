@@ -13,6 +13,7 @@ import {
 import { useVideoTools } from "@/hooks/use-video-tools";
 import { useLibrarySelector } from "@/lib/library";
 import { countDownloads } from "@/lib/library-store";
+import { truncateError } from "@/lib/truncate";
 
 export const VideoToolsRemoval = () => {
   const { busy, error, remove } = useVideoTools();
@@ -57,8 +58,12 @@ export const VideoToolsRemoval = () => {
             Don&apos;t offer video tools again
           </label>
           {error && (
-            <p role="alert" className="text-destructive text-xs">
-              {error}
+            <p
+              role="alert"
+              className="text-destructive text-xs wrap-break-word"
+              title={error}
+            >
+              {truncateError(error)}
             </p>
           )}
           <DialogFooter>

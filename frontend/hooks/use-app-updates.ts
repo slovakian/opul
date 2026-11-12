@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 
 import { toast } from "@/components/ui/toast";
 import type { AppUpdates } from "@/lib/app-updates";
-import { bridge, errorMessage } from "@/lib/bridge";
+import { bridge, errorMessage, shortError } from "@/lib/bridge";
 
 interface AppUpdatesStore {
   updates: AppUpdates | null;
@@ -117,7 +117,7 @@ export const restartForAppUpdate = async () => {
     await bridge.restartForAppUpdate();
   } catch (error) {
     toast.add({
-      description: errorMessage(error),
+      description: shortError(error),
       title: "Couldn't restart Opul",
       type: "error",
     });

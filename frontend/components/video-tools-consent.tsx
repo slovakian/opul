@@ -11,6 +11,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { truncateError } from "@/lib/truncate";
 import { downloadSize } from "@/lib/video-tools";
 
 export const VideoToolsConsent = ({
@@ -56,8 +57,12 @@ export const VideoToolsConsent = ({
           Don&apos;t show this again
         </label>
         {error && (
-          <p role="alert" className="text-destructive text-sm">
-            {error}
+          <p
+            role="alert"
+            className="text-destructive text-sm wrap-break-word"
+            title={error}
+          >
+            {truncateError(error)}
           </p>
         )}
         <DialogFooter>
