@@ -171,3 +171,174 @@ fn check_output(layout: Layout) {
     }
     machine.begin_shutdown().unwrap();
 }
+
+#[test]
+fn pausing_then_resuming_an_incomplete_torrent_unpauses_the_engine() {
+    let root = tempfile::tempdir().unwrap();
+    let downloads = root.path().join("downloads");
+    fs::create_dir_all(&downloads).unwrap();
+    let torrent_session = root.path().join("torrent");
+    let payload = b"Opul incomplete pause-resume fixture\n";
+    let machine = OpulStateMachine::open(OpulMachineConfig {
+        application_support_folder: root.path().join("app").to_string_lossy().into_owned(),
+        downloads_folder: downloads.to_string_lossy().into_owned(),
+        torrent: EngineConfig {
+            session_folder: torrent_session.to_string_lossy().into_owned(),
+            listen_port: 0,
+            randomize_port: true,
+            enable_dht: false,
+            max_connections: 8,
+            max_download_bps: 0,
+            max_upload_bps: 0,
+        },
+        media: MediaEngineConfig {
+            session_folder: root.path().join("media").to_string_lossy().into_owned(),
+            resources_folder: None,
+            video_tools: crate::video_tools::not_set_up(),
+            max_concurrent_downloads: 1,
+            max_download_bps: 0,
+        },
+    })
+    .unwrap();
+    let snapshot = machine.snapshot();
+    let workspace = &snapshot.workspaces[0];
+    machine
+        .update_workspace(MachineWorkspaceRequest {
+            request_id: Uuid::new_v4().to_string(),
+            expected_revision: None,
+            workspace_id: workspace.id.clone(),
+            name: workspace.name.clone(),
+            icon: workspace.icon.clone(),
+            appearance: workspace.appearance.clone(),
+            folder_id: workspace.folders[0].id.clone(),
+            folder_name: workspace.folders[0].name.clone(),
+            folder_path: workspace.folders[0].path.clone(),
+            default_format: workspace.default_format,
+            file_organization: MachineFileOrganization::KeepInSaveLocation,
+        })
+        .unwrap();
+    let info = BTreeMap::from([
+        (b"name".to_vec(), BValue::Bytes(b"missing.bin".to_vec())),
+        (b"length".to_vec(), BValue::Int(payload.len() as i64)),
+        (b"piece length".to_vec(), BValue::Int(16384)),
+        (
+            b"pieces".to_vec(),
+            BValue::Bytes(Sha1::digest(payload).to_vec()),
+        ),
+    ]);
+    let id = machine
+        .add_torrent(MachineTorrentRequest {
+            request_id: Uuid::new_v4().to_string(),
+            expected_revision: None,
+            workspace_id: workspace.id.clone(),
+            folder_id: workspace.folders[0].id.clone(),
+            source: "missing.torrent".into(),
+            metainfo: Some(crate::meta::encode_meta_for_test(info, None)),
+            seed_ratio_limit: None,
+        })
+        .unwrap()
+        .created_download_ids[0]
+        .clone();
+
+    wait_until(&machine, &id, Duration::from_secs(5), |download| {
+        download.state == MachineDownloadState::Fetching && download.total_size > 0
+    });
+
+    machine
+        .pause_download(MachineDownloadCommand {
+            request_id: Uuid::new_v4().to_string(),
+            expected_revision: None,
+            download_id: id.clone(),
+        })
+        .unwrap();
+    wait_until(&machine, &id, Duration::from_secs(5), |download| {
+        download.state == MachineDownloadState::Paused
+    });
+    assert!(
+        extras_user_paused(&torrent_session),
+        "pause must mark the torrent engine binding as user-paused"
+    );
+
+    machine
+        .resume_download(MachineDownloadCommand {
+            request_id: Uuid::new_v4().to_string(),
+            expected_revision: None,
+            download_id: id.clone(),
+        })
+        .unwrap();
+    wait_until(&machine, &id, Duration::from_secs(5), |download| {
+        matches!(
+            download.state,
+            MachineDownloadState::Starting | MachineDownloadState::Fetching
+        )
+    });
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        if !extras_user_paused(&torrent_session) {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "resume left the torrent engine user-paused; UI stays Fetching / looking for peers"
+        );
+        thread::sleep(Duration::from_millis(20));
+    }
+    let download = download_by_id(&machine, &id);
+    assert!(
+        matches!(
+            download.state,
+            MachineDownloadState::Starting | MachineDownloadState::Fetching
+        ),
+        "resumed incomplete torrent stayed {:?}",
+        download.state
+    );
+    assert!(download.capabilities.can_pause);
+    assert!(!download.capabilities.can_resume);
+    machine.begin_shutdown().unwrap();
+}
+
+fn download_by_id(machine: &OpulStateMachine, id: &str) -> MachineDownload {
+    machine.snapshot().workspaces[0]
+        .downloads
+        .iter()
+        .find(|download| download.id == id)
+        .cloned()
+        .expect("download present")
+}
+
+fn wait_until(
+    machine: &OpulStateMachine,
+    id: &str,
+    timeout: Duration,
+    ready: impl Fn(&MachineDownload) -> bool,
+) {
+    let deadline = Instant::now() + timeout;
+    loop {
+        let download = download_by_id(machine, id);
+        if ready(&download) {
+            return;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "timed out waiting for download state; last was {:?}",
+            download.state
+        );
+        thread::sleep(Duration::from_millis(20));
+    }
+}
+
+fn extras_user_paused(session_folder: &Path) -> bool {
+    let path = session_folder.join("opul-torrent-extras.json");
+    let Ok(raw) = fs::read_to_string(&path) else {
+        return false;
+    };
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) else {
+        return false;
+    };
+    value
+        .get("items")
+        .and_then(|items| items.as_object())
+        .into_iter()
+        .flatten()
+        .any(|(_, stored)| stored.get("user_paused") == Some(&serde_json::Value::Bool(true)))
+}
