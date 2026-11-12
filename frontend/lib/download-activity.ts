@@ -1,7 +1,16 @@
 import type { Download } from "@/lib/model";
 
-/** Downloads the In progress view counts: transferring, pausing, or waiting for video tools. */
+/** States that belong in the In progress sidebar bucket. */
+export const activeStates = new Set<Download["state"]>([
+  "WaitingForVideoTools",
+  "Queued",
+  "Starting",
+  "Fetching",
+  "Processing",
+  "Verifying",
+  "Pausing",
+]);
+
+/** Downloads the In progress view counts, independent of pause capability. */
 export const isActiveDownload = (download: Download): boolean =>
-  download.capabilities.can_pause ||
-  download.state === "Pausing" ||
-  download.state === "WaitingForVideoTools";
+  activeStates.has(download.state);

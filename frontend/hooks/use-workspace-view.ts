@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 
 import type { Location, StatusFilter } from "@/components/workspace-sidebar";
+import { isActiveDownload } from "@/lib/download-activity";
 import type { useLibrary } from "@/lib/library";
 import { useLibrarySelector } from "@/lib/library";
 import { selectDownloads, selectWorkspaces } from "@/lib/library-store";
@@ -43,11 +44,7 @@ export const filterAndSortDownloads = <T extends Download>({
     }
 
     if (effectiveFilter === "active") {
-      return (
-        download.capabilities.can_pause ||
-        download.state === "Pausing" ||
-        download.state === "WaitingForVideoTools"
-      );
+      return isActiveDownload(download);
     }
 
     if (effectiveFilter === "finished") {
