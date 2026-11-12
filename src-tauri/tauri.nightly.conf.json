@@ -7,7 +7,13 @@
     "windows": [
       {
         "label": "main",
-        "title": "Opul Nightly"
+        "title": "Opul Nightly",
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": {
+          "x": 16,
+          "y": 30
+        }
       }
     ]
   },

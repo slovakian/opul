@@ -199,6 +199,7 @@ export const WorkspaceSidebar = ({
       role="navigation"
       aria-label="Workspace navigation"
     >
+      {/* pt-12 clears Overlay traffic lights in the sidebar chrome only. */}
       <SidebarHeader className="gap-4 px-3 pt-12 pb-3">
         <SidebarMenu>
           <SidebarMenuItem>
