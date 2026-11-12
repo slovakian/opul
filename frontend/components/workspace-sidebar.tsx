@@ -72,8 +72,6 @@ const folderRequest = (workspace: Workspace, folder: Folder) => ({
 interface DownloadCounts {
   active: number;
   all: number;
-  /** Whether anything is transferring, which animates the In progress label. */
-  downloading: boolean;
   finished: number;
 }
 
@@ -83,7 +81,6 @@ const selectDownloadCounts = (state: LibraryState): DownloadCounts => {
   return {
     active: downloads.filter(isActiveDownload).length,
     all: downloads.length,
-    downloading: downloads.some((download) => download.download_rate > 0),
     finished: downloads.filter((download) => completeStates.has(download.state))
       .length,
   };
@@ -92,7 +89,6 @@ const selectDownloadCounts = (state: LibraryState): DownloadCounts => {
 const sameCounts = (previous: DownloadCounts, next: DownloadCounts) =>
   previous.active === next.active &&
   previous.all === next.all &&
-  previous.downloading === next.downloading &&
   previous.finished === next.finished;
 
 /** The combined download rate, which changes with every transfer update. */
@@ -182,7 +178,7 @@ export const WorkspaceSidebar = ({
     !isMobile || openMobile
   );
 
-  const { downloading } = counts;
+  const inProgress = counts.active > 0;
 
   const go = (next: Location) => {
     navigate(next);
@@ -232,15 +228,23 @@ export const WorkspaceSidebar = ({
                   isActive={location.kind === item.status}
                   onClick={() => go({ kind: item.status })}
                 >
-                  <item.icon />
+                  <item.icon
+                    className={cn(
+                      item.status === "active" &&
+                        inProgress &&
+                        "animate-breathe"
+                    )}
+                  />
                   {/* The shimmer stays mounted and fades via its text fill, so
-                      starting or stopping never snaps the sweep mid-frame. */}
+                      starting or stopping never snaps the sweep mid-frame.
+                      Gate on the In progress count, not byte rate, so queued
+                      and waiting rows still animate. */}
                   <span
                     className={cn(
                       item.status === "active" &&
                         "shimmer transition-[-webkit-text-fill-color] duration-500 ease-out",
                       item.status === "active" &&
-                        !downloading &&
+                        !inProgress &&
                         "[--shimmer-text-fill:currentColor] [animation-play-state:paused]"
                     )}
                   >
