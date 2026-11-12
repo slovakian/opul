@@ -16,7 +16,6 @@ import { DownloadFolderIcon } from "@/components/download-folder-icon";
 import { reveal } from "@/components/download-menu";
 import { DownloadStatus } from "@/components/downloads";
 import { InspectorPanel } from "@/components/inspector-panel";
-import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   CodeBlock,
@@ -52,7 +51,7 @@ import { shortError } from "@/lib/bridge";
 import { useLibrary } from "@/lib/library";
 import { bytes, formatNames, sourceNames, timeRemaining } from "@/lib/model";
 import type { Download, Workspace } from "@/lib/model";
-import { truncateError, truncateFilename, truncateUrl } from "@/lib/truncate";
+import { truncateFilename, truncateUrl } from "@/lib/truncate";
 
 const noop = () => null;
 
@@ -241,20 +240,15 @@ export const DownloadInspector = ({
           </p>
         </div>
         {download.error_message && (
-          <div className="flex flex-col gap-2">
-            <Alert variant="destructive" title={download.error_message}>
-              {truncateError(download.error_message)}
-            </Alert>
-            <CodeBlock variant="destructive">
-              <CodeBlockHeader>
-                <CodeBlockTitle>Error</CodeBlockTitle>
-                <CodeBlockActions>
-                  <CodeBlockCopyButton value={download.error_message} />
-                </CodeBlockActions>
-              </CodeBlockHeader>
-              <CodeBlockContent wrap>{download.error_message}</CodeBlockContent>
-            </CodeBlock>
-          </div>
+          <CodeBlock variant="destructive">
+            <CodeBlockHeader>
+              <CodeBlockTitle>Error</CodeBlockTitle>
+              <CodeBlockActions>
+                <CodeBlockCopyButton value={download.error_message} />
+              </CodeBlockActions>
+            </CodeBlockHeader>
+            <CodeBlockContent wrap>{download.error_message}</CodeBlockContent>
+          </CodeBlock>
         )}
         <VideoToolsUpdateAdvice download={download} />
         <Separator />
