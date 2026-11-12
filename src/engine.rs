@@ -1243,10 +1243,8 @@ mod tests {
 
     #[test]
     fn pause_then_resume_clears_user_paused_and_leaves_paused_stats() {
-        let dir = std::env::temp_dir().join(format!(
-            "opul-torrent-pause-resume-{}",
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("opul-torrent-pause-resume-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         let engine = TorrentEngine::new(EngineConfig {
             session_folder: dir.to_string_lossy().into_owned(),
