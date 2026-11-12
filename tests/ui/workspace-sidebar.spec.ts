@@ -10,6 +10,58 @@ import {
   sidebar,
 } from "./workspace-sidebar-fixture";
 
+test("workspace labels share the top nav icon→label left edge", async ({
+  page,
+}) => {
+  const saved = library();
+  // Wide ZWJ sequences must not expand the emoji slot past lucide size-4.
+  saved.workspaces[0].icon = { kind: "Emoji", value: "👩‍💻" };
+  saved.workspaces[1].icon = { kind: "Emoji", value: "🏳️‍🌈" };
+  await mockDesktop(page, { snapshot: saved });
+  await page.goto("/");
+
+  const edges = await sidebar(page).evaluate((root) => {
+    const aggregates: number[] = [];
+    const workspaces: number[] = [];
+
+    for (const button of root.querySelectorAll(
+      '[data-slot="sidebar-menu-button"]'
+    )) {
+      const spans = button.querySelectorAll(":scope > span");
+      const label = spans.item(spans.length - 1);
+      const left = label?.getBoundingClientRect().left;
+
+      if (left === undefined) {
+        continue;
+      }
+
+      if (aggregates.length < 3) {
+        aggregates.push(left);
+      }
+
+      if (
+        button instanceof HTMLElement &&
+        Object.hasOwn(button.dataset, "workspaceNavigation")
+      ) {
+        workspaces.push(left);
+      }
+    }
+
+    return { aggregates, workspaces };
+  });
+
+  expect(edges.aggregates).toHaveLength(3);
+  expect(edges.workspaces.length).toBeGreaterThanOrEqual(2);
+
+  const [expected] = edges.aggregates;
+
+  expect(expected).toEqual(expect.any(Number));
+
+  for (const left of [...edges.aggregates, ...edges.workspaces]) {
+    expect(left).toBeCloseTo(expected, 0);
+  }
+});
+
 test("one saved folder has a simple workspace row with persistent artwork and keyboard actions", async ({
   page,
 }) => {

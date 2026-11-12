@@ -257,7 +257,8 @@ export const WorkspaceSidebar = ({
       </SidebarHeader>
       <SidebarSeparator />
       <SidebarContent className="scroll-fade">
-        <SidebarGroup>
+        {/* p-3 matches aggregate px-3 and footer p-3 so labels share one left edge (shadcn sidebar-10). */}
+        <SidebarGroup className="p-3">
           <SidebarGroupLabel>Workspaces</SidebarGroupLabel>
           <SidebarGroupAction
             aria-label="New workspace"
@@ -292,10 +293,11 @@ export const WorkspaceSidebar = ({
                       go({ kind: "workspace", workspaceId: workspace.id })
                     }
                   >
+                    {/* size-4 + min-w-4 matches lucide [&_svg]:size-4; min-w-4 stops emoji advance from widening the slot. */}
                     <span
                       aria-hidden
                       className={cn(
-                        "flex size-4 shrink-0 items-center justify-center",
+                        "flex size-4 min-w-4 shrink-0 items-center justify-center overflow-hidden",
                         workspace.folders.length > 1 &&
                           "group-focus-within/workspace:invisible group-hover/workspace:invisible"
                       )}
@@ -308,7 +310,7 @@ export const WorkspaceSidebar = ({
                     <CollapsibleTrigger
                       render={
                         <SidebarMenuAction
-                          className="right-auto left-1.5 opacity-0 group-focus-within/workspace:opacity-100 group-hover/workspace:opacity-100 data-panel-open:rotate-90"
+                          className="right-auto left-2 opacity-0 group-focus-within/workspace:opacity-100 group-hover/workspace:opacity-100 data-panel-open:rotate-90"
                           aria-label={`Toggle ${workspace.name} folders`}
                           data-workspace-disclosure
                         />
