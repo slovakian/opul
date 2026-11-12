@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef } from "react";
 
-import opulLogo from "@/assets/opul-logo.png";
+import { OpulLogoRow } from "@/components/opul-logo-row";
 import { SidebarPopover } from "@/components/sidebar-popover";
 import {
   Collapsible,
@@ -199,98 +199,61 @@ export const WorkspaceSidebar = ({
       role="navigation"
       aria-label="Workspace navigation"
     >
-      {/* pt-12 clears Overlay traffic lights in the sidebar chrome only. */}
-      <SidebarHeader className="gap-4 px-3 pt-12 pb-3">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarPopover
-              align="start"
-              title="Opul"
-              trigger={
-                <SidebarMenuButton className="w-fit">
-                  <img src={opulLogo} alt="" className="size-6 shrink-0" />
-                  <span className="font-semibold">Opul</span>
-                  <ChevronRight className="rotate-90 opacity-50" />
-                </SidebarMenuButton>
-              }
-              groups={[
-                {
-                  actions: [
-                    {
-                      hint: "⌘N",
-                      icon: Plus,
-                      label: "New download",
-                      onClick: onNew,
-                    },
-                    {
-                      icon: FolderPlus,
-                      label: "New workspace",
-                      onClick: onCreate,
-                    },
-                  ],
-                },
-                {
-                  actions: [
-                    {
-                      hint: "⌘,",
-                      icon: Settings2,
-                      label: "Settings",
-                      onClick: onSettings,
-                    },
-                  ],
-                },
-              ]}
-            />
-          </SidebarMenuItem>
-        </SidebarMenu>
-        <SidebarSeparator />
-        <SidebarMenu>
-          {[
-            {
-              count: counts.all,
-              icon: Inbox,
-              label: aggregateNames.all,
-              status: "all" as const,
-            },
-            {
-              count: counts.active,
-              icon: ArrowDown,
-              label: aggregateNames.active,
-              status: "active" as const,
-            },
-            {
-              count: counts.finished,
-              icon: Check,
-              label: aggregateNames.finished,
-              status: "finished" as const,
-            },
-          ].map((item) => (
-            <SidebarMenuItem key={item.label}>
-              <SidebarMenuButton
-                isActive={location.kind === item.status}
-                onClick={() => go({ kind: item.status })}
-              >
-                <item.icon />
-                {/* The shimmer stays mounted and fades via its text fill, so
-                    starting or stopping never snaps the sweep mid-frame. */}
-                <span
-                  className={cn(
-                    item.status === "active" &&
-                      "shimmer transition-[-webkit-text-fill-color] duration-500 ease-out",
-                    item.status === "active" &&
-                      !downloading &&
-                      "[--shimmer-text-fill:currentColor] [animation-play-state:paused]"
-                  )}
+      <SidebarHeader className="gap-0 p-0">
+        <OpulLogoRow
+          onNew={onNew}
+          onCreate={onCreate}
+          onSettings={onSettings}
+        />
+        <div className="flex flex-col gap-4 px-3 pb-3">
+          <SidebarMenu>
+            {[
+              {
+                count: counts.all,
+                icon: Inbox,
+                label: aggregateNames.all,
+                status: "all" as const,
+              },
+              {
+                count: counts.active,
+                icon: ArrowDown,
+                label: aggregateNames.active,
+                status: "active" as const,
+              },
+              {
+                count: counts.finished,
+                icon: Check,
+                label: aggregateNames.finished,
+                status: "finished" as const,
+              },
+            ].map((item) => (
+              <SidebarMenuItem key={item.label}>
+                <SidebarMenuButton
+                  isActive={location.kind === item.status}
+                  onClick={() => go({ kind: item.status })}
                 >
-                  {item.label}
-                </span>
-              </SidebarMenuButton>
-              {item.count > 0 && (
-                <SidebarMenuBadge>{item.count}</SidebarMenuBadge>
-              )}
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
+                  <item.icon />
+                  {/* The shimmer stays mounted and fades via its text fill, so
+                      starting or stopping never snaps the sweep mid-frame. */}
+                  <span
+                    className={cn(
+                      item.status === "active" &&
+                        "shimmer transition-[-webkit-text-fill-color] duration-500 ease-out",
+                      item.status === "active" &&
+                        !downloading &&
+                        "[--shimmer-text-fill:currentColor] [animation-play-state:paused]"
+                    )}
+                  >
+                    {item.label}
+                  </span>
+                </SidebarMenuButton>
+                {item.count > 0 && (
+                  <SidebarMenuBadge>{item.count}</SidebarMenuBadge>
+                )}
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </div>
       </SidebarHeader>
       <SidebarSeparator />
       <SidebarContent className="scroll-fade">

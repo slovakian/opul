@@ -1,4 +1,3 @@
-import { isTauri } from "@tauri-apps/api/core";
 import type { CSSProperties, ReactNode } from "react";
 
 import {
@@ -12,7 +11,10 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { WorkspaceIcon } from "@/components/workspace-icon";
 import type { Workspace } from "@/lib/model";
-import { TRAFFIC_LIGHT_CLEARANCE_PX } from "@/lib/titlebar";
+import {
+  TRAFFIC_LIGHT_CLEARANCE_PX,
+  hasMacOverlayTrafficLights,
+} from "@/lib/titlebar";
 
 export const WorkspaceHeader = ({
   title,
@@ -32,7 +34,7 @@ export const WorkspaceHeader = ({
   // Overlay lights sit in the header row when the sidebar column is gone.
   // Clear that leading column so controls are not under the lights.
   const clearTrafficLights =
-    isTauri() && /Mac/u.test(navigator.userAgent) && (!open || isMobile);
+    hasMacOverlayTrafficLights() && (!open || isMobile);
 
   // SAFETY: Custom CSS property --traffic-light-inset is valid in CSSProperties.
   const trafficLightStyle = {

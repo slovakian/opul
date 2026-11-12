@@ -314,6 +314,40 @@ test("header stays in one row and reserves traffic light space only when navigat
   await page.screenshot({ path: "test-results/unified-header-720.png" });
 });
 
+test("Opul logo shares the header midY and clears Overlay traffic lights", async ({
+  page,
+}) => {
+  await mockDesktop(page);
+  await page.setViewportSize({ height: 800, width: 1220 });
+  await page.goto("/");
+
+  const header = page.locator("main > header");
+  const logo = page.getByRole("button", { exact: true, name: "Opul" });
+  const logoRow = page.locator(".opul-logo-row");
+
+  const headerBox = await header.boundingBox();
+  const logoBox = await logo.boundingBox();
+  const rowBox = await logoRow.boundingBox();
+
+  if (!(headerBox && logoBox && rowBox)) {
+    throw new Error("Header and Opul logo must be visible");
+  }
+
+  expect(rowBox.height).toBe(56);
+  expect(headerBox.height).toBe(56);
+
+  const headerMidY = headerBox.y + headerBox.height / 2;
+  const logoMidY = logoBox.y + logoBox.height / 2;
+
+  expect(Math.abs(headerMidY - logoMidY)).toBeLessThanOrEqual(1);
+
+  const isMac = await page.evaluate(() => /Mac/u.test(navigator.userAgent));
+
+  if (isMac) {
+    expect(logoBox.x).toBeGreaterThanOrEqual(TRAFFIC_LIGHT_CLEARANCE_PX);
+  }
+});
+
 test("New download closes overlay navigation and focuses the input", async ({
   page,
 }) => {
