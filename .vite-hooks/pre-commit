@@ -1,8 +1,32 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
 
 # Prevent staged files over 5,000 tokens (bytes/4)
-"$(git rev-parse --show-toplevel)/Scripts/check_token_limit.sh"
+"$ROOT/Scripts/check_token_limit.sh"
 
 # Run Vite+ staged checks
 vp staged
+
+# Format staged Rust so local commits match CI `cargo fmt --all --check`
+STAGED_RS="$(git diff --cached --name-only --diff-filter=ACMR -- '*.rs' || true)"
+if [[ -n "$STAGED_RS" ]]; then
+  RS_FILES=()
+  while IFS= read -r file; do
+    [[ -z "$file" ]] && continue
+    [[ -f "$file" ]] || continue
+    RS_FILES+=("$file")
+  done <<< "$STAGED_RS"
+
+  if ((${#RS_FILES[@]} > 0)); then
+    if ! cargo fmt -- "${RS_FILES[@]}"; then
+      cat >&2 <<'EOF'
+pre-commit: cargo fmt failed on staged Rust files.
+Fix formatting, then stage the files and commit again.
+EOF
+      exit 1
+    fi
+    git add -- "${RS_FILES[@]}"
+  fi
+fi

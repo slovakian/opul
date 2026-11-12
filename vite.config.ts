@@ -114,7 +114,8 @@ export default defineConfig({
   },
   server: { port: 1420, strictPort: true },
   staged: {
-    "*": "vp fmt",
+    // Rust sources are ignored by vp fmt; allow Rust-only commits to reach cargo fmt.
+    "*": "vp fmt --no-error-on-unmatched-pattern",
   },
   test: {
     clearMocks: false,
