@@ -36,9 +36,11 @@ a {
 }
 .workspace-header {
   container-type: inline-size;
+  /* Reserve traffic-light space only in the top chrome when the sidebar is gone. */
+  --traffic-light-inset: 78px;
 }
 .workspace-header[data-traffic-lights="true"] .header-row {
-  padding-left: 5rem;
+  padding-left: var(--traffic-light-inset);
 }
 .header-identity {
   max-width: 22rem;
