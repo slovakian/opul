@@ -40,11 +40,11 @@ a {
 /*
   Overlay traffic lights use trafficLightPosition { x: 16, y: 30 }. Tao sets
   title-bar height to button-height + y, which centers the lights on this h-14
-  header. When the sidebar column is gone, pad past the light cluster with a
-  trailing gap that matches the leading x inset (16 + ~52 cluster + 16).
+  header. When the sidebar column is gone, pad with --traffic-light-inset from
+  TRAFFIC_LIGHT_CLEARANCE_PX in frontend/lib/titlebar.ts (layout + e2e share it).
 */
 .workspace-header[data-traffic-lights="true"] .header-row {
-  padding-left: 84px;
+  padding-left: var(--traffic-light-inset);
 }
 .header-identity {
   max-width: 22rem;
