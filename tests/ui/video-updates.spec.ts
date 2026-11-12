@@ -194,11 +194,13 @@ test("failed video keeps the original error and offers Update in its list and de
   await item
     .getByRole("button", { exact: true, name: "Fixture video" })
     .click();
+  const details = page.getByRole("complementary", { name: "Download details" });
   await expect(
-    page
-      .getByRole("alert")
+    details
+      .locator('[data-slot="code-block"]')
       .filter({ hasText: "ERROR: original yt-dlp error text" })
   ).toBeVisible();
+  await expect(details.getByRole("button", { name: "Copy" })).toBeVisible();
 
   const audit = await new AxeBuilder({ page })
     .include('[data-slot="video-tools-update-advice"]')
