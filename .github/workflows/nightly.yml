@@ -1,19 +1,41 @@
 name: Nightly
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
+  # After CI completes. Jobs run only for a successful push to main and check
+  # out that run's commit. workflow_run starts only after this file is on the
+  # default branch.
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
 
 permissions:
   contents: write
 
+# cancel-in-progress stays false so a later main CI success does not kill a
+# nightly that is already signing or publishing. One shared group still
+# serializes the rolling nightly tag. GitHub drops an earlier pending run in
+# that group when a newer one arrives; the running run stays.
 concurrency:
   group: nightly-release
   cancel-in-progress: false
 
+env:
+  # CI's head SHA is the commit that workflow just validated. Manual dispatch
+  # has no workflow_run payload, so it builds the selected ref.
+  NIGHTLY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+
 jobs:
   prepare:
+    # build-matrix and publish-release need this job, so a skip here skips them.
+    if: >-
+      github.event_name == 'workflow_dispatch' || (
+        github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main'
+      )
     runs-on: macos-26
     outputs:
       pub_date: ${{ steps.meta.outputs.pub_date }}
@@ -22,6 +44,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ env.NIGHTLY_SHA }}
           fetch-depth: 0
       - id: meta
         run: |
@@ -39,7 +62,7 @@ jobs:
           PUB_DATE="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
           echo "version=${NIGHTLY_VERSION}" >> "$GITHUB_OUTPUT"
           echo "pub_date=${PUB_DATE}" >> "$GITHUB_OUTPUT"
-          echo "sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          echo "sha=${NIGHTLY_SHA}" >> "$GITHUB_OUTPUT"
 
   build-matrix:
     needs: [prepare]
@@ -65,6 +88,8 @@ jobs:
       VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.NIGHTLY_SHA }}
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -152,6 +177,8 @@ jobs:
       VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.NIGHTLY_SHA }}
       - uses: voidzero-dev/setup-vp@v1.22.0
         with:
           node-version: 24
