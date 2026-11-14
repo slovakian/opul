@@ -30,8 +30,7 @@ jobs:
   prepare:
     # build-matrix and publish-release need this job, so a skip here skips them.
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (
+      github.event_name == 'workflow_dispatch' || (
         github.event_name == 'workflow_run' &&
         github.event.workflow_run.conclusion == 'success' &&
         github.event.workflow_run.event == 'push' &&
