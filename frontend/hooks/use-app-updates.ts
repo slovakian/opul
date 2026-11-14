@@ -102,6 +102,13 @@ export const checkForAppUpdates = () => act(() => bridge.checkForAppUpdates());
 
 export const downloadAppUpdate = () => act(() => bridge.downloadAppUpdate());
 
+/**
+ * Cancels an in-flight app update download.
+ * TODO(OPU-19): Wire to `app_updates_cancel` when Rust exposes cancel — none exists yet.
+ */
+export const cancelAppUpdateDownload = (): Promise<string> =>
+  Promise.resolve("");
+
 export const configureAppUpdates = (
   checkAutomatically: boolean,
   installAutomatically: boolean

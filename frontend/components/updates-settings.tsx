@@ -1,10 +1,12 @@
 import { cn } from "cn";
 import { Download, RefreshCw, RotateCw } from "lucide-react";
 import type * as React from "react";
+import { useState } from "react";
 
 import opulIcon from "@/assets/opul-icon.png";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CircularProgress } from "@/components/ui/circular-progress";
 import { Field, FieldLabel } from "@/components/ui/field";
 import {
   Item,
@@ -14,11 +16,19 @@ import {
   ItemMedia,
   ItemTitle,
 } from "@/components/ui/item";
-import { Progress } from "@/components/ui/progress";
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import {
+  cancelAppUpdateDownload,
   checkForAppUpdates,
   configureAppUpdates,
   downloadAppUpdate,
@@ -26,11 +36,14 @@ import {
   useAppUpdates,
 } from "@/hooks/use-app-updates";
 import { appName, blockerText, downloadPercent } from "@/lib/app-updates";
-import type { AppUpdates } from "@/lib/app-updates";
+import type { AppUpdatePhase, AppUpdates } from "@/lib/app-updates";
 import { truncateError } from "@/lib/truncate";
 import { checkedAgo } from "@/lib/video-tools";
 
 const STAGGER_MS = 40;
+
+/** Matches the footprint of "Check for Updates" so the ring doesn't shift the row. */
+const ACTION_SLOT_CLASS = "min-w-[9.75rem] justify-end";
 
 const stagger = (index: number): React.CSSProperties => ({
   animationDelay: `${index * STAGGER_MS}ms`,
@@ -73,6 +86,73 @@ const statusLine = (updates: AppUpdates): string => {
       return "Not checked yet";
     }
   }
+};
+
+/** Circular progress that opens Cancel / Continue — same ring as the download list. */
+const DownloadProgressAction = ({
+  phase,
+}: {
+  phase: Extract<AppUpdatePhase, { kind: "downloading" }>;
+}) => {
+  const [open, setOpen] = useState(false);
+  const percent = downloadPercent(phase);
+
+  const label =
+    percent === null
+      ? `Downloading ${phase.version}`
+      : `Downloading ${phase.version}, ${percent}%`;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            aria-label={`${label}. Open download options.`}
+            className="text-foreground"
+          />
+        }
+      >
+        <CircularProgress
+          value={percent}
+          size={20}
+          thickness={3}
+          aria-label={label}
+          getAriaValueText={() =>
+            percent === null ? "Download in progress" : `${percent} percent`
+          }
+        />
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-56 gap-3 p-3">
+        <PopoverHeader className="gap-0.5">
+          <PopoverTitle>Downloading {phase.version}</PopoverTitle>
+          <PopoverDescription>
+            {percent === null
+              ? "Download in progress."
+              : `${percent}% complete.`}
+          </PopoverDescription>
+        </PopoverHeader>
+        <div className="flex justify-end gap-2">
+          <Button
+            type="button"
+            size="xs"
+            variant="outline"
+            onClick={() => {
+              void cancelAppUpdateDownload();
+              setOpen(false);
+            }}
+          >
+            Cancel download
+          </Button>
+          <Button type="button" size="xs" onClick={() => setOpen(false)}>
+            Continue
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
 };
 
 const UpdateAction = ({
@@ -121,7 +201,7 @@ const UpdateAction = ({
     }
 
     case "downloading": {
-      return null;
+      return <DownloadProgressAction phase={phase} />;
     }
 
     default: {
@@ -166,61 +246,49 @@ const VersionCard = ({
     (phase.kind === "idle" || phase.kind === "up_to_date");
 
   return (
-    <section
+    <Item
+      variant="muted"
+      size="sm"
       aria-label="Version"
-      className="animate-settle bg-card overflow-hidden rounded-xl border"
+      className="animate-settle flex-nowrap px-4 py-3"
       style={stagger(0)}
     >
-      <Item size="sm" className="flex-nowrap rounded-none px-4 py-3">
-        <ItemMedia className="translate-y-0! self-center!">
-          <img src={opulIcon} alt="" className="size-9" />
-        </ItemMedia>
-        <ItemContent className="min-w-0 gap-0.5">
-          <ItemTitle className="tabular-nums">
-            {appName(updates)} {updates.current_version}
-            <Badge variant="outline" className="capitalize">
-              {updates.channel}
-            </Badge>
-          </ItemTitle>
-          <ItemDescription
-            key={status}
-            aria-live="polite"
-            className={cn(
-              "animate-settle line-clamp-2 text-xs",
-              failed && "text-destructive"
-            )}
-          >
-            <span className={cn(phase.kind === "checking" && "shimmer")}>
-              {status}
-            </span>
-            {showLastChecked && ` · ${checkedAgo(lastChecked)}`}
-            {updates.release_notes_url && (
-              <>
-                {" · "}
-                <a
-                  href={updates.release_notes_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  What&apos;s new
-                </a>
-              </>
-            )}
-          </ItemDescription>
-        </ItemContent>
-        <ItemActions>
-          <UpdateAction activeDownloads={activeDownloads} updates={updates} />
-        </ItemActions>
-      </Item>
-      {phase.kind === "downloading" && (
-        <div className="animate-settle px-4 pb-3.5">
-          <Progress
-            aria-label={`Downloading ${phase.version}`}
-            value={downloadPercent(phase)}
-          />
-        </div>
-      )}
-    </section>
+      <ItemMedia className="translate-y-0! self-center!">
+        <img src={opulIcon} alt="" className="size-9" />
+      </ItemMedia>
+      <ItemContent className="min-w-0 gap-0.5">
+        <ItemTitle className="tabular-nums">
+          {appName(updates)} {updates.current_version}
+          <Badge variant="outline" className="capitalize">
+            {updates.channel}
+          </Badge>
+        </ItemTitle>
+        <ItemDescription
+          aria-live="polite"
+          className={cn("line-clamp-2 text-xs", failed && "text-destructive")}
+        >
+          <span className={cn(phase.kind === "checking" && "shimmer")}>
+            {status}
+          </span>
+          {showLastChecked && ` · ${checkedAgo(lastChecked)}`}
+          {updates.release_notes_url && (
+            <>
+              {" · "}
+              <a
+                href={updates.release_notes_url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                What&apos;s new
+              </a>
+            </>
+          )}
+        </ItemDescription>
+      </ItemContent>
+      <ItemActions className={ACTION_SLOT_CLASS}>
+        <UpdateAction activeDownloads={activeDownloads} updates={updates} />
+      </ItemActions>
+    </Item>
   );
 };
 

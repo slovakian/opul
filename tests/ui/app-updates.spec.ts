@@ -353,7 +353,7 @@ test("when an update check is active, the button is disabled and shows Checkingâ
   ).toBeDisabled();
 });
 
-test("downloading an update displays the progressbar and percentage", async ({
+test("downloading an update displays the circular progress and cancel popover", async ({
   page,
 }) => {
   await mockDesktop(page);
@@ -372,5 +372,20 @@ test("downloading an update displays the progressbar and percentage", async ({
   });
   await expect(settings.getByRole("progressbar")).toBeVisible();
   await expect(settings.getByText("Downloading 0.4.0â€¦ 50%")).toBeVisible();
+  await expect(
+    settings.getByRole("button", { exact: true, name: "Download" })
+  ).toHaveCount(0);
+
+  await settings
+    .getByRole("button", { name: /Open download options/u })
+    .click();
+  // Popover content portals outside the Settings dialog.
+  await expect(
+    page.getByRole("button", { exact: true, name: "Cancel download" })
+  ).toBeVisible();
+  await page.getByRole("button", { exact: true, name: "Continue" }).click();
+  await expect(
+    page.getByRole("button", { exact: true, name: "Cancel download" })
+  ).toHaveCount(0);
   await page.screenshot({ path: "test-results/app-updates-downloading.png" });
 });
