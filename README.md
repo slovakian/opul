@@ -1,64 +1,80 @@
-# Opul
+<p align="center">
+  <img src="assets/readme/opul-logo.png" alt="Opul" width="128" height="128" />
+</p>
 
-Opul is a download manager for macOS, built with Tauri, React, shadcn/ui on Base UI, and a Rust download core. Organize direct links, video pages, playlists, and BitTorrent downloads in emoji workspaces.
+<h1 align="center">Opul</h1>
 
-Folder workspaces receive one of 12 stable color treatments. Existing libraries receive their assignments on startup. Colors stay with each workspace through renames, reordering, theme changes, and restarts. Creation previews the exact appearance that will be saved. See [appearance behavior and verification](docs/workspace-appearances.md).
+<p align="center"><strong>A macOS download manager with workspaces for BitTorrent and video/audio page downloads.</strong></p>
+
+<p align="center">
+  For Mac users who download torrents and media pages and want them organized, Opul puts BitTorrent and yt-dlp in one workspace-based library—unlike Folx and other torrent-only clients—because workspaces, active/completed views, and mixed source types are first-class.
+</p>
+
+<p align="center">
+  <img src="assets/readme/opul-hero.png" alt="Opul showing workspaces beside active and completed torrents, video pages, and music tracks" width="100%" />
+</p>
+
+## What it is
+
+Opul is a native macOS app for people who regularly download **both torrents and video/audio pages** and care about keeping them organized—not just queued.
+
+- **Workspaces** group downloads by project or topic (emoji-labeled folders in the sidebar)
+- **BitTorrent and page downloads** share one library, with In progress and Completed views
+- **Optional video tools** wrap the official [yt-dlp](https://github.com/yt-dlp/yt-dlp) script for video pages and music tracks; torrents and direct links work without that setup
+- **Built-in FFmpeg** handles merges and common audio/video post-processing on macOS 13+
+
+Built with Tauri, React, and a Rust download core. Stack details matter for contributors; the product story above is what the app is for.
+
+## Install
+
+Download the latest macOS disk images from the [Latest release](https://github.com/slovakian/opul/releases/latest):
+
+- [Opul-arm64.dmg](https://github.com/slovakian/opul/releases/latest/download/Opul-arm64.dmg) — Apple Silicon
+- [Opul-x64.dmg](https://github.com/slovakian/opul/releases/latest/download/Opul-x64.dmg) — Intel
+
+Open the DMG and drag Opul into Applications. Opul can check for updates from Settings ▸ Updates. See [Opul updates](docs/app-updates.md).
 
 ## Develop
 
-Install Xcode Command Line Tools, a stable Rust toolchain, Node.js 24 or newer, and the [Vite+ CLI](https://viteplus.dev/guide/). Vite+ downloads the pnpm version pinned in `package.json`. See [toolchain setup](docs/toolchain.md) for pnpm configuration and migration notes.
+Install Xcode Command Line Tools, a stable Rust toolchain, Node.js 24+, and the [Vite+ CLI](https://viteplus.dev/guide/). See [toolchain setup](docs/toolchain.md).
 
 ```bash
 vp install --frozen-lockfile
 pnpm exec tauri dev
 ```
 
-FFmpeg and ffprobe are built in for merging, MP3 and M4A audio, subtitles, and JPG thumbnails on macOS 13 and later. Set up optional video tools in Settings > Tools to download video pages. Opul downloads and verifies its Python runtime and the official [yt-dlp](https://github.com/yt-dlp/yt-dlp) script after you agree. Direct files and torrents work on their own.
+`vp run dev` runs only the web interface; downloads need the native shell. Optional video tools are configured in Settings ▸ Tools after consent—see [video tools](docs/video-tools.md) and [built-in tools](docs/built-in-tools.md). Licenses and sources: [third-party notices](THIRD_PARTY_NOTICES.md).
 
-Tools settings take effect immediately. Opul uses its own tools; there are no program paths to configure. See [video tools](docs/video-tools.md) for installation, verification and the developer override, [built-in tools](docs/built-in-tools.md) for pinned FFmpeg builds, and [third-party notices](THIRD_PARTY_NOTICES.md) for licenses and exact sources.
+Isolated data for development:
 
-## Verify and package
+```bash
+OPUL_DATA_DIR=/tmp/opul-dev-state OPUL_DOWNLOAD_DIR=/tmp/opul-dev-downloads pnpm exec tauri dev
+```
+
+## Verify
 
 ```bash
 pnpm exec playwright install webkit
 Scripts/test.sh
 Scripts/package_app.sh debug
 Scripts/smoke_test.sh
-Scripts/launch.sh
 ```
 
-For a release app and disk image:
+Release app and disk image:
 
 ```bash
 Scripts/package_app.sh release
 Scripts/package_dmg.sh
 ```
 
-The scripts use Tauri's bundler and support standalone architecture targets (`--target aarch64-apple-darwin` or `x86_64-apple-darwin`), producing single-architecture installers (`Opul-arm64.dmg`, `Opul-x64.dmg`) and `Opul.app`. For development, use `pnpm exec tauri dev`. `vp run dev` runs only the web interface; downloads require the native shell.
+Architecture targets (`--target aarch64-apple-darwin` or `x86_64-apple-darwin`) produce `Opul-arm64.dmg` / `Opul-x64.dmg`. Packaging notes: [releasing](docs/releasing.md). Interface migration decision: [ADR 0004](docs/adr/0004-tauri-interface.md).
 
-## Your library
-
-The Tauri app opens the existing `~/Library/Application Support/Opul` library. The Rust core imports legacy `library.json` files and retains its checkpoint, backup, recovery, and exclusive-lock behavior. Quit an older Opul before launching this version.
-
-Development and smoke tests can use isolated data:
+Regenerate the README hero screenshot (Chromium + mocked library):
 
 ```bash
-OPUL_DATA_DIR=/tmp/opul-dev-state OPUL_DOWNLOAD_DIR=/tmp/opul-dev-downloads pnpm exec tauri dev
+pnpm exec playwright test --config playwright.readme.config.ts
 ```
 
-All downloads, In progress, and Completed each remember their own layout, sort, and grouping across restarts. Workspaces and their saved folders continue to share workspace display settings. In progress and Completed have fixed status scopes; other views highlight the status filter button while a filter is active.
+## License
 
-The new shell stores settings, including aggregate display preferences, in `desktop-preferences.json`. Old Swift preferences are not imported. This migration replaces the Swift interface and Sparkle updater. Opul checks for updates and installs them after you choose Download, or on its own if you turn on Settings ▸ Updates ▸ Install updates automatically. See [Opul updates](docs/app-updates.md). The former guided browser extraction interface is not included; its Rust implementation remains.
-
-## Project structure
-
-- `frontend/`: React interface and official shadcn Base UI components
-- `src-tauri/`: native shell, commands, settings, and packaging configuration
-- `src/`: Rust state machine, persistence, torrent engine, and media engine
-- `tests/ui/`: WebKit interaction and accessibility checks with mocked Tauri IPC
-- `Scripts/`: test, package, and launch entrypoints
-- `.agents/skills/shadcn/`: official shadcn skill installed for this repository
-
-The interface follows sidebar-15 for workspaces, sidebar-10 for all popover menus, and sidebar-13 for settings. See [the migration decision](docs/adr/0004-tauri-interface.md). The desktop setup takes reference from [tauri-ui](https://github.com/agmmnn/tauri-ui).
-
-Opul is free and open source under the MIT License. [Support development](https://github.com/sponsors/slovakian).
+Opul is free and open source under the [MIT License](LICENSE). [Support development](https://github.com/sponsors/slovakian).

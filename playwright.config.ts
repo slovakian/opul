@@ -20,6 +20,7 @@ export default defineConfig({
     },
   ],
   testDir: "./tests/ui",
+  testIgnore: ["**/readme-hero.spec.ts"],
   use: {
     baseURL,
     reducedMotion: "reduce",
