@@ -202,21 +202,28 @@ test("emoji options stay transparent when chosen and only grow their artwork on 
     // oxlint-disable-next-line eslint/no-await-in-loop
     const bounds = await option.boundingBox();
     // oxlint-disable-next-line eslint/no-await-in-loop
-    const before = await glyph.boundingBox();
-    // oxlint-disable-next-line eslint/no-await-in-loop
     const checkBefore = await option.locator(badge).boundingBox();
     // oxlint-disable-next-line eslint/no-await-in-loop
     await option.hover();
     // oxlint-disable-next-line eslint/no-await-in-loop
     await expect(frame).not.toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    // Artwork uses Tailwind scale-110 (CSS `scale: 1.1`, not transform matrix).
+    // Assert the settled scale token so WebKit subpixel bounding-box ratios
+    // cannot flake around 1.094.
     // oxlint-disable-next-line eslint/no-await-in-loop
     await expect
-      .poll(async () => {
-        const after = await glyph.boundingBox();
+      .poll(() =>
+        glyph.evaluate((element) => {
+          const { scale } = getComputedStyle(element);
 
-        return after && before ? after.width / before.width : 0;
-      })
-      .toBeCloseTo(1.1, 2);
+          if (!scale || scale === "none") {
+            return 1;
+          }
+
+          return Number(scale.split(" ")[0]);
+        })
+      )
+      .toBe(1.1);
     // oxlint-disable-next-line eslint/no-await-in-loop
     const currentBounds = await option.boundingBox();
     // oxlint-disable-next-line eslint/no-await-in-loop
