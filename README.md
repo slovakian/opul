@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/readme/opul-logo.png" alt="Opul" width="96" height="96" />
+  <img src="assets/AppIcon-macOS.png" alt="Opul" width="128" height="128" />
 </p>
 
 <h1 align="center">Opul</h1>
