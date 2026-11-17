@@ -16,7 +16,7 @@
 
 ## What it is
 
-Opul is a native macOS app for people who regularly download **both torrents and video/audio pages** and care about keeping them organized—not just queued.
+Opul is a simple Mac app for people who regularly download **both torrents and video/audio pages** and care about keeping them organized—not just queued.
 
 - **Workspaces** group downloads by project or topic (emoji-labeled folders in the sidebar)
 - **BitTorrent and page downloads** share one library, with In progress and Completed views
