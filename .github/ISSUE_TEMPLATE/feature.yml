@@ -1,0 +1,60 @@
+name: Feature
+description: Specify a feature from the tracker, or propose one to add.
+title: "feat: "
+labels:
+  - feature
+  - needs-triage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Track the work in `docs/features/` and link this issue from that entry. See `docs/feature-workflow.md`.
+
+        Add `agent-ready` and remove `needs-triage` once the acceptance criteria are clear enough to implement without guessing.
+
+  - type: input
+    id: feature-id
+    attributes:
+      label: Feature id
+      description: Kebab-case id from docs/features. Use the id you will add if this feature is new.
+      placeholder: file-selection
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / user value
+      description: Who hits this, and what they can do when it is done.
+      placeholder: People cannot skip files inside a multi-file torrent.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Observable outcomes. An agent-ready issue is specific enough to implement and test from this list.
+      placeholder: |
+        - The inspector can include or skip each file before and during the download.
+        - Skipped files are absent from the selected size.
+        - A finished torrent stays complete when every selected file is on disk.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope notes
+      description: What this issue includes, and what it leaves for later.
+    validations:
+      required: false
+
+  - type: textarea
+    id: references
+    attributes:
+      label: Source / competitor references
+      description: qBittorrent, yt-dlp, or another client. Link the behavior or name the command.
+      placeholder: qBittorrent content tab, file priority Skip.
+    validations:
+      required: false

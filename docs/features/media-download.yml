@@ -1,0 +1,183 @@
+# Video and audio page downloads. Statuses reflect the Opul tree on 2026-11-17.
+features:
+  - id: format-quality-selection
+    title: Format and quality selection
+    category: media-download
+    source: yt-dlp
+    status: partial
+    priority: null
+    summary: Pick a video quality before a page download starts.
+    notes: Presets are Best available, Best MP4, 1080p, 720p, and Original file, plus a workspace default. There is no site format list and no custom yt-dlp format string.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: audio-extraction
+    title: Audio extraction
+    category: media-download
+    source: yt-dlp
+    status: shipped
+    priority: null
+    summary: Save a video page as an MP3 or M4A audio file.
+    notes: The engine passes extract-audio and the matching audio format. Other codecs are not offered. This needs the built-in FFmpeg tools.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: playlists
+    title: Playlists
+    category: media-download
+    source: yt-dlp
+    status: shipped
+    priority: null
+    summary: A playlist link becomes one download per entry, in order, in that workspace.
+    notes: An entry already in the workspace is skipped. Each download then uses no-playlist. Until video tools can probe, the playlist stays one waiting row.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: subtitles
+    title: Subtitles
+    category: media-download
+    source: yt-dlp
+    status: partial
+    priority: null
+    summary: Download subtitles, convert them to SRT, and embed them in the file.
+    notes: The engine can request subtitles, automatic captions, a language list, SRT conversion, and embedding when FFmpeg is present. The desktop always turns subtitles off, and there is no control.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: thumbnails
+    title: Thumbnails
+    category: media-download
+    source: yt-dlp
+    status: partial
+    priority: null
+    summary: Save a thumbnail next to the download, as a JPEG when FFmpeg is available.
+    notes: The engine can write and convert a thumbnail. The desktop always leaves this off, and there is no control. This is a sidecar file, not a picture embedded in the video.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: metadata-embedding
+    title: Metadata embedding
+    category: media-download
+    source: yt-dlp
+    status: idea
+    priority: null
+    summary: Write the title and other tags into the media file itself.
+    notes: The stored metadata flag writes an info JSON sidecar, not embedded tags or an embedded thumbnail. The desktop leaves that flag off, with no control.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: cookies-browser-auth
+    title: Cookies and browser sign-in
+    category: media-download
+    source: yt-dlp
+    status: partial
+    priority: null
+    summary: Download a page that only works while you are signed in.
+    notes: The engine can pass a cookie file to yt-dlp and scoped cookies on a direct request. The Tauri app has no cookies-from-browser setting and no sign-in browser. Guided sign-in exists only in the core.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: sponsorblock
+    title: SponsorBlock
+    category: media-download
+    source: yt-dlp
+    status: idea
+    priority: null
+    summary: Skip or mark sponsor segments in a video.
+    notes: No SponsorBlock arguments or settings.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: media-rate-limit
+    title: Media rate limit
+    category: media-download
+    source: yt-dlp
+    status: shipped
+    priority: null
+    summary: Cap how fast page downloads transfer. Zero means unlimited.
+    notes: The Settings download cap is passed to yt-dlp as a rate limit. The upload cap applies to torrents, not to page downloads.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: chapters
+    title: Chapters
+    category: media-download
+    source: yt-dlp
+    status: idea
+    priority: null
+    summary: Keep chapter markers, or split a video into chapter files.
+    notes: No chapter arguments are passed to yt-dlp.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: live-streams
+    title: Live streams
+    category: media-download
+    source: yt-dlp
+    status: idea
+    priority: null
+    summary: Record a live stream from the start or from when you press download.
+    notes: There is no live recording mode. A link yt-dlp can already save as a normal file still downloads as a normal file.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: filename-templates
+    title: Filename templates
+    category: media-download
+    source: yt-dlp
+    status: partial
+    priority: null
+    summary: Name a media file from the page title.
+    notes: The default template is the title plus the extension. The engine can take another template and refuses one that escapes the destination. The desktop always sends the default, with no field to change it.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: media-controls
+    title: Pause, resume, cancel, and retry
+    category: media-download
+    source: opul-original
+    status: shipped
+    priority: null
+    summary: Pause a page download, continue it, cancel it, or try a failed one again.
+    notes: Opul's queue supervises the yt-dlp process. Pausing before a page has been probed does not need a running process.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: concurrent-media-downloads
+    title: Concurrent media downloads
+    category: media-download
+    source: opul-original
+    status: shipped
+    priority: null
+    summary: Download several videos or files at once, up to a limit you choose.
+    notes: Settings offers 1, 2, 3, 4, 5, or 8 at a time. The default is 3. This does not queue torrents.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17

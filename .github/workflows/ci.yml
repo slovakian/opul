@@ -30,6 +30,8 @@ jobs:
           cache: true
           run-install: false
       - run: vp install --frozen-lockfile
+      - name: Check the feature tracker
+        run: vp run features:check
       - name: Fetch pinned built-in tools
         run: Scripts/fetch_ffmpeg.sh
       - name: Lint and type-check frontend
