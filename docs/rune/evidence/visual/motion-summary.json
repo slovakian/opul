@@ -1,0 +1,32 @@
+{
+  "samples": [
+    {
+      "milliseconds": 600.0,
+      "progress-0-fill": [904.0, 124.0, 60.48, 4.0],
+      "progress-0-empty": [964.48, 124.0, 83.52, 4.0],
+      "progress-0-sheen": [1044.7, 124.0, 83.52, 4.0],
+      "progress-1-sheen": [791.56, 208.0, 144.0, 4.0],
+      "upload-mask": [904.0, 302.59, 144.0, 12.0],
+      "upload-copy": [904.0, 284.0, 144.0, 12.0]
+    },
+    {
+      "milliseconds": 1200.0,
+      "progress-0-fill": [904.0, 124.0, 60.48, 4.0],
+      "progress-0-empty": [964.48, 124.0, 83.52, 4.0],
+      "progress-0-sheen": [1034.36, 124.0, 83.52, 4.0],
+      "progress-1-sheen": [884.97, 208.0, 144.0, 4.0],
+      "upload-mask": [904.0, 297.2, 144.0, 12.0],
+      "upload-copy": [904.0, 284.0, 144.0, 12.0]
+    },
+    {
+      "milliseconds": 2000.0,
+      "progress-0-fill": [904.0, 124.0, 60.48, 4.0],
+      "progress-0-empty": [964.48, 124.0, 83.52, 4.0],
+      "progress-0-sheen": [1009.28, 124.0, 83.52, 4.0],
+      "progress-1-sheen": [1016.44, 208.0, 144.0, 4.0],
+      "upload-mask": [904.0, 290.0, 144.0, 12.0],
+      "upload-copy": [904.0, 284.0, 144.0, 12.0]
+    }
+  ],
+  "reduced_settled": true
+}

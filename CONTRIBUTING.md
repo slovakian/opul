@@ -4,6 +4,8 @@ Focused pull requests and bug reports are welcome. Discuss large changes in an i
 
 For the Rune migration, see the [recorded behavior baseline](docs/rune/baseline.md) and [isolated native preview](docs/rune/preview.md). `Scripts/rune-preview.sh` builds and opens the disposable preview independently of the production app.
 
+The [native visual study](docs/rune/visual-treatment.md) compares restrained treatments inside Opul's layout. Run `Scripts/rune-visual.sh`; its fixtures stay in memory. The visual choice is still under review.
+
 Install dependencies with `vp install --frozen-lockfile`, then run:
 
 ```bash

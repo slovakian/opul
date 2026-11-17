@@ -1,0 +1,7 @@
+{
+  "events": [
+    { "t": 0.4, "type": "tap", "key": "download-0" },
+    { "t": 1.4, "type": "tap", "key": "sheet-pause" },
+    { "t": 2.2, "type": "tap", "key": "close-sheet" }
+  ]
+}
