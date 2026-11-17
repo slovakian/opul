@@ -164,6 +164,8 @@ test("creation cancels drafts, retains nested choices, and records only the succ
   context,
   page,
 }) => {
+  // Three emoji-picker opens can exceed 30 seconds on CI WebKit.
+  test.slow();
   await mockDesktop(page, { failFirstCreate: true });
   await page.goto("/");
 
