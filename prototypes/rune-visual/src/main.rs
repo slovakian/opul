@@ -112,6 +112,10 @@ fn main() {
         scenes: &[
             ("cards", |s: &mut Preview| s.treatment = Treatment::Cards),
             ("list", |s: &mut Preview| s.treatment = Treatment::List),
+            ("minimal", |s: &mut Preview| {
+                s.treatment = Treatment::List;
+                s.minimal = true;
+            }),
             ("panels", |s: &mut Preview| s.treatment = Treatment::Panels),
         ],
         on_key: Some(|s, event, tx| {

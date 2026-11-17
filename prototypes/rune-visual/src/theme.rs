@@ -38,7 +38,7 @@ impl Treatment {
     pub fn row_height(self) -> f32 {
         match self {
             Self::Cards => 76.0,
-            Self::List => 68.0,
+            Self::List => 56.0,
             Self::Panels => 80.0,
         }
     }

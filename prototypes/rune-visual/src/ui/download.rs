@@ -1,6 +1,7 @@
 use super::*;
 
 pub(super) fn download(s: &Preview, index: usize, k: &Kit, narrow: bool) -> El {
+    let compact = s.minimal || matches!(s.treatment, Treatment::List);
     let description = match index {
         0 => match s.transfer {
             Transfer::Downloading => "256 MB of 610 MB  ·  14s remaining",
@@ -17,23 +18,26 @@ pub(super) fn download(s: &Preview, index: usize, k: &Kit, narrow: bool) -> El {
         .key(format!("row-{index}"))
         .w_full()
         .h(if s.minimal && !narrow {
-            58.0
+            50.0
         } else {
             s.treatment.row_height()
         })
-        .px(16.0)
-        .gap(14.0)
+        .px(if compact { 12.0 } else { 16.0 })
+        .gap(if compact { 10.0 } else { 14.0 })
         .center_y()
         .child(
-            el().size(42.0, 42.0)
-                .pixels(s.artwork[1].pixels())
-                .a11y_hidden(),
+            el().size(
+                if compact { 36.0 } else { 42.0 },
+                if compact { 36.0 } else { 42.0 },
+            )
+            .pixels(s.artwork[1].pixels())
+            .a11y_hidden(),
         )
         .child(
             col()
                 .grow(1.0)
                 .min_w(0.0)
-                .gap(5.0)
+                .gap(if compact { 3.0 } else { 5.0 })
                 .child(
                     Button::new(FILES[index])
                         .variant(ButtonVariant::Ghost)

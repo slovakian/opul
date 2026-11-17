@@ -15,6 +15,7 @@ Start directly with a treatment:
 ```sh
 Scripts/rune-visual.sh --scene cards --theme light
 Scripts/rune-visual.sh --scene list --theme dark
+Scripts/rune-visual.sh --scene minimal --theme light
 Scripts/rune-visual.sh --scene panels --size 600x720
 ```
 

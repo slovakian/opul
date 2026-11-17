@@ -1,6 +1,6 @@
 # Native visual study for #101
 
-**Status: visual review remains open. No treatment has been selected.** The maintainer rejected the initial three generic demos. This revision restores the actual Opul toolbar, logo/folder artwork, sidebar hierarchy, counts, compact Download rows and details hierarchy before comparing treatments. Do not interpret a default scene or an agent preference as design approval.
+**Status: the maintainer prefers the minimal direction; tighter spacing is under review.** The current request is to reduce visual space around the list items while continuing to treat this as a visual prototype. The minimal scene below opens that revision directly.
 
 The question is: **which restrained Rune-kit surface, density and progress treatment suits Opul's existing layout?** The comparison preserves the layout and semantic colors. Production implementation, real transfers, persistence and full interaction parity remain separate tickets.
 
@@ -8,13 +8,16 @@ The question is: **which restrained Rune-kit surface, density and progress treat
 
 ```sh
 Scripts/rune-visual.sh
+
+# Preferred minimal direction with tighter spacing:
+Scripts/rune-visual.sh --scene minimal --theme light
 ```
 
 This builds and opens a native Rune window. Everything is in memory. The visible study strip is outside the product layout. Left/Right or its arrows wrap through the treatments. Those shortcuts leave a focused search field alone. Search filters the fixtures, and a title or ellipsis opens the modal sheet. Close, Escape and an outside click dismiss it; the outside click is consumed. Pause/resume updates the fixture in the sheet and list together.
 
 System/Light/Dark, Motion/Reduced, Cards/Minimal, one/two Studio folders, and the State control expose the comparison states. The State control cycles downloading, paused, completed, failed and back. Personal is always a simple Workspace row; Studio becomes collapsible with two Saved Folders. Narrow windows use a modal sidebar. Settings, New workspace and filter/sort artwork are context, not implemented flows.
 
-Minimal removes card/group surfaces and compacts wide rows to 58pt. Narrow rows keep room for inline progress and seeding text.
+Minimal removes card/group surfaces and compacts wide rows from 58pt to 50pt. Its row inset is 12pt, artwork is 36pt, and the title/description gap is 3pt. Narrow rows keep room for inline progress and seeding text.
 
 ## Treatments under review
 
@@ -23,10 +26,10 @@ These are proposals, not selected tokens. All use Rune-kit's Inter, 14pt/500 Dow
 | Treatment | Rows and surfaces | Spacing and radii | Progress and sheet |
 | --- | --- | --- | --- |
 | A · Soft edge | Separate cards, thin semantic borders, subtle 1pt drop shadow | 76pt rows, 16pt horizontal inset, 8pt gaps, 10pt corners | Trailing horizontal progress; flush right sheet |
-| B · Quiet line | Continuous divided rows without card shadows | 68pt rows, 16pt horizontal inset, no gaps, 4pt control corners | Trailing progress ring; flush right sheet |
+| B · Quiet line | Continuous divided rows without card shadows | 56pt rows, 12pt horizontal inset, no gaps, 4pt control corners | Trailing progress ring; flush right sheet |
 | C · Inset panel | One shared surface with internal rules | 80pt rows, 16pt horizontal inset, 12pt group corners | Horizontal progress; sheet inset 12pt with 12pt corners |
 
-The shared content inset is 32pt, 20pt at narrow widths. Controls use Rune-kit's focus ring and input behavior, with a 2pt blue ring for custom sidebar navigation. Reduced motion follows the OS and can also be enabled in the study. The proposed sheet uses Rune's modal stack for focus containment, background inertness, dismissal and focus restoration.
+The content inset is 32pt for the card/panel studies and 20pt for the minimal direction and narrow windows. The minimal list starts 16pt below the toolbar, reduced from 28pt. Controls use Rune-kit's focus ring and input behavior, with a 2pt blue ring for custom sidebar navigation. Reduced motion follows the OS and can also be enabled in the study. The proposed sheet uses Rune's modal stack for focus containment, background inertness, dismissal and focus restoration.
 
 ## Captures
 
@@ -95,6 +98,6 @@ Independent Standards and Spec reviews found no implementation issues. The Spec 
 
 ## Decision record
 
-The initial options were rejected as ugly and insufficient for a choice. They have been replaced, and their captures are not the handoff. The current revision is awaiting review. Selected typography, spacing, radii, surfaces, focus, motion and the maintainer's rationale are all **pending**. #101 must stay open, and #99/#102 must retain the visual-selection gate before broader presentation work.
+The initial options were rejected as ugly and insufficient for a choice. The replacement restores Opul's toolbar, artwork, sidebar and details hierarchy. The maintainer now prefers the minimal direction as a visual direction and requested less space around list items. This revision tightens row height, horizontal padding, artwork size, text gaps and the list's outer inset. The spacing revision and remaining typography, radii, focus and motion decisions still await review; #101 stays open.
 
 Once a treatment or a mix is selected, record the exact decisions and rationale here and on #101. Critical unresolved designs return to this native playground. Keep all alternatives disposable on `integration/99-rune-redesign`; rebuild the selected treatment as attributed, owned, tested production components.

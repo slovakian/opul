@@ -151,6 +151,7 @@ pub fn view(s: &Preview, cx: &mut Cx<Preview>) -> El {
             count += 1;
         }
     }
+    let compact = s.minimal || matches!(s.treatment, Treatment::List);
     let content = col()
         .key("content")
         .grow(1.0)
@@ -165,8 +166,8 @@ pub fn view(s: &Preview, cx: &mut Cx<Preview>) -> El {
                 .scroll(rune::ScrollSpec {
                     stick_bottom: false,
                 })
-                .padding(if narrow { 20.0 } else { 32.0 })
-                .pt(28.0)
+                .padding(if narrow || compact { 20.0 } else { 32.0 })
+                .pt(if compact { 16.0 } else { 28.0 })
                 .child(list)
                 .child(caption(format!("{count} downloads"), &k).pt(22.0).pl(12.0)),
         );
