@@ -9,6 +9,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
+#[path = "sidebar_tests.rs"]
+mod sidebar_tests;
+
 struct Harness {
     rt: Runtime<State>,
     backend: Backend,
@@ -125,6 +128,42 @@ struct Server {
     fail: Arc<AtomicBool>,
     payload: Arc<Vec<u8>>,
     thread: Option<thread::JoinHandle<()>>,
+}
+
+#[test]
+fn aggregate_navigation_and_independent_workspace_disclosure() {
+    let root = tempfile::tempdir().unwrap();
+    let mut app = Harness::open(root.path());
+    let workspace = app.rt.state.workspace().unwrap().clone();
+    assert!(
+        app.rt
+            .find(&format!("disclosure-{}", workspace.id))
+            .is_none()
+    );
+    app.click("nav-all");
+    assert!(app.rt.elements().iter().any(|e| {
+        e.key.as_deref() == Some("breadcrumb")
+            && e.label
+                .as_deref()
+                .is_some_and(|label| label.contains("All"))
+    }));
+    let folder = root.path().join("Saved");
+    std::fs::create_dir(&folder).unwrap();
+    app.click(&format!("workspace-{}", workspace.id));
+    app.click("choose-folder");
+    app.rt.resolve_file_dialog(Some(folder)).unwrap();
+    app.wait(|s| !s.busy() && s.workspace().unwrap().folders.len() == 2);
+    let before = app.rt.state.selected_folder.clone();
+    app.click(&format!("disclosure-{}", workspace.id));
+    assert_eq!(app.rt.state.selected_folder, before);
+    app.click("nav-completed");
+    assert!(app.rt.elements().iter().any(|e| {
+        e.key.as_deref() == Some("breadcrumb")
+            && e.label
+                .as_deref()
+                .is_some_and(|label| label.contains("Completed"))
+    }));
+    app.close();
 }
 
 impl Server {

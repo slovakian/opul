@@ -22,9 +22,28 @@ pub fn button<S: 'static>(
         .focus_ring(2.0, 2.0, theme.focus)
         .focusable(enabled)
         .disabled(!enabled)
-        .child(text(label).font(BODY).color(theme.text).a11y_hidden());
+        .child(
+            text(label)
+                .font(BODY)
+                .color(theme.text)
+                .truncate()
+                .a11y_hidden(),
+        );
     if enabled {
-        element.hover(theme.text.alpha(0.06)).on_press_tx(action)
+        let action = std::rc::Rc::new(action);
+        let keyboard = action.clone();
+        element
+            .hover(theme.text.alpha(0.06))
+            .on_press_tx(move |s, tx| action(s, tx))
+            .on_key(move |s, key, tx| {
+                if key.key != rune::Key::Enter || key.mods != rune::Mods::default() {
+                    return false;
+                }
+                if !tx.key_repeat() {
+                    keyboard(s, tx);
+                }
+                true
+            })
     } else {
         element.layer_opacity(0.45)
     }
@@ -87,4 +106,62 @@ static FOLDER: Icon = Icon {
 
 pub fn folder_icon(theme: &Theme) -> El {
     icon(&FOLDER, 20.0).color(theme.muted).a11y_hidden()
+}
+
+/// Independent disclosure target: Enter/Space toggle; Left/Right close/open.
+pub fn disclosure(key: &str, label: &str, open: bool, theme: &Theme, id: String) -> El {
+    let keyboard_id = id.clone();
+    button(
+        key,
+        if open { "⌄" } else { "›" },
+        true,
+        theme,
+        move |s: &mut crate::model::State, _| s.toggle_expansion(id.clone()),
+    )
+    .label(label)
+    .expanded(open)
+    .w(24.0)
+    .px(0.0)
+    .group_opacity(0.0, 1.0)
+    .on_key(move |s: &mut crate::model::State, key, tx| {
+        if key.mods != rune::Mods::default() {
+            return false;
+        }
+        let expanded = match key.key {
+            rune::Key::Left => false,
+            rune::Key::Right => true,
+            rune::Key::Enter => {
+                if !tx.key_repeat() {
+                    s.toggle_expansion(keyboard_id.clone());
+                }
+                return true;
+            }
+            _ => return false,
+        };
+        if s.expansion.expanded(&keyboard_id) != expanded {
+            s.toggle_expansion(keyboard_id.clone());
+        }
+        true
+    })
+}
+
+/// Reduced owned menu surface, adapted from Rune-kit's menu.rs. Rune owns roving
+/// keys, focus containment, outside/Escape dismissal and trigger restoration.
+pub fn menu(key: &str, label: &str, trigger: &str, theme: &Theme, items: Vec<El>) -> El {
+    rune::col()
+        .key(key)
+        .role("menu")
+        .label(label)
+        .focus_group()
+        .focus_return(trigger)
+        .modal(true, |s: &mut crate::model::State| s.workspace_menu = None)
+        .anchored_fit(trigger, rune::Side::Bottom, rune::Align::End, 6.0)
+        .w(210.0)
+        .padding(6.0)
+        .gap(4.0)
+        .radius(theme.look.radius())
+        .fill(theme.surface)
+        .border(1.0, theme.border)
+        .shadow(4.0, 12.0, rune::Color::BLACK.alpha(0.15))
+        .children(items)
 }

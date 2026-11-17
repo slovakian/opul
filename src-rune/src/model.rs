@@ -1,4 +1,6 @@
 use crate::backend::{Client, Command, DownloadAction, Event};
+use crate::navigation::Location;
+use crate::preferences::{Expansion, Startup};
 use crate::theme::Look;
 use opul_core::{
     MachineCommandReceipt, MachineDownloadCommand, MachineFolderRequest, MachineFormat,
@@ -14,7 +16,7 @@ pub type Wake = Arc<Mutex<Option<rune::Waker>>>;
 
 enum Purpose {
     Submit,
-    Folder(String),
+    Folder(String, String),
     Control,
 }
 struct Pending {
@@ -30,6 +32,10 @@ pub struct State {
     pub snapshot: Option<MachineSnapshot>,
     pub url: TextEdit,
     pub selected_folder: Option<String>,
+    pub location: Location,
+    pub expansion: Expansion,
+    pub navigation_open: bool,
+    pub workspace_menu: Option<String>,
     pub error: Option<String>,
     pub look: Look,
     pub reduced_motion: bool,
@@ -46,6 +52,10 @@ impl State {
             snapshot: None,
             url: TextEdit::new(""),
             selected_folder: None,
+            location: Location::All,
+            expansion: Expansion::default(),
+            navigation_open: false,
+            workspace_menu: None,
             error: None,
             pending: None,
             look: Look::default(),
@@ -55,8 +65,105 @@ impl State {
     }
 
     pub fn workspace(&self) -> Option<&MachineWorkspace> {
-        // The core creates the ordinary default Workspace on first open; never create a fixture.
-        self.snapshot.as_ref()?.workspaces.first()
+        let snapshot = self.snapshot.as_ref()?;
+        self.location.workspace(snapshot).or_else(|| {
+            // The baseline has an unambiguous contextual destination with one Workspace.
+            (snapshot.workspaces.len() == 1).then(|| &snapshot.workspaces[0])
+        })
+    }
+
+    pub fn navigate(&mut self, location: Location) {
+        self.location = location;
+        if let Some(snapshot) = &self.snapshot {
+            self.location.normalize(snapshot);
+        }
+        self.sync_destination();
+        self.navigation_open = false;
+        self.workspace_menu = None;
+    }
+
+    fn sync_destination(&mut self) {
+        self.selected_folder = self
+            .workspace()
+            .and_then(|w| {
+                if let Location::Folder(_, folder) = &self.location {
+                    w.folders.iter().find(|f| &f.id == folder)
+                } else {
+                    w.folders.iter().find(|f| f.is_default)
+                }
+            })
+            .map(|f| f.id.clone());
+    }
+
+    pub fn count(&self, location: &Location) -> usize {
+        self.snapshot.as_ref().map_or(0, |s| {
+            s.workspaces
+                .iter()
+                .map(|w| {
+                    w.downloads
+                        .iter()
+                        .filter(|d| location.includes(w, d))
+                        .count()
+                })
+                .sum()
+        })
+    }
+
+    pub fn breadcrumb(&self) -> String {
+        match &self.location {
+            Location::All => "All".into(),
+            Location::InProgress => "In progress".into(),
+            Location::Completed => "Completed".into(),
+            Location::Workspace(_) => self
+                .workspace()
+                .map_or_else(|| "All".into(), |w| w.name.clone()),
+            Location::Folder(_, id) => self.workspace().map_or_else(
+                || "All".into(),
+                |w| {
+                    format!(
+                        "{} › {}",
+                        w.name,
+                        w.folders
+                            .iter()
+                            .find(|f| &f.id == id)
+                            .map_or("", |f| &f.name)
+                    )
+                },
+            ),
+        }
+    }
+
+    pub fn toggle_expansion(&mut self, id: String) {
+        self.expansion.toggle(id);
+        self.save_expansion();
+    }
+
+    pub fn set_startup(&mut self, startup: Startup) {
+        self.expansion.startup(startup);
+        self.save_expansion();
+    }
+
+    fn save_expansion(&mut self) {
+        if let Some((generation, preferences)) = self.expansion.write()
+            && let Err(error) = self.client.save_preferences(generation, preferences)
+        {
+            self.expansion.saved(generation, Err(error));
+        }
+    }
+
+    pub fn retry_expansion(&mut self) {
+        if self.expansion.loaded {
+            self.save_expansion();
+        } else if let Err(error) = self.client.read_preferences() {
+            self.expansion.error = Some(error);
+        }
+    }
+
+    fn clean_expansion(&mut self) {
+        if let Some(snapshot) = &self.snapshot {
+            self.expansion
+                .retain(&snapshot.workspaces.iter().map(|w| w.id.clone()).collect());
+        }
     }
 
     pub fn busy(&self) -> bool {
@@ -73,6 +180,14 @@ impl State {
         while let Ok(event) = self.events.try_recv() {
             changed = true;
             match event {
+                Event::Preferences(result) => {
+                    self.expansion.loaded(result);
+                    self.clean_expansion();
+                    self.save_expansion();
+                }
+                Event::PreferencesSaved(generation, result) => {
+                    self.expansion.saved(generation, result)
+                }
                 Event::Snapshot(snapshot) => self.accept_snapshot(snapshot),
                 Event::Failed(error) => {
                     self.error = Some(error);
@@ -104,19 +219,21 @@ impl State {
             return;
         }
         self.snapshot = Some(snapshot);
-        if self.selected_folder.as_ref().is_none_or(|id| {
-            self.workspace()
-                .is_none_or(|w| !w.folders.iter().any(|f| &f.id == id))
-        }) {
-            self.selected_folder = self
-                .workspace()
-                .and_then(|w| {
-                    w.folders
-                        .iter()
-                        .find(|f| f.is_default)
-                        .or_else(|| w.folders.first())
-                })
-                .map(|f| f.id.clone());
+        let snapshot = self.snapshot.as_ref().unwrap();
+        self.location.normalize(snapshot);
+        if self
+            .workspace_menu
+            .as_ref()
+            .is_some_and(|id| !snapshot.workspaces.iter().any(|w| &w.id == id))
+        {
+            self.workspace_menu = None;
+        }
+        self.sync_destination();
+        // Telemetry does not initiate writes. Only confirmed membership changes do.
+        let before = self.expansion.desired.clone();
+        self.clean_expansion();
+        if before != self.expansion.desired {
+            self.save_expansion();
         }
     }
 
@@ -137,7 +254,17 @@ impl State {
             .purpose
         {
             Purpose::Submit => self.url = TextEdit::new(""),
-            Purpose::Folder(id) => self.selected_folder = Some(id),
+            Purpose::Folder(workspace, id) => {
+                if self.snapshot.as_ref().is_some_and(|s| {
+                    s.workspaces
+                        .iter()
+                        .any(|w| w.id == workspace && w.folders.iter().any(|f| f.id == id))
+                }) {
+                    self.navigate(Location::Folder(workspace.clone(), id));
+                    self.expansion.set(workspace, true);
+                    self.save_expansion();
+                }
+            }
             Purpose::Control => {}
         }
     }
@@ -179,6 +306,7 @@ impl State {
             }
         };
         let Some(workspace) = self.workspace() else {
+            self.error = Some("Choose a Workspace or Saved Folder before downloading.".into());
             return;
         };
         let Some(folder_id) = &self.selected_folder else {
@@ -222,24 +350,39 @@ impl State {
         if self.busy() {
             return;
         }
+        let Some(workspace) = self.workspace() else {
+            return;
+        };
+        let workspace_id = workspace.id.clone();
+        self.choose_folder_for(workspace_id, tx);
+    }
+
+    pub fn choose_folder_for(&mut self, workspace_id: String, tx: &mut Tx) {
+        if self.busy() {
+            return;
+        }
         tx.open_folder(
             rune::FileDialogOptions {
                 title: "Add a Saved Folder".into(),
                 ..Default::default()
             },
-            |state: &mut Self, result, _| match result {
-                Ok(Some(path)) => state.add_folder(path),
+            move |state: &mut Self, result, _| match result {
+                Ok(Some(path)) => state.add_folder(&workspace_id, path),
                 Ok(None) => {}
                 Err(error) => state.error = Some(error.to_string()),
             },
         );
     }
 
-    fn add_folder(&mut self, path: PathBuf) {
+    fn add_folder(&mut self, workspace_id: &str, path: PathBuf) {
         if self.busy() {
             return;
         }
-        let Some(workspace) = self.workspace() else {
+        let Some(workspace) = self
+            .snapshot
+            .as_ref()
+            .and_then(|s| s.workspaces.iter().find(|w| w.id == workspace_id))
+        else {
             return;
         };
         if let Some(folder) = workspace
@@ -247,7 +390,7 @@ impl State {
             .iter()
             .find(|f| std::path::Path::new(&f.path) == path)
         {
-            self.selected_folder = Some(folder.id.clone());
+            self.navigate(Location::Folder(workspace.id.clone(), folder.id.clone()));
             return;
         }
         let id = Uuid::new_v4().to_string();
@@ -264,7 +407,11 @@ impl State {
                 .into_owned(),
             path: path.to_string_lossy().into_owned(),
         };
-        self.send(request_id, Purpose::Folder(id), Command::Folder(request));
+        self.send(
+            request_id,
+            Purpose::Folder(workspace_id.into(), id),
+            Command::Folder(request),
+        );
     }
 
     pub fn control(&mut self, download_id: String, action: DownloadAction) {

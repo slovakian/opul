@@ -1,5 +1,6 @@
 //! Only the worker calls the core. The UI consumes its existing projection publisher.
 use crate::paths::Paths;
+use crate::preferences::Preferences;
 use opul_core::{
     MachineCommandReceipt, MachineDownloadCommand, MachineFolderRequest, MachineMediaRequest,
     MachineSessionState, MachineSnapshot, OpulStateMachine,
@@ -55,11 +56,15 @@ pub enum Event {
     Snapshot(MachineSnapshot),
     Settled(String, Result<MachineCommandReceipt, String>),
     Failed(String),
+    Preferences(Result<Preferences, String>),
+    PreferencesSaved(u64, Result<(), String>),
 }
 
 enum Work {
     Execute(String, Box<Command>),
     Shutdown,
+    ReadPreferences,
+    SavePreferences(u64, Preferences),
 }
 
 type ShutdownResult = Arc<(Mutex<Option<Result<MachineSnapshot, String>>>, Condvar)>;
@@ -71,6 +76,20 @@ pub struct Client {
 }
 
 impl Client {
+    pub fn read_preferences(&self) -> Result<(), String> {
+        self.commands
+            .send(Work::ReadPreferences)
+            .map_err(|_| "The library worker stopped.".into())
+    }
+    pub fn save_preferences(
+        &self,
+        generation: u64,
+        preferences: Preferences,
+    ) -> Result<(), String> {
+        self.commands
+            .send(Work::SavePreferences(generation, preferences))
+            .map_err(|_| "The library worker stopped.".into())
+    }
     pub fn execute(&self, id: String, command: Command) -> Result<(), String> {
         self.commands
             .send(Work::Execute(id, Box::new(command)))
@@ -184,9 +203,19 @@ fn run(
             })
             .map_err(|e| e.to_string())?
     };
-    while let Ok(Work::Execute(id, command)) = commands.recv() {
-        let result = command.execute(&machine);
-        let _ = events.send(Event::Settled(id, result));
+    let preferences_path = paths.data.join("navigation-preferences.json");
+    let _ = events.send(Event::Preferences(Preferences::read(&preferences_path)));
+    wake();
+    while let Ok(work) = commands.recv() {
+        let event = match work {
+            Work::Execute(id, command) => Event::Settled(id, command.execute(&machine)),
+            Work::ReadPreferences => Event::Preferences(Preferences::read(&preferences_path)),
+            Work::SavePreferences(generation, preferences) => {
+                Event::PreferencesSaved(generation, preferences.write(&preferences_path))
+            }
+            Work::Shutdown => break,
+        };
+        let _ = events.send(event);
         wake();
     }
     let shutdown = machine.begin_shutdown().map_err(|e| e.to_string());

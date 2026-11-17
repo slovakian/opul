@@ -12,52 +12,9 @@ pub fn view(state: &State, cx: &mut Cx<State>) -> El {
     cx.focus_ring(2.0, 2.0, theme.focus);
     let busy = state.busy();
     let workspace = state.workspace();
-    let mut sidebar = col()
-        .key("workspace")
-        .w(232.0)
-        .h_full()
-        .padding(20.0)
-        .pt(38.0)
-        .gap(12.0)
-        .fill(theme.surface)
-        .child(
-            text("Opul")
-                .font(rune::TextStyle::new(15.0, 500.0))
-                .color(theme.text),
-        )
-        .child(
-            text(workspace.map_or("Opening library…", |w| &w.name))
-                .font(NAME)
-                .color(theme.text),
-        );
-    if let Some(workspace) = workspace {
-        for folder in &workspace.folders {
-            let id = folder.id.clone();
-            let selected = state.selected_folder.as_ref() == Some(&id);
-            sidebar = sidebar.child(
-                button(
-                    &format!("folder-{id}"),
-                    &folder.name,
-                    !busy,
-                    &theme,
-                    move |s: &mut State, _| s.selected_folder = Some(id.clone()),
-                )
-                .w_full()
-                .fill(if selected {
-                    theme.control
-                } else {
-                    theme.surface
-                }),
-            );
-        }
-    }
-    sidebar = sidebar.child(button(
-        "choose-folder",
-        "Add Saved Folder…",
-        !busy,
-        &theme,
-        |s: &mut State, tx| s.choose_folder(tx),
-    ));
+    let narrow = cx
+        .layout_with("app", |rect| rect[2] < 820.0)
+        .unwrap_or(false);
     let destination = workspace.and_then(|w| {
         w.folders
             .iter()
@@ -67,12 +24,36 @@ pub fn view(state: &State, cx: &mut Cx<State>) -> El {
         .key("library")
         .grow(1.0)
         .min_w(0.0)
-        .padding(32.0)
+        .padding(if narrow { 16.0 } else { 32.0 })
         .gap(16.0)
         .child(
-            text("Downloads")
-                .font(rune::TextStyle::new(22.0, 500.0))
-                .color(theme.text),
+            row()
+                .w_full()
+                .gap(8.0)
+                .center_y()
+                .children(narrow.then(|| {
+                    button(
+                        "open-navigation",
+                        "Library",
+                        true,
+                        &theme,
+                        |s: &mut State, _| s.navigation_open = true,
+                    )
+                }))
+                .child(
+                    text(state.breadcrumb())
+                        .key("breadcrumb")
+                        .label(state.breadcrumb())
+                        .font(rune::TextStyle::new(22.0, 500.0))
+                        .color(theme.text)
+                        .truncate(),
+                )
+                .child(
+                    text(format!("{} Downloads", state.count(&state.location)))
+                        .key("visible-count")
+                        .font(CAPTION)
+                        .color(theme.muted),
+                ),
         )
         .child(
             row().gap(8.0).center_y().child(folder_icon(&theme)).child(
@@ -92,11 +73,23 @@ pub fn view(state: &State, cx: &mut Cx<State>) -> El {
                 .child(button(
                     "submit-download",
                     "Download",
-                    !busy && !state.url.text.trim().is_empty(),
+                    !busy && state.selected_folder.is_some() && !state.url.text.trim().is_empty(),
                     &theme,
                     |s: &mut State, _| s.submit(),
                 )),
         );
+    if let crate::navigation::Location::Folder(workspace_id, _) = &state.location {
+        let workspace_id = workspace_id.clone();
+        content = content.child(button(
+            "breadcrumb-workspace",
+            "Workspace",
+            true,
+            &theme,
+            move |s: &mut State, _| {
+                s.navigate(crate::navigation::Location::Workspace(workspace_id.clone()))
+            },
+        ));
+    }
     if let Some(error) = &state.error {
         content = content.child(
             text(error)
@@ -136,13 +129,17 @@ pub fn view(state: &State, cx: &mut Cx<State>) -> El {
         }
     }
     let mut downloads = col().key("downloads").w_full().gap(state.look.gap());
-    if let Some(workspace) = workspace {
-        for download in &workspace.downloads {
-            downloads = downloads.child(download_row(download, busy, &theme));
+    if let Some(snapshot) = &state.snapshot {
+        for workspace in &snapshot.workspaces {
+            for download in &workspace.downloads {
+                if state.location.includes(workspace, download) {
+                    downloads = downloads.child(download_row(download, busy, &theme));
+                }
+            }
         }
-        if workspace.downloads.is_empty() {
+        if state.count(&state.location) == 0 {
             downloads = downloads.child(
-                text("Paste a direct file link to start a Download.")
+                text("No Downloads in this view.")
                     .key("empty-library")
                     .font(BODY)
                     .color(theme.muted),
@@ -182,13 +179,42 @@ pub fn view(state: &State, cx: &mut Cx<State>) -> El {
                 |s: &mut State, _| s.reduced_motion = !s.reduced_motion,
             )),
     );
-    row()
-        .key("app")
-        .w_full()
-        .h_full()
-        .fill(theme.page)
-        .child(sidebar)
-        .child(content)
+    let mut app = row().key("app").w_full().h_full().fill(theme.page);
+    if !narrow {
+        app = app.child(crate::sidebar::sidebar(state, &theme));
+    }
+    app = app.child(content);
+    if narrow && state.navigation_open {
+        app = app.child(
+            rune::col()
+                .key("navigation-sheet")
+                .role("dialog")
+                .label("Library navigation")
+                .absolute(0.0, 0.0)
+                .w(260.0)
+                .h_full()
+                .fill(theme.surface)
+                .focus_return("open-navigation")
+                .modal(true, |s: &mut State| {
+                    s.navigation_open = false;
+                    s.workspace_menu = None;
+                })
+                .child(button(
+                    "close-navigation",
+                    "Close navigation",
+                    true,
+                    &theme,
+                    |s: &mut State, _| s.navigation_open = false,
+                ))
+                .child(crate::sidebar::sidebar(state, &theme).grow(1.0).min_h(0.0)),
+        );
+    }
+    if (!narrow || state.navigation_open)
+        && let Some(menu) = crate::sidebar::workspace_menu(state, &theme)
+    {
+        app = app.child(menu);
+    }
+    app
 }
 
 fn download_row(download: &MachineDownload, busy: bool, theme: &Theme) -> El {

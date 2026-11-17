@@ -8,6 +8,8 @@ The [native visual study](docs/rune/visual-treatment.md) records the chosen Soft
 
 The [production Rune direct-file journey](docs/rune/direct-download.md) uses the real Rust core. `Scripts/package-rune.sh` builds its macOS bundle; `python3 Scripts/check-rune-app.py` checks native folder selection, downloads, Quit, and restoration in a fresh process. Its library uses `OPUL_RUNE_DATA_DIR` and `OPUL_RUNE_DOWNLOAD_DIR`, separate from the existing shell and disposable previews.
 
+The [Rune navigation journey](docs/rune/navigation.md) covers real library filtering, independent Workspace disclosure, persistent expansion and narrow navigation. `python3 Scripts/check-rune-navigation.py` checks the signed bundle through native input, preference write failure/Retry and four fresh processes.
+
 Install dependencies with `vp install --frozen-lockfile`, then run:
 
 ```bash

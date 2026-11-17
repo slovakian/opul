@@ -1,7 +1,10 @@
 mod backend;
 mod components;
 mod model;
+mod navigation;
 mod paths;
+mod preferences;
+mod sidebar;
 mod theme;
 mod view;
 
@@ -38,7 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     let state = State::new(backend.client.clone(), receiver, wake);
     let app = App::new(AppSpec {
-        min_size: Some((900.0, 540.0)),
+        min_size: Some((560.0, 540.0)),
         setup: Some(|s: &mut State, wake| {
             *s.wake.lock().unwrap_or_else(|e| e.into_inner()) = Some(wake)
         }),

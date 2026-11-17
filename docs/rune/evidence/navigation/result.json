@@ -1,0 +1,17 @@
+{
+  "result": "passed",
+  "isolated_root": "/private/var/folders/8l/rlrwlz1x51ggh7rszhh5_gvh0000gn/T/opul-rune-navigation-n7_kl_as",
+  "workspace_id": "81582d03-5760-4029-9dfe-e8e3c2ae438d",
+  "native_widths": [680, 1180],
+  "fresh_processes": 4,
+  "checks": [
+    "native picker",
+    "independent disclosure",
+    "nested Escape",
+    "narrow selection",
+    "Remember",
+    "Start collapsed",
+    "atomic failure and latest-choice Retry",
+    "Quit and last-window close"
+  ]
+}
