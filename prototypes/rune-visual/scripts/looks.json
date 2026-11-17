@@ -1,0 +1,10 @@
+{
+  "events": [
+    { "t": 0.2, "type": "tap", "key": "pause" },
+    { "t": 0.4, "type": "tap", "key": "next" },
+    { "t": 1.6, "type": "tap", "key": "next" },
+    { "t": 2.8, "type": "tap", "key": "previous" },
+    { "t": 4.0, "type": "tap", "key": "next" },
+    { "t": 5.2, "type": "tap", "key": "next" }
+  ]
+}

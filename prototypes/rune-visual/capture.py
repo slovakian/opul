@@ -134,6 +134,25 @@ def main():
     reduced_records = [json.loads(line) for line in (output / "reduced.jsonl").read_text().splitlines()]
     assert not reduced_records[-1]["quality"]["animating"]
     (output / "motion-summary.json").write_text(json.dumps({"samples": samples, "reduced_settled": True}, indent=2) + "\n")
+    # The selected product direction keeps live look switching, with a reduced-motion option.
+    looks = json.loads((PROTOTYPE / "scripts/looks.json").read_text())
+    for reduced in [False, True]:
+        name = "look-switch-reduced" if reduced else "look-switch"
+        events = ([tap("motion", 0.1)] if reduced else []) + looks["events"]
+        script = output / f"{name}-input.json"
+        script.write_text(json.dumps({"events": events}, indent=2) + "\n")
+        subprocess.run([
+            str(BINARY), "--theme", "light", "--scale", "1", "--size", "1180x760",
+            "--script", str(script), "--frames", "105", "--fps", "15",
+            "--video", str(output / f"{name}.mp4"), "--tree", str(output / f"{name}.json"),
+        ], cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
+        tree = json.loads((output / f"{name}.json").read_text())
+        elements = {element["key"]: element for element in tree["elements"] if "key" in element}
+        assert elements["variant"]["text"] == "A · Soft edge"
+        assert elements["status-0"]["label"] == "Paused · 42%", "Look changes must preserve fixture state"
+        assert tree["reduced_motion"] == reduced
+        if reduced:
+            assert not tree["animating"]
     print(f"Captured treatments, controls, modal interactions and 7s motion: {output}")
 
 

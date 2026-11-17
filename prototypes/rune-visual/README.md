@@ -2,6 +2,8 @@
 
 This is the native playground for [#101](https://github.com/slovakian/opul/issues/101), adapted from `mattpocock-skills:prototype`. It is separate from production, uses in-memory fixtures, and must be rewritten as owned, tested components after a design is chosen.
 
+The maintainer chose **A · Soft Edge as the default**, keeping the other looks as user options with smooth live transitions. A persistent reduced-motion setting that also respects the OS is required for production. The prototype already starts on A and exposes the in-memory look/motion controls; it does not implement saved Settings.
+
 From the repository root:
 
 ```sh
@@ -23,7 +25,7 @@ State resets on every launch. There is no application-state connection, persiste
 
 [Design question, review status, screenshots, motion and limitations](../../docs/rune/visual-treatment.md).
 
-Recreate renderer evidence, including actual keyed input, semantic assertions and three seven-second recordings:
+Recreate renderer evidence, including actual keyed input, semantic assertions and seven-second recordings of effects, the sheet, look switching and reduced motion:
 
 ```sh
 python3 prototypes/rune-visual/capture.py
