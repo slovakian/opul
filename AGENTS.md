@@ -1,3 +1,17 @@
+## Agent skills
+
+### Issue tracker
+
+Publish issues and specs to GitHub Issues in `slovakian/opul`. Read `docs/agents/issue-tracker.md` before issue-tracker work.
+
+### Triage labels
+
+Use the Matt Pocock defaults, including `ready-for-agent`. Read `docs/agents/triage-labels.md` before applying triage labels.
+
+### Domain docs
+
+Single-context layout. Read `docs/agents/domain.md` before exploring domain concepts or architecture.
+
 <!--VITE PLUS START-->
 
 # Using Vite+, the Unified Toolchain for the Web

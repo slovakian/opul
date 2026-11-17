@@ -13,6 +13,54 @@ const featureDirectory = path.join(root, "docs/features");
 const schemaPath = path.join(root, "docs/features.schema.json");
 const markdownPath = path.join(root, "docs/FEATURES.md");
 
+const readinessErrors = (name, text) => {
+  const errors = [];
+
+  if (/\bagent-ready\b/u.test(text)) {
+    errors.push(
+      `${name}: use ready-for-agent from docs/agents/triage-labels.md`
+    );
+  }
+
+  if (!text.includes("ready-for-agent")) {
+    errors.push(`${name}: missing canonical ready-for-agent label`);
+  }
+
+  return errors;
+};
+
+const agentSetupErrors = () => {
+  const errors = [];
+  const steering = readFileSync(path.join(root, "AGENTS.md"), "utf-8");
+
+  for (const name of ["issue-tracker", "triage-labels", "domain"]) {
+    const location = `docs/agents/${name}.md`;
+    const text = readFileSync(path.join(root, location), "utf-8");
+
+    if (!steering.includes(location)) {
+      errors.push(`AGENTS.md: missing setup pointer to ${location}`);
+    }
+
+    if (name !== "domain") {
+      errors.push(...readinessErrors(location, text));
+    }
+  }
+
+  for (const location of [
+    "docs/feature-workflow.md",
+    ".github/ISSUE_TEMPLATE/feature.yml",
+  ]) {
+    errors.push(
+      ...readinessErrors(
+        location,
+        readFileSync(path.join(root, location), "utf-8")
+      )
+    );
+  }
+
+  return errors;
+};
+
 const statusOrder = [
   "shipped",
   "partial",
@@ -337,6 +385,19 @@ const assertIncludes = (errors, needle) => {
 };
 
 const selfTest = () => {
+  assertIncludes(
+    readinessErrors("fixture", "Apply agent-ready"),
+    "use ready-for-agent"
+  );
+  assertIncludes(
+    readinessErrors("fixture", "Apply a readiness label"),
+    "missing canonical"
+  );
+
+  if (readinessErrors("fixture", "Apply ready-for-agent").length > 0) {
+    throw new Error("canonical readiness label was rejected");
+  }
+
   const valid = parseFeatureFile(
     "other.yml",
     `features:\n  - id: sample-feature\n    title: Sample feature\n    category: other\n    source: competitor:downie\n    status: wont-do\n    priority: p2\n    summary: A sample entry used only by the validator self-test.\n    notes: Not a product feature.\n    reason: The self-test needs a reason.\n    issue: null\n    added: 2026-11-17\n    updated: 2026-11-17\n`
@@ -402,6 +463,7 @@ const main = () => {
   }
 
   const { errors, features } = loadTracker();
+  errors.push(...agentSetupErrors());
 
   if (errors.length > 0) {
     process.stderr.write(`${errors.join("\n")}\n`);

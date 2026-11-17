@@ -10,7 +10,7 @@ body:
       value: |
         Track the work in `docs/features/` and link this issue from that entry. See `docs/feature-workflow.md`.
 
-        Add `agent-ready` and remove `needs-triage` once the acceptance criteria are clear enough to implement without guessing.
+        Use the vocabulary in `docs/agents/triage-labels.md`. Add `ready-for-agent` and remove `needs-triage` once the acceptance criteria are clear enough to implement without guessing.
 
   - type: input
     id: feature-id
@@ -34,7 +34,7 @@ body:
     id: acceptance
     attributes:
       label: Acceptance criteria
-      description: Observable outcomes. An agent-ready issue is specific enough to implement and test from this list.
+      description: Observable outcomes. A ready-for-agent issue is specific enough to implement and test from this list.
       placeholder: |
         - The inspector can include or skip each file before and during the download.
         - Skipped files are absent from the selected size.
