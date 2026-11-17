@@ -71,7 +71,27 @@ Checked on macOS 26.2 arm64 with Rust 1.99.0. The revised native window complete
 
 The native debug run shared the machine with the full browser suite. Presentation interval p50 was 16.67ms and p95 66.67ms; this is launch/submission evidence, not a performance result. New prototype Intel, macOS 13, packaging, signing, VoiceOver and actual Download journeys have not been checked. #100's separate architecture evidence does not establish this prototype's coverage.
 
-`vp check`, TypeScript checking, the production frontend build, all 107 frontend unit tests, and all 248 Rust tests passed, with two existing ignored desktop tests. The first Rust build exhausted disk space; the failed cache was cleared and the subsequent complete run passed. No production source or existing assertions changed. Full browser-suite results are recorded in the delivery update.
+`vp check`, TypeScript checking, the production frontend build, all 107 frontend unit tests, and all 248 Rust tests passed, with two existing ignored desktop tests. The first Rust build exhausted disk space; the failed cache was cleared and the subsequent complete run passed. No production source or existing assertions changed.
+
+The single-worker full WebKit run passed 272/276 in 8.8 minutes. Four cases failed with missing/detached controls or navigation interruptions: custom-treatment dragging, icon-picker search/save, custom workspace directory naming, and creation after a lost response. All four passed together in an isolated 14.8s rerun. This is not a fully green full-suite result. No browser test or production code was changed to obtain the rerun result; #118 retains the suite-stability gate.
+
+```sh
+CARGO_BUILD_JOBS=2 CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 \
+  CARGO_PROFILE_TEST_DEBUG=0 cargo test --workspace -- --test-threads=2
+vp check
+vp exec tsc --noEmit
+vp test
+vp run build
+OPUL_TEST_PORT=1561 vp run test --project=webkit --workers=1 \
+  --output=.build/rune-visual/webkit
+OPUL_TEST_PORT=1562 vp run test --project=webkit \
+  tests/ui/custom-treatment.spec.ts tests/ui/icon-picker.spec.ts \
+  tests/ui/workspace-creation.spec.ts \
+  --grep='dragging updates only|search previews locally|a custom workspace folder|creation saves emoji' \
+  --workers=1 --output=.build/rune-visual/webkit-focused
+```
+
+Independent Standards and Spec reviews found no implementation issues. The Spec review records one intentional pending item: the maintainer's design choice. The prototype's own renderer recipe, motion assertions, modal keyboard checks, and native launch passed.
 
 ## Decision record
 
