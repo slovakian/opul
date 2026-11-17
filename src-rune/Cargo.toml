@@ -1,0 +1,22 @@
+[package]
+name = "opul-rune"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+[dependencies]
+opul_core = { path = ".." }
+rune = { git = "https://github.com/anomalyco/rune", rev = "cca5df6fafb4721d96fe105f126ebfd2ec351bb6", default-features = false, features = ["accessibility", "embedded-fonts", "metal-backend", "native-file-dialog", "tooling"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
+url = "2"
+# This Rune revision calls animation APIs introduced in 0.25.10.
+image = { version = "0.25.10", default-features = false }
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints.rust]
+unsafe_code = "forbid"

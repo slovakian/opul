@@ -24,6 +24,7 @@ pub(super) fn open_media_engine(
     let loaded = load_downloads(&store_path).map_err(|reason| CoreError::Engine { reason })?;
     let items = Arc::new(Mutex::new(loaded.items));
     let engine = Arc::new(MediaEngine {
+        shutdown: tokio::sync::watch::channel(false).0,
         yt_dlp: YtDlpSource {
             tools: config.video_tools,
             developer_override: Arc::new(Mutex::new(

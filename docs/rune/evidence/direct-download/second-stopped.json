@@ -1,0 +1,152 @@
+{
+  "revision": 30,
+  "boot_id": "926eb513-dd6e-49d8-8627-de844bcb8a5b",
+  "sequence": 99,
+  "session": "Stopped",
+  "workspaces": [
+    {
+      "id": "c327ea8e-0748-457e-babf-1aa2ddef7b02",
+      "name": "Downloads",
+      "icon": {
+        "kind": "Emoji",
+        "value": "📁"
+      },
+      "appearance": {
+        "automatic_folder": {
+          "preset_id": "lime",
+          "version": 1,
+          "hue": 225,
+          "saturation": 500,
+          "brightness": 110
+        }
+      },
+      "folders": [
+        {
+          "id": "af543ecb-91ca-44c8-a088-fb1f76cda3ef",
+          "name": "Downloads",
+          "path": "/private/var/folders/8l/rlrwlz1x51ggh7rszhh5_gvh0000gn/T/opul-rune-journey-2bxcv28x/Downloads",
+          "is_default": true
+        },
+        {
+          "id": "a6bd0ed0-bc3a-4499-a6e8-6f7ff4202578",
+          "name": "Saved",
+          "path": "/private/var/folders/8l/rlrwlz1x51ggh7rszhh5_gvh0000gn/T/opul-rune-journey-2bxcv28x/Saved",
+          "is_default": false
+        }
+      ],
+      "default_format": "Best",
+      "file_organization": "Automatic",
+      "layout": "List",
+      "sort": "Order",
+      "grouping": "None",
+      "downloads": [
+        {
+          "needs_video_tools": false,
+          "relies_on_video_tools": false,
+          "id": "7fd453b8-54b2-400e-8372-59d3fc5b157a",
+          "folder_id": "a6bd0ed0-bc3a-4499-a6e8-6f7ff4202578",
+          "name": "held.mp4",
+          "source": "Direct",
+          "source_url": "http://127.0.0.1:65366/held.mp4",
+          "page_url": null,
+          "format": "Original",
+          "state": "Finished",
+          "hold_cause": null,
+          "info_hash": null,
+          "total_size": 8224768,
+          "bytes_downloaded": 8224768,
+          "bytes_uploaded": 0,
+          "seed_ratio": 0.0,
+          "seed_ratio_limit": null,
+          "download_rate": 0,
+          "upload_rate": 0,
+          "eta_seconds": null,
+          "peers": 0,
+          "seeds": 0,
+          "progress_millionths": 1000000,
+          "piece_length": 0,
+          "piece_count": 0,
+          "comment": null,
+          "trackers": [],
+          "output_path": "/private/var/folders/8l/rlrwlz1x51ggh7rszhh5_gvh0000gn/T/opul-rune-journey-2bxcv28x/Saved/held.mp4",
+          "content_folder": null,
+          "thumbnail_url": null,
+          "extractor": null,
+          "playlist_index": null,
+          "error_message": null,
+          "waiting_label": null,
+          "files": [],
+          "capabilities": {
+            "can_set_up_video_tools": false,
+            "can_retry_video_tools": false,
+            "can_update_video_tools": false,
+            "can_pause": false,
+            "can_resume": false,
+            "can_retry": false,
+            "can_cancel": false,
+            "can_stop_seeding": false,
+            "can_start_seeding": false,
+            "can_change_file_selection": false,
+            "can_remove": false,
+            "can_reveal_output": true,
+            "can_move": false
+          }
+        },
+        {
+          "needs_video_tools": false,
+          "relies_on_video_tools": false,
+          "id": "4f8e0c0a-4ba2-420e-85d2-5b776cebc26c",
+          "folder_id": "a6bd0ed0-bc3a-4499-a6e8-6f7ff4202578",
+          "name": "running.mp4",
+          "source": "Direct",
+          "source_url": "http://127.0.0.1:65366/running.mp4",
+          "page_url": null,
+          "format": "Original",
+          "state": "Finished",
+          "hold_cause": null,
+          "info_hash": null,
+          "total_size": 8224768,
+          "bytes_downloaded": 8224768,
+          "bytes_uploaded": 0,
+          "seed_ratio": 0.0,
+          "seed_ratio_limit": null,
+          "download_rate": 0,
+          "upload_rate": 0,
+          "eta_seconds": null,
+          "peers": 0,
+          "seeds": 0,
+          "progress_millionths": 1000000,
+          "piece_length": 0,
+          "piece_count": 0,
+          "comment": null,
+          "trackers": [],
+          "output_path": "/private/var/folders/8l/rlrwlz1x51ggh7rszhh5_gvh0000gn/T/opul-rune-journey-2bxcv28x/Saved/running.mp4",
+          "content_folder": null,
+          "thumbnail_url": null,
+          "extractor": null,
+          "playlist_index": null,
+          "error_message": null,
+          "waiting_label": null,
+          "files": [],
+          "capabilities": {
+            "can_set_up_video_tools": false,
+            "can_retry_video_tools": false,
+            "can_update_video_tools": false,
+            "can_pause": false,
+            "can_resume": false,
+            "can_retry": false,
+            "can_cancel": false,
+            "can_stop_seeding": false,
+            "can_start_seeding": false,
+            "can_change_file_selection": false,
+            "can_remove": false,
+            "can_reveal_output": true,
+            "can_move": false
+          }
+        }
+      ]
+    }
+  ],
+  "recent_emoji": [],
+  "recovery_notices": []
+}

@@ -41,6 +41,7 @@ pub(super) fn built_in_resources(root: &Path) -> PathBuf {
 mod guided;
 mod persistence;
 mod probe_and_progress;
+mod shutdown;
 mod tools;
 mod transfers;
 

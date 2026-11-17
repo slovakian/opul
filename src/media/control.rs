@@ -92,14 +92,16 @@ impl MediaEngine {
                 signal_process(pid, "CONT");
             }
         } else if self.can_start(&id) {
-            // Queued and restored transfers already own a worker waiting at the
-            // concurrency gate. Waking that worker avoids starting a duplicate.
-            self.transition_state(
+            // A quiescent restored adapter has no worker yet. Registration deduplicates
+            // this against any live paused worker already waiting at the gate.
+            if self.transition_state(
                 &id,
                 &[MediaTransferState::Paused],
                 MediaTransferState::Queued,
                 None,
-            );
+            ) {
+                spawn_worker(self.worker_context(), id.clone());
+            }
         } else {
             self.transition_state(
                 &id,

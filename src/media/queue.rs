@@ -198,6 +198,67 @@ impl MediaEngine {
             .collect()
     }
 
+    /// Terminal shutdown retains partials and held states, interrupts HTTP awaits and
+    /// waits for every registered writer and owned child before the core commits Stopped.
+    pub(crate) fn shut_down(&self) -> Result<(), String> {
+        self.gate
+            .0
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .shutdown = true;
+        self.stop_all();
+        self.shutdown.send_replace(true);
+        self.gate.1.notify_all();
+        let started = Instant::now();
+        loop {
+            let done = self
+                .workers
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .handles
+                .iter()
+                .all(thread::JoinHandle::is_finished);
+            if done {
+                break;
+            }
+            let pids = self
+                .processes
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .values()
+                .copied()
+                .collect::<Vec<_>>();
+            for pid in pids {
+                signal_process(pid, "CONT");
+                signal_process(
+                    pid,
+                    if started.elapsed() > Duration::from_secs(1) {
+                        "KILL"
+                    } else {
+                        "TERM"
+                    },
+                );
+            }
+            if started.elapsed() > Duration::from_secs(10) {
+                return Err("Media writers did not stop during shutdown.".into());
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        let handles = std::mem::take(
+            &mut self
+                .workers
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .handles,
+        );
+        for handle in handles {
+            handle
+                .join()
+                .map_err(|_| "A media writer panicked during shutdown.".to_string())?;
+        }
+        Ok(())
+    }
+
     pub(crate) fn stop_all(&self) {
         let ids = self
             .items

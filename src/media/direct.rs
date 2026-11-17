@@ -9,7 +9,19 @@ pub(super) fn run_direct_download(
         .enable_all()
         .build()
         .map_err(|error| format!("could not start the direct downloader: {error}"))?;
-    runtime.block_on(download_direct_resource(context, id, item))
+    runtime.block_on(async {
+        let mut shutdown = context.shutdown.subscribe();
+        if *shutdown.borrow() {
+            return Ok(());
+        }
+        // Dropping the request future closes the response and partial file, even while
+        // awaiting headers, a stalled body, a rate-limit delay or a deliberate pause.
+        tokio::select! {
+            biased;
+            _ = shutdown.changed() => Ok(()),
+            result = download_direct_resource(context, id, item) => result,
+        }
+    })
 }
 
 async fn download_direct_resource(

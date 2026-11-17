@@ -393,10 +393,12 @@ pub(super) struct Gate {
 pub(super) struct WorkerRegistry {
     pub(super) active: std::collections::HashSet<String>,
     pub(super) retry_requested: std::collections::HashSet<String>,
+    pub(super) handles: Vec<thread::JoinHandle<()>>,
 }
 
 #[derive(Clone)]
 pub(super) struct WorkerContext {
+    pub(super) shutdown: tokio::sync::watch::Sender<bool>,
     pub(super) yt_dlp: YtDlpSource,
     pub(super) ffmpeg: Option<PathBuf>,
     pub(super) cookie_directory: PathBuf,
@@ -410,6 +412,7 @@ pub(super) struct WorkerContext {
 }
 
 pub struct MediaEngine {
+    pub(super) shutdown: tokio::sync::watch::Sender<bool>,
     pub(super) yt_dlp: YtDlpSource,
     pub(super) ffmpeg: Option<PathBuf>,
     pub(super) ffmpeg_version: Option<String>,

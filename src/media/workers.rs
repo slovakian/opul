@@ -1,16 +1,18 @@
 use super::*;
 
 pub(super) fn spawn_worker(context: WorkerContext, id: String) {
-    {
-        let mut workers = context
-            .workers
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        if !workers.active.insert(id.clone()) {
-            return;
-        }
+    // Register the handle before shutdown can close the gate and join its writers.
+    let spawn_gate = Arc::clone(&context.gate);
+    let gate = spawn_gate.0.lock().unwrap_or_else(|e| e.into_inner());
+    if gate.shutdown {
+        return;
     }
-    let failure_workers = Arc::clone(&context.workers);
+    let registry = Arc::clone(&context.workers);
+    let mut workers = registry.lock().unwrap_or_else(|e| e.into_inner());
+    if !workers.active.insert(id.clone()) {
+        return;
+    }
+    workers.handles.retain(|h| !h.is_finished());
     let failure_items = Arc::clone(&context.items);
     let failure_store_path = context.store_path.clone();
     let failure_id = id.clone();
@@ -19,32 +21,44 @@ pub(super) fn spawn_worker(context: WorkerContext, id: String) {
         .name(format!("opul-media-{worker_label}"))
         .spawn(move || {
             run_worker(context.clone(), id.clone());
-            let should_retry = {
-                let mut workers = context
-                    .workers
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner());
-                workers.active.remove(&id);
-                workers.retry_requested.remove(&id)
-            };
-            if should_retry {
-                restart_download(context, id);
-            }
+            finish_worker(context, id);
         });
-    if result.is_err() {
-        failure_workers
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .active
-            .remove(&failure_id);
-        let mut items = failure_items
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        if let Some(item) = items.get_mut(&failure_id) {
-            item.state = MediaTransferState::Failed;
-            item.error_message = Some("could not start a download worker".to_string());
+    match result {
+        Ok(handle) => workers.handles.push(handle),
+        Err(_) => {
+            workers.active.remove(&failure_id);
+            drop(workers);
+            drop(gate);
+            let mut items = failure_items.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(item) = items.get_mut(&failure_id) {
+                item.state = MediaTransferState::Failed;
+                item.error_message = Some("could not start a download worker".to_string());
+            }
+            save_downloads(&failure_store_path, &items);
         }
-        save_downloads(&failure_store_path, &items);
+    }
+}
+
+pub(super) fn finish_worker(context: WorkerContext, id: String) {
+    let (should_retry, queued) = {
+        let mut workers = context.workers.lock().unwrap_or_else(|e| e.into_inner());
+        workers.active.remove(&id);
+        let retry = workers.retry_requested.remove(&id);
+        // Resume can arrive after the outcome was saved but before this registration
+        // is released. Hand its queued intent to a replacement instead of losing it.
+        let queued = context
+            .items
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(&id)
+            .is_some_and(|item| item.state == MediaTransferState::Queued);
+        (retry, queued)
+    };
+    if should_retry {
+        restart_download(context, id);
+    } else if queued {
+        // Do not rewrite the item: a newer Pause/Cancel must still win at the gate.
+        spawn_worker(context, id);
     }
 }
 
@@ -110,7 +124,10 @@ pub(super) fn run_worker(context: WorkerContext, id: String) {
             )
         });
         if let Some(item) = items.get_mut(&id) {
-            if item.state != MediaTransferState::Cancelled {
+            if !matches!(
+                item.state,
+                MediaTransferState::Cancelled | MediaTransferState::Paused
+            ) {
                 match &result {
                     Ok(()) => {
                         item.state = MediaTransferState::Finished;
@@ -153,6 +170,9 @@ pub(super) fn run_worker(context: WorkerContext, id: String) {
 
 pub(super) fn wait_for_slot(context: &WorkerContext, id: &str) -> bool {
     loop {
+        if *context.shutdown.borrow() {
+            return false;
+        }
         let state = context
             .items
             .lock()
@@ -184,16 +204,19 @@ pub(super) fn wait_for_slot(context: &WorkerContext, id: &str) -> bool {
                     return false;
                 }
                 if gate.running < gate.maximum {
-                    gate.running += 1;
-                    drop(gate);
                     let mut items = context
                         .items
                         .lock()
                         .unwrap_or_else(|poisoned| poisoned.into_inner());
-                    if let Some(item) = items.get_mut(id) {
-                        item.state = MediaTransferState::Downloading;
-                        item.error_message = None;
+                    let Some(item) = items.get_mut(id) else {
+                        return false;
+                    };
+                    if item.state != MediaTransferState::Queued {
+                        continue;
                     }
+                    gate.running += 1;
+                    item.state = MediaTransferState::Downloading;
+                    item.error_message = None;
                     save_downloads(&context.store_path, &items);
                     return true;
                 }
@@ -308,6 +331,7 @@ pub(super) fn run_download(
         .get(id)
         .map(|item| item.state);
     match state {
+        _ if *context.shutdown.borrow() => signal_process(pid, "TERM"),
         Some(MediaTransferState::Paused) => signal_process(pid, "STOP"),
         None | Some(MediaTransferState::Cancelled) => signal_process(pid, "TERM"),
         _ => {}

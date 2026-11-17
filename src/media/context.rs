@@ -7,6 +7,7 @@ impl MediaEngine {
 
     pub(super) fn worker_context(&self) -> WorkerContext {
         WorkerContext {
+            shutdown: self.shutdown.clone(),
             yt_dlp: self.yt_dlp.clone(),
             ffmpeg: self.ffmpeg.clone(),
             cookie_directory: self.cookie_directory(),
@@ -209,24 +210,6 @@ impl MediaEngine {
 
 impl Drop for MediaEngine {
     fn drop(&mut self) {
-        {
-            let mut gate = self
-                .gate
-                .0
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            gate.shutdown = true;
-        }
-        self.gate.1.notify_all();
-        let pids = self
-            .processes
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .values()
-            .copied()
-            .collect::<Vec<_>>();
-        for pid in pids {
-            signal_process(pid, "TERM");
-        }
+        let _ = self.shut_down();
     }
 }

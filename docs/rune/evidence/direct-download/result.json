@@ -1,0 +1,11 @@
+{
+  "result": "passed",
+  "isolated_root": "/private/var/folders/8l/rlrwlz1x51ggh7rszhh5_gvh0000gn/T/opul-rune-journey-2bxcv28x",
+  "download_ids": [
+    "7fd453b8-54b2-400e-8372-59d3fc5b157a",
+    "4f8e0c0a-4ba2-420e-85d2-5b776cebc26c"
+  ],
+  "payload_sha256": "e94b77a683d3744798505429b0e845f3a5f085988cf4aaa4e429a501aa6881e9",
+  "bytes_per_file": 8224768,
+  "quit_routes": ["Command-Q", "last window close"]
+}

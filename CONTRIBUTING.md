@@ -6,6 +6,8 @@ For the Rune migration, see the [recorded behavior baseline](docs/rune/baseline.
 
 The [native visual study](docs/rune/visual-treatment.md) records the chosen Soft Edge default, user-selectable looks and required reduced-motion setting. Run `Scripts/rune-visual.sh`; its fixtures stay in memory. Production preferences and owned components are separate migration work.
 
+The [production Rune direct-file journey](docs/rune/direct-download.md) uses the real Rust core. `Scripts/package-rune.sh` builds its macOS bundle; `python3 Scripts/check-rune-app.py` checks native folder selection, downloads, Quit, and restoration in a fresh process. Its library uses `OPUL_RUNE_DATA_DIR` and `OPUL_RUNE_DOWNLOAD_DIR`, separate from the existing shell and disposable previews.
+
 Install dependencies with `vp install --frozen-lockfile`, then run:
 
 ```bash

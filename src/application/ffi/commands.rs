@@ -228,7 +228,9 @@ impl OpulStateMachine {
         let boot = self.actor.snapshot().boot.unwrap_or_else(BootId::new);
         let receipt = self.dispatch(None, Command::BeginShutdown { boot })?;
         self.torrent.stop_all();
-        self.media.stop_all();
+        self.media
+            .shut_down()
+            .map_err(|reason| StateMachineError::Engine { reason })?;
         for _ in 0..100 {
             observe_adapters(&self.actor, &self.torrent, &self.media);
             let pausing = self
