@@ -23,13 +23,13 @@ Priority is `p0` through `p3`. A dash means no priority is set.
 
 | Status        |  Count |
 | ------------- | -----: |
-| `shipped`     |     33 |
-| `partial`     |     13 |
+| `shipped`     |     32 |
+| `partial`     |     14 |
 | `in-progress` |      0 |
-| `planned`     |      0 |
+| `planned`     |      2 |
 | `idea`        |     18 |
 | `wont-do`     |      4 |
-| **Total**     | **68** |
+| **Total**     | **70** |
 
 ## Torrent
 
@@ -38,7 +38,6 @@ Priority is `p0` through `p3`. A dash means no priority is set.
 | `connection-limit` | Connection limit | `shipped` | — | `qbittorrent` | Cap how many torrent connections Opul opens at once. |
 | `dht` | DHT | `shipped` | — | `qbittorrent` | Find peers on the DHT, and turn that discovery off. |
 | `listen-port` | Listen port | `shipped` | — | `qbittorrent` | Let Opul pick a listen port, or set one yourself. |
-| `magnet-links` | Magnet links | `shipped` | — | `qbittorrent` | Paste a magnet link and Opul downloads it into the selected workspace. |
 | `pause-and-resume` | Pause and resume | `shipped` | — | `qbittorrent` | Pause a torrent and continue it later, including after you quit Opul. |
 | `peer-counts` | Peers and seeds | `shipped` | — | `qbittorrent` | See a torrent's peers, seeds, upload speed, and how much it has shared. |
 | `remote-torrent-urls` | Remote torrent URLs | `shipped` | — | `qbittorrent` | A link whose path ends in .torrent is fetched and added as a torrent. |
@@ -48,9 +47,12 @@ Priority is `p0` through `p3`. A dash means no priority is set.
 | `torrent-files` | Torrent files | `shipped` | — | `qbittorrent` | Choose a .torrent file and Opul adds that torrent to the selected workspace. |
 | `file-priorities` | File priorities | `partial` | — | `qbittorrent` | Mark files in a torrent as high, normal, low, or skipped. |
 | `file-selection` | File selection | `partial` | — | `qbittorrent` | Choose which files in a multi-file torrent to download. |
+| `magnet-links` | Magnet links | `partial` | — | `qbittorrent` | Paste a magnet link and Opul downloads it into the selected workspace. |
 | `move-finished-files` | Move finished files | `partial` | — | `qbittorrent` | Move a finished download into another saved folder. |
 | `torrent-trackers` | Tracker list | `partial` | — | `qbittorrent` | See the trackers a torrent announced, and open one. |
 | `trash-on-remove` | Trash files on remove | `partial` | — | `qbittorrent` | Delete a download's files when you remove it from the library. |
+| `torrent-file-association` | Open .torrent files from Finder | `planned` | p0 | `qbittorrent` | Double-click a .torrent file or drop it on the Dock icon to add it to Opul. |
+| `magnet-handler` | Open magnet links from the browser | `planned` | p0 | `qbittorrent` | Click a magnet link anywhere and Opul opens it, shows the files, and lets you pick a workspace. |
 | `active-torrent-limit` | Active torrent limit | `idea` | — | `qbittorrent` | Queue torrents so only a chosen number download or seed at once. |
 | `bandwidth-scheduler` | Bandwidth scheduler | `idea` | — | `qbittorrent` | Use a different speed limit on a schedule, such as at night. |
 | `force-recheck` | Force recheck | `idea` | — | `qbittorrent` | Recheck a torrent's files against the pieces on disk whenever you ask. |
@@ -75,7 +77,6 @@ Priority is `p0` through `p3`. A dash means no priority is set.
 - **Connection limit** (`connection-limit`) — Settings, default 200, from 1 to 10,000. Applied when the session starts.
 - **DHT** (`dht`) — Settings, on by default. The change applies the next time the torrent session starts.
 - **Listen port** (`listen-port`) — Randomize is the default. A fixed port of 0 is rejected. If the chosen port fails, the session retries on an ephemeral port. TCP and uTP are both on, with no separate switch.
-- **Magnet links** (`magnet-links`) — The download field accepts a btih magnet. The engine fetches metadata while the row is still resolving.
 - **Pause and resume** (`pause-and-resume`) — Fast resume is on. Quitting stops transfers; the next launch continues them. A complete torrent uses the seeding switch instead of pause.
 - **Peers and seeds** (`peer-counts`) — The inspector shows those figures. The seed count is librqbit's count of peers that have nothing further Opul needs.
 - **Remote torrent URLs** (`remote-torrent-urls`) — Other http(s) links are files or pages unless Torrent is chosen. The engine stores those as remote metainfo.
@@ -85,9 +86,12 @@ Priority is `p0` through `p3`. A dash means no priority is set.
 - **Torrent files** (`torrent-files`) — The picker accepts one .torrent file up to 16 MB and stages its metainfo in the app.
 - **File priorities** (`file-priorities`) — Skip, Low, Normal, and High are stored. ADR 0020 says only Skip changes the transfer, because librqbit uses an include mask. No priority control is shown.
 - **File selection** (`file-selection`) — SetTorrentFiles updates librqbit's include mask, and skipped files stay out of the selected size. The inspector lists names and sizes and does not send a selection.
+- **Magnet links** (`magnet-links`) — Pasting a btih magnet into the download field works. The engine fetches metadata while the row is still resolving. Opul is not registered as a magnet: handler (see magnet-handler).
 - **Move finished files** (`move-finished-files`) — The state machine can record a move the shell already did. The desktop commands do not offer it. ADR 0027 says moving a finished torrent is not offered yet.
 - **Tracker list** (`torrent-trackers`) — The inspector lists tracker URLs. Adding, removing, or editing trackers is not offered.
 - **Trash files on remove** (`trash-on-remove`) — The core can trash output it verified. The desktop command always keeps files, and the confirmation says they stay on disk.
+- **Open .torrent files from Finder** (`torrent-file-association`) — Needs a fileAssociations entry for .torrent (application/x-bittorrent) and handling of opened file paths at launch and while running. Dropping a .torrent onto the window does not add it. Nothing listens for a file drop, and the only intake is the Open .torrent picker.
+- **Open magnet links from the browser** (`magnet-handler`) — Needs tauri-plugin-deep-link with the magnet scheme in the bundle config, single-instance forwarding to the running app, and a first-run or Settings prompt to make Opul the default magnet app. Transmission, qBittorrent, and Folx all support this.
 - **Active torrent limit** (`active-torrent-limit`) — The concurrent-download setting applies to video pages and direct files, not to a torrent queue.
 - **Bandwidth scheduler** (`bandwidth-scheduler`) — Update checks have their own timers. Nothing changes transfer rates by time of day.
 - **Force recheck** (`force-recheck`) — Starting seeding again can show Checking files while the engine reattaches. There is no separate Recheck command.
