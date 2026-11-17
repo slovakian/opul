@@ -2,6 +2,8 @@
 
 Focused pull requests and bug reports are welcome. Discuss large changes in an issue before starting, unless the maintainer has already requested the work.
 
+For the Rune migration, see the [recorded behavior baseline](docs/rune/baseline.md) and [isolated native preview](docs/rune/preview.md). `Scripts/rune-preview.sh` builds and opens the disposable preview independently of the production app.
+
 Install dependencies with `vp install --frozen-lockfile`, then run:
 
 ```bash

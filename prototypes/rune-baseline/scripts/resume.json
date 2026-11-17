@@ -1,0 +1,7 @@
+{
+  "events": [
+    { "t": 0.1, "type": "tap", "key": "toggle-transfer" },
+    { "t": 0.4, "type": "tap", "key": "toggle-transfer" },
+    { "t": 0.6, "type": "tap", "key": "toggle-appearance" }
+  ]
+}

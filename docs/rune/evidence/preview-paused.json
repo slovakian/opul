@@ -1,0 +1,411 @@
+{
+  "accessibility": {
+    "bounds": [0.0, 0.0, 900.0, 560.0],
+    "children": [
+      {
+        "bounds": [0.0, 0.0, 200.0, 560.0],
+        "children": [
+          {
+            "bounds": [24.0, 24.0, 152.0, 16.3],
+            "name": "Opul",
+            "role": "label"
+          },
+          {
+            "bounds": [24.0, 60.3, 152.0, 16.3],
+            "name": "All Downloads",
+            "role": "label"
+          },
+          {
+            "bounds": [24.0, 96.5, 152.0, 16.3],
+            "name": "In progress",
+            "role": "label"
+          },
+          {
+            "bounds": [24.0, 132.8, 152.0, 16.3],
+            "name": "Completed",
+            "role": "label"
+          },
+          {
+            "bounds": [24.0, 169.0, 152.0, 16.3],
+            "name": "Workspaces",
+            "role": "label"
+          },
+          {
+            "bounds": [24.0, 205.3, 152.0, 16.3],
+            "name": "Downloads",
+            "role": "label"
+          }
+        ],
+        "key": "sidebar",
+        "role": "group"
+      },
+      {
+        "bounds": [232.0, 32.0, 636.0, 16.3],
+        "name": "Rune baseline preview",
+        "role": "label"
+      },
+      {
+        "bounds": [232.0, 68.3, 636.0, 16.3],
+        "name": "Disposable fixtures · #100",
+        "role": "label"
+      },
+      {
+        "bounds": [232.0, 104.5, 636.0, 154.8],
+        "children": [
+          {
+            "bounds": [252.0, 124.5, 596.0, 16.3],
+            "name": "Example video.mp4",
+            "role": "label"
+          },
+          {
+            "bounds": [252.0, 152.8, 596.0, 16.3],
+            "key": "transfer-status",
+            "name": "Paused",
+            "role": "status",
+            "states": ["live-polite"]
+          },
+          {
+            "actions": ["click", "focus"],
+            "bounds": [252.0, 199.0, 596.0, 40.3],
+            "key": "toggle-transfer",
+            "name": "Resume fixture",
+            "role": "button",
+            "states": ["focused"]
+          }
+        ],
+        "key": "download",
+        "role": "group"
+      },
+      {
+        "actions": ["click", "focus"],
+        "bounds": [232.0, 279.3, 636.0, 40.3],
+        "key": "toggle-appearance",
+        "name": "Toggle appearance",
+        "role": "button"
+      },
+      {
+        "bounds": [232.0, 339.5, 636.0, 16.3],
+        "name": "Fixture data and Downloads stay in .build/rune-preview.",
+        "role": "label"
+      },
+      {
+        "bounds": [0.0, 0.0, 1.0, 1.0],
+        "role": "status",
+        "states": ["live-polite"]
+      }
+    ],
+    "name": "Opul Rune preview · #100",
+    "role": "window"
+  },
+  "anim_t": 1.2000000000000006,
+  "animating": false,
+  "dark_system": true,
+  "elements": [
+    {
+      "blur": 0.0,
+      "fill": "#f0f1f4ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "#0",
+      "rect": [0.0, 0.0, 900.0, 560.0],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#ffffffff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "sidebar",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "#0/sidebar",
+      "rect": [0.0, 0.0, 200.0, 560.0],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#1a1c1fff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "#0/sidebar/#0",
+      "rect": [24.0, 24.0, 152.0, 16.25],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Opul"
+    },
+    {
+      "blur": 0.0,
+      "color": "#1a1c1fff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "#0/sidebar/#1",
+      "rect": [24.0, 60.25, 152.0, 16.25],
+      "role": "text",
+      "scale": 1.0,
+      "text": "All Downloads"
+    },
+    {
+      "blur": 0.0,
+      "color": "#606369ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "#0/sidebar/#2",
+      "rect": [24.0, 96.5, 152.0, 16.25],
+      "role": "text",
+      "scale": 1.0,
+      "text": "In progress"
+    },
+    {
+      "blur": 0.0,
+      "color": "#606369ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "#0/sidebar/#3",
+      "rect": [24.0, 132.75, 152.0, 16.25],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Completed"
+    },
+    {
+      "blur": 0.0,
+      "color": "#606369ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "#0/sidebar/#4",
+      "rect": [24.0, 169.0, 152.0, 16.25],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Workspaces"
+    },
+    {
+      "blur": 0.0,
+      "color": "#1a1c1fff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "#0/sidebar/#5",
+      "rect": [24.0, 205.25, 152.0, 16.25],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Downloads"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "#0/#1",
+      "rect": [200.0, 0.0, 700.0, 560.0],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#1a1c1fff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "#0/#1/#0",
+      "rect": [232.0, 32.0, 636.0, 16.25],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Rune baseline preview"
+    },
+    {
+      "blur": 0.0,
+      "color": "#606369ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "#0/#1/#1",
+      "rect": [232.0, 68.25, 636.0, 16.25],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Disposable fixtures · #100"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#ffffffff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "download",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "#0/#1/download",
+      "rect": [232.0, 104.5, 636.0, 154.75],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#1a1c1fff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "#0/#1/download/#0",
+      "rect": [252.0, 124.5, 596.0, 16.25],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Example video.mp4"
+    },
+    {
+      "blur": 0.0,
+      "color": "#606369ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "transfer-status",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "#0/#1/download/transfer-status",
+      "rect": [252.0, 152.75, 596.0, 16.25],
+      "role": "status",
+      "scale": 1.0,
+      "text": "Paused"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#14161b3d",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "#0/#1/download/#2",
+      "rect": [252.0, 181.0, 596.0, 6.0],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#2f7fe3ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "#0/#1/download/#2/#0",
+      "rect": [252.0, 181.0, 180.0, 6.0],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#1a1c1fff",
+      "fill": "#14161b3d",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": true,
+      "inert": false,
+      "key": "toggle-transfer",
+      "label": "Resume fixture",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "#0/#1/download/toggle-transfer",
+      "rect": [252.0, 199.0, 596.0, 40.25],
+      "role": "button",
+      "scale": 1.0,
+      "text": "Resume fixture"
+    },
+    {
+      "blur": 0.0,
+      "color": "#1a1c1fff",
+      "fill": "#14161b3d",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "toggle-appearance",
+      "label": "Toggle appearance",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "#0/#1/toggle-appearance",
+      "rect": [232.0, 279.25, 636.0, 40.25],
+      "role": "button",
+      "scale": 1.0,
+      "text": "Toggle appearance"
+    },
+    {
+      "blur": 0.0,
+      "color": "#606369ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "#0/#1/#4",
+      "rect": [232.0, 339.5, 636.0, 16.25],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Fixture data and Downloads stay in .build/rune-preview."
+    }
+  ],
+  "reduced_motion": false,
+  "scale": 1.0,
+  "t": 1.2,
+  "time_scale": 1.0,
+  "title": "Opul Rune preview · #100",
+  "viewport": [900.0, 560.0],
+  "warnings": []
+}

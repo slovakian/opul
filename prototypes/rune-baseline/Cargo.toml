@@ -1,0 +1,29 @@
+[package]
+name = "opul-rune-preview"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+# Disposable preview: keep Rune patches and its lockfile out of the production workspace.
+[workspace]
+resolver = "3"
+
+[dependencies]
+rune = { git = "https://github.com/anomalyco/rune", rev = "cca5df6fafb4721d96fe105f126ebfd2ec351bb6", default-features = false, features = ["accessibility", "embedded-fonts", "metal-backend", "tooling"] }
+
+[patch.crates-io]
+winit = { git = "https://github.com/anomalyco/rune", rev = "cca5df6fafb4721d96fe105f126ebfd2ec351bb6" }
+parley_engine = { git = "https://github.com/anomalyco/rune", rev = "cca5df6fafb4721d96fe105f126ebfd2ec351bb6" }
+wgpu-hal = { git = "https://github.com/anomalyco/rune", rev = "cca5df6fafb4721d96fe105f126ebfd2ec351bb6" }
+accesskit_windows = { git = "https://github.com/anomalyco/rune", rev = "cca5df6fafb4721d96fe105f126ebfd2ec351bb6" }
+accesskit_macos = { git = "https://github.com/anomalyco/rune", rev = "cca5df6fafb4721d96fe105f126ebfd2ec351bb6" }
+
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
+[lints.rust]
+unsafe_code = "forbid"
