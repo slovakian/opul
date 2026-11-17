@@ -35,6 +35,8 @@ The content inset is 32pt for the card/panel studies and 20pt for the minimal di
 
 Same fixtures and renderer across 1180×760 and 600×720 viewports, at scale 1. Native window controls are not composited into these headless captures.
 
+The [tighter minimal preview](evidence/visual/minimal-light.png) opens with `--scene minimal`. The Quiet line captures below also use the reduced spacing; [its previous spacing](evidence/visual/list-before-density.png) is retained for comparison.
+
 | Treatment | Light | Dark | Narrow light | Narrow dark | Light sheet | Dark sheet |
 | --- | --- | --- | --- | --- | --- | --- |
 | A | [View](evidence/visual/cards-light.png) | [View](evidence/visual/cards-dark.png) | [View](evidence/visual/cards-light-narrow.png) | [View](evidence/visual/cards-dark-narrow.png) | [View](evidence/visual/cards-light-sheet.png) | [View](evidence/visual/cards-dark-sheet.png) |
