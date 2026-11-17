@@ -4,10 +4,23 @@ features:
     title: Magnet links
     category: torrent
     source: qbittorrent
-    status: shipped
+    status: partial
     priority: null
     summary: Paste a magnet link and Opul downloads it into the selected workspace.
-    notes: The download field accepts a btih magnet. The engine fetches metadata while the row is still resolving.
+    notes: "Pasting a btih magnet into the download field works. The engine fetches metadata while the row is still resolving. Opul is not registered as a magnet: handler (see magnet-handler)."
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: magnet-handler
+    title: Open magnet links from the browser
+    category: torrent
+    source: qbittorrent
+    status: planned
+    priority: p0
+    summary: Click a magnet link anywhere and Opul opens it, shows the files, and lets you pick a workspace.
+    notes: Needs tauri-plugin-deep-link with the magnet scheme in the bundle config, single-instance forwarding to the running app, and a first-run or Settings prompt to make Opul the default magnet app. Transmission, qBittorrent, and Folx all support this.
     reason: null
     issue: null
     added: 2026-11-17
@@ -21,6 +34,19 @@ features:
     priority: null
     summary: Choose a .torrent file and Opul adds that torrent to the selected workspace.
     notes: The picker accepts one .torrent file up to 16 MB and stages its metainfo in the app.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: torrent-file-association
+    title: Open .torrent files from Finder
+    category: torrent
+    source: qbittorrent
+    status: planned
+    priority: p0
+    summary: Double-click a .torrent file or drop it on the Dock icon to add it to Opul.
+    notes: Needs a fileAssociations entry for .torrent (application/x-bittorrent) and handling of opened file paths at launch and while running. Dropping a .torrent onto the window does not add it. Nothing listens for a file drop, and the only intake is the Open .torrent picker.
     reason: null
     issue: null
     added: 2026-11-17
