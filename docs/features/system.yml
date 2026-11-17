@@ -1,0 +1,53 @@
+# App system behavior. Statuses reflect the Opul tree on 2026-11-17.
+features:
+  - id: app-updates
+    title: App updates
+    category: system
+    source: opul-original
+    status: shipped
+    priority: null
+    summary: Opul can check for a signed update, download it, and restart when you ask.
+    notes: Stable and Nightly use separate manifests. Automatic checks are on by default and automatic install is off. Opul does not restart itself while you are using it. Development builds can check but not install.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: video-tools
+    title: Video tools
+    category: system
+    source: yt-dlp
+    status: shipped
+    priority: null
+    summary: Optional, verified Python and the official yt-dlp script download video pages.
+    notes: Setup asks first. Tools can stay updated, and Nightly can opt into yt-dlp nightly builds. Removing them keeps partial and finished files. Torrents and direct files do not need them. A page added before tools are ready waits, then starts.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: built-in-ffmpeg
+    title: Built-in FFmpeg
+    category: system
+    source: opul-original
+    status: shipped
+    priority: null
+    summary: FFmpeg and ffprobe ship inside Opul and merge or convert media on the Mac.
+    notes: One architecture per installer, for macOS 13 and later. There is no path setting. If the tools are missing, post-processing stops and direct files and torrents still work.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: quit-stops-transfers
+    title: Quit stops transfers
+    category: system
+    source: opul-original
+    status: shipped
+    priority: null
+    summary: Quitting Opul stops transfers. Opening it again continues them.
+    notes: Closing the window quits the app. It does not ask when transfers are still running, and it does not keep a helper running.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17

@@ -1,0 +1,27 @@
+# Direct file downloads. Statuses reflect the Opul tree on 2026-11-17.
+features:
+  - id: direct-http-downloads
+    title: Direct HTTP downloads
+    category: direct-download
+    source: opul-original
+    status: shipped
+    priority: null
+    summary: Paste a direct file link and Opul saves that file without video tools.
+    notes: Compatible video, audio, image, and subtitle responses use a Rust HTTP path with resumable partials, bounded redirects, a media-type check, and a collision-safe name. Format selection and post-processing stay on yt-dlp.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: link-kind-detection
+    title: Link kind detection
+    category: direct-download
+    source: opul-original
+    status: shipped
+    priority: null
+    summary: Opul treats magnets and .torrent links as torrents, common file suffixes as files, and asks when a link is ambiguous.
+    notes: The prompt offers File, Video or playlist, or Torrent. Video is unavailable until video tools are turned on.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17

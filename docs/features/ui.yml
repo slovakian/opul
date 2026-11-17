@@ -1,0 +1,105 @@
+# Interface. Statuses reflect the Opul tree on 2026-11-17.
+features:
+  - id: library-search-and-filters
+    title: Search and status filters
+    category: ui
+    source: opul-original
+    status: shipped
+    priority: null
+    summary: Search the library and narrow it to all, active, finished, paused, or failed downloads.
+    notes: Command-F focuses the search field.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: library-layout
+    title: List, table, sort, and group
+    category: ui
+    source: opul-original
+    status: shipped
+    priority: null
+    summary: Show downloads as a list or a table, then sort or group them.
+    notes: Sort by order, name, state, or source. Group by nothing, state, folder, kind, or source. Cards and a quieter minimal list are a separate appearance setting.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: download-inspector
+    title: Download inspector
+    category: ui
+    source: opul-original
+    status: shipped
+    priority: null
+    summary: Open a download to see its progress, source, format, and torrent details.
+    notes: Torrent details include the ratio control, files, and trackers. Copying the source link is in the inspector.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: show-in-finder
+    title: Show in Finder
+    category: ui
+    source: opul-original
+    status: shipped
+    priority: null
+    summary: Reveal a finished download's file in Finder.
+    notes: The action is offered when the download has output Opul can reveal.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: keyboard-and-menus
+    title: Keyboard and app menu
+    category: ui
+    source: opul-original
+    status: shipped
+    priority: null
+    summary: Start a download, open Settings, and check for updates from the keyboard or the app menu.
+    notes: Command-N starts a download, Command-comma opens Settings, and Command-F focuses search. The menu also sends those actions.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: appearance
+    title: Appearance
+    category: ui
+    source: opul-original
+    status: shipped
+    priority: null
+    summary: Use a light theme, a dark theme, or follow the system, and pick a card or minimal list.
+    notes: Both choices are in Settings and apply to the whole app.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: guided-browser
+    title: Guided browser
+    category: ui
+    source: competitor:downie
+    status: partial
+    priority: null
+    summary: Open a page, sign in, and pick a media file Opul saw while you browsed.
+    notes: The Rust core can classify observations and download a chosen candidate with scoped cookies. ADR 0022 describes a WebKit browser. The Tauri app has no guided-browser window and does not call that API.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: library-recovery
+    title: Library recovery
+    category: ui
+    source: opul-original
+    status: shipped
+    priority: null
+    summary: If the library has to be restored from a backup, Opul waits until you acknowledge it.
+    notes: Recovery notices stay up until Acknowledge recovery. Transfers stay fenced until then.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17

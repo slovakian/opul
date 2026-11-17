@@ -1,0 +1,79 @@
+# How downloads are organized. Statuses reflect the Opul tree on 2026-11-17.
+features:
+  - id: workspaces
+    title: Workspaces
+    category: organization
+    source: opul-original
+    status: shipped
+    priority: null
+    summary: Keep downloads in named workspaces. Each one has its own folders and default video format.
+    notes: You can create, rename, and delete them. The sidebar always has at least one. Deleting the last one creates an empty Downloads workspace. There is no permanent Torrents workspace.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: workspace-icons
+    title: Workspace icons and color
+    category: organization
+    source: opul-original
+    status: shipped
+    priority: null
+    summary: Give a workspace an emoji and, for the folder emoji, a color treatment.
+    notes: Change icon and the creation dialog share one picker. Twelve folder treatments and a custom treatment are saved with the emoji. Older SF Symbol icons still load and are shown as folders.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: saved-folders
+    title: Saved folders
+    category: organization
+    source: opul-original
+    status: shipped
+    priority: null
+    summary: A workspace remembers one or more folders, and one of them is the default.
+    notes: A download always uses a saved folder in its workspace. A new download uses the default until you pick another.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: file-organization
+    title: File organization
+    category: organization
+    source: opul-original
+    status: partial
+    priority: null
+    summary: Put a download's files in their own folder, or leave them in the save location.
+    notes: Automatic is the default and uses a subfolder when the download is naturally a bundle. Always create a folder and Keep in the save location exist on the workspace and are applied by the engine. The workspace dialog does not offer a control.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: aggregate-views
+    title: All, in progress, and completed
+    category: organization
+    source: opul-original
+    status: shipped
+    priority: null
+    summary: See every workspace together as all downloads, in progress, or completed.
+    notes: Each of those views remembers its own layout, sort, and grouping. Adding from them can ask which workspace, or use a default workspace you chose.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: duplicate-downloads
+    title: Duplicate downloads
+    category: organization
+    source: opul-original
+    status: partial
+    priority: null
+    summary: Opul avoids adding the same torrent twice, and skips playlist entries already in the workspace.
+    notes: A second active torrent with the same info hash is rejected. Playlist expansion skips URLs already in that workspace. Pasting the same page again has no separate warning dialog in the interface.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17

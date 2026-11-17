@@ -1,0 +1,443 @@
+# BitTorrent features. Statuses reflect the Opul tree on 2026-11-17.
+features:
+  - id: magnet-links
+    title: Magnet links
+    category: torrent
+    source: qbittorrent
+    status: shipped
+    priority: null
+    summary: Paste a magnet link and Opul downloads it into the selected workspace.
+    notes: The download field accepts a btih magnet. The engine fetches metadata while the row is still resolving.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: torrent-files
+    title: Torrent files
+    category: torrent
+    source: qbittorrent
+    status: shipped
+    priority: null
+    summary: Choose a .torrent file and Opul adds that torrent to the selected workspace.
+    notes: The picker accepts one .torrent file up to 16 MB and stages its metainfo in the app.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: remote-torrent-urls
+    title: Remote torrent URLs
+    category: torrent
+    source: qbittorrent
+    status: shipped
+    priority: null
+    summary: A link whose path ends in .torrent is fetched and added as a torrent.
+    notes: Other http(s) links are files or pages unless Torrent is chosen. The engine stores those as remote metainfo.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: sequential-download
+    title: Sequential download
+    category: torrent
+    source: qbittorrent
+    status: idea
+    priority: null
+    summary: Download pieces in order so a video can play before the torrent finishes.
+    notes: No sequential flag in the session options or the interface. librqbit's default piece order was not verified.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: file-selection
+    title: File selection
+    category: torrent
+    source: qbittorrent
+    status: partial
+    priority: null
+    summary: Choose which files in a multi-file torrent to download.
+    notes: SetTorrentFiles updates librqbit's include mask, and skipped files stay out of the selected size. The inspector lists names and sizes and does not send a selection.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: file-priorities
+    title: File priorities
+    category: torrent
+    source: qbittorrent
+    status: partial
+    priority: null
+    summary: Mark files in a torrent as high, normal, low, or skipped.
+    notes: Skip, Low, Normal, and High are stored. ADR 0020 says only Skip changes the transfer, because librqbit uses an include mask. No priority control is shown.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: torrent-bandwidth-limits
+    title: Torrent bandwidth limits
+    category: torrent
+    source: qbittorrent
+    status: shipped
+    priority: null
+    summary: Limit how fast all torrents download and upload. Zero means unlimited.
+    notes: Settings applies KB/s caps to the live session. There is no per-torrent cap and no schedule.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: per-torrent-speed-limits
+    title: Per-torrent speed limits
+    category: torrent
+    source: qbittorrent
+    status: idea
+    priority: null
+    summary: Set a download or upload cap on a single torrent.
+    notes: Speed limits exist only on the whole session.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: bandwidth-scheduler
+    title: Bandwidth scheduler
+    category: torrent
+    source: qbittorrent
+    status: idea
+    priority: null
+    summary: Use a different speed limit on a schedule, such as at night.
+    notes: Update checks have their own timers. Nothing changes transfer rates by time of day.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: active-torrent-limit
+    title: Active torrent limit
+    category: torrent
+    source: qbittorrent
+    status: idea
+    priority: null
+    summary: Queue torrents so only a chosen number download or seed at once.
+    notes: The concurrent-download setting applies to video pages and direct files, not to a torrent queue.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: rss-feeds
+    title: RSS feeds
+    category: torrent
+    source: qbittorrent
+    status: idea
+    priority: null
+    summary: Subscribe to an RSS feed and add matching torrents automatically.
+    notes: No RSS reader or auto-downloader is in the app.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: search-plugins
+    title: Search plugins
+    category: torrent
+    source: qbittorrent
+    status: wont-do
+    priority: null
+    summary: Search torrent sites from inside Opul.
+    notes: ADR 0020 also records that Opul does not scrape torrent search sites.
+    reason: ADR 0019 rejects in-app scrapers because they break often, clutter the interface, and duplicate a web browser.
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: ip-filtering
+    title: IP filtering
+    category: torrent
+    source: qbittorrent
+    status: idea
+    priority: null
+    summary: Block or allow peers by IP address or range.
+    notes: Session options and Settings have no IP filter list.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: protocol-encryption
+    title: Protocol encryption
+    category: torrent
+    source: qbittorrent
+    status: idea
+    priority: null
+    summary: Encrypt BitTorrent peer connections, or require encryption.
+    notes: Opul sets no encryption option and does not show one. librqbit's default was not verified, so this is not marked shipped.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: web-ui
+    title: Web interface
+    category: torrent
+    source: qbittorrent
+    status: idea
+    priority: null
+    summary: Control downloads from a browser on another device.
+    notes: Opul is a desktop app. The librqbit dependency includes an HTTP API client, and this repo does not start an API server.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: torrent-categories
+    title: Torrent categories
+    category: torrent
+    source: qbittorrent
+    status: wont-do
+    priority: null
+    summary: Group torrents with a separate category, the way qBittorrent does.
+    notes: Workspaces are the shipped way to organize downloads.
+    reason: ADR 0001 puts each download in one workspace, which owns its folder and default format. A second grouping would give those settings two owners.
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: torrent-tags
+    title: Torrent tags
+    category: torrent
+    source: qbittorrent
+    status: wont-do
+    priority: null
+    summary: Label one torrent with several tags.
+    notes: A download cannot be listed in more than one workspace.
+    reason: ADR 0001 rejects tags because the folder and default format would then have two owners.
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: seeding-ratio-limits
+    title: Seeding ratio limits
+    category: torrent
+    source: qbittorrent
+    status: shipped
+    priority: null
+    summary: Stop seeding a torrent when its share ratio reaches a number you set.
+    notes: The inspector field can be left empty to keep seeding. Starting again after the limit was reached clears it. New torrents have no app-wide default.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: dht
+    title: DHT
+    category: torrent
+    source: qbittorrent
+    status: shipped
+    priority: null
+    summary: Find peers on the DHT, and turn that discovery off.
+    notes: Settings, on by default. The change applies the next time the torrent session starts.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: peer-exchange
+    title: Peer exchange
+    category: torrent
+    source: qbittorrent
+    status: idea
+    priority: null
+    summary: Learn more peers from the peers you are already connected to.
+    notes: ADR 0020 says librqbit covers peer exchange. Opul never sets a PEX option, and the engine default was not verified, so this is not marked shipped.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: local-peer-discovery
+    title: Local peer discovery
+    category: torrent
+    source: qbittorrent
+    status: idea
+    priority: null
+    summary: Find peers on the local network without a tracker.
+    notes: Session options have no local-service-discovery setting.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: upnp-port-forwarding
+    title: UPnP port forwarding
+    category: torrent
+    source: qbittorrent
+    status: idea
+    priority: null
+    summary: Ask the router to forward Opul's listen port.
+    notes: Port mapping is hardcoded off so a silent router cannot block startup (ADR 0020). Choosing a listen port is separate and shipped.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: listen-port
+    title: Listen port
+    category: torrent
+    source: qbittorrent
+    status: shipped
+    priority: null
+    summary: Let Opul pick a listen port, or set one yourself.
+    notes: Randomize is the default. A fixed port of 0 is rejected. If the chosen port fails, the session retries on an ephemeral port. TCP and uTP are both on, with no separate switch.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: connection-limit
+    title: Connection limit
+    category: torrent
+    source: qbittorrent
+    status: shipped
+    priority: null
+    summary: Cap how many torrent connections Opul opens at once.
+    notes: Settings, default 200, from 1 to 10,000. Applied when the session starts.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: watched-folders
+    title: Watched folders
+    category: torrent
+    source: qbittorrent
+    status: idea
+    priority: null
+    summary: Add every .torrent file that appears in a chosen folder.
+    notes: Nothing watches a folder for new torrent files.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: torrent-creation
+    title: Torrent creation
+    category: torrent
+    source: qbittorrent
+    status: idea
+    priority: null
+    summary: Build a .torrent file from files already on disk.
+    notes: Opul parses and downloads torrents. It does not create them.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: pause-and-resume
+    title: Pause and resume
+    category: torrent
+    source: qbittorrent
+    status: shipped
+    priority: null
+    summary: Pause a torrent and continue it later, including after you quit Opul.
+    notes: Fast resume is on. Quitting stops transfers; the next launch continues them. A complete torrent uses the seeding switch instead of pause.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: seeding-switch
+    title: Seeding switch
+    category: torrent
+    source: qbittorrent
+    status: shipped
+    priority: null
+    summary: Keep sharing a finished torrent, stop sharing, and start again later.
+    notes: Finished torrents show Seeding or Not seeding. Checking files appears while Opul reattaches the files. Removing the download is the permanent way out.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: torrent-trackers
+    title: Tracker list
+    category: torrent
+    source: qbittorrent
+    status: partial
+    priority: null
+    summary: See the trackers a torrent announced, and open one.
+    notes: The inspector lists tracker URLs. Adding, removing, or editing trackers is not offered.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: force-recheck
+    title: Force recheck
+    category: torrent
+    source: qbittorrent
+    status: idea
+    priority: null
+    summary: Recheck a torrent's files against the pieces on disk whenever you ask.
+    notes: Starting seeding again can show Checking files while the engine reattaches. There is no separate Recheck command.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: move-finished-files
+    title: Move finished files
+    category: torrent
+    source: qbittorrent
+    status: partial
+    priority: null
+    summary: Move a finished download into another saved folder.
+    notes: The state machine can record a move the shell already did. The desktop commands do not offer it. ADR 0027 says moving a finished torrent is not offered yet.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: trash-on-remove
+    title: Trash files on remove
+    category: torrent
+    source: qbittorrent
+    status: partial
+    priority: null
+    summary: Delete a download's files when you remove it from the library.
+    notes: The core can trash output it verified. The desktop command always keeps files, and the confirmation says they stay on disk.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: peer-counts
+    title: Peers and seeds
+    category: torrent
+    source: qbittorrent
+    status: shipped
+    priority: null
+    summary: See a torrent's peers, seeds, upload speed, and how much it has shared.
+    notes: The inspector shows those figures. The seed count is librqbit's count of peers that have nothing further Opul needs.
+    reason: null
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
+
+  - id: background-transfers
+    title: Transfers after quit
+    category: torrent
+    source: qbittorrent
+    status: wont-do
+    priority: null
+    summary: Keep downloading and seeding after Opul quits.
+    notes: The next launch resumes the downloads that were running.
+    reason: ADR 0004 says quitting stops transfers and closing the window quits Opul. A background helper was rejected for this version.
+    issue: null
+    added: 2026-11-17
+    updated: 2026-11-17
