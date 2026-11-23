@@ -26,10 +26,10 @@ Priority is `p0` through `p3`. A dash means no priority is set.
 | `shipped`     |     32 |
 | `partial`     |     14 |
 | `in-progress` |      0 |
-| `planned`     |      2 |
+| `planned`     |      7 |
 | `idea`        |     18 |
 | `wont-do`     |      4 |
-| **Total**     | **70** |
+| **Total**     | **75** |
 
 ## Torrent
 
@@ -53,6 +53,7 @@ Priority is `p0` through `p3`. A dash means no priority is set.
 | `trash-on-remove` | Trash files on remove | `partial` | — | `qbittorrent` | Delete a download's files when you remove it from the library. |
 | `torrent-file-association` | Open .torrent files from Finder | `planned` | p0 | `qbittorrent` | Double-click a .torrent file or drop it on the Dock icon to add it to Opul. |
 | `magnet-handler` | Open magnet links from the browser | `planned` | p0 | `qbittorrent` | Click a magnet link anywhere and Opul opens it, shows the files, and lets you pick a workspace. |
+| `vpn-interface-binding` | VPN interface binding | `planned` | p1 | `qbittorrent` | Bind torrent traffic to a chosen network interface, such as a VPN, so transfers stop if it drops. |
 | `active-torrent-limit` | Active torrent limit | `idea` | — | `qbittorrent` | Queue torrents so only a chosen number download or seed at once. |
 | `bandwidth-scheduler` | Bandwidth scheduler | `idea` | — | `qbittorrent` | Use a different speed limit on a schedule, such as at night. |
 | `force-recheck` | Force recheck | `idea` | — | `qbittorrent` | Recheck a torrent's files against the pieces on disk whenever you ask. |
@@ -92,6 +93,7 @@ Priority is `p0` through `p3`. A dash means no priority is set.
 - **Trash files on remove** (`trash-on-remove`) — The core can trash output it verified. The desktop command always keeps files, and the confirmation says they stay on disk.
 - **Open .torrent files from Finder** (`torrent-file-association`) — Needs a fileAssociations entry for .torrent (application/x-bittorrent) and handling of opened file paths at launch and while running. Dropping a .torrent onto the window does not add it. Nothing listens for a file drop, and the only intake is the Open .torrent picker.
 - **Open magnet links from the browser** (`magnet-handler`) — Needs tauri-plugin-deep-link with the magnet scheme in the bundle config, single-instance forwarding to the running app, and a first-run or Settings prompt to make Opul the default magnet app. Transmission, qBittorrent, and Folx all support this.
+- **VPN interface binding** (`vpn-interface-binding`) — The session leaves librqbit's bind_device_name unset, and Settings has no interface choice. The listen address is unspecified, so traffic follows the default route and does not stop when a VPN drops. qBittorrent, BiglyBT, and Murmur offer this. Transmission does not. Mac torrent users ask for VPN binding in r/torrents, r/Torrenting, and r/ProtonVPN.
 - **Active torrent limit** (`active-torrent-limit`) — The concurrent-download setting applies to video pages and direct files, not to a torrent queue.
 - **Bandwidth scheduler** (`bandwidth-scheduler`) — Update checks have their own timers. Nothing changes transfer rates by time of day.
 - **Force recheck** (`force-recheck`) — Starting seeding again can show Checking files while the engine reattaches. There is no separate Recheck command.
@@ -153,11 +155,15 @@ Priority is `p0` through `p3`. A dash means no priority is set.
 | --- | --- | --- | --- | --- | --- |
 | `direct-http-downloads` | Direct HTTP downloads | `shipped` | — | `opul-original` | Paste a direct file link and Opul saves that file without video tools. |
 | `link-kind-detection` | Link kind detection | `shipped` | — | `opul-original` | Opul treats magnets and .torrent links as torrents, common file suffixes as files, and asks when a link is ambiguous. |
+| `browser-capture` | Browser capture | `planned` | p1 | `competitor:folx` | Send links and downloads from Safari, Chrome, or Firefox to Opul with a browser extension. |
+| `segmented-downloads` | Segmented downloads | `planned` | p1 | `competitor:motrix` | Speed up large direct downloads by fetching a file over several connections at once. |
 
 ### Details
 
 - **Direct HTTP downloads** (`direct-http-downloads`) — Compatible video, audio, image, and subtitle responses use a Rust HTTP path with resumable partials, bounded redirects, a media-type check, and a collision-safe name. Format selection and post-processing stay on yt-dlp.
 - **Link kind detection** (`link-kind-detection`) — The prompt offers File, Video or playlist, or Torrent. Video is unavailable until video tools are turned on.
+- **Browser capture** (`browser-capture`) — No browser extension or messaging host sends links into Opul. Magnet links and .torrent files are separate entries (magnet-handler, torrent-file-association). Folx, Free Download Manager, Motrix (browser extension 0.1.25 with download handoff, Nov 2026), Downie, Grabbit, Convoy, and WDM ship browser capture.
+- **Segmented downloads** (`segmented-downloads`) — A direct file uses one HTTP connection. A partial file can resume with a Range request, and several files can run at once. Nothing fetches one file over several connections. Folx, Free Download Manager, Motrix (aria2), Progressive Downloader, and Convoy (16 connections) do. It is a top ask in r/macapps best download manager threads.
 
 ## Organization
 
@@ -191,6 +197,7 @@ Priority is `p0` through `p3`. A dash means no priority is set.
 | `library-search-and-filters` | Search and status filters | `shipped` | — | `opul-original` | Search the library and narrow it to all, active, finished, paused, or failed downloads. |
 | `show-in-finder` | Show in Finder | `shipped` | — | `opul-original` | Reveal a finished download's file in Finder. |
 | `guided-browser` | Guided browser | `partial` | — | `competitor:downie` | Open a page, sign in, and pick a media file Opul saw while you browsed. |
+| `completion-notifications` | Completion notifications | `planned` | p2 | `competitor:transmission` | Get a macOS notification when a download finishes or fails, and see overall progress on the Dock icon. |
 
 ### Details
 
@@ -202,6 +209,7 @@ Priority is `p0` through `p3`. A dash means no priority is set.
 - **Search and status filters** (`library-search-and-filters`) — Command-F focuses the search field.
 - **Show in Finder** (`show-in-finder`) — The action is offered when the download has output Opul can reveal.
 - **Guided browser** (`guided-browser`) — The Rust core can classify observations and download a chosen candidate with scoped cookies. ADR 0022 describes a WebKit browser. The Tauri app has no guided-browser window and does not call that API.
+- **Completion notifications** (`completion-notifications`) — An in-app toast announces a download when it is added. Nothing posts a macOS notification when a download finishes or fails, and the Dock icon shows no transfer progress. Transmission, Folx, Downie, and Murmur offer this.
 
 ## System
 
@@ -211,6 +219,7 @@ Priority is `p0` through `p3`. A dash means no priority is set.
 | `built-in-ffmpeg` | Built-in FFmpeg | `shipped` | — | `opul-original` | FFmpeg and ffprobe ship inside Opul and merge or convert media on the Mac. |
 | `quit-stops-transfers` | Quit stops transfers | `shipped` | — | `opul-original` | Quitting Opul stops transfers. Opening it again continues them. |
 | `video-tools` | Video tools | `shipped` | — | `yt-dlp` | Optional, verified Python and the official yt-dlp script download video pages. |
+| `prevent-sleep` | Prevent sleep | `planned` | p2 | `competitor:transmission` | Keep the Mac awake while downloads are active. |
 
 ### Details
 
@@ -218,3 +227,4 @@ Priority is `p0` through `p3`. A dash means no priority is set.
 - **Built-in FFmpeg** (`built-in-ffmpeg`) — One architecture per installer, for macOS 13 and later. There is no path setting. If the tools are missing, post-processing stops and direct files and torrents still work.
 - **Quit stops transfers** (`quit-stops-transfers`) — Closing the window quits the app. It does not ask when transfers are still running, and it does not keep a helper running.
 - **Video tools** (`video-tools`) — Setup asks first. Tools can stay updated, and Nightly can opt into yt-dlp nightly builds. Removing them keeps partial and finished files. Torrents and direct files do not need them. A page added before tools are ready waits, then starts.
+- **Prevent sleep** (`prevent-sleep`) — Nothing keeps the Mac from idle sleep while transfers run. This covers idle sleep only while Opul is open. ADR 0004 still applies: quitting stops transfers, and closing the window quits Opul. Transmission, Folx, Motrix, and Free Download Manager offer this.

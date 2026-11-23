@@ -103,3 +103,16 @@ features:
     issue: null
     added: 2026-11-17
     updated: 2026-11-17
+
+  - id: completion-notifications
+    title: Completion notifications
+    category: ui
+    source: competitor:transmission
+    status: planned
+    priority: p2
+    summary: Get a macOS notification when a download finishes or fails, and see overall progress on the Dock icon.
+    notes: "An in-app toast announces a download when it is added. Nothing posts a macOS notification when a download finishes or fails, and the Dock icon shows no transfer progress. Transmission, Folx, Downie, and Murmur offer this."
+    reason: null
+    issue: null
+    added: 2026-11-23
+    updated: 2026-11-23

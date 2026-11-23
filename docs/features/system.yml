@@ -51,3 +51,16 @@ features:
     issue: null
     added: 2026-11-17
     updated: 2026-11-17
+
+  - id: prevent-sleep
+    title: Prevent sleep
+    category: system
+    source: competitor:transmission
+    status: planned
+    priority: p2
+    summary: Keep the Mac awake while downloads are active.
+    notes: "Nothing keeps the Mac from idle sleep while transfers run. This covers idle sleep only while Opul is open. ADR 0004 still applies: quitting stops transfers, and closing the window quits Opul. Transmission, Folx, Motrix, and Free Download Manager offer this."
+    reason: null
+    issue: null
+    added: 2026-11-23
+    updated: 2026-11-23

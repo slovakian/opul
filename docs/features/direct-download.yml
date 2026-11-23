@@ -25,3 +25,29 @@ features:
     issue: null
     added: 2026-11-17
     updated: 2026-11-17
+
+  - id: browser-capture
+    title: Browser capture
+    category: direct-download
+    source: competitor:folx
+    status: planned
+    priority: p1
+    summary: Send links and downloads from Safari, Chrome, or Firefox to Opul with a browser extension.
+    notes: "No browser extension or messaging host sends links into Opul. Magnet links and .torrent files are separate entries (magnet-handler, torrent-file-association). Folx, Free Download Manager, Motrix (browser extension 0.1.25 with download handoff, Nov 2026), Downie, Grabbit, Convoy, and WDM ship browser capture."
+    reason: null
+    issue: null
+    added: 2026-11-23
+    updated: 2026-11-23
+
+  - id: segmented-downloads
+    title: Segmented downloads
+    category: direct-download
+    source: competitor:motrix
+    status: planned
+    priority: p1
+    summary: Speed up large direct downloads by fetching a file over several connections at once.
+    notes: "A direct file uses one HTTP connection. A partial file can resume with a Range request, and several files can run at once. Nothing fetches one file over several connections. Folx, Free Download Manager, Motrix (aria2), Progressive Downloader, and Convoy (16 connections) do. It is a top ask in r/macapps best download manager threads."
+    reason: null
+    issue: null
+    added: 2026-11-23
+    updated: 2026-11-23
