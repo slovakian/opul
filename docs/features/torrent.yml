@@ -467,3 +467,16 @@ features:
     issue: null
     added: 2026-11-17
     updated: 2026-11-17
+
+  - id: vpn-interface-binding
+    title: VPN interface binding
+    category: torrent
+    source: qbittorrent
+    status: planned
+    priority: p1
+    summary: Bind torrent traffic to a chosen network interface, such as a VPN, so transfers stop if it drops.
+    notes: "The session leaves librqbit's bind_device_name unset, and Settings has no interface choice. The listen address is unspecified, so traffic follows the default route and does not stop when a VPN drops. qBittorrent, BiglyBT, and Murmur offer this. Transmission does not. Mac torrent users ask for VPN binding in r/torrents, r/Torrenting, and r/ProtonVPN."
+    reason: null
+    issue: null
+    added: 2026-11-23
+    updated: 2026-11-23
